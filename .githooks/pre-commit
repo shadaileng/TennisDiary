@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# 提交前验证钩子：仅当后台（server/）有改动时运行 ruff 检查 + pytest
+# 启用方式（项目根目录执行一次）：
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# 检查是否有 server/ 下的暂存改动
+if ! git diff --cached --name-only --diff-filter=ACMR | grep -q '^server/'; then
+    echo "ℹ️  无 server/ 改动，跳过后台验证"
+    exit 0
+fi
+
+echo "==> 检测到 server/ 改动，运行提交前验证"
+cd server
+
+echo "==> [1/2] ruff 检查（含格式化）"
+uv run ruff check .
+uv run ruff format --check . || {
+    echo "❌ 格式不符合规范，运行 'cd server && uv run ruff format .' 后重新 add"
+    exit 1
+}
+
+echo "==> [2/2] pytest 测试"
+uv run pytest -q || {
+    echo "❌ 测试未通过，请修复后再提交"
+    exit 1
+}
+
+echo "✅ 后台提交前验证通过"

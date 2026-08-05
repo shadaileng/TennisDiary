@@ -52,6 +52,36 @@ workspace/
 | 运行命令 | `cd server && uv run pytest -v` |
 | 覆盖率要求 | 核心业务逻辑（routers / services / auth）覆盖率 ≥ 80% |
 
+### 静态检查（ruff）
+
+后台使用 **ruff** 做静态检查与格式化，已纳入验证体系：
+
+| 命令 | 说明 |
+|------|------|
+| `cd server && uv run ruff check .` | 静态检查（import 排序、未用导入、类型注解等） |
+| `cd server && uv run ruff format .` | 自动格式化 |
+| `cd server && uv run ruff format --check .` | 仅检查格式是否符合规范 |
+| `cd server && bash scripts/verify.sh` | **一键验证**：ruff check + ruff format 检查 + pytest |
+
+ruff 配置位于 `server/pyproject.toml` 的 `[tool.ruff]`：
+- 行宽 `line-length = 100`，目标版本 `py310`
+- 启用规则：`E, F, I, UP, B, BLE, PIE, RUF`
+- 忽略 `B008`（FastAPI `Depends()` 惯用法）与 `RUF001/002/003`（中文全角标点属正常用法）
+- 测试文件忽略 `B` 类规则
+
+提交后台代码前，建议先运行 `bash scripts/verify.sh` 确保 ruff 与 pytest 全部通过。
+
+### 提交前钩子（pre-commit）
+
+仓库内置 `.githooks/pre-commit`，仅在 `server/` 下有暂存改动时自动运行 ruff 检查 + 格式化检查 + pytest，任一步失败则阻止提交。
+
+**启用（每个仓库克隆后执行一次）**：
+```bash
+git config core.hooksPath .githooks
+```
+
+启用后正常 `git commit` 即可自动触发；若需跳过验证可用 `git commit --no-verify`（不推荐）。
+
 ### 测试文件与源文件对应
 
 ```
