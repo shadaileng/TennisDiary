@@ -13,7 +13,7 @@
 
 | 端 | 技术 |
 |---|---|
-| 小程序前端 | uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Vant 4 + Tailwind CSS |
+| 小程序前端 | uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Tailwind CSS（自定义组件） |
 | 后端 | FastAPI（Python 3.10+）+ SQLite + SQLAlchemy |
 | 依赖管理 | uv（后端）、pnpm（前端/文档） |
 | 文档 | VitePress |
@@ -23,7 +23,7 @@
 ```
 workspace/
 ├── server/            # FastAPI 后台（Phase B1 实施中）
-├── miniapp/           # uni-app 小程序前端（Phase 1 待创建）
+├── miniapp/           # uni-app 小程序前端（Phase 1 实施中）
 ├── docs/              # VitePress 文档站点
 │   ├── plans/         # 方案文档（含执行方案）
 │   └── guides/        # 指南
@@ -161,7 +161,7 @@ server/
 - 使用 Vue 3 Composition API + `<script setup>`
 - 状态管理使用 Pinia
 - 样式使用 Tailwind CSS（`tailwindcss-miniprogram-preset`）
-- UI 组件优先使用 Vant 4
+- UI 用 Tailwind 自定义组件（放弃 Vant，原因见方案 16-Phase1-4）；需复用处抽到 `src/components/`
 - 微信/浏览器差异通过 uni-app 条件编译（`#ifdef`）隔离
 
 ### 文档
@@ -221,6 +221,20 @@ Phase B1 后台基础接口已全部完成，待开展小程序前端（Phase 1�
 | B1-10 | 统计汇总 `/api/stats` | ✅ | 10-B1-10 |
 | B1-11 | 文件下载 `/api/files/{filename}` | ✅ | 11-B1-11 |
 | B1 阶段 | 后台基础接口全部完成 | ✅ | — |
+
+Phase 1 小程序前端（进行中）：
+
+| Step | 内容 | 状态 | 方案文档 |
+|------|------|:----:|------|
+| Phase1 总纲 | uni-app 前端工程初始化方案 | 📋 | 12-Phase1 |
+| Phase1-1 | uni-app 工程初始化（Vue3+Vite+TS） | ✅ | 13-Phase1-1 |
+| Phase1-2 | 目录结构 + `pages.json` TabBar + 占位页 | ✅ | 14-Phase1-2 |
+| Phase1-3 | Tailwind CSS 集成（主题色） | ✅ | 15-Phase1-3 |
+| Phase1-4 | 组件方案：Tailwind 自定义组件（替代 Vant） | ✅ | 16-Phase1-4 |
+| Phase1-5 | `types.ts` 类型迁移 | 📋 | — |
+| Phase1-6 | Pinia store 搭建 | 📋 | — |
+| Phase1-7 | 网络层封装（`uni.request` + JWT） | 📋 | — |
+| Phase1-8 | 对接 B1 登录流程 | 📋 | — |
 
 ## 注意事项
 

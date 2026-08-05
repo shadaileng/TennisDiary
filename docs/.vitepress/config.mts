@@ -42,6 +42,17 @@ export default defineConfig({
             { text: 'B1-11：文件下载接口', link: '/plans/11-B1-11-文件下载接口' },
           ],
         },
+        {
+          text: '实施步骤 — Phase 1（小程序前端）',
+          collapsed: false,
+          items: [
+            { text: 'Phase1：uni-app 小程序前端工程初始化', link: '/plans/12-Phase1-uni-app小程序前端工程初始化' },
+            { text: 'Phase1-1：uni-app 工程初始化', link: '/plans/13-Phase1-1-uni-app工程初始化' },
+            { text: 'Phase1-2：目录结构与 TabBar', link: '/plans/14-Phase1-2-目录结构与TabBar' },
+            { text: 'Phase1-3：Tailwind CSS 集成', link: '/plans/15-Phase1-3-Tailwind集成' },
+            { text: 'Phase1-4：Tailwind 自定义组件', link: '/plans/16-Phase1-4-Tailwind自定义组件' },
+          ],
+        },
       ],
       '/guides/': [
         {

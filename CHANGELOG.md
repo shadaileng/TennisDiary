@@ -4,6 +4,24 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.17.0] - 2026-08-05
+
+### Changed
+
+- 小程序 UI 组件方案变更：移除 `@vant/weapp`（原生组件无法被 Vite/Vue 编译，复制 `wxcomponents/` 与「构建 npm」两种引入方式均有硬伤），改用 Tailwind CSS 自定义组件；删除 `src/wxcomponents/`（约 500 个文件）、清理 `pages.json` usingComponents 与 `App.vue` 的 `--van-*` 变量，`diary.vue` 占位页改用 Tailwind 实现 Tab/Cell/按钮
+
+## [1.16.0] - 2026-08-05
+
+### Added
+
+- 小程序建立标准目录结构（components/stores/types/utils/services/styles），配置四 Tab 底部 TabBar（日记/装备/统计/我的），生成橄榄绿/青柠主题占位图标并移除模板默认页
+
+## [1.15.0] - 2026-08-05
+
+### Added
+
+- 初始化 uni-app（Vue3 + Vite + TS）小程序前端工程 `miniapp/`，接入 pnpm 工作区，`build:mp-weixin` / `dev:mp-weixin` / `type-check` 均通过
+
 ## [1.14.0] - 2026-08-05
 
 ### Added
@@ -102,6 +120,11 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs(plans): Phase1-4 变更为 Tailwind 自定义组件方案（替代 Vant）`
+- `docs(plans): 新增 Phase1-1 ~ Phase1-3 子方案文档及侧边栏配置`
+- `chore(miniapp): 集成 Tailwind CSS（橄榄绿/青柠主题色，vite 内联 postcss）`
+- `feat(miniapp): 目录结构与四 Tab TabBar 占位页`
+- `chore(miniapp): uni-app 工程初始化`
 - `docs: 新增 B1-4 基于 loguru 的日志系统方案`
 - `test(server): 补充日志系统单元测试`
 - `docs(plans): 新增 Phase B1 后台执行方案文档及侧边栏配置`
