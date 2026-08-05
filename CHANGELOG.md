@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.21.0] - 2026-08-05
+
+### Added
+
+- 小程序端对接 B1 微信登录流程：`services/auth.ts` 封装 `getLoginCode()`（`uni.login` 取 code，小程序编译为 `wx.login`），`auth` store 的 `login()` 完成「取 code → 换 JWT → 取用户 → 持久化」链路，新增 `ensureLogin()` 静默登录（无 token 时 App.onLaunch 自动触发），登录失败提示并保持未登录态（Phase 1 小程序前端基础能力全部完成）
+
 ## [1.20.0] - 2026-08-05
 
 ### Added
@@ -138,6 +144,7 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs(plans): 新增 Phase1-8 对接 B1 登录流程方案`
 - `docs(plans): 新增 Phase1-7 网络层封装方案`
 - `docs(plans): 新增 Phase1-6 Pinia store 搭建方案`
 - `docs(plans): 新增 Phase1-5 types 类型迁移方案`

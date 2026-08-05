@@ -54,6 +54,7 @@ export default defineConfig({
             { text: 'Phase1-5：types 类型迁移', link: '/plans/17-Phase1-5-types类型迁移' },
             { text: 'Phase1-6：Pinia store 搭建', link: '/plans/18-Phase1-6-PiniaStore搭建' },
             { text: 'Phase1-7：网络层封装', link: '/plans/19-Phase1-7-网络层封装' },
+            { text: 'Phase1-8：对接 B1 登录流程', link: '/plans/20-Phase1-8-对接B1登录流程' },
           ],
         },
       ],

@@ -222,7 +222,7 @@ Phase B1 后台基础接口已全部完成，待开展小程序前端（Phase 1�
 | B1-11 | 文件下载 `/api/files/{filename}` | ✅ | 11-B1-11 |
 | B1 阶段 | 后台基础接口全部完成 | ✅ | — |
 
-Phase 1 小程序前端（进行中）：
+Phase 1 小程序前端（已完成）：
 
 | Step | 内容 | 状态 | 方案文档 |
 |------|------|:----:|------|
@@ -234,7 +234,8 @@ Phase 1 小程序前端（进行中）：
 | Phase1-5 | `types.ts` 类型迁移 | ✅ | 17-Phase1-5 |
 | Phase1-6 | Pinia store 搭建 | ✅ | 18-Phase1-6 |
 | Phase1-7 | 网络层封装（`uni.request` + JWT） | ✅ | 19-Phase1-7 |
-| Phase1-8 | 对接 B1 登录流程 | 📋 | — |
+| Phase1-8 | 对接 B1 登录流程 | ✅ | 20-Phase1-8 |
+| Phase1 阶段 | 小程序前端基础能力全部完成（工程/Tailwind/store/网络/登录） | ✅ | — |
 
 ## 注意事项
 

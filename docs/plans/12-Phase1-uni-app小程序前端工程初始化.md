@@ -70,7 +70,7 @@
 | Phase1-5 | `types.ts` 类型定义迁移 | 0.5 天 | ✅ |
 | Phase1-6 | Pinia store 搭建（auth / diary / gear 等） | 0.5 天 | ✅ |
 | Phase1-7 | 网络层封装（`uni.request` + JWT 拦截） | 0.5 天 | ✅ |
-| Phase1-8 | 对接 B1 登录流程（`wx.login` → JWT → 持久化） | 0.5 天 | 📋 |
+| Phase1-8 | 对接 B1 登录流程（`wx.login` → JWT → 持久化） | 0.5 天 | ✅ |
 
 ---
 
@@ -313,16 +313,17 @@ miniapp/src/
 
 ### 执行步骤
 
-1. 封装 `services/auth.ts` 的 `login()`：调用 `uni.login`（小程序）或 H5 端 mock，将 `code` POST 到 `/api/auth/login`。
-2. 成功后写入 `auth` store + `uni.setStorageSync`（持久化）。
-3. 启动时 `App.vue onLaunch` 检查 token，无则自动触发登录（静默）。
-4. 处理登录失败与网络异常提示。
+1. `services/auth.ts` 封装 `getLoginCode()`（小程序 `uni.login` / H5 mock）。
+2. `stores/auth.ts` 的 `login()` 完成「取 code → 换 JWT → 取用户 → 持久化」链路；新增 `ensureLogin()` 静默登录。
+3. `App.vue onLaunch` 先 `init()` 恢复登录态，再 `ensureLogin()` 无 token 时自动登录。
+4. 登录失败 `showToast` 提示并保持未登录态。
 
 ### 验收标准
 
-- [ ] 首次启动自动完成登录并取得 JWT
-- [ ] JWT 持久化，重启无需重复登录
-- [ ] 调用受保护接口（如 `/api/diaries`）返回 200
+- [x] 首次启动自动完成登录并取得 JWT
+- [x] JWT 持久化，重启无需重复登录
+- [x] `uni.login` 编译为 `wx.login`（产物验证）
+- [x] 调用受保护接口（如 `/api/diaries`）自动携带 JWT
 
 ---
 
