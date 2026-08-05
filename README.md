@@ -15,32 +15,45 @@ Tennis Diary 帮助网球爱好者：
 
 | 端 | 技术 |
 |---|---|
-| 微信小程序前端 | uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Vant 4 + Tailwind CSS |
-| H5 前端（测试用） | 同上，编译到 H5 用于后端 API 联调 |
+| 微信小程序前端 | uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Tailwind CSS（自定义组件，替代 Vant） |
 | 后端 | FastAPI（Python 3.10+）+ SQLite + SQLAlchemy |
-| 依赖管理 | uv |
+| 依赖管理 | uv（后端）、pnpm（前端/文档） |
 | 文档 | VitePress |
 
 ## 目录结构
 
 ```
 workspace/
-├── server/            # FastAPI 后台服务
+├── server/                 # FastAPI 后台服务
 │   ├── app/
 │   │   ├── main.py         # 入口
-│   │   ├── core/           # 配置、数据库连接、鉴权
+│   │   ├── core/           # 配置、数据库连接、鉴权、日志
 │   │   ├── models/         # SQLAlchemy ORM 模型
 │   │   ├── routers/        # API 路由
 │   │   ├── schemas/        # Pydantic 数据模型
 │   │   └── services/       # 业务逻辑
+│   ├── tests/              # pytest 测试（镜像 app/ 结构）
 │   ├── data/               # SQLite 数据文件
 │   ├── uploads/            # 用户上传文件
+│   ├── scripts/verify.sh   # 一键验证（ruff + pytest）
 │   └── pyproject.toml      # uv 项目配置
-├── miniapp/                # uni-app 小程序前端（待创建）
+├── miniapp/                # uni-app 小程序前端
+│   └── src/
+│       ├── components/     # Tailwind 自定义组件
+│       ├── config/         # 环境变量配置
+│       ├── constants/      # 常量（含 storage 键名收口）
+│       ├── pages/          # 页面
+│       ├── services/       # 网络层（uni.request + JWT）
+│       ├── stores/         # Pinia 状态管理
+│       ├── styles/         # 全局样式 / Tailwind
+│       ├── types/          # 类型定义
+│       ├── utils/          # 工具函数
+│       ├── pages.json      # 路由 + TabBar
+│       └── manifest.json   # 应用配置
 ├── docs/                   # VitePress 文档站点
 │   ├── plans/              # 方案文档
 │   └── guides/             # 指南
-└── package.json            # 文档站点依赖
+└── package.json            # 文档站点依赖（pnpm workspace）
 ```
 
 ## 快速开始
@@ -58,30 +71,60 @@ pnpm docs:dev
 ```bash
 cd server
 uv sync
+cp .env.example .env   # 填写 WX_APPID、WX_SECRET 等必填项
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 # 访问 http://localhost:8000/docs 查看 API 文档
 ```
 
+### 小程序前端
+
+```bash
+cd miniapp
+pnpm install
+pnpm dev:h5          # H5 联调
+pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
+```
+
 ## 文档
 
-- [项目分析报告](https://cnb.cool/...) - Tennis Diary 迁移微信小程序可行性分析
-- [执行方案](https://cnb.cool/...) - 各阶段详细实施步骤
-- [开发指南](https://cnb.cool/...) - VitePress 踩坑记录等
+- [方案文档](docs/README.md) - 各阶段方案与进度（VitePress 文档中心）
+- [开发指南](docs/guides/) - VitePress 踩坑记录等
 
 本地查看：`pnpm docs:dev` 后访问 VitePress 站点。
 
 ## 进度
 
-当前阶段：**Phase B1 — FastAPI 后台脚手架 + 数据层**
+当前阶段：**Phase B1 后台基础接口已完成，Phase 1 小程序前端基础能力已完成**
+
+### Phase B1 — FastAPI 后台
 
 | Step | 内容 | 状态 |
 |------|------|:----:|
-| B1-1 | 项目初始化与目录结构 | ✅ |
+| B1-1 | 项目初始化 | ✅ |
 | B1-2 | 核心配置模块 | ✅ |
-| B1-3 | 数据库模型（7 张表） | ✅ |
-| B1-4 | Pydantic Schemas | ⬜ |
-| B1-5 | 微信登录鉴权 | ⬜ |
-| B1-6~11 | CRUD 接口 + 入口组装 | ⬜ |
+| B1-3 | 数据库模型 | ✅ |
+| B1-4 | 日志系统（loguru）+ Pydantic Schemas | ✅ |
+| B1-5 | 微信登录鉴权（auth 路由 + core/auth + wx_service） | ✅ |
+| B1-6 | 日记 CRUD `/api/diaries` | ✅ |
+| B1-7 | 装备 CRUD `/api/gears` | ✅ |
+| B1-8 | 体重记录 `/api/weights` | ✅ |
+| B1-9 | 打卡 `/api/checkin` | ✅ |
+| B1-10 | 统计汇总 `/api/stats` | ✅ |
+| B1-11 | 文件下载 `/api/files/{filename}` | ✅ |
+
+### Phase 1 — 小程序前端
+
+| Step | 内容 | 状态 |
+|------|------|:----:|
+| Phase1-1 | uni-app 工程初始化（Vue3 + Vite + TS） | ✅ |
+| Phase1-2 | 目录结构 + TabBar + 占位页 | ✅ |
+| Phase1-3 | Tailwind CSS 集成（主题色） | ✅ |
+| Phase1-4 | Tailwind 自定义组件（替代 Vant） | ✅ |
+| Phase1-5 | `types.ts` 类型迁移 | ✅ |
+| Phase1-6 | Pinia store 搭建 | ✅ |
+| Phase1-7 | 网络层封装（`uni.request` + JWT） | ✅ |
+| Phase1-8 | 对接 B1 登录流程 | ✅ |
+| 21 | 前后端 `.env` 配置模板 + storage 键名收口 | ✅ |
 
 ## 环境变量
 
@@ -102,3 +145,5 @@ cp server/.env.example server/.env
 | `WX_APPID` | 微信小程序 AppID | — |
 | `WX_SECRET` | 微信小程序 Secret | — |
 | `AI_API_KEY` | AI API Key | — |
+
+前端环境变量见 `miniapp/.env.example`（`VITE_API_BASE_URL` / `VITE_REQUEST_TIMEOUT`）。

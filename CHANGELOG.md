@@ -151,6 +151,7 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs: 优化 README.md 与实际进度对齐（Phase B1 后台 + Phase1 前端全部完成）`
 - `docs(plans): 新增 21 前后端 .env 配置模板方案`
 - `chore(miniapp): 前端配置环境变量化与 storage 键名收口`
 - `chore(server): 新增 python-dotenv 与 .env.example 模板`
