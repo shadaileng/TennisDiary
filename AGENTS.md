@@ -32,11 +32,64 @@ workspace/
 
 ## 工作流程
 
-### 实施方式
+### 实施方式（TDD 模式）
 
 1. **每步先写方案文档**：在 `docs/plans/` 下创建 `{编号}-{标题}.md`，写明目标、步骤、产出物、验收标准
-2. **按方案执行代码**：严格按照方案文档的步骤实施
-3. **完成后更新状态**：方案文档状态从 `📋 待执行` → `✅ 已完成`
+2. **先写测试（RED）**：按验收标准编写测试用例，运行确认测试失败
+3. **再写实现（GREEN）**：编写最小代码使测试通过
+4. **重构（REFACTOR）**：优化代码结构，保持测试通过
+5. **完成后更新状态**：方案文档状态从 `📋 待执行` → `✅ 已完成`
+
+### TDD 规范
+
+| 规范项 | 说明 |
+|---|---|
+| 测试框架 | **pytest** + **httpx**（FastAPI TestClient） |
+| 测试目录 | `server/tests/`，镜像 `app/` 结构 |
+| 命名规范 | 测试文件：`test_<模块名>.py`，测试函数：`test_<功能描述>` |
+| 数据库隔离 | 每个测试模块使用独立 SQLite（`:memory:` 或临时文件），通过 fixture 注入 |
+| 鉴权模拟 | 通过 `override_get_current_user` 覆盖依赖，免去真实微信 code2Session 调用 |
+| 运行命令 | `cd server && uv run pytest -v` |
+| 覆盖率要求 | 核心业务逻辑（routers / services / auth）覆盖率 ≥ 80% |
+
+### 测试文件与源文件对应
+
+```
+server/
+├── app/
+│   ├── core/
+│   │   ├── auth.py
+│   │   ├── config.py
+│   │   └── database.py
+│   ├── models/
+│   │   ├── user.py
+│   │   └── diary.py
+│   ├── routers/
+│   │   ├── auth.py
+│   │   └── diaries.py
+│   └── ...
+└── tests/
+    ├── conftest.py              # 全局 fixture（test client、测试 DB、mock 用户）
+    ├── core/
+    │   └── test_auth.py         # JWT 签发/解码/鉴权测试
+    ├── models/
+    │   └── test_user.py         # User 模型 CRUD 测试
+    └── routers/
+        ├── test_auth.py         # /api/auth/login 接口测试
+        └── test_diaries.py      # /api/diaries 接口测试
+```
+
+### TDD 循环示例
+
+以 B1-5「微信登录鉴权」为例：
+
+```
+1. 写方案文档：明确 /api/auth/login 接口规格
+2. RED：写 test_auth.py — test_login_with_valid_code / test_login_with_invalid_code / test_get_current_user
+3. GREEN：实现 auth.py 路由 + core/auth.py 鉴权
+4. REFACTOR：抽取 wx_service，优化错误处理
+5. 全部测试通过 → 标记完成
+```
 
 ### 提交规范
 

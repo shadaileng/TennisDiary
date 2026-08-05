@@ -23,6 +23,11 @@ venv/
 uv.lock
 .python-version
 
+# 测试
+.pytest_cache/
+htmlcov/
+.coverage
+
 # IDE
 .idea/
 .vscode/
