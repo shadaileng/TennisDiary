@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 
-import type { Token, User } from "@/types";
+import { getMe, login as loginApi } from "@/services/auth";
+import type { User } from "@/types";
 
 /** storage 键名，避免魔法字符串散落 */
 export const TOKEN_KEY = "td_token";
@@ -52,12 +53,15 @@ export const useAuthStore = defineStore("auth", {
     },
 
     /**
-     * 登录入口。Phase1-7 网络层与登录服务封装完成后，
-     * 此处改为调用 services/auth.ts 的 login()。
+     * 登录入口：用 wx.login 的 code 换取 token，并获取用户信息。
+     * 由网络层（services/auth.ts）调用后台 /api/auth/login 与 /api/auth/me。
      */
-    async login(_code: string) {
-      // TODO(Phase1-8): 调用 /api/auth/login 换取 token 与用户
-      throw new Error("登录服务未接入，待 Phase1-8 实现");
+    async login(code: string) {
+      const token = await loginApi({ code });
+      // 换取 token 后再获取用户信息（需携带 Authorization）
+      const user = await getMe();
+      this.setAuth(token.access_token, user);
+      return user;
     },
 
     /** 登出：清空内存态与持久化 */
