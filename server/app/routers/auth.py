@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.auth import create_access_token, get_current_user
+from app.core.database import get_db
 from app.core.logging import logger
 from app.models.user import User
 from app.schemas.schemas import LoginRequest, TokenResponse, UserResponse
@@ -25,10 +25,10 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
         openid = await code_to_openid(body.code)
     except ValueError as e:
         logger.warning("微信登录失败：无效 code，原因={}", e)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
     except RuntimeError as e:
         logger.error("微信登录失败：code2session 调用异常，原因={}", e)
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
 
     # 查找或创建用户
     user = db.query(User).filter(User.openid == openid).first()

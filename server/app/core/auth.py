@@ -1,8 +1,9 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from app.core.config import settings
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 
@@ -24,7 +25,9 @@ def decode_access_token(token: str) -> str:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token")
         return openid
     except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的 token"
+        ) from None
 
 
 def get_current_user(

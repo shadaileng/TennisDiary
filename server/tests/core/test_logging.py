@@ -57,9 +57,7 @@ def test_rotation_config_applied(log_settings):
     setup_logging()
     # 遍历所有 handler，找到 FileSink（文件输出）并断言滚动/保留机制已启用
     file_sinks = [
-        h._sink
-        for h in logger._core.handlers.values()
-        if h._sink.__class__.__name__ == "FileSink"
+        h._sink for h in logger._core.handlers.values() if h._sink.__class__.__name__ == "FileSink"
     ]
     assert file_sinks, "应至少有一个文件输出 handler"
     for sink in file_sinks:

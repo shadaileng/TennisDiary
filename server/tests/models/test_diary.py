@@ -1,4 +1,5 @@
 import json
+
 from app.models.diary import Diary
 
 
@@ -29,7 +30,9 @@ class TestDiaryModel:
         assert saved.duration == 90
 
     def test_get_costs_deserializes_json(self, test_db):
-        diary = Diary(user_id=1, date="2026-08-05", costs=json.dumps([{"name": "球费", "amount": 50}]))
+        diary = Diary(
+            user_id=1, date="2026-08-05", costs=json.dumps([{"name": "球费", "amount": 50}])
+        )
         test_db.add(diary)
         test_db.commit()
 

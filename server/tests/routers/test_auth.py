@@ -1,7 +1,6 @@
 """POST /api/auth/login 微信登录接口测试"""
 
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, patch
 
 
 class TestAuthLogin:
@@ -9,7 +8,9 @@ class TestAuthLogin:
 
     def test_login_with_valid_code_creates_user(self, client, test_db):
         """首次登录：code 有效 → 自动创建用户 + 返回 JWT"""
-        with patch("app.routers.auth.code_to_openid", new=AsyncMock(return_value="wx_openid_new_user_001")):
+        with patch(
+            "app.routers.auth.code_to_openid", new=AsyncMock(return_value="wx_openid_new_user_001")
+        ):
             response = client.post("/api/auth/login", json={"code": "valid_code_001"})
 
         assert response.status_code == 200
@@ -19,17 +20,21 @@ class TestAuthLogin:
 
         # 确认用户已写入数据库
         from app.models.user import User
+
         user = test_db.query(User).filter_by(openid="wx_openid_new_user_001").first()
         assert user is not None
 
     def test_login_returns_existing_user(self, client, test_db):
         """已注册用户再次登录：返回已有用户信息，不重复创建"""
         from app.models.user import User
+
         existing = User(openid="wx_openid_existing", nickname="老用户")
         test_db.add(existing)
         test_db.commit()
 
-        with patch("app.routers.auth.code_to_openid", new=AsyncMock(return_value="wx_openid_existing")):
+        with patch(
+            "app.routers.auth.code_to_openid", new=AsyncMock(return_value="wx_openid_existing")
+        ):
             response = client.post("/api/auth/login", json={"code": "valid_code_002"})
 
         assert response.status_code == 200

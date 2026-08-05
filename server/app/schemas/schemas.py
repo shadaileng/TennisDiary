@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field
-from typing import Optional
-
 
 # ==================== 用户 ====================
+
 
 class UserResponse(BaseModel):
     id: int
@@ -15,6 +14,7 @@ class UserResponse(BaseModel):
 
 # ==================== 认证 ====================
 
+
 class LoginRequest(BaseModel):
     code: str  # wx.login 返回的临时 code
 
@@ -25,6 +25,7 @@ class TokenResponse(BaseModel):
 
 
 # ==================== 日记 ====================
+
 
 class CostItem(BaseModel):
     name: str
@@ -50,27 +51,29 @@ class DiaryCreate(BaseModel):
 
 class DiaryUpdate(BaseModel):
     """日记更新 — 所有字段可选，仅更新传入的字段"""
-    date: Optional[str] = None
-    time: Optional[str] = None
-    type: Optional[str] = None
-    duration: Optional[int] = None
-    intensity: Optional[int] = Field(default=None, ge=1, le=5)
-    mood: Optional[int] = Field(default=None, ge=1, le=5)
-    costs: Optional[list[CostItem]] = None
-    gears: Optional[list[GearUse]] = None
-    notes: Optional[str] = None
+
+    date: str | None = None
+    time: str | None = None
+    type: str | None = None
+    duration: int | None = None
+    intensity: int | None = Field(default=None, ge=1, le=5)
+    mood: int | None = Field(default=None, ge=1, le=5)
+    costs: list[CostItem] | None = None
+    gears: list[GearUse] | None = None
+    notes: str | None = None
 
 
 class DiaryResponse(DiaryCreate):
     id: int
     user_id: int
     created_at: float
-    created_at_datetime: Optional[str] = None
+    created_at_datetime: str | None = None
 
     model_config = {"from_attributes": True}
 
 
 # ==================== 装备 ====================
+
 
 class GearCreate(BaseModel):
     category: str = ""
@@ -83,12 +86,13 @@ class GearCreate(BaseModel):
 
 class GearUpdate(BaseModel):
     """装备更新 — 所有字段可选"""
-    category: Optional[str] = None
-    name: Optional[str] = None
-    buy_date: Optional[str] = None
-    price: Optional[float] = None
-    feeling: Optional[str] = None
-    photo: Optional[str] = None
+
+    category: str | None = None
+    name: str | None = None
+    buy_date: str | None = None
+    price: float | None = None
+    feeling: str | None = None
+    photo: str | None = None
 
 
 class GearResponse(GearCreate):
@@ -101,12 +105,13 @@ class GearResponse(GearCreate):
 
 # ==================== 体重 ====================
 
+
 class WeightCreate(BaseModel):
     date: str
     weight: float
-    bust: Optional[float] = None
-    waist: Optional[float] = None
-    hip: Optional[float] = None
+    bust: float | None = None
+    waist: float | None = None
+    hip: float | None = None
 
 
 class WeightResponse(WeightCreate):
@@ -118,6 +123,7 @@ class WeightResponse(WeightCreate):
 
 
 # ==================== 打卡 ====================
+
 
 class CheckinCreate(BaseModel):
     course_id: str
@@ -134,6 +140,7 @@ class CheckinResponse(CheckinCreate):
 
 # ==================== 分析 ====================
 
+
 class DimensionScore(BaseModel):
     name: str
     score: float
@@ -148,7 +155,7 @@ class ImprovementItem(BaseModel):
 class AnalysisReportSchema(BaseModel):
     score: float
     summary: str
-    ntrp: Optional[str] = None
+    ntrp: str | None = None
     dimensions: list[DimensionScore] = []
     rhythm: str = ""
     strengths: list[str] = []
@@ -161,10 +168,10 @@ class AnalysisCreate(BaseModel):
     mode: str = "single"
     score: float = 0
     summary: str = ""
-    ntrp: Optional[str] = None
-    report: Optional[AnalysisReportSchema] = None
-    thumb: Optional[str] = None
-    highlights: Optional[list[str]] = None
+    ntrp: str | None = None
+    report: AnalysisReportSchema | None = None
+    thumb: str | None = None
+    highlights: list[str] | None = None
 
 
 class AnalysisResponse(AnalysisCreate):
@@ -176,6 +183,7 @@ class AnalysisResponse(AnalysisCreate):
 
 
 # ==================== 发布 ====================
+
 
 class PostCreate(BaseModel):
     date: str
@@ -195,6 +203,7 @@ class PostResponse(PostCreate):
 
 # ==================== 统计 ====================
 
+
 class StatsResponse(BaseModel):
     total_sessions: int = 0
     total_duration: int = 0  # 分钟
@@ -207,6 +216,7 @@ class StatsResponse(BaseModel):
 
 
 # ==================== 通用 ====================
+
 
 class MessageResponse(BaseModel):
     message: str

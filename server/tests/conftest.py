@@ -3,12 +3,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.core.database import Base, get_db
 from app.core.auth import get_current_user
+from app.core.database import Base, get_db
 from app.main import app
 
-
 # ==================== 测试数据库 ====================
+
 
 @pytest.fixture(scope="function")
 def test_engine():
@@ -18,7 +18,9 @@ def test_engine():
     asyncio portal 中运行时可能使用不同线程，而 :memory: 数据库在不同连接间
     是独立的，会导致 "no such table" 错误。
     """
-    import tempfile, os
+    import os
+    import tempfile
+
     fd, path = tempfile.mkstemp(suffix=".db", prefix="test_")
     os.close(fd)
     engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
@@ -42,10 +44,10 @@ def test_db(test_engine):
 
 # ==================== 测试用户 ====================
 
+
 @pytest.fixture(scope="function")
 def mock_user():
     """模拟已登录用户"""
-    from app.models.user import User
 
     class MockUser:
         id = 1
@@ -57,6 +59,7 @@ def mock_user():
 
 
 # ==================== FastAPI TestClient ====================
+
 
 @pytest.fixture(scope="function")
 def client(test_db):

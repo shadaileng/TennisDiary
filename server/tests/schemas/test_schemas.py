@@ -4,44 +4,44 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.schemas import (
-    # Auth
-    LoginRequest,
-    TokenResponse,
-    # Diary
-    CostItem,
-    GearUse,
-    DiaryCreate,
-    DiaryUpdate,
-    DiaryResponse,
-    # Gear
-    GearCreate,
-    GearUpdate,
-    GearResponse,
-    # Weight
-    WeightCreate,
-    WeightResponse,
+    AnalysisCreate,
+    AnalysisReportSchema,
+    AnalysisResponse,
     # Checkin
     CheckinCreate,
     CheckinResponse,
+    # Diary
+    CostItem,
+    DiaryCreate,
+    DiaryResponse,
+    DiaryUpdate,
     # Analysis
     DimensionScore,
+    # Gear
+    GearCreate,
+    GearResponse,
+    GearUpdate,
+    GearUse,
     ImprovementItem,
-    AnalysisReportSchema,
-    AnalysisCreate,
-    AnalysisResponse,
+    # Auth
+    LoginRequest,
+    # Common
+    MessageResponse,
     # Post
     PostCreate,
     PostResponse,
     # Stats
     StatsResponse,
-    # Common
-    MessageResponse,
+    TokenResponse,
     # User
     UserResponse,
+    # Weight
+    WeightCreate,
+    WeightResponse,
 )
 
-
 # ==================== 认证 ====================
+
 
 class TestLoginRequest:
     def test_valid_code(self):
@@ -66,6 +66,7 @@ class TestTokenResponse:
 
 
 # ==================== 日记 ====================
+
 
 class TestDiaryCreate:
     def test_minimal_fields(self):
@@ -140,6 +141,7 @@ class TestDiaryResponse:
 
 # ==================== 装备 ====================
 
+
 class TestGearCreate:
     def test_defaults(self):
         g = GearCreate()
@@ -186,6 +188,7 @@ class TestGearResponse:
 
 # ==================== 体重 ====================
 
+
 class TestWeightCreate:
     def test_minimal_fields(self):
         w = WeightCreate(date="2026-08-05", weight=70.5)
@@ -218,6 +221,7 @@ class TestWeightResponse:
 
 # ==================== 打卡 ====================
 
+
 class TestCheckinCreate:
     def test_valid(self):
         c = CheckinCreate(course_id="warmup_001", date="2026-08-05")
@@ -226,11 +230,14 @@ class TestCheckinCreate:
 
 class TestCheckinResponse:
     def test_from_orm_like_dict(self):
-        c = CheckinResponse(id=1, user_id=1, course_id="warmup_001", date="2026-08-05", created_at=1754400000.0)
+        c = CheckinResponse(
+            id=1, user_id=1, course_id="warmup_001", date="2026-08-05", created_at=1754400000.0
+        )
         assert c.id == 1
 
 
 # ==================== 分析 ====================
+
 
 class TestAnalysisCreate:
     def test_minimal_fields(self):
@@ -282,6 +289,7 @@ class TestAnalysisResponse:
 
 # ==================== 发布 ====================
 
+
 class TestPostCreate:
     def test_defaults(self):
         p = PostCreate(date="2026-08-05")
@@ -307,6 +315,7 @@ class TestPostResponse:
 
 
 # ==================== 统计 ====================
+
 
 class TestStatsResponse:
     def test_defaults(self):
@@ -337,6 +346,7 @@ class TestStatsResponse:
 
 # ==================== 通用 ====================
 
+
 class TestMessageResponse:
     def test_basic(self):
         m = MessageResponse(message="操作成功")
@@ -344,6 +354,7 @@ class TestMessageResponse:
 
 
 # ==================== 用户 ====================
+
 
 class TestUserResponse:
     def test_from_orm_like_dict(self):

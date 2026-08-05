@@ -1,6 +1,7 @@
 """微信小程序 code2Session 服务"""
 
 import httpx
+
 from app.core.config import settings
 
 WX_CODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session"
@@ -29,11 +30,12 @@ async def code_to_openid(code: str) -> str:
         async with httpx.AsyncClient() as client:
             resp = await client.get(WX_CODE2SESSION_URL, params=params, timeout=10.0)
             data = resp.json()
-    except Exception as e:
-        raise RuntimeError(f"微信 API 调用失败: {str(e)}")
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"微信 API 调用失败: {e!s}") from e
 
     if "errcode" in data and data["errcode"] != 0:
-        raise ValueError(f"微信登录失败: {data.get('errmsg', 'unknown error')} (code: {data['errcode']})")
+        errmsg = data.get("errmsg", "unknown error")
+        raise ValueError(f"微信登录失败: {errmsg} (code: {data['errcode']})")
 
     openid = data.get("openid")
     if not openid:

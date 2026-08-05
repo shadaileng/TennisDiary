@@ -1,8 +1,8 @@
 """测试运行时目录自动创建逻辑"""
 
 import os
-import tempfile
 import shutil
+import tempfile
 
 from app.core.config import settings
 from app.core.dirs import ensure_dirs

@@ -1,8 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from app.core.auth import create_access_token, decode_access_token, get_current_user
-from app.models.user import User
+from app.core.auth import create_access_token, decode_access_token
 
 
 class TestCreateAccessToken:
@@ -41,4 +40,3 @@ class TestDecodeAccessToken:
 
 class TestGetCurrentUser:
     """鉴权依赖测试 — 通过 auth_client fixture 测试（见 routers/test_auth.py）"""
-    pass
