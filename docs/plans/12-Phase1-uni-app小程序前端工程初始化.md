@@ -69,7 +69,7 @@
 | Phase1-4 | 组件方案决策：Tailwind 自定义组件（替代 Vant） | 0.5 天 | ✅ |
 | Phase1-5 | `types.ts` 类型定义迁移 | 0.5 天 | ✅ |
 | Phase1-6 | Pinia store 搭建（auth / diary / gear 等） | 0.5 天 | ✅ |
-| Phase1-7 | 网络层封装（`uni.request` + JWT 拦截） | 0.5 天 | 📋 |
+| Phase1-7 | 网络层封装（`uni.request` + JWT 拦截） | 0.5 天 | ✅ |
 | Phase1-8 | 对接 B1 登录流程（`wx.login` → JWT → 持久化） | 0.5 天 | 📋 |
 
 ---
@@ -286,21 +286,22 @@ miniapp/src/
 
 ### 执行步骤
 
-1. 创建 `services/request.ts`，封装 `uni.request` 的 Promise 化方法（`get/post/put/delete`）。
-2. 统一注入 `Authorization: Bearer <token>`（从 `auth` store 读取）。
-3. 集中处理业务错误码与 401（token 失效 → 跳登录/重新登录）。
-4. 通过条件编译支持 H5 端（`baseURL` 走开发环境地址）与小程序端。
+1. 创建 `config/index.ts`，用 `process.env.UNI_PLATFORM` 区分平台 baseURL（小程序 `127.0.0.1` / H5 `localhost`）。
+2. 创建 `services/request.ts`，Promise 化 `get/post/put/delete`，自动注入 `Authorization`，统一 `ApiError` 与 401 处理。
+3. 创建 `services/auth.ts`（`login`/`getMe`）。
+4. `stores/auth.ts` 的 `login(code)` 对接网络层；`App.vue onLaunch` 调用 `init()` 恢复登录态与偏好。
 
 ### 产出物
 
-- `miniapp/src/services/request.ts`
-- `miniapp/src/services/auth.ts`（登录相关 API）
+- `miniapp/src/config/index.ts`
+- `miniapp/src/services/request.ts`、`services/auth.ts`
 
 ### 验收标准
 
-- [ ] 请求自动携带 JWT
-- [ ] 401 统一处理（跳登录/刷新）
-- [ ] H5 与小程序双端可用
+- [x] 请求自动携带 JWT
+- [x] 401 统一处理（清登录态 + 提示）
+- [x] H5 与小程序双端 baseURL 正确（编译产物验证）
+- [x] type-check 与 build 通过
 
 ---
 

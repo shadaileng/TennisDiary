@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.20.0] - 2026-08-05
+
+### Added
+
+- 小程序端封装网络层：`config/index.ts` 按平台区分 baseURL（小程序 `127.0.0.1` / H5 `localhost`），`services/request.ts` 封装 Promise 化 `get/post/put/delete` 并自动注入 JWT、统一 `ApiError` 与 401 处理，`services/auth.ts` 提供登录/获取用户 API，`auth` store 的 `login()` 对接网络层，`App.vue onLaunch` 恢复登录态与偏好
+
 ## [1.19.0] - 2026-08-05
 
 ### Added
@@ -132,6 +138,7 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs(plans): 新增 Phase1-7 网络层封装方案`
 - `docs(plans): 新增 Phase1-6 Pinia store 搭建方案`
 - `docs(plans): 新增 Phase1-5 types 类型迁移方案`
 - `docs(plans): Phase1-4 变更为 Tailwind 自定义组件方案（替代 Vant）`

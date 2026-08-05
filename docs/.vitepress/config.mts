@@ -53,6 +53,7 @@ export default defineConfig({
             { text: 'Phase1-4：Tailwind 自定义组件', link: '/plans/16-Phase1-4-Tailwind自定义组件' },
             { text: 'Phase1-5：types 类型迁移', link: '/plans/17-Phase1-5-types类型迁移' },
             { text: 'Phase1-6：Pinia store 搭建', link: '/plans/18-Phase1-6-PiniaStore搭建' },
+            { text: 'Phase1-7：网络层封装', link: '/plans/19-Phase1-7-网络层封装' },
           ],
         },
       ],
