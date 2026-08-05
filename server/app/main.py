@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
-from app.routers import auth
+from app.routers import auth, diaries, gears
 
 # 启动时确保所有运行时目录存在
 ensure_dirs()
@@ -17,6 +17,8 @@ logger.info("Tennis Diary API 启动")
 
 # 注册路由
 app.include_router(auth.router)
+app.include_router(diaries.router)
+app.include_router(gears.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(
