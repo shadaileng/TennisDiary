@@ -1,0 +1,66 @@
+{
+  "pages": [
+    {
+      "path": "pages/diary/diary",
+      "style": {
+        "navigationBarTitleText": "日记"
+      }
+    },
+    {
+      "path": "pages/gear/gear",
+      "style": {
+        "navigationBarTitleText": "装备"
+      }
+    },
+    {
+      "path": "pages/stats/stats",
+      "style": {
+        "navigationBarTitleText": "统计"
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "网球日记",
+    "navigationBarBackgroundColor": "#F2F2EF",
+    "backgroundColor": "#F2F2EF"
+  },
+  "tabBar": {
+    "color": "#6B7562",
+    "selectedColor": "#A8B822",
+    "backgroundColor": "#F2F2EF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/diary/diary",
+        "text": "日记",
+        "iconPath": "static/tabbar/diary.png",
+        "selectedIconPath": "static/tabbar/diary-active.png"
+      },
+      {
+        "pagePath": "pages/gear/gear",
+        "text": "装备",
+        "iconPath": "static/tabbar/gear.png",
+        "selectedIconPath": "static/tabbar/gear-active.png"
+      },
+      {
+        "pagePath": "pages/stats/stats",
+        "text": "统计",
+        "iconPath": "static/tabbar/stats.png",
+        "selectedIconPath": "static/tabbar/stats-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "static/tabbar/mine.png",
+        "selectedIconPath": "static/tabbar/mine-active.png"
+      }
+    ]
+  }
+}

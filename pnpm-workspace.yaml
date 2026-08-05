@@ -1,4 +1,5 @@
 packages:
   - 'docs'
+  - 'miniapp'
 allowBuilds:
   esbuild: true
