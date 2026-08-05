@@ -41,9 +41,14 @@ server/
 │   │   └── __init__.py
 │   └── schemas/
 │       └── __init__.py
-├── data/                        # SQLite 数据文件目录（空目录，加入 .gitignore）
-├── uploads/                     # 上传文件存储（空目录，加入 .gitignore）
+├── data/                        # 运行时数据目录（加入 .gitignore）
+│   ├── tennis_diary.db          # SQLite 数据库文件（自动生成）
+│   └── uploads/                 # 上传文件存储
+│       ├── videos/              # 视频文件
+│       ├── frames/              # 抽帧图片
+│       └── images/              # 图片文件
 ├── pyproject.toml                # uv 依赖管理
+├── .env.example                  # 环境变量配置模板
 └── .gitignore
 ```
 
@@ -66,12 +71,11 @@ server/
 ### 3.3 编写 `.gitignore`
 
 忽略项：
-- `__pycache__/`、`*.pyc`
-- `data/`（SQLite 数据库文件）
-- `uploads/`（用户上传文件）
-- `.env`（环境变量）
+- `.env`（环境变量，`.env.example` 模板纳入版本管理）
+- `data/`（运行时数据：SQLite + 上传文件）
 - `.venv/`（uv 虚拟环境）
 - `uv.lock`（uv 锁文件）
+- `.pytest_cache/` / `htmlcov/` / `.coverage`（测试产物）
 
 ### 3.4 编写最小 `app/main.py` 骨架
 

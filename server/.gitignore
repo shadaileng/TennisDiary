@@ -1,19 +1,8 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-
-# 环境变量
+# 环境变量（模板 .env.example 纳入版本管理）
 .env
 
-# 数据库
+# 运行时数据（全部在 data/ 下）
 data/
-
-# 用户上传
-uploads/
 
 # 虚拟环境
 venv/

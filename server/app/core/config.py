@@ -9,8 +9,11 @@ class Settings:
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
+    # 数据目录（数据库 + 上传文件统一在此）
+    DATA_DIR: str = os.getenv("DATA_DIR", "./data")
+
     # 数据库
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/tennis_diary.db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/tennis_diary.db")
 
     # JWT
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change-me-in-production-please")
@@ -27,7 +30,7 @@ class Settings:
     AI_MODEL: str = os.getenv("AI_MODEL", "qwen-vl-max")
 
     # 文件存储
-    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "./uploads")
+    UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", f"{DATA_DIR}/uploads")
     MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "100"))
 
 

@@ -85,12 +85,19 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 环境变量
 
-后台服务通过环境变量配置（`server/.env`）：
+后台服务通过环境变量配置，复制模板并填写：
+
+```bash
+cp server/.env.example server/.env
+# 编辑 server/.env，填写 WX_APPID、WX_SECRET 等必填项
+```
 
 | 变量 | 说明 | 默认值 |
 |---|---|---|
-| `DEBUG` | 调试模式 | `false` |
+| `DATA_DIR` | 运行时数据根目录 | `./data` |
 | `DATABASE_URL` | 数据库连接 | `sqlite:///./data/tennis_diary.db` |
+| `UPLOAD_DIR` | 文件上传目录 | `./data/uploads` |
+| `DEBUG` | 调试模式 | `false` |
 | `JWT_SECRET` | JWT 密钥 | — |
 | `WX_APPID` | 微信小程序 AppID | — |
 | `WX_SECRET` | 微信小程序 Secret | — |
