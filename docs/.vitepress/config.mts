@@ -51,6 +51,7 @@ export default defineConfig({
             { text: 'Phase1-2：目录结构与 TabBar', link: '/plans/14-Phase1-2-目录结构与TabBar' },
             { text: 'Phase1-3：Tailwind CSS 集成', link: '/plans/15-Phase1-3-Tailwind集成' },
             { text: 'Phase1-4：Tailwind 自定义组件', link: '/plans/16-Phase1-4-Tailwind自定义组件' },
+            { text: 'Phase1-5：types 类型迁移', link: '/plans/17-Phase1-5-types类型迁移' },
           ],
         },
       ],

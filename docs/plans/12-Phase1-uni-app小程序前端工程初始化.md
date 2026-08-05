@@ -67,7 +67,7 @@
 | Phase1-2 | 目录结构 + `pages.json` TabBar + 占位页 | 0.5 天 | ✅ |
 | Phase1-3 | Tailwind CSS 集成（`tailwindcss-miniprogram-preset` + 主题色） | 0.5 天 | ✅ |
 | Phase1-4 | 组件方案决策：Tailwind 自定义组件（替代 Vant） | 0.5 天 | ✅ |
-| Phase1-5 | `types.ts` 类型定义迁移 | 0.5 天 | 📋 |
+| Phase1-5 | `types.ts` 类型定义迁移 | 0.5 天 | ✅ |
 | Phase1-6 | Pinia store 搭建（auth / diary / gear 等） | 0.5 天 | 📋 |
 | Phase1-7 | 网络层封装（`uni.request` + JWT 拦截） | 0.5 天 | 📋 |
 | Phase1-8 | 对接 B1 登录流程（`wx.login` → JWT → 持久化） | 0.5 天 | 📋 |
@@ -222,9 +222,11 @@ miniapp/src/
 
 ### 执行步骤
 
-1. 复制 `docs/reference/tennis-diary/src/types.ts` 到 `miniapp/src/types/index.ts`。
-2. 结合 B1 后台 Pydantic Schemas 字段，核对并微调类型（`id` 由 `number?` 确认、`photo` 引用路径等）。
-3. 将 `RallyClip.video`（Blob）等小程序端不可用类型标记为平台相关，后续 Phase 处理。
+1. 将 `docs/reference/tennis-diary/src/types.ts` 迁移为 `miniapp/src/types/index.ts`。
+2. 字段命名对齐后台 B1 Pydantic Schemas（`createdAt`→`created_at`、`buyDate`→`buy_date`、`courseId`→`course_id` 等蛇形命名）。
+3. 区分主实体接口（`*Response`，含 `id`/`created_at`）与创建/更新入参（`*Create`/`*Update`）。
+4. `RallyClip.video` 由 `Blob` 改为 `File`（小程序 `uni.chooseMedia`）；`Course`/`AISettings`/`RallyClip` 保留为前端本地类型。
+5. 补充后台交互类型：`User`、`Token`、`LoginRequest`、`Stats`、`MessageResponse`。
 
 ### 产出物
 
@@ -232,8 +234,10 @@ miniapp/src/
 
 ### 验收标准
 
-- [ ] 类型定义与原 `types.ts` 一致（含 B1 后台字段对齐）
-- [ ] TypeScript 编译无类型错误
+- [x] 主实体字段语义与原 `types.ts` 一致（命名对齐 B1 后台）
+- [x] 含创建/更新入参类型，供网络层与页面使用
+- [x] `Course`/`AISettings`/`RallyClip` 等前端本地类型保留
+- [x] TypeScript 编译无类型错误
 
 ---
 
@@ -322,7 +326,7 @@ miniapp/src/
 | 操作 | 文件 | 说明 |
 |---|---|---|
 | 新增 | `miniapp/` 工程 | uni-app 前端工程 |
-| 新增 | `miniapp/src/types/index.ts` | 类型定义迁移 |
+| 新增 | `miniapp/src/types/index.ts` | 类型定义迁移（对齐 B1 后台，含创建入参与后台交互类型） |
 | 新增 | `miniapp/src/stores/*.ts` | Pinia store |
 | 新增 | `miniapp/src/services/request.ts` | 网络层封装 |
 | 新增 | `miniapp/src/services/auth.ts` | 登录 API |
