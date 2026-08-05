@@ -218,8 +218,8 @@ Phase B1 后台基础建设中：
 | B1-7 | 装备 CRUD 接口 `/api/gears` | ✅ | 04-B1-7 |
 | B1-8 | 体重记录接口 `/api/weights` | ✅ | 05-B1-8 |
 | B1-9 | 打卡接口 `/api/checkin` | ✅ | 06-B1-9 |
-| B1-10 | 统计汇总 `/api/stats` | ⬜ 下一步 | — |
-| B1-11 | 文件下载 `/api/files/{filename}` | ⬜ | — |
+| B1-10 | 统计汇总 `/api/stats` | ✅ | 07-B1-10 |
+| B1-11 | 文件下载 `/api/files/{filename}` | ⬜ 下一步 | — |
 
 ## 注意事项
 
