@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# 环境变量
+.env
+
+# 数据库
+data/
+
+# 用户上传
+uploads/
+
+# 虚拟环境
+venv/
+.venv/
+
+# uv
+uv.lock
+.python-version
+
+# IDE
+.idea/
+.vscode/
