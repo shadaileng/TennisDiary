@@ -55,6 +55,7 @@ export default defineConfig({
             { text: 'Phase1-6：Pinia store 搭建', link: '/plans/18-Phase1-6-PiniaStore搭建' },
             { text: 'Phase1-7：网络层封装', link: '/plans/19-Phase1-7-网络层封装' },
             { text: 'Phase1-8：对接 B1 登录流程', link: '/plans/20-Phase1-8-对接B1登录流程' },
+            { text: '21：前后端 .env 配置模板', link: '/plans/21-环境变量配置模板' },
           ],
         },
       ],
