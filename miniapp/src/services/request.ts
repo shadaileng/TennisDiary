@@ -1,4 +1,5 @@
-import { BASE_URL, API_PREFIX } from "@/config";
+import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from "@/config";
+import { STORAGE_KEYS } from "@/constants/storage";
 
 /**
  * 网络请求封装
@@ -37,9 +38,9 @@ export interface RequestOptions {
 
 // ==================== 常量 ====================
 
-/** 与 auth store 保持一致，避免魔法字符串 */
-const TOKEN_KEY = "td_token";
-const USER_KEY = "td_user";
+/** storage 键名统一从常量读取，避免魔法字符串 */
+const TOKEN_KEY = STORAGE_KEYS.token;
+const USER_KEY = STORAGE_KEYS.user;
 
 // ==================== 工具 ====================
 
@@ -73,7 +74,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
   const {
     auth = true,
     handle401 = true,
-    timeout = 10000,
+    timeout = REQUEST_TIMEOUT,
     headers = {},
   } = options;
 

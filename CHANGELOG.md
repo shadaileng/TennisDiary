@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.22.0] - 2026-08-05
+
+### Added
+
+- 前后端引入 `.env` 配置模板：前端 `config/index.ts` 改为读 `VITE_API_BASE_URL` / `VITE_REQUEST_TIMEOUT`（`import.meta.env`），未配置时按平台兜底；后台新增 `python-dotenv` 以绝对路径自动加载 `server/.env`；新增 `miniapp/.env.example` 与 `server/.env.example` 模板（仅模板提交，实际 `.env.*` 由各环境手动配置）
+- 前端 storage 键名统一收口到 `src/constants/storage.ts`（`STORAGE_KEYS`），`request.ts` / `auth.ts` / `settings.ts` 均引用常量，消除 `td_*` 魔法字符串散落
+
 ## [1.21.0] - 2026-08-05
 
 ### Added
@@ -144,6 +151,9 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs(plans): 新增 21 前后端 .env 配置模板方案`
+- `chore(miniapp): 前端配置环境变量化与 storage 键名收口`
+- `chore(server): 新增 python-dotenv 与 .env.example 模板`
 - `docs(plans): 新增 Phase1-8 对接 B1 登录流程方案`
 - `docs(plans): 新增 Phase1-7 网络层封装方案`
 - `docs(plans): 新增 Phase1-6 Pinia store 搭建方案`

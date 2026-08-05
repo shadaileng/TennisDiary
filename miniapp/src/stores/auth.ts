@@ -1,11 +1,12 @@
 import { defineStore } from "pinia";
 
+import { STORAGE_KEYS } from "@/constants/storage";
 import { getLoginCode, getMe, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
 
-/** storage 键名，避免魔法字符串散落 */
-export const TOKEN_KEY = "td_token";
-export const USER_KEY = "td_user";
+/** storage 键名统一从常量读取 */
+const TOKEN_KEY = STORAGE_KEYS.token;
+const USER_KEY = STORAGE_KEYS.user;
 
 interface AuthState {
   token: string

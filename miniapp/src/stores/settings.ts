@@ -1,7 +1,9 @@
 import { defineStore } from "pinia";
 
-/** storage 键名 */
-const SETTINGS_KEY = "td_settings";
+import { STORAGE_KEYS } from "@/constants/storage";
+
+/** storage 键名统一从常量读取 */
+const SETTINGS_KEY = STORAGE_KEYS.settings;
 
 interface SettingsState {
   /** 金额隐私开关：隐藏具体花费 */

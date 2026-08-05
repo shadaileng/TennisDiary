@@ -1,4 +1,10 @@
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# 用绝对路径加载 server/.env，无论从哪个目录启动都能正确读取
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class Settings:

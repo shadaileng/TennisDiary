@@ -236,6 +236,7 @@ Phase 1 小程序前端（已完成）：
 | Phase1-7 | 网络层封装（`uni.request` + JWT） | ✅ | 19-Phase1-7 |
 | Phase1-8 | 对接 B1 登录流程 | ✅ | 20-Phase1-8 |
 | Phase1 阶段 | 小程序前端基础能力全部完成（工程/Tailwind/store/网络/登录） | ✅ | — |
+| 21 | 前后端 `.env` 配置模板（前端 baseURL/超时环境变量化 + storage 键名收口） | ✅ | 21-环境变量配置模板 |
 
 ## 注意事项
 
