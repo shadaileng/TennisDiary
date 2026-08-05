@@ -54,11 +54,8 @@ unpackage/
 .DS_Store
 Thumbs.db
 
-# VSCode 工作区设置（个人偏好）
-.vscode/settings.json
-.vscode/tasks.json
-.vscode/launch.json
-.vscode/extensions.json
+# VSCode 工作区设置（个人偏好，整个目录忽略）
+.vscode/
 
 # ========================
 # Environment & Secrets
