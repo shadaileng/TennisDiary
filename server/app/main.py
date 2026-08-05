@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
-from app.routers import auth, diaries, gears, weights
+from app.routers import auth, checkin, diaries, gears, weights
 
 # 启动时确保所有运行时目录存在
 ensure_dirs()
@@ -20,6 +20,7 @@ app.include_router(auth.router)
 app.include_router(diaries.router)
 app.include_router(gears.router)
 app.include_router(weights.router)
+app.include_router(checkin.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(
