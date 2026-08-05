@@ -12,11 +12,21 @@ from app.main import app
 
 @pytest.fixture(scope="function")
 def test_engine():
-    """每个测试函数使用独立的 SQLite 内存数据库"""
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    """每个测试函数使用独立的 SQLite 临时文件数据库
+
+    注意：不能使用 :memory:，因为 FastAPI async handler 在 TestClient 的
+    asyncio portal 中运行时可能使用不同线程，而 :memory: 数据库在不同连接间
+    是独立的，会导致 "no such table" 错误。
+    """
+    import tempfile, os
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="test_")
+    os.close(fd)
+    engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+    os.unlink(path)
 
 
 @pytest.fixture(scope="function")
