@@ -21,9 +21,18 @@ export default defineConfig({
     sidebar: {
       '/plans/': [
         {
-          text: '方案',
+          text: '分析报告',
           items: [
             { text: 'Tennis Diary 迁移微信小程序分析', link: '/plans/01-tennis-diary-迁移微信小程序分析' },
+          ],
+        },
+        {
+          text: '实施步骤 — Phase B1（后台）',
+          collapsed: false,
+          items: [
+            { text: 'B1-1：FastAPI 项目初始化与目录结构', link: '/plans/01-B1-1-FastAPI项目初始化与目录结构' },
+            { text: 'B1-2：核心配置模块', link: '/plans/01-B1-2-核心配置模块' },
+            { text: 'B1-3：数据库模型', link: '/plans/01-B1-3-数据库模型' },
           ],
         },
       ],

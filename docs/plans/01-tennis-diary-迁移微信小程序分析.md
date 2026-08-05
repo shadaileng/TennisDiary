@@ -302,7 +302,7 @@ Web 版架构:
 
 | 部署方式 | 说明 | 适用场景 |
 |---|---|---|
-| 本地运行 | `uvicorn app:app --host 0.0.0.0 --port 8000` | 开发调试 |
+| 本地运行 | `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` | 开发调试 |
 | Docker 自部署 | `Dockerfile` + `docker-compose.yml`，SQLite 卷挂载 | 生产环境（自有服务器） |
 | HF Space + 反代 | 利用 HF Space 免费 GPU/CPU 资源部署，自有备案域名 Nginx 反代 | 低成本公网服务 |
 
