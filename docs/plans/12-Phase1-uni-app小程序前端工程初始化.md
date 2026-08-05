@@ -68,7 +68,7 @@
 | Phase1-3 | Tailwind CSS 集成（`tailwindcss-miniprogram-preset` + 主题色） | 0.5 天 | ✅ |
 | Phase1-4 | 组件方案决策：Tailwind 自定义组件（替代 Vant） | 0.5 天 | ✅ |
 | Phase1-5 | `types.ts` 类型定义迁移 | 0.5 天 | ✅ |
-| Phase1-6 | Pinia store 搭建（auth / diary / gear 等） | 0.5 天 | 📋 |
+| Phase1-6 | Pinia store 搭建（auth / diary / gear 等） | 0.5 天 | ✅ |
 | Phase1-7 | 网络层封装（`uni.request` + JWT 拦截） | 0.5 天 | 📋 |
 | Phase1-8 | 对接 B1 登录流程（`wx.login` → JWT → 持久化） | 0.5 天 | 📋 |
 
@@ -260,17 +260,21 @@ miniapp/src/
    | `stores/weight.ts` | weights | 体重记录（Phase 2 填充） |
    | `stores/settings.ts` | 主题/隐私开关 | 金额隐私、视觉偏好 |
 
-3. 在 `main.ts` 注册 Pinia。
+3. 在 `main.ts` 注册 Pinia（`app.use(createPinia())`）。
+4. 网络相关 action（`fetchList` 等）暂为空实现，待 Phase1-7 网络层接入填充。
 
 ### 产出物
 
-- `miniapp/src/stores/*.ts`
+- `miniapp/src/stores/*.ts`（auth / diary / gear / weight / settings + index.ts）
 
 ### 验收标准
 
-- [ ] 各 store 可被页面引用
-- [ ] `auth` store 具备 token 读写能力
-- [ ] 编译通过
+- [x] `pinia` 依赖已安装
+- [x] 各 store 可被页面引用
+- [x] `auth` store 具备 token 读写与持久化能力
+- [x] `settings` store 具备偏好持久化能力
+- [x] `main.ts` 已注册 Pinia
+- [x] 编译通过（type-check + build）
 
 ---
 

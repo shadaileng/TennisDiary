@@ -232,7 +232,7 @@ Phase 1 小程序前端（进行中）：
 | Phase1-3 | Tailwind CSS 集成（主题色） | ✅ | 15-Phase1-3 |
 | Phase1-4 | 组件方案：Tailwind 自定义组件（替代 Vant） | ✅ | 16-Phase1-4 |
 | Phase1-5 | `types.ts` 类型迁移 | ✅ | 17-Phase1-5 |
-| Phase1-6 | Pinia store 搭建 | 📋 | — |
+| Phase1-6 | Pinia store 搭建 | ✅ | 18-Phase1-6 |
 | Phase1-7 | 网络层封装（`uni.request` + JWT） | 📋 | — |
 | Phase1-8 | 对接 B1 登录流程 | 📋 | — |
 

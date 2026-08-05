@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.19.0] - 2026-08-05
+
+### Added
+
+- 小程序端搭建 Pinia 全局状态（`src/stores/`）：`auth`（token/用户登录态 + 持久化）、`diary`/`gear`/`weight`（数据列表，网络 action 待 Phase1-7 填充）、`settings`（金额隐私/主题偏好 + 持久化），并在 `main.ts` 注册 `createPinia()`
+
 ## [1.18.0] - 2026-08-05
 
 ### Added
@@ -126,6 +132,7 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs(plans): 新增 Phase1-6 Pinia store 搭建方案`
 - `docs(plans): 新增 Phase1-5 types 类型迁移方案`
 - `docs(plans): Phase1-4 变更为 Tailwind 自定义组件方案（替代 Vant）`
 - `docs(plans): 新增 Phase1-1 ~ Phase1-3 子方案文档及侧边栏配置`
