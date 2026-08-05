@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import create_access_token, get_current_user
+from app.core.logging import logger
 from app.models.user import User
 from app.schemas.schemas import LoginRequest, TokenResponse, UserResponse
 from app.services.wx_service import code_to_openid
@@ -23,12 +24,15 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
     try:
         openid = await code_to_openid(body.code)
     except ValueError as e:
+        logger.warning("微信登录失败：无效 code，原因={}", e)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except RuntimeError as e:
+        logger.error("微信登录失败：code2session 调用异常，原因={}", e)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
     # 查找或创建用户
     user = db.query(User).filter(User.openid == openid).first()
+    is_new = user is None
     if user is None:
         user = User(openid=openid)
         db.add(user)
@@ -37,6 +41,7 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
 
     # 签发 JWT
     token = create_access_token(openid)
+    logger.info("微信登录成功", openid=openid, is_new=is_new)
     return TokenResponse(access_token=token)
 
 
