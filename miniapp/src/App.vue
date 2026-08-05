@@ -4,8 +4,11 @@ import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
 onLaunch(() => {
   // 恢复持久化的登录态与偏好设置
-  useAuthStore().init();
+  const auth = useAuthStore();
+  auth.init();
   useSettingsStore().init();
+  // 无 token 时自动静默登录（wx.login → 换 JWT → 持久化）
+  auth.ensureLogin();
   console.log("App Launch");
 });
 onShow(() => {

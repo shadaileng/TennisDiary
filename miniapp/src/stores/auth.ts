@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-import { getMe, login as loginApi } from "@/services/auth";
+import { getLoginCode, getMe, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
 
 /** storage 键名，避免魔法字符串散落 */
@@ -53,15 +53,34 @@ export const useAuthStore = defineStore("auth", {
     },
 
     /**
-     * 登录入口：用 wx.login 的 code 换取 token，并获取用户信息。
-     * 由网络层（services/auth.ts）调用后台 /api/auth/login 与 /api/auth/me。
+     * 完整登录链路：wx.login 取 code → 换 token → 取用户 → 持久化。
+     * 失败时清空登录态并抛出错误，由调用方决定提示方式。
      */
-    async login(code: string) {
+    async login() {
+      const code = await getLoginCode();
       const token = await loginApi({ code });
       // 换取 token 后再获取用户信息（需携带 Authorization）
       const user = await getMe();
       this.setAuth(token.access_token, user);
       return user;
+    },
+
+    /**
+     * 静默登录：已登录则直接返回；否则自动完成登录链路。
+     * 供 App.onLaunch 调用。失败时提示并保持未登录态。
+     */
+    async ensureLogin() {
+      if (this.isLoggedIn) {
+        return;
+      }
+      try {
+        await this.login();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "登录失败";
+        console.error("静默登录失败", e);
+        this.logout();
+        uni.showToast({ title: msg, icon: "none" });
+      }
     },
 
     /** 登出：清空内存态与持久化 */
