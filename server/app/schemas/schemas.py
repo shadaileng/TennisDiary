@@ -1,5 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
+
+
+# ==================== 用户 ====================
+
+class UserResponse(BaseModel):
+    id: int
+    openid: str
+    nickname: str = ""
+    avatar_url: str = ""
+
+    model_config = {"from_attributes": True}
 
 
 # ==================== 认证 ====================
@@ -30,15 +41,24 @@ class DiaryCreate(BaseModel):
     time: str = ""
     type: str = "训练"  # 训练/比赛/发球机/发球练习
     duration: int = 0
-    intensity: int = 3  # 1-5
-    mood: int = 3  # 1-5
+    intensity: int = Field(default=3, ge=1, le=5)
+    mood: int = Field(default=3, ge=1, le=5)
     costs: list[CostItem] = []
     gears: list[GearUse] = []
     notes: str = ""
 
 
-class DiaryUpdate(DiaryCreate):
-    pass
+class DiaryUpdate(BaseModel):
+    """日记更新 — 所有字段可选，仅更新传入的字段"""
+    date: Optional[str] = None
+    time: Optional[str] = None
+    type: Optional[str] = None
+    duration: Optional[int] = None
+    intensity: Optional[int] = Field(default=None, ge=1, le=5)
+    mood: Optional[int] = Field(default=None, ge=1, le=5)
+    costs: Optional[list[CostItem]] = None
+    gears: Optional[list[GearUse]] = None
+    notes: Optional[str] = None
 
 
 class DiaryResponse(DiaryCreate):
@@ -61,8 +81,14 @@ class GearCreate(BaseModel):
     photo: str = ""
 
 
-class GearUpdate(GearCreate):
-    pass
+class GearUpdate(BaseModel):
+    """装备更新 — 所有字段可选"""
+    category: Optional[str] = None
+    name: Optional[str] = None
+    buy_date: Optional[str] = None
+    price: Optional[float] = None
+    feeling: Optional[str] = None
+    photo: Optional[str] = None
 
 
 class GearResponse(GearCreate):
