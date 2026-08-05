@@ -33,5 +33,19 @@ class Settings:
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", f"{DATA_DIR}/uploads")
     MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "100"))
 
+    # 日志
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
+    LOG_DIR: str = os.getenv("LOG_DIR", f"{DATA_DIR}/logs")
+    LOG_FILE: str = os.getenv("LOG_FILE", "app.log")
+    LOG_ROTATION: str = os.getenv("LOG_ROTATION", "10 MB")
+    LOG_RETENTION: str = os.getenv("LOG_RETENTION", "7 days")
+    LOG_FORMAT: str = os.getenv(
+        "LOG_FORMAT",
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{module}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+        "<level>{message}</level>",
+    )
+
 
 settings = Settings()

@@ -24,3 +24,7 @@ def ensure_dirs():
     upload_dir = os.path.abspath(settings.UPLOAD_DIR)
     for subdir in _UPLOAD_SUBDIRS:
         os.makedirs(os.path.join(upload_dir, subdir), exist_ok=True)
+
+    # LOG_DIR（日志目录）
+    log_dir = os.path.abspath(settings.LOG_DIR)
+    os.makedirs(log_dir, exist_ok=True)
