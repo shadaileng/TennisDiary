@@ -1,0 +1,131 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+
+# ========================
+# Build outputs
+# ========================
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+dist/
+build/
+*.tsbuildinfo
+
+# ========================
+# Package manager
+# ========================
+# 锁定文件保留（pnpm-lock.yaml 建议提交）
+# .pnpm-debug.log
+pnpm-debug.log*
+
+# ========================
+# Python (FastAPI 后端)
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+.venv/
+venv/
+.env/
+*.egg
+Pipfile.lock
+poetry.lock
+
+# ========================
+# uni-app 小程序
+# ========================
+# uni-app 编译输出
+unpackage/
+# 小程序项目配置文件（含 appid，按需提交）
+# project.config.json
+# project.private.config.json
+
+# ========================
+# IDE / Editor
+# ========================
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# VSCode 工作区设置（个人偏好）
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.local
+.env.*.local
+*.env
+!*.env.example
+
+# API Keys / 凭证（切勿提交）
+secrets/
+*.key
+*.pem
+*.crt
+
+# ========================
+# OS generated
+# ========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# ========================
+# Logs
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# ========================
+# Docker
+# ========================
+docker-compose.override.yml
+.docker/
+
+# ========================
+# SQLite (避免提交数据库文件)
+# ========================
+*.db
+*.sqlite
+*.sqlite3
+
+# ========================
+# Media / Uploads (运行时生成)
+# ========================
+uploads/
+media/
+tmp/
+temp/
+
+# ========================
+# Coverage & Test
+# ========================
+coverage/
+.nyc_output/
+.pytest_cache/
+.mypy_cache/
+
+# ========================
+# CodeBuddy workspace data
+# ========================
+.codebuddy/
