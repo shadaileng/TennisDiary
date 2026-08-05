@@ -60,7 +60,9 @@ server/
 │   ├── core/
 │   │   ├── auth.py
 │   │   ├── config.py
-│   │   └── database.py
+│   │   ├── database.py
+│   │   ├── dirs.py
+│   │   └── logging.py
 │   ├── models/
 │   │   ├── user.py
 │   │   └── diary.py
