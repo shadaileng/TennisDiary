@@ -215,9 +215,9 @@ Phase B1 后台基础建设中：
 | B1-4 | 日志系统（loguru）+ Pydantic Schemas | ✅ | 02-B1-4 |
 | B1-5 | 微信登录鉴权（auth 路由 + core/auth + wx_service） | ✅ | （并入 B1-4 日志文档） |
 | B1-6 | 日记 CRUD 接口 `/api/diaries` | ✅ | 03-B1-6 |
-| B1-7 | 装备 CRUD 接口 `/api/gears` | ⬜ 下一步 | — |
-| B1-8 | 体重记录接口 `/api/weights` | ⬜ | — |
-| B1-9 | 打卡接口 `/api/checkin` | ⬜ | — |
+| B1-7 | 装备 CRUD 接口 `/api/gears` | ✅ | 04-B1-7 |
+| B1-8 | 体重记录接口 `/api/weights` | ✅ | 05-B1-8 |
+| B1-9 | 打卡接口 `/api/checkin` | ⬜ 下一步 | — |
 | B1-10 | 统计汇总 `/api/stats` | ⬜ | — |
 | B1-11 | 文件下载 `/api/files/{filename}` | ⬜ | — |
 
