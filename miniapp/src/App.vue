@@ -7,7 +7,7 @@ onLaunch(() => {
   const auth = useAuthStore();
   auth.init();
   useSettingsStore().init();
-  // 无 token 时自动静默登录（wx.login → 换 JWT → 持久化）
+  // 曾登录过才静默登录（wx.login → 换 JWT → 持久化）；首次启动不请求后台
   auth.ensureLogin();
   console.log("App Launch");
 });

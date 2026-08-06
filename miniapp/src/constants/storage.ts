@@ -7,6 +7,8 @@ export const STORAGE_KEYS = {
   token: "td_token",
   /** 用户信息 */
   user: "td_user",
+  /** 是否曾登录（决定启动时是否触发静默登录） */
+  hasLoggedIn: "td_has_logged_in",
   /** 全局偏好设置 */
   settings: "td_settings",
 } as const;

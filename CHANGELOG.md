@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.24.0] - 2026-08-06
+
+### Added
+
+- 静默登录门控：`auth` store 新增「曾登录」标志（storage 键 `td_has_logged_in`），`ensureLogin()` 仅在已持有 token 或曾登录过时才触发 `wx.login` → 后端登录链路，首次启动（从未登录）不再请求后台，等待用户手动登录；`logout()` 清除该标志，登出后不再自动登录（见方案 25）
+
 ## [1.23.1] - 2026-08-06
 
 ### Fixed
