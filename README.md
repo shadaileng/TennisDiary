@@ -146,4 +146,25 @@ cp server/.env.example server/.env
 | `WX_SECRET` | 微信小程序 Secret | — |
 | `AI_API_KEY` | AI API Key | — |
 
-前端环境变量见 `miniapp/.env.example`（`VITE_API_BASE_URL` / `VITE_REQUEST_TIMEOUT`）。
+前端环境变量见 `miniapp/.env.example`（`VITE_API_BASE_URL` / `VITE_REQUEST_TIMEOUT` / `TD_APPID` / `TD_URL_CHECK`）。
+
+| 变量 | 说明 | 默认值 |
+|---|---|---|
+| `VITE_API_BASE_URL` | 后台 API base URL（运行期，`import.meta.env`） | `http://127.0.0.1:8000` |
+| `VITE_REQUEST_TIMEOUT` | 请求超时（毫秒） | `10000` |
+| `TD_APPID` | 微信小程序 AppID（构建期注入 `project.config.json`，部署小程序必填） | — |
+| `TD_URL_CHECK` | 域名白名单校验开关（`false` 开发 / `true` 生产，写入 `setting.urlCheck`） | `false` |
+
+前端构建期变量（`TD_*`，非 `VITE_` 前缀）由 `vite.config.ts` 在构建时读取，不进入 `import.meta.env` / 打包产物。
+
+### 小程序环境配置
+
+```bash
+cd miniapp
+cp .env.example .env      # 填写 TD_APPID 等
+pnpm build:mp-weixin      # 构建，appid 与 urlCheck 自动写入 dist/build/mp-weixin/project.config.json
+```
+
+- 所有 `.env*` 文件均被 `.gitignore` 忽略，不提交（仅保留 `.env.example` 模板）
+- 不同环境可创建 `.env.development` / `.env.production` 覆盖
+- 微信小程序要求 `request` 合法域名必须为**已备案 HTTPS 域名**，需在 [微信公众平台](https://mp.weixin.qq.com)「开发管理 → 开发设置 → 服务器域名」中配置 request/uploadFile/downloadFile 合法域名；`TD_URL_CHECK=true` 后开发者工具将强制校验

@@ -163,6 +163,7 @@ server/
 - 样式使用 Tailwind CSS（`tailwindcss-miniprogram-preset`）
 - UI 用 Tailwind 自定义组件（放弃 Vant，原因见方案 16-Phase1-4）；需复用处抽到 `src/components/`
 - 微信/浏览器差异通过 uni-app 条件编译（`#ifdef`）隔离
+- 环境变量分两类：运行期用 `VITE_*` 前缀（`import.meta.env`）；构建期（如小程序 `TD_APPID`、`TD_URL_CHECK`）用非 `VITE_` 前缀，由 `vite.config.ts` 插件在构建时写入产物 `project.config.json`，避免进入打包产物。所有 `.env*` 均不提交，仅保留 `.env.example` 模板
 
 ### 文档
 

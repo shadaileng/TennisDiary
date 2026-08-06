@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.23.0] - 2026-08-06
+
+### Added
+
+- 前端构建期注入微信小程序配置（参照 shadaileng/tarot）：新增非 `VITE_` 前缀环境变量 `TD_APPID`（微信 AppID）与 `TD_URL_CHECK`（域名白名单校验开关），由 `vite.config.ts` 内联插件在 `closeBundle` 时写入构建产物 `dist/*/mp-weixin/project.config.json` 的 `appid` 与 `setting.urlCheck`，不改动 `src/manifest.json`、不进入打包产物；`miniapp/.gitignore` 补齐 `.env.*` 忽略（仅保留 `.env.example`），新增 devDependency `@types/node`
+
 ## [1.22.0] - 2026-08-05
 
 ### Added
