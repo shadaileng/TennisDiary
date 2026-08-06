@@ -3,6 +3,8 @@ const { defaultPreset } = require('tailwindcss-miniprogram-preset')
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   presets: [defaultPreset],
+  purge: undefined,
+  darkMode: 'media',
   content: ['./index.html', './src/**/*.{vue,ts,tsx}'],
   theme: {
     extend: {

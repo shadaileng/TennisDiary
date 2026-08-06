@@ -56,6 +56,8 @@ export default defineConfig({
             { text: 'Phase1-7：网络层封装', link: '/plans/19-Phase1-7-网络层封装' },
             { text: 'Phase1-8：对接 B1 登录流程', link: '/plans/20-Phase1-8-对接B1登录流程' },
             { text: '21：前后端 .env 配置模板', link: '/plans/21-环境变量配置模板' },
+            { text: '22：前端环境变量 AppID 注入与域名白名单校验', link: '/plans/22-前端环境变量-AppID与域名白名单校验' },
+            { text: '23：构建警告清理 Tailwind 与 Sass 弃用警告', link: '/plans/23-构建警告清理-Tailwind与Sass弃用警告' },
           ],
         },
       ],
