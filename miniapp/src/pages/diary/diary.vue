@@ -43,7 +43,7 @@
     <!-- 自定义按钮（替代 van-button） -->
     <view class="mx-4 mb-6">
       <view
-        class="bg-lime-dark text-white text-center text-sm font-medium py-3 rounded-full active:opacity-90"
+        class="press-btn bg-lime-dark text-white text-center text-sm font-medium py-3 rounded-full"
         @tap="handleRecord"
       >
         记录本次{{ activeTab === 'train' ? '训练' : '比赛' }}
@@ -86,4 +86,7 @@ function handleRecord() {
 </script>
 
 <style scoped>
+.press-btn:active {
+  opacity: 0.9;
+}
 </style>

@@ -58,6 +58,7 @@ export default defineConfig({
             { text: '21：前后端 .env 配置模板', link: '/plans/21-环境变量配置模板' },
             { text: '22：前端环境变量 AppID 注入与域名白名单校验', link: '/plans/22-前端环境变量-AppID与域名白名单校验' },
             { text: '23：构建警告清理 Tailwind 与 Sass 弃用警告', link: '/plans/23-构建警告清理-Tailwind与Sass弃用警告' },
+            { text: '24：修复 WXSS 编译错误与联调排障', link: '/plans/24-修复wxss编译错误与联调排障' },
           ],
         },
       ],

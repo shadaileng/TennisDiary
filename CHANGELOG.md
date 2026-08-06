@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.23.1] - 2026-08-06
+
+### Fixed
+
+- 修复小程序 `app.wxss` 编译失败：`diary.vue` 的 Tailwind 冒号变体类 `active:opacity-90` 编译出 `.active\:opacity-90:active` 反斜杠转义选择器，WXSS 解析器不支持而报 `unexpected '\'` 错误；改为自定义类 `press-btn` + scoped `.press-btn:active`，并沉淀约束「小程序端禁用 Tailwind 冒号变体」
+- 修复小程序静默登录 404：端口 8000 被另一项目（Tennis Motion System）占用，后端请求打到错误服务器；结束占用进程并启动 Tennis Diary 后端，`/api/auth/login` 恢复正常路由（见方案 24）
+
 ## [1.23.0] - 2026-08-06
 
 ### Added
