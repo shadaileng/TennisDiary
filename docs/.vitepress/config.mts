@@ -67,6 +67,7 @@ export default defineConfig({
             { text: '30：Phase 2-4 统计页', link: '/plans/30-Phase2-4-统计页' },
             { text: '31：Phase 2-5 我的页', link: '/plans/31-Phase2-5-我的页' },
             { text: '32：Tailwind 适配方案迁移 weapp-tailwindcss', link: '/plans/32-Tailwind适配方案迁移-weapp-tailwindcss' },
+            { text: '33：未登录友好提示 网络层门控与数据层兜底', link: '/plans/33-未登录友好提示-网络层门控与数据层兜底' },
           ],
         },
       ],
