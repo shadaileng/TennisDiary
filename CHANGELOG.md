@@ -20,6 +20,16 @@
 
 ### Added
 
+- Phase 2 我的页：用户信息展示 + 手动登录/登出 + 设置入口（金额隐私开关、主题偏好），对接 `/api/auth/me`，见方案 31
+- Phase 2 统计页：汇总卡片（累计打球/时长/平均强度/心情/总花费/装备数，对接 `/api/stats`）+ 体重管理（记录/历史/趋势折线图，对接 `/api/weights`），见方案 30
+- 新增 `LineChart` canvas 折线图组件（`src/components/LineChart.vue`）
+- Phase 2 装备页：画报卡片流 + 种类筛选 + 新增/编辑表单页 + 照片上传，对接 `/api/gears`，见方案 29
+- `utils` 新增 `choosePhoto` 图片压缩工具（`uni.chooseMedia` + canvas 压缩），`services/data` 补充 `getGear` 详情接口
+- Phase 2 日记页：日记列表页 + 新建/编辑表单页，对接 `/api/diaries`，见方案 28
+- 新增 `Seg` / `EmojiScale` 表单组件
+- 建立组件库地基：`Empty` / `NavBar` / `Cell` / `Field` / `Stepper` / `Tag` / `ActionSheet` / `Popup`（`src/components/`），见方案 27
+- 迁移前端 `utils` 工具函数（枚举 / 日期 / 金额 / 聚合）
+- 数据层 `services/data.ts` 封装全部接口 + 三个数据 store（diary/gear/weight）对接真实接口，见方案 27
 - 静默登录门控：`auth` store 新增「曾登录」标志（storage 键 `td_has_logged_in`），`ensureLogin()` 仅在已持有 token 或曾登录过时才触发 `wx.login` → 后端登录链路，首次启动（从未登录）不再请求后台，等待用户手动登录；`logout()` 清除该标志，登出后不再自动登录（见方案 25）
 
 ## [1.23.1] - 2026-08-06
@@ -182,6 +192,12 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs: Phase 2-5 我的页完成 + Phase 2 业务页面收尾`
+- `docs: Phase 2-4 统计页完成（方案文档/进度表/侧边栏/AGENTS 同步）`
+- `docs: Phase 2-3 装备页完成（方案文档/进度表/侧边栏/AGENTS 同步）`
+- `docs: Phase 2-2 日记页完成（方案文档/进度表/侧边栏/AGENTS 同步）`
+- `docs: Phase 2-1 数据层与组件库完成（方案文档/进度表/侧边栏/AGENTS 同步）`
+- `docs: Phase 2 业务页面实现总纲方案文档`
 - `docs: 优化 README.md 与实际进度对齐（Phase B1 后台 + Phase1 前端全部完成）`
 - `docs(plans): 新增 21 前后端 .env 配置模板方案`
 - `chore(miniapp): 前端配置环境变量化与 storage 键名收口`
