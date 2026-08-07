@@ -8,11 +8,14 @@
 export { default as ActionSheet } from "./ActionSheet.vue";
 export { default as Cell } from "./Cell.vue";
 export { default as CellGroup } from "./CellGroup.vue";
+export { default as EmojiScale } from "./EmojiScale.vue";
 export { default as Empty } from "./Empty.vue";
 export { default as Field } from "./Field.vue";
 export { default as NavBar } from "./NavBar.vue";
 export { default as Popup } from "./Popup.vue";
+export { default as Seg } from "./Seg.vue";
 export { default as Stepper } from "./Stepper.vue";
 export { default as Tag } from "./Tag.vue";
 
 export type { ActionSheetAction } from "./ActionSheet.vue";
+export type { EmojiScaleOption } from "./EmojiScale.vue";
