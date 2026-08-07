@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.30.0] - 2026-08-07
+
+### Added
+
+- 后端接入 Alembic 数据库迁移（见方案 39）：新增 `alembic.ini` 与 `alembic/` 骨架，`env.py` 复用应用配置 `DATABASE_URL` 与 `Base.metadata`；生成基线迁移 `3a79ce8c1f19_initial_schema.py`（全部 7 张表 + `users.gender/birthday`）；`app/models/__init__.py` 集中导出全部模型；`pyproject.toml` 新增 `alembic` 依赖并对 `alembic/versions/*` 配置 ruff `per-file-ignore` 与 `format exclude`；新增 `test_models_registry.py` 校验模型注册与元数据完整性。此后模型字段变更一律走 `alembic revision --autogenerate` + `upgrade head`，严禁手工 `create_all`
+
 ## [1.29.0] - 2026-08-07
 
 ### Added

@@ -15,6 +15,7 @@ dependencies = [
     "Pillow>=11.0.0",
     "loguru>=0.7.2",
     "python-dotenv>=1.0.1",
+    "alembic>=1.19.0",
 ]
 
 [dependency-groups]
@@ -29,6 +30,10 @@ dev = [
 line-length = 100
 target-version = "py310"
 
+[tool.ruff.format]
+# Alembic 自动生成的迁移脚本保持原样，不做格式化
+exclude = ["alembic/versions/*", "alembic/env.py", "alembic/script.py.mako"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "BLE", "PIE", "RUF"]
 ignore = [
@@ -41,3 +46,5 @@ known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B"]
+# Alembic 自动生成的迁移脚本：不强制行宽、导入排序、Python 版本现代化改写
+"alembic/versions/*" = ["E501", "I", "UP"]
