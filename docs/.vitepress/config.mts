@@ -60,6 +60,8 @@ export default defineConfig({
             { text: '23：构建警告清理 Tailwind 与 Sass 弃用警告', link: '/plans/23-构建警告清理-Tailwind与Sass弃用警告' },
             { text: '24：修复 WXSS 编译错误与联调排障', link: '/plans/24-修复wxss编译错误与联调排障' },
             { text: '25：静默登录门控 首次启动不请求后台', link: '/plans/25-静默登录门控-首次启动不请求后台' },
+            { text: '26：Phase 2 业务页面实现总纲', link: '/plans/26-Phase2-业务页面实现总纲' },
+            { text: '27：Phase 2-1 数据层与组件库', link: '/plans/27-Phase2-1-数据层与组件库' },
           ],
         },
       ],
