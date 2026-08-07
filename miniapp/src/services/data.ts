@@ -63,6 +63,11 @@ export function getGears(): Promise<Gear[]> {
   return get<Gear[]>("/gears");
 }
 
+/** 装备详情 */
+export function getGear(id: number): Promise<Gear> {
+  return get<Gear>(`/gears/${id}`);
+}
+
 /** 添加装备 */
 export function createGear(body: GearCreate): Promise<Gear> {
   return post<Gear>("/gears", body);

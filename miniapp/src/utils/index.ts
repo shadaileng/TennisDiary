@@ -98,3 +98,55 @@ export function fmtMoney(n: number): string {
 export function sumCosts(costs: CostItem[]): number {
   return costs.reduce((s, c) => s + (Number(c.amount) || 0), 0);
 }
+
+// ==================== 图片 ====================
+
+/**
+ * 选择一张图片并压缩为 dataURL（供 photo 字段存储）。
+ *
+ * 流程：uni.chooseMedia 选图 → uni.compressImage 压缩 → getFileSystemManager
+ * 读 base64 → 拼 `data:image/jpeg;base64,` 前缀。
+ * 用户取消选择时返回空字符串。
+ */
+export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
+  return new Promise((resolve) => {
+    uni.chooseMedia({
+      count: 1,
+      mediaType: ["image"],
+      sizeType: ["compressed"],
+      success: (res) => {
+        const tempPath = res.tempFiles?.[0]?.tempFilePath;
+        if (!tempPath) {
+          resolve("");
+          return;
+        }
+        uni.compressImage({
+          src: tempPath,
+          quality,
+          compressedWidth: maxW,
+          success: (cres) => {
+            const target = cres.tempFilePath || tempPath;
+            uni.getFileSystemManager().readFile({
+              filePath: target,
+              encoding: "base64",
+              success: (fres) => {
+                resolve(`data:image/jpeg;base64,${fres.data}`);
+              },
+              fail: () => resolve(`data:image/jpeg;base64,`),
+            });
+          },
+          fail: () => {
+            // 压缩失败时退化为原路径 base64
+            uni.getFileSystemManager().readFile({
+              filePath: tempPath,
+              encoding: "base64",
+              success: (fres) => resolve(`data:image/jpeg;base64,${fres.data}`),
+              fail: () => resolve(""),
+            });
+          },
+        });
+      },
+      fail: () => resolve(""),
+    });
+  });
+}
