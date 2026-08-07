@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.28.1] - 2026-08-07
+
+### Fixed
+
+- 修复 `src/utils/jwt.ts` 在微信小程序编译不兼容导致运行时 `module 'utils/jwt.js' is not defined`：重写 base64 解码实现，移除 `String.fromCharCode(...bytes)` 展开 `Uint8Array` 及 `atob` + `decodeURIComponent` 组合等高阶语法，改为循环逐字节解码 + 独立 UTF-8 解码函数，规避微信开发者工具 es6 二次编译解析失败而静默跳过注册该模块的问题
+
 ## [1.28.0] - 2026-08-07
 
 ### Added
