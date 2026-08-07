@@ -20,5 +20,5 @@ onHide(() => {
 </script>
 <style lang="scss">
 /* 小程序端只需引入工具类，不需要 base / components */
-@use "tailwindcss/utilities";
+@tailwind utilities;
 </style>

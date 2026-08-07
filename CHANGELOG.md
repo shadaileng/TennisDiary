@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.25.0] - 2026-08-07
+
+### Added
+
+- Tailwind 小程序适配方案迁移：弃用 `tailwindcss-miniprogram-preset`，改用 `weapp-tailwindcss@^5`（Vite 插件，命名导出 `WeappTailwindcss`），配置 `rem2rpx` 单位转换 + 类名混淆，`tailwind.config.js` 去 preset 并加 `corePlugins.preflight: false`，PostCSS 插件配置抽到独立 `postcss.config.js`，`App.vue` 改用 `@tailwind utilities;`，根治 WXSS 对 `skewY`/`scaleY` 编译错误（见方案 32）
+
 ## [1.24.0] - 2026-08-06
 
 ### Added

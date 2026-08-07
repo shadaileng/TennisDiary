@@ -66,6 +66,7 @@ export default defineConfig({
             { text: '29：Phase 2-3 装备页', link: '/plans/29-Phase2-3-装备页' },
             { text: '30：Phase 2-4 统计页', link: '/plans/30-Phase2-4-统计页' },
             { text: '31：Phase 2-5 我的页', link: '/plans/31-Phase2-5-我的页' },
+            { text: '32：Tailwind 适配方案迁移 weapp-tailwindcss', link: '/plans/32-Tailwind适配方案迁移-weapp-tailwindcss' },
           ],
         },
       ],

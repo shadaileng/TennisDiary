@@ -2,8 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import uni from "@dcloudio/vite-plugin-uni";
-import tailwindcss from "tailwindcss";
-import autoprefixer from "autoprefixer";
+import { WeappTailwindcss } from "weapp-tailwindcss/vite";
 
 /**
  * 构建期注入微信小程序配置（参照 shadaileng/tarot）：
@@ -55,9 +54,13 @@ export default defineConfig({
         silenceDeprecations: ["legacy-js-api"],
       },
     },
-    postcss: {
-      plugins: [tailwindcss("./tailwind.config.js"), autoprefixer()],
-    },
   },
-  plugins: [uni(), injectWeixinConfigPlugin()],
+  plugins: [
+    uni(),
+    WeappTailwindcss({
+      rem2rpx: true,
+      cssEntries: [path.resolve(__dirname, "src/App.vue")],
+    }),
+    injectWeixinConfigPlugin(),
+  ],
 });
