@@ -41,7 +41,8 @@ docs/
 │   ├── 27-Phase2-1-数据层与组件库.md
 │   ├── 28-Phase2-2-日记页.md
 │   ├── 29-Phase2-3-装备页.md
-│   └── 30-Phase2-4-统计页.md
+│   ├── 30-Phase2-4-统计页.md
+│   └── 31-Phase2-5-我的页.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -84,6 +85,7 @@ docs/
 | 28：Phase 2-2 日记页 | v1.1.0 | 方案 | `plans/28-Phase2-2-日记页.md` | 日记列表 + 新建/编辑表单，对接 `/api/diaries` | ✅ 已完成 |
 | 29：Phase 2-3 装备页 | v1.1.0 | 方案 | `plans/29-Phase2-3-装备页.md` | 装备画报卡片流 + 表单 + 照片上传，对接 `/api/gears` | ✅ 已完成 |
 | 30：Phase 2-4 统计页 | v1.1.0 | 方案 | `plans/30-Phase2-4-统计页.md` | 汇总卡片 + 体重管理 + LineChart 折线图，对接 `/api/stats` `/api/weights` | ✅ 已完成 |
+| 31：Phase 2-5 我的页 | v1.1.0 | 方案 | `plans/31-Phase2-5-我的页.md` | 用户信息 + 手动登录/登出 + 设置入口 | ✅ 已完成 |
 | VitePress 踩坑记录 | v1.0.0 | 指南 | `guides/01-vitepress-踩坑记录.md` | CloudStudio 环境部署 VitePress 遇到的坑及解决方案 | 🚧 进行中 |
 
 ## 文档类型说明
@@ -129,6 +131,7 @@ docs/
 | 28-Phase2-2-日记页 | Phase 2 小程序前端 | ✅ 已完成 | 2026-08-07 | 2026-08-07 |
 | 29-Phase2-3-装备页 | Phase 2 小程序前端 | ✅ 已完成 | 2026-08-07 | 2026-08-07 |
 | 30-Phase2-4-统计页 | Phase 2 小程序前端 | ✅ 已完成 | 2026-08-07 | 2026-08-07 |
+| 31-Phase2-5-我的页 | Phase 2 小程序前端 | ✅ 已完成 | 2026-08-07 | 2026-08-07 |
 
 ## 约定
 
