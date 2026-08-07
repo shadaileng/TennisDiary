@@ -3,7 +3,19 @@
     <!-- 汇总卡片 -->
     <view class="px-4 pt-4">
       <text class="block px-1 mb-2 text-xs text-olive-light">数据总览</text>
-      <view class="grid grid-cols-2 gap-3">
+
+      <!-- 空态：没有任何统计数据 -->
+      <view v-if="!statsLoading && stats && !hasAnyData" class="mt-1">
+        <Empty
+          icon="📊"
+          text="还没有任何打球数据，从记录第一篇日记开始吧"
+          button-text="去记录"
+          @action="goDiary"
+        />
+      </view>
+
+      <!-- 统计卡片 -->
+      <view v-else class="grid grid-cols-2 gap-3">
         <view class="card bg-white rounded-card p-4">
           <text class="block text-xs text-olive-light">累计打球</text>
           <text class="block text-2xl font-bold text-olive mt-1">
@@ -157,6 +169,24 @@ const settingsStore = useSettingsStore();
 
 const stats = ref<Stats | null>(null);
 
+/** 汇总统计加载中 */
+const statsLoading = ref(false);
+
+/** 是否没有任何统计数据 */
+const hasAnyData = computed(() =>
+  stats.value
+    ? stats.value.total_sessions > 0 ||
+      stats.value.total_duration > 0 ||
+      stats.value.total_cost > 0 ||
+      stats.value.total_gears > 0
+    : false,
+);
+
+/** 跳转到日记 Tab 记录 */
+function goDiary() {
+  uni.switchTab({ url: "/pages/diary/diary" });
+}
+
 const costText = computed(() =>
   settingsStore.hideAmounts ? "¥**" : fmtMoney(stats.value?.total_cost ?? 0),
 );
@@ -284,6 +314,7 @@ function confirmRemove(id: number) {
 
 onShow(() => {
   weightStore.fetchList();
+  statsLoading.value = true;
   getStats()
     .then((s) => {
       stats.value = s;
@@ -291,6 +322,9 @@ onShow(() => {
     .catch((e) => {
       // 未登录或失败时保持空，打印错误便于排查
       console.error("[stats] 拉取统计数据失败", e);
+    })
+    .finally(() => {
+      statsLoading.value = false;
     });
 });
 </script>

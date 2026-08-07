@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.27.0] - 2026-08-07
+
+### Added
+
+- 统计页「数据总览」增加空数据处理：新增 `statsLoading` 加载状态（避免加载中误显示空态）、`hasAnyData` 计算属性判断是否有统计数据，完全无数据时显示 `Empty` 空态引导并可跳转日记页记录（见方案 34）
+
 ## [1.26.0] - 2026-08-07
 
 ### Added
