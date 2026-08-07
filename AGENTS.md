@@ -160,7 +160,7 @@ server/
 
 - 使用 Vue 3 Composition API + `<script setup>`
 - 状态管理使用 Pinia
-- 样式使用 Tailwind CSS（`tailwindcss-miniprogram-preset`）
+- 样式使用 Tailwind CSS（`weapp-tailwindcss` Vite 插件，`rem2rpx` 单位转换 + 类名混淆）
 - UI 用 Tailwind 自定义组件（放弃 Vant，原因见方案 16-Phase1-4）；需复用处抽到 `src/components/`
 - 微信/浏览器差异通过 uni-app 条件编译（`#ifdef`）隔离
 - 环境变量分两类：运行期用 `VITE_*` 前缀（`import.meta.env`）；构建期（如小程序 `TD_APPID`、`TD_URL_CHECK`）用非 `VITE_` 前缀，由 `vite.config.ts` 插件在构建时写入产物 `project.config.json`，避免进入打包产物。所有 `.env*` 均不提交，仅保留 `.env.example` 模板
@@ -254,6 +254,8 @@ Phase 2 小程序前端（进行中）：
 | Phase2-4 | 统计页（汇总卡片 + 体重管理 + LineChart 折线图） | ✅ | 30-Phase2-4-统计页 |
 | Phase2-5 | 我的页（用户信息 + 手动登录/登出 + 设置） | ✅ | 31-Phase2-5-我的页 |
 | Phase 2 阶段 | 小程序业务页面全部完成（日记/装备/统计/我的 + 图表迁移） | ✅ | — |
+| 32 | Tailwind 适配方案迁移（`tailwindcss-miniprogram-preset` → `weapp-tailwindcss`，根治 WXSS 编译错误） | ✅ | 32-Tailwind适配方案迁移-weapp-tailwindcss |
+| 33 | 未登录友好提示（网络层门控 + 数据层错误兜底） | ✅ | 33-未登录友好提示-网络层门控与数据层兜底 |
 
 ## 注意事项
 

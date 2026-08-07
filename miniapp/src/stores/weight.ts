@@ -35,6 +35,8 @@ export const useWeightStore = defineStore("weight", {
       this.loading = true;
       try {
         this.weights = await getWeights();
+      } catch (e) {
+        console.error("[weight] 拉取体重记录失败", e);
       } finally {
         this.loading = false;
       }

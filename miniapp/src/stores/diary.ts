@@ -43,6 +43,8 @@ export const useDiaryStore = defineStore("diary", {
       this.loading = true;
       try {
         this.diaries = await getDiaries();
+      } catch (e) {
+        console.error("[diary] 拉取日记列表失败", e);
       } finally {
         this.loading = false;
       }

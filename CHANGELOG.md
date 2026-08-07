@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.26.0] - 2026-08-07
+
+### Added
+
+- 未登录友好提示：`request.ts` 网络层加未登录硬门控（`auth=true` 且无本地 token 时直接短路不发请求，3s 节流 toast 引导「请到『我的』页登录后使用」，401 统一引导）；三个数据 store（weight/diary/gear）`fetchList` 加 try/catch 吞错并 `console.error` 打印，`stats.vue` `getStats` 的 catch 补日志，消除未登录/请求失败时的未捕获 `MiniProgramError`（见方案 33）
+
 ## [1.25.0] - 2026-08-07
 
 ### Added

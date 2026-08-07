@@ -288,8 +288,9 @@ onShow(() => {
     .then((s) => {
       stats.value = s;
     })
-    .catch(() => {
-      // 未登录或失败时保持空
+    .catch((e) => {
+      // 未登录或失败时保持空，打印错误便于排查
+      console.error("[stats] 拉取统计数据失败", e);
     });
 });
 </script>

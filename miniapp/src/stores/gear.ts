@@ -41,6 +41,8 @@ export const useGearStore = defineStore("gear", {
       this.loading = true;
       try {
         this.gears = await getGears();
+      } catch (e) {
+        console.error("[gear] 拉取装备列表失败", e);
       } finally {
         this.loading = false;
       }

@@ -58,6 +58,18 @@ function clearAuth() {
   uni.removeStorageSync(USER_KEY);
 }
 
+/** 登录引导 toast 节流间隔（毫秒），避免多请求/重复触发刷屏 */
+const LOGIN_GUIDE_THROTTLE = 3000;
+let lastLoginGuideAt = 0;
+
+/** 弹出未登录引导提示（节流） */
+function promptLogin() {
+  const now = Date.now();
+  if (now - lastLoginGuideAt < LOGIN_GUIDE_THROTTLE) return;
+  lastLoginGuideAt = now;
+  uni.showToast({ title: "请到「我的」页登录后使用", icon: "none" });
+}
+
 /** 解析错误消息：优先取后端 detail/message，其次 errMsg */
 function parseDetail(res: any): string {
   return (
@@ -77,6 +89,12 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
     timeout = REQUEST_TIMEOUT,
     headers = {},
   } = options;
+
+  // 未登录门控：需要鉴权但本地无 token 时直接短路，不发起请求
+  if (auth && !getToken()) {
+    promptLogin();
+    return Promise.reject(new ApiError(401, "请先登录"));
+  }
 
   const fullUrl = url.startsWith("http") ? url : `${BASE_URL}${API_PREFIX}${url}`;
 
@@ -103,7 +121,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
         }
         if (statusCode === 401 && handle401) {
           clearAuth();
-          uni.showToast({ title: "登录已过期，请重新登录", icon: "none" });
+          promptLogin();
         }
         reject(new ApiError(statusCode, parseDetail(res)));
       },
