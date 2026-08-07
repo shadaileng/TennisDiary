@@ -1,80 +1,97 @@
 <template>
-  <view class="page bg-paper min-h-screen pb-12">
-    <view v-if="authStore.isLoggedIn" class="px-4 space-y-3.5 pt-4">
-      <!-- 头像 -->
-      <view class="bg-white rounded-card p-4">
-        <text class="block text-sm font-semibold text-olive mb-3">头像</text>
-        <button
-          class="avatar-btn"
-          open-type="chooseAvatar"
-          @chooseavatar="onChooseAvatar"
-        >
-          <image
-            v-if="avatarUrl"
-            :src="avatarUrl"
-            mode="aspectFill"
-            class="w-20 h-20 rounded-full bg-paper"
-          />
-          <view v-else class="w-20 h-20 rounded-full bg-paper flex items-center justify-center text-3xl">
-            🎾
-          </view>
-          <text class="text-xs text-olive-light">点击更换头像</text>
-        </button>
-      </view>
-
-      <!-- 资料表单 -->
-      <view class="bg-white rounded-card overflow-hidden">
-        <!-- 昵称 -->
-        <view class="flex items-center justify-between px-4 py-3.5">
-          <text class="text-sm text-olive shrink-0">昵称</text>
-          <input
-            class="field-input w-48 text-right"
-            type="nickname"
-            placeholder="设置昵称"
-            placeholder-class="text-olive-light/60"
-            :value="nickname"
-            :maxlength="24"
-            @input="onNicknameInput"
-          />
-        </view>
-        <view class="h-px bg-paper mx-4"></view>
-
-        <!-- 性别 -->
-        <view class="flex items-center justify-between px-4 py-3.5">
-          <text class="text-sm text-olive shrink-0">性别</text>
-          <picker :value="genderIndex" :range="genderLabels" @change="onGenderChange">
-            <view class="flex items-center gap-1">
-              <text class="text-sm text-olive-light">{{ genderLabels[genderIndex] }}</text>
-              <text class="text-olive-light">›</text>
-            </view>
-          </picker>
-        </view>
-        <view class="h-px bg-paper mx-4"></view>
-
-        <!-- 生日 -->
-        <view class="flex items-center justify-between px-4 py-3.5">
-          <text class="text-sm text-olive shrink-0">生日</text>
-          <picker mode="date" :value="birthday" :end="today" @change="onBirthdayChange">
-            <view class="flex items-center gap-1">
-              <text class="text-sm text-olive-light">{{ birthday || "未设置" }}</text>
-              <text class="text-olive-light">›</text>
-            </view>
-          </picker>
-        </view>
-      </view>
-
-      <!-- 保存 -->
+  <view v-if="authStore.isLoggedIn" class="page bg-paper min-h-screen pb-12">
+    <!-- 头像（居中大图） -->
+    <!-- #ifdef MP-WEIXIN -->
+    <button
+      class="avatar-btn"
+      open-type="chooseAvatar"
+      @chooseavatar="onChooseAvatar"
+    >
+      <image
+        v-if="avatarUrl"
+        :src="avatarUrl"
+        mode="aspectFill"
+        class="w-[120rpx] h-[120rpx] rounded-full bg-paper ring-2 ring-lime/70"
+      />
       <view
-        class="bg-olive text-white text-center text-sm font-medium py-3 rounded-full press-btn"
-        @tap="onSave"
+        v-else
+        class="w-[120rpx] h-[120rpx] rounded-full bg-lime/20 flex items-center justify-center text-5xl ring-2 ring-lime/70"
       >
-        保存
+        🎾
       </view>
-      <text v-if="saving" class="block text-center text-xs text-olive-light">保存中...</text>
+      <text class="text-xs text-olive-light mt-3">点击更换头像</text>
+    </button>
+    <!-- #endif -->
+
+    <!-- 头像（H5：uni.chooseImage 降级） -->
+    <!-- #ifdef H5 -->
+    <view class="avatar-btn" @click="handleAvatarChangeH5">
+      <image
+        v-if="avatarUrl"
+        :src="avatarUrl"
+        mode="aspectFill"
+        class="w-[120rpx] h-[120rpx] rounded-full bg-paper ring-2 ring-lime/70"
+      />
+      <view
+        v-else
+        class="w-[120rpx] h-[120rpx] rounded-full bg-lime/20 flex items-center justify-center text-5xl ring-2 ring-lime/70"
+      >
+        🎾
+      </view>
+      <text class="text-xs text-olive-light mt-3">点击更换头像</text>
+    </view>
+    <!-- #endif -->
+
+    <!-- 资料表单（每字段自动保存） -->
+    <view class="mx-4 mt-5 bg-white rounded-card overflow-hidden">
+      <!-- 昵称 -->
+      <view class="flex items-center justify-between px-4 py-3.5">
+        <text class="text-sm text-olive shrink-0">昵称</text>
+        <input
+          class="field-input w-48 text-right"
+          type="nickname"
+          placeholder="设置昵称"
+          placeholder-class="text-olive-light/60"
+          :value="nickname"
+          :maxlength="24"
+          @input="onNicknameInput"
+          @blur="saveNickname"
+          @confirm="saveNickname"
+        />
+      </view>
+      <view class="h-px bg-paper mx-4"></view>
+
+      <!-- 性别 -->
+      <view class="flex items-center justify-between px-4 py-3.5">
+        <text class="text-sm text-olive shrink-0">性别</text>
+        <picker :value="genderIndex" :range="genderLabels" @change="onGenderChange">
+          <view class="flex items-center gap-1">
+            <text class="text-sm text-olive-light">{{ genderLabels[genderIndex] }}</text>
+            <text class="text-olive-light">›</text>
+          </view>
+        </picker>
+      </view>
+      <view class="h-px bg-paper mx-4"></view>
+
+      <!-- 生日 -->
+      <view class="flex items-center justify-between px-4 py-3.5">
+        <text class="text-sm text-olive shrink-0">生日</text>
+        <picker mode="date" :value="birthday" :start="'1900-01-01'" :end="today" @change="onBirthdayChange">
+          <view class="flex items-center gap-1">
+            <text class="text-sm text-olive-light">{{ birthday || "未设置" }}</text>
+            <text class="text-olive-light">›</text>
+          </view>
+        </picker>
+      </view>
     </view>
 
-    <view v-else class="text-center text-sm text-olive-light mt-20">请先登录后再编辑资料</view>
+    <!-- 退出登录 -->
+    <view class="mt-10 text-center press-btn" @tap="doLogout">
+      <text class="text-sm text-red-500">退出登录</text>
+    </view>
   </view>
+
+  <view v-else class="text-center text-sm text-olive-light mt-20">请先登录后再编辑资料</view>
 </template>
 
 <script setup lang="ts">
@@ -113,16 +130,41 @@ function onNicknameInput(e: any) {
 
 function onGenderChange(e: any) {
   const idx = Number(e.detail.value);
-  if (!Number.isNaN(idx)) genderIndex.value = idx;
+  if (Number.isNaN(idx)) return;
+  genderIndex.value = idx;
+  saveField({ gender: idx }, "已保存");
 }
 
 function onBirthdayChange(e: any) {
-  birthday.value = e.detail.value || "";
+  const date = e.detail.value || "";
+  birthday.value = date;
+  if (!date) return;
+  saveField({ birthday: date }, "已保存");
 }
 
 async function onChooseAvatar(e: any) {
   const tempUrl = e.detail?.avatarUrl;
   if (!tempUrl) return;
+  await uploadAndSaveAvatar(tempUrl);
+}
+
+/** H5：uni.chooseImage 降级选择头像 */
+async function handleAvatarChangeH5() {
+  try {
+    const res = await uni.chooseImage({
+      count: 1,
+      sizeType: ["compressed"],
+      sourceType: ["album", "camera"],
+    });
+    const tempPath = res.tempFilePaths[0];
+    if (tempPath) await uploadAndSaveAvatar(tempPath);
+  } catch (err: any) {
+    if (err?.errMsg?.includes("cancel")) return;
+    uni.showToast({ title: err?.message || "更换失败", icon: "none" });
+  }
+}
+
+async function uploadAndSaveAvatar(tempUrl: string) {
   saving.value = true;
   try {
     const url = await uploadAvatar(tempUrl);
@@ -131,34 +173,45 @@ async function onChooseAvatar(e: any) {
     authStore.updateUser(result.user);
     uni.showToast({ title: "头像已更新", icon: "success" });
   } catch (err: any) {
-    if (err?.errMsg?.includes("cancel")) return;
     uni.showToast({ title: err?.message || "更换失败", icon: "none" });
   } finally {
     saving.value = false;
   }
 }
 
-async function onSave() {
+/** 昵称失焦保存（空值忽略） */
+async function saveNickname() {
   const name = nickname.value.trim();
-  if (!name) {
-    uni.showToast({ title: "昵称不能为空", icon: "none" });
-    return;
-  }
+  if (!name) return;
+  await saveField({ nickname: name }, "已保存");
+}
+
+/** 通用字段自动保存：调用 updateProfile → 同步本地 user → 轻提示 */
+async function saveField(payload: Record<string, unknown>, successMsg: string) {
   saving.value = true;
   try {
-    const result = await updateProfile({
-      nickname: name,
-      gender: genderIndex.value,
-      birthday: birthday.value,
-    });
+    const result = await updateProfile(payload);
     authStore.updateUser(result.user);
-    uni.showToast({ title: "已保存", icon: "success" });
-    setTimeout(() => uni.navigateBack(), 500);
+    uni.showToast({ title: successMsg, icon: "success" });
   } catch (err: any) {
     uni.showToast({ title: err?.message || "保存失败", icon: "none" });
   } finally {
     saving.value = false;
   }
+}
+
+function doLogout() {
+  uni.showModal({
+    title: "确认退出",
+    content: "退出登录后记录仍保留在本地。",
+    confirmColor: "#A8B822",
+    success: (res) => {
+      if (!res.confirm) return;
+      authStore.logout();
+      uni.showToast({ title: "已退出", icon: "success" });
+      setTimeout(() => uni.switchTab({ url: "/pages/mine/mine" }), 300);
+    },
+  });
 }
 </script>
 
@@ -171,7 +224,7 @@ async function onSave() {
   background: none;
   border: none;
   line-height: normal;
-  padding: 0;
+  padding: 32rpx 0 0;
   margin: 0;
   width: 100%;
 }

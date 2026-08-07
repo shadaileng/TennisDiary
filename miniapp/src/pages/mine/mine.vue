@@ -1,13 +1,20 @@
 <template>
   <view class="page bg-paper min-h-screen pb-12">
-    <!-- 用户信息卡（已登录可点击进入编辑资料） -->
+    <!-- 用户信息卡（深橄榄渐变 + 青柠光斑） -->
     <view
-      class="m-4 mb-3 rounded-hero bg-olive p-5 overflow-hidden relative"
+      class="m-4 mb-3 rounded-hero p-5 overflow-hidden relative bg-gradient-to-br from-olive via-olive-mid to-olive"
       :class="{ 'press-btn': authStore.isLoggedIn }"
       @tap="authStore.isLoggedIn && goEditProfile()"
     >
-      <view class="flex items-center gap-3">
-        <view class="w-14 h-14 rounded-full bg-lime flex items-center justify-center text-2xl shrink-0">
+      <!-- 青柠光斑 -->
+      <view class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-lime/20 blur-2xl"></view>
+      <view class="absolute -bottom-16 -left-10 w-44 h-44 rounded-full bg-lime/10 blur-2xl"></view>
+
+      <!-- 用户信息 -->
+      <view class="relative flex items-center gap-3">
+        <view
+          class="w-14 h-14 rounded-full bg-lime flex items-center justify-center text-2xl shrink-0 ring-2 ring-lime/70"
+        >
           {{ userAvatar ? "" : "🎾" }}
           <image
             v-if="userAvatar"
@@ -31,43 +38,74 @@
         <text v-if="authStore.isLoggedIn" class="text-white/60 text-xl shrink-0">›</text>
       </view>
 
-      <!-- 登录 / 登出 / 编辑资料 -->
+      <!-- 统计徽章区（登录后拉 /stats） -->
+      <view v-if="authStore.isLoggedIn" class="relative mt-4 grid grid-cols-3 gap-2">
+        <view class="bg-white/10 rounded-xl py-3 text-center">
+          <text class="block text-white text-xl font-bold">{{ stats?.total_sessions ?? 0 }}</text>
+          <text class="block text-white/60 text-[11px] mt-0.5">累计打球</text>
+        </view>
+        <view class="bg-white/10 rounded-xl py-3 text-center">
+          <text class="block text-white text-xl font-bold">{{ fmtDuration(stats?.total_duration ?? 0) }}</text>
+          <text class="block text-white/60 text-[11px] mt-0.5">累计时长</text>
+        </view>
+        <view class="bg-white/10 rounded-xl py-3 text-center">
+          <text class="block text-white text-xl font-bold">{{ stats?.total_gears ?? 0 }}</text>
+          <text class="block text-white/60 text-[11px] mt-0.5">装备</text>
+        </view>
+      </view>
+
+      <!-- 主按钮：未登录=微信一键登录；已登录=编辑资料 -->
       <view
         v-if="!authStore.isLoggedIn"
-        class="mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
+        class="relative mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
         @tap="doLogin"
       >
         微信一键登录
       </view>
-      <template v-else>
-        <view
-          class="mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
-          @tap="goEditProfile"
-        >
-          编辑资料
-        </view>
-        <view
-          class="mt-2 bg-white/10 text-white text-center text-sm font-medium py-2.5 rounded-full press-btn"
-          @tap="doLogout"
-        >
-          退出登录
-        </view>
-      </template>
+      <view
+        v-else
+        class="relative mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
+        @tap="goEditProfile"
+      >
+        编辑资料
+      </view>
     </view>
 
-    <!-- 设置 -->
-    <view class="mx-4 bg-white rounded-card overflow-hidden">
-      <view class="flex items-center justify-between px-4 py-3.5">
-        <view>
-          <text class="block text-sm text-olive">金额隐私</text>
-          <text class="block text-xs text-olive-light mt-0.5">隐藏日记与装备中的具体金额</text>
+    <!-- 功能菜单（仅登录后显示） -->
+    <view v-if="authStore.isLoggedIn" class="mx-4 bg-white rounded-card overflow-hidden">
+      <view
+        class="flex items-center px-4 py-3.5 press-btn"
+        @tap="goStats"
+      >
+        <text class="text-base mr-3">📊</text>
+        <text class="flex-1 text-sm text-olive">统计总览</text>
+        <text class="text-olive-light text-lg">›</text>
+      </view>
+      <view
+        class="flex items-center px-4 py-3.5 border-t border-paper press-btn"
+        @tap="goEditProfile"
+      >
+        <text class="text-base mr-3">⚙️</text>
+        <text class="flex-1 text-sm text-olive">编辑资料</text>
+        <text class="text-olive-light text-lg">›</text>
+      </view>
+      <view class="flex items-center justify-between px-4 py-3.5 border-t border-paper">
+        <view class="flex items-center">
+          <text class="text-base mr-3">💰</text>
+          <view>
+            <text class="block text-sm text-olive">金额隐私</text>
+            <text class="block text-xs text-olive-light mt-0.5">隐藏日记与装备中的具体金额</text>
+          </view>
         </view>
         <switch :checked="settingsStore.hideAmounts" color="#A8B822" @change="settingsStore.toggleHideAmounts()" />
       </view>
       <view class="flex items-center justify-between px-4 py-3.5 border-t border-paper">
-        <view>
-          <text class="block text-sm text-olive">青柠主题</text>
-          <text class="block text-xs text-olive-light mt-0.5">使用青柠强调色</text>
+        <view class="flex items-center">
+          <text class="text-base mr-3">🎨</text>
+          <view>
+            <text class="block text-sm text-olive">青柠主题</text>
+            <text class="block text-xs text-olive-light mt-0.5">使用青柠强调色</text>
+          </view>
         </view>
         <switch :checked="settingsStore.useLimeTheme" color="#A8B822" @change="settingsStore.toggleLimeTheme()" />
       </view>
@@ -85,12 +123,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { onShow } from "@dcloudio/uni-app";
+
+import { getStats } from "@/services/data";
 import { useAuthStore, useSettingsStore } from "@/stores";
-import { maskMiddle, resolveUploadUrl } from "@/utils";
+import type { Stats } from "@/types";
+import { fmtDuration, maskMiddle, resolveUploadUrl } from "@/utils";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
+
+/** 统计徽章数据（登录后拉取，失败静默降级） */
+const stats = ref<Stats | null>(null);
 
 /** 头像完整展示 URL */
 const userAvatar = computed(() => resolveUploadUrl(authStore.user?.avatar_url || ""));
@@ -103,6 +148,27 @@ const genderLabel = computed(() => {
 
 /** 生日文案（未设置时隐藏） */
 const birthdayLabel = computed(() => (authStore.user?.birthday ? `生日 ${authStore.user.birthday}` : "未设置生日"));
+
+onShow(() => {
+  if (authStore.isLoggedIn) {
+    loadStats();
+  } else {
+    stats.value = null;
+  }
+});
+
+/** 拉取统计数据，失败静默降级为 0，不阻塞页面 */
+async function loadStats() {
+  try {
+    stats.value = await getStats();
+  } catch {
+    stats.value = null;
+  }
+}
+
+function goStats() {
+  uni.switchTab({ url: "/pages/stats/stats" });
+}
 
 function goEditProfile() {
   uni.navigateTo({ url: "/pages/profile-edit/profile-edit" });
@@ -119,19 +185,6 @@ async function doLogin() {
     const msg = e instanceof Error ? e.message : "登录失败";
     uni.showToast({ title: msg, icon: "none" });
   }
-}
-
-function doLogout() {
-  uni.showModal({
-    title: "退出登录",
-    content: "确定退出当前账号？",
-    confirmColor: "#A8B822",
-    success: (res) => {
-      if (!res.confirm) return;
-      authStore.logout();
-      uni.showToast({ title: "已退出", icon: "none" });
-    },
-  });
 }
 </script>
 

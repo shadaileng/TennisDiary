@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.31.0] - 2026-08-07
+
+### Added
+
+- 我的页与资料详情页 tarot 化改造（见方案 40）：`mine.vue` 用户卡升级为深橄榄渐变 + 青柠光斑，登录后展示累计打球/时长/装备三列统计徽章（`getStats`，失败静默降级 0），功能入口改为「图标 + 标签 + 箭头/开关」卡片式菜单（统计总览 `switchTab` / 编辑资料 / 金额隐私 / 青柠主题），退出登录移除并移入资料详情页，未登录隐藏功能菜单仅保留「微信一键登录」唯一入口且不发 `/stats` 请求；`profile-edit.vue` 居中大头像（小程序 `chooseAvatar` + H5 `chooseImage` 降级）、细分隔线表单、每字段自动保存（昵称 `blur/confirm`、性别/生日 `picker change`，成功轻提示）、底部独立「退出登录」确认后回「我的」Tab
+
 ## [1.30.1] - 2026-08-07
 
 ### Fixed
