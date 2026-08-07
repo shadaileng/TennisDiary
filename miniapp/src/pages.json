@@ -19,6 +19,12 @@
       }
     },
     {
+      "path": "pages/gear/form",
+      "style": {
+        "navigationBarTitleText": "添加装备"
+      }
+    },
+    {
       "path": "pages/stats/stats",
       "style": {
         "navigationBarTitleText": "统计"
