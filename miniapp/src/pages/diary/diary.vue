@@ -92,7 +92,7 @@
 import { computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
-import { Empty } from "@/components";
+import Empty from "@/components/Empty.vue";
 import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";

@@ -101,7 +101,7 @@
 import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
-import { Empty } from "@/components";
+import Empty from "@/components/Empty.vue";
 import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { GEAR_CATEGORIES, fmtMoney } from "@/utils";

@@ -92,7 +92,7 @@
 import { computed, reactive } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
-import { Seg } from "@/components";
+import Seg from "@/components/Seg.vue";
 import { useGearStore } from "@/stores";
 import { getGear } from "@/services/data";
 import { GEAR_CATEGORIES, choosePhoto, todayStr } from "@/utils";

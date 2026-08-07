@@ -160,7 +160,8 @@
 import { computed, reactive } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
-import { EmojiScale, Seg } from "@/components";
+import EmojiScale from "@/components/EmojiScale.vue";
+import Seg from "@/components/Seg.vue";
 import { useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";

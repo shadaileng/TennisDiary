@@ -164,7 +164,9 @@
 import { computed, reactive, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
-import { Empty, LineChart, Popup } from "@/components";
+import Empty from "@/components/Empty.vue";
+import LineChart from "@/components/LineChart.vue";
+import Popup from "@/components/Popup.vue";
 import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
 import { getStats } from "@/services/data";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
