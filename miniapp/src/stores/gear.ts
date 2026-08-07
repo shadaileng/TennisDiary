@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 
-import type { Gear } from "@/types";
+import { createGear, deleteGear, getGears, updateGear } from "@/services/data";
+import type { Gear, GearCreate, GearUpdate } from "@/types";
 
 interface GearState {
   gears: Gear[]
@@ -10,7 +11,7 @@ interface GearState {
 /**
  * 装备数据 store
  *
- * 管理装备列表。Phase1-7 网络层完成后，由 fetchList 对接 /api/gears 接口。
+ * 管理装备列表，action 对接 /api/gears 接口。
  */
 export const useGearStore = defineStore("gear", {
   state: (): GearState => ({
@@ -35,10 +36,34 @@ export const useGearStore = defineStore("gear", {
       this.gears = list;
     },
 
-    /** 拉取装备列表（Phase1-7 网络层接入后填充实现） */
+    /** 拉取装备列表（GET /api/gears） */
     async fetchList() {
-      // TODO(Phase1-7): GET /api/gears
-      this.gears = [];
+      this.loading = true;
+      try {
+        this.gears = await getGears();
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /** 添加装备（POST /api/gears），成功后插入列表头部 */
+    async create(body: GearCreate): Promise<Gear> {
+      const g = await createGear(body);
+      this.gears = [g, ...this.gears];
+      return g;
+    },
+
+    /** 编辑装备（PUT /api/gears/{id}），成功后替换列表项 */
+    async update(id: number, body: GearUpdate): Promise<Gear> {
+      const g = await updateGear(id, body);
+      this.gears = this.gears.map((x) => (x.id === id ? g : x));
+      return g;
+    },
+
+    /** 删除装备（DELETE /api/gears/{id}），成功后从列表移除 */
+    async remove(id: number) {
+      await deleteGear(id);
+      this.gears = this.gears.filter((x) => x.id !== id);
     },
   },
 });

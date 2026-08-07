@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 
-import type { WeightRecord } from "@/types";
+import { createWeight, deleteWeight, getWeights } from "@/services/data";
+import type { WeightCreate, WeightRecord } from "@/types";
 
 interface WeightState {
   weights: WeightRecord[]
@@ -10,7 +11,7 @@ interface WeightState {
 /**
  * 体重数据 store
  *
- * 管理体重记录列表。Phase1-7 网络层完成后，由 fetchList 对接 /api/weights 接口。
+ * 管理体重记录列表，action 对接 /api/weights 接口。
  */
 export const useWeightStore = defineStore("weight", {
   state: (): WeightState => ({
@@ -29,10 +30,27 @@ export const useWeightStore = defineStore("weight", {
       this.weights = list;
     },
 
-    /** 拉取体重记录（Phase1-7 网络层接入后填充实现） */
+    /** 拉取体重记录（GET /api/weights） */
     async fetchList() {
-      // TODO(Phase1-7): GET /api/weights
-      this.weights = [];
+      this.loading = true;
+      try {
+        this.weights = await getWeights();
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    /** 添加体重记录（POST /api/weights），成功后插入列表头部 */
+    async create(body: WeightCreate): Promise<WeightRecord> {
+      const w = await createWeight(body);
+      this.weights = [w, ...this.weights];
+      return w;
+    },
+
+    /** 删除体重记录（DELETE /api/weights/{id}），成功后从列表移除 */
+    async remove(id: number) {
+      await deleteWeight(id);
+      this.weights = this.weights.filter((x) => x.id !== id);
     },
   },
 });
