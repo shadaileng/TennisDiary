@@ -71,6 +71,7 @@ export default defineConfig({
             { text: '34：空数据处理完善 统计页数据总览空态', link: '/plans/34-空数据处理完善-统计页数据总览空态' },
             { text: '35：游客模式 未登录不发请求与游客引导', link: '/plans/35-游客模式-未登录不发请求与游客引导' },
             { text: '36：修复组件桶导出导致页面空白', link: '/plans/36-修复组件桶导出导致页面空白' },
+            { text: '37：修复 config 加载路径 微信登录 appid 缺失', link: '/plans/37-修复config加载路径-微信登录appid缺失' },
           ],
         },
       ],

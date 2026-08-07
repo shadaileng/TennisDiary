@@ -126,6 +126,14 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 | Phase1-8 | 对接 B1 登录流程 | ✅ |
 | 21 | 前后端 `.env` 配置模板 + storage 键名收口 | ✅ |
 
+> 注：Phase 1/Phase 2 的后续步骤（22~36）进度见 [docs/README.md](docs/README.md) 文档一览。
+
+### 排障记录
+
+| Step | 内容 | 状态 |
+|------|------|:----:|
+| 37 | 修复 `config.py` `load_dotenv` 路径少算一级，微信登录 `appid missing`（41002） | ✅ |
+
 ## 环境变量
 
 后台服务通过环境变量配置，复制模板并填写：

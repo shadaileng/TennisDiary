@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.28.3] - 2026-08-07
+
+### Fixed
+
+- 修复后端微信登录报 `appid missing (41002)`：`server/app/core/config.py` 中 `load_dotenv` 的路径 `Path(__file__).resolve().parent.parent / ".env"` 少算一级 `.parent`（`config.py` 位于 `app/core/` 下，实际加载到不存在的 `server/app/.env`），导致 `WX_APPID`/`WX_SECRET` 始终为空、微信 `code2session` 收到空 `appid` 而返回 `41002`。修正为 `.parent.parent.parent` 指向 `server/.env`，登录鉴权恢复可用（见方案 37）
+
 ## [1.28.2] - 2026-08-07
 
 ### Fixed

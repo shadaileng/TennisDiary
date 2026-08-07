@@ -4,7 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # 用绝对路径加载 server/.env，无论从哪个目录启动都能正确读取
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+# config.py 位于 server/app/core/ 下，需向上三级到 server/
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 
 class Settings:

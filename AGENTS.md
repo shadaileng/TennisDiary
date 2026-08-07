@@ -259,10 +259,12 @@ Phase 2 小程序前端（进行中）：
 | 34 | 空数据处理完善（统计页「数据总览」空态引导） | ✅ | 34-空数据处理完善-统计页数据总览空态 |
 | 35 | 游客模式（未登录不发请求 + 游客引导，登录态基于 token 有效性判断） | ✅ | 35-游客模式-未登录不发请求与游客引导 |
 | 36 | 修复组件桶导出导致页面空白（业务页改为直接文件导入组件，`usingComponents` 正常注册） | ✅ | 36-修复组件桶导出导致页面空白 |
+| 37 | 修复 `config.py` `load_dotenv` 路径少算一级（后端加载不到 `server/.env`，`WX_APPID`/`WX_SECRET` 为空，微信登录报 `appid missing` 41002） | ✅ | 37-修复config加载路径-微信登录appid缺失 |
 
 ## 注意事项
 
 - 后台使用 `uv` 而非 `pip` 管理依赖
+- **`server/app/core/config.py` 用绝对路径加载 `server/.env`：`Path(__file__).resolve().parent.parent.parent / ".env"`（config.py 位于 `app/core/` 下，向上三级），改动目录结构时勿改错层级，否则微信配置等全部读不到**
 - SQLite 数据文件和上传文件不纳入版本管理（已 `.gitignore`）
 - `docs/reference/` 目录已通过 `srcExclude` 排除在 VitePress 构建外
 - 微信小程序要求 `request` 合法域名必须已备案，生产环境需自备域名 + Nginx 反代
