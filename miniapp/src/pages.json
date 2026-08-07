@@ -7,6 +7,12 @@
       }
     },
     {
+      "path": "pages/diary/form",
+      "style": {
+        "navigationBarTitleText": "写日记"
+      }
+    },
+    {
       "path": "pages/gear/gear",
       "style": {
         "navigationBarTitleText": "装备"
