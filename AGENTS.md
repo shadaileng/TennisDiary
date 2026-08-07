@@ -260,11 +260,17 @@ Phase 2 小程序前端（进行中）：
 | 35 | 游客模式（未登录不发请求 + 游客引导，登录态基于 token 有效性判断） | ✅ | 35-游客模式-未登录不发请求与游客引导 |
 | 36 | 修复组件桶导出导致页面空白（业务页改为直接文件导入组件，`usingComponents` 正常注册） | ✅ | 36-修复组件桶导出导致页面空白 |
 | 37 | 修复 `config.py` `load_dotenv` 路径少算一级（后端加载不到 `server/.env`，`WX_APPID`/`WX_SECRET` 为空，微信登录报 `appid missing` 41002） | ✅ | 37-修复config加载路径-微信登录appid缺失 |
+| 38 | 修复登录时序 bug（一键登录返回 token 后提示请先登录）+ 用户资料编辑（头像/昵称/uid，参考 tarot） | ✅ | 38-修复登录时序与用户资料编辑-参考tarot |
+| 39 | 后端接入 Alembic 数据库迁移（基线迁移 + 模型集中导出 + 迁移测试） | ✅ | 39-Alembic数据库迁移接入 |
 
 ## 注意事项
 
 - 后台使用 `uv` 而非 `pip` 管理依赖
 - **`server/app/core/config.py` 用绝对路径加载 `server/.env`：`Path(__file__).resolve().parent.parent.parent / ".env"`（config.py 位于 `app/core/` 下，向上三级），改动目录结构时勿改错层级，否则微信配置等全部读不到**
+- **数据库迁移用 Alembic**：`cd server && uv run alembic upgrade head`（或 `revision --autogenerate -m "..."` / `current`）。模型变更后自动生成迁移并 upgrade，严禁手工 `create_all`；`app/models/__init__.py` 已集中导出全部模型，新增模型务必在其中登记，否则迁移发现不到
+  - **字段更新三步流程**：① 改模型（新增模型类须在 `app/models/__init__.py` 登记）→ ② `uv run alembic revision --autogenerate -m "描述"` 生成增量迁移 → ③ `uv run alembic upgrade head` 应用
+  - 生成迁移前先 `uv run alembic current` 确认与 `head` 一致，避免基于过期库生成不完整脚本
+  - 迁移脚本由 alembic 自动生成，`pyproject.toml` 已对 `alembic/versions/*` 做 `per-file-ignore`（E501/I/UP）并加入 `[tool.ruff.format] exclude`，**不要**用 `ruff format` 重新格式化
 - SQLite 数据文件和上传文件不纳入版本管理（已 `.gitignore`）
 - `docs/reference/` 目录已通过 `srcExclude` 排除在 VitePress 构建外
 - 微信小程序要求 `request` 合法域名必须已备案，生产环境需自备域名 + Nginx 反代
