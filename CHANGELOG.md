@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.28.2] - 2026-08-07
+
+### Fixed
+
+- 修复日记/装备/统计 Tab 页面空白且无空态：业务页通过 `@/components` **桶导出**引入自定义组件时，uni-app mp-weixin 编译器无法将其注册进 `usingComponents`，编译产物各页面 `usingComponents` 为空，但 WXML 又引用了 `<empty>`/`<line-chart>`/`<popup>` 等未注册组件导致渲染为空白。将 `diary.vue`/`gear.vue`/`stats.vue`/`diary/form.vue`/`gear/form.vue` 五处组件引入改为**直接文件导入**（`@/components/xxx.vue`），重建后各页面 `usingComponents` 正确注册（见方案 36）
+
 ## [1.28.1] - 2026-08-07
 
 ### Fixed
@@ -210,6 +216,7 @@
 
 **docs / test / chore 类型提交**（不触发版本变更，随所属功能版本记录）：
 
+- `docs: 修复组件桶导出导致页面空白（方案 36 + 进度表/侧边栏/AGENTS/CHANGELOG 同步）`
 - `docs: Phase 2-5 我的页完成 + Phase 2 业务页面收尾`
 - `docs: Phase 2-4 统计页完成（方案文档/进度表/侧边栏/AGENTS 同步）`
 - `docs: Phase 2-3 装备页完成（方案文档/进度表/侧边栏/AGENTS 同步）`

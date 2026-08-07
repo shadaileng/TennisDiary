@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 27 |
-> | 文档版本 | v1.0.0 |
+> | 文档版本 | v1.2.0 |
 > | 文档状态 | ✅ 已完成 |
 > | 最后更新 | 2026-08-07 |
 > | 对应功能/内容 | Phase 2-1：数据层（`services/data.ts` + store action 对接 B1 接口）+ 组件库地基（`components/` 首批组件）+ 前端 utils 工具迁移 |
@@ -14,6 +14,7 @@
 > |------|:----:|------|
 > | 2026-08-07 | v1.0.0 | 初版 |
 > | 2026-08-07 | v1.1.0 | 实施完成：数据层 + utils + 组件库落地 |
+> | 2026-08-07 | v1.2.0 | 补充「小程序端须直接文件引入组件」约束（桶导出致 `usingComponents` 未注册，见方案 36） |
 >
 > **关联文档**：[Phase 2 总纲（26）](./26-Phase2-业务页面实现总纲.md) · [Phase1-6 Pinia store（18）](./18-Phase1-6-PiniaStore搭建.md) · [Phase1-7 网络层（19）](./19-Phase1-7-网络层封装.md) · [Phase1-4 自定义组件（16）](./16-Phase1-4-Tailwind自定义组件.md)
 
@@ -140,7 +141,9 @@ async remove(id: number) {
 | `ActionSheet.vue` | `{ show: boolean; actions: {name,value}[]; title? }` / `emit("update:show"|"select")` | 底部弹出枚举选择 |
 | `Popup.vue` | `{ show: boolean }` / `emit("update:show")` | 通用弹层容器（插槽内容） |
 
-所有组件样式用 Tailwind 主题 token（`bg-lime-dark` / `bg-paper` 等），并在 `components/index.ts` 统一导出，页面按需引入。
+所有组件样式用 Tailwind 主题 token（`bg-lime-dark` / `bg-paper` 等），并在 `components/index.ts` 统一导出。
+
+> **⚠️ 小程序端引入约束**：`components/index.ts` 桶导出仅适合 H5 等场景。**小程序业务页必须直接按文件引入**（`import X from "@/components/X.vue"`），否则 uni-app mp-weixin 编译器无法将组件注册进 `usingComponents`，WXML 引用了未注册组件会渲染为空白页（详见方案 36）。
 
 ## 五、产出物
 
@@ -199,3 +202,7 @@ async remove(id: number) {
   - 新建 `components/` 首批 9 个组件（Empty/NavBar/CellGroup/Cell/Field/Stepper/Tag/ActionSheet/Popup）+ `index.ts` 统一导出
   - 文档同步：`docs/README.md`（一览 + 进度表）、`docs/.vitepress/config.mts`（侧边栏）
   - 验证：`pnpm type-check`、`pnpm build:mp-weixin`、`pnpm docs:build` 全部通过；WXSS 产物确认 Tailwind 类名正常生成
+
+- 2026-08-07：补充约束
+  - 方案 36 发现经 `components/index.ts` 桶导出引入组件时，uni-app mp-weixin 编译器不注册 `usingComponents` 导致页面空白
+  - 本节补充「小程序端须直接文件引入组件」约束，并在各业务页落地修改（详见方案 36）
