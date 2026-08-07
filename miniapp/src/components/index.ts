@@ -11,6 +11,7 @@ export { default as CellGroup } from "./CellGroup.vue";
 export { default as EmojiScale } from "./EmojiScale.vue";
 export { default as Empty } from "./Empty.vue";
 export { default as Field } from "./Field.vue";
+export { default as LineChart } from "./LineChart.vue";
 export { default as NavBar } from "./NavBar.vue";
 export { default as Popup } from "./Popup.vue";
 export { default as Seg } from "./Seg.vue";
