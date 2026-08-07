@@ -16,7 +16,7 @@ onHide(() => {
   console.log("App Hide");
 });
 </script>
-<style lang="scss">
-/* 小程序端只需引入工具类，不需要 base / components */
-@tailwind utilities;
+<style>
+/* 引入独立 Tailwind 样式入口（对齐 tarot 集成方式，非 scoped） */
+@import '@/app.css';
 </style>

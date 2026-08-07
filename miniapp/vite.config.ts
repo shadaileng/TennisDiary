@@ -59,7 +59,8 @@ export default defineConfig({
     uni(),
     WeappTailwindcss({
       rem2rpx: true,
-      cssEntries: [path.resolve(__dirname, "src/App.vue")],
+      tailwindcssBasedir: __dirname,
+      cssEntries: [path.resolve(__dirname, "src/app.css")],
     }),
     injectWeixinConfigPlugin(),
   ],

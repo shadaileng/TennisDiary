@@ -2,7 +2,11 @@
 module.exports = {
   content: [
     "./index.html",
-    "./src/**/*.{vue,ts,tsx}",
+    "./src/**/*.{html,js,ts,jsx,tsx,vue}",
+    "!./src/uni_modules/**/*",
+    "!./node_modules/**/*",
+    "!./dist/**/*",
+    "!./unpackage/**/*",
   ],
   darkMode: "media",
   theme: {

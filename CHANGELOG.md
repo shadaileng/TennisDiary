@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.30.1] - 2026-08-07
+
+### Fixed
+
+- 修复全项目 Tailwind 自定义色未生成导致界面无品牌色：`vite.config.ts` 中 `cssEntries` 原指向 `src/App.vue`（Vue 组件），weapp-tailwindcss 解析不到其 scss 内的 `@tailwind` 指令，回退默认 config，`bg-olive`/`from-olive`/`via-olive-mid` 等自定义色类未生成到 WXSS，所有页面纯白无层次。改为新建独立 `src/app.css`（含 `@config "../tailwind.config.js"` 显式指定 config 路径 + `@tailwind base/components/utilities`）、`App.vue` 非 scoped `@import '@/app.css'`、`cssEntries`/`tailwindcssBasedir` 修正（对齐 tarot 集成方式），全项目 olive/lime/paper 品牌色类恢复（见方案 40）
+
 ## [1.30.0] - 2026-08-07
 
 ### Added
