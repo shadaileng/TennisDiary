@@ -1,5 +1,12 @@
 <template>
   <view class="page bg-paper min-h-screen flex flex-col">
+    <!-- 游客空态：未登录不发请求，引导登录 -->
+    <view v-if="authStore.isGuest" class="flex-1">
+      <Empty icon="🔒" text="登录后即可记录与同步网球数据" button-text="去登录" @action="goMine" />
+    </view>
+
+    <!-- 已登录内容 -->
+    <template v-else>
     <!-- Hero：累计时长 -->
     <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden relative">
       <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">ONE SWING AT A TIME</text>
@@ -77,6 +84,7 @@
       class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime-dark text-white flex items-center justify-center text-3xl shadow-lg press-btn z-20"
       @tap="goCreate"
     >+</view>
+    </template>
   </view>
 </template>
 
@@ -85,13 +93,19 @@ import { computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import { Empty } from "@/components";
-import { useDiaryStore } from "@/stores";
+import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";
 import type { Diary } from "@/types";
 
+const authStore = useAuthStore();
 const diaryStore = useDiaryStore();
 const settingsStore = useSettingsStore();
+
+/** 跳转到「我的」页登录（游客空态按钮） */
+function goMine() {
+  uni.switchTab({ url: "/pages/mine/mine" });
+}
 
 /** 类型 emoji 图标 */
 const TYPE_ICON: Record<string, string> = {
@@ -162,6 +176,11 @@ function goEdit(id: number) {
 }
 
 onShow(() => {
+  // 游客态：不发请求，清空列表并展示游客引导
+  if (authStore.isGuest) {
+    diaryStore.setDiaries([]);
+    return;
+  }
   diaryStore.fetchList();
 });
 </script>

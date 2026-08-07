@@ -1,5 +1,12 @@
 <template>
   <view class="page bg-paper min-h-screen pb-12">
+    <!-- 游客空态：未登录不发请求，引导登录 -->
+    <view v-if="authStore.isGuest" class="pt-8">
+      <Empty icon="🔒" text="登录后即可查看打球数据与体重趋势" button-text="去登录" @action="goMine" />
+    </view>
+
+    <!-- 已登录内容 -->
+    <template v-else>
     <!-- 汇总卡片 -->
     <view class="px-4 pt-4">
       <text class="block px-1 mb-2 text-xs text-olive-light">数据总览</text>
@@ -149,6 +156,7 @@
         </view>
       </view>
     </Popup>
+    </template>
   </view>
 </template>
 
@@ -157,13 +165,19 @@ import { computed, reactive, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import { Empty, LineChart, Popup } from "@/components";
-import { useSettingsStore, useWeightStore } from "@/stores";
+import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
 import { getStats } from "@/services/data";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
 import type { Stats, WeightRecord } from "@/types";
 
+const authStore = useAuthStore();
 const weightStore = useWeightStore();
 const settingsStore = useSettingsStore();
+
+/** 跳转到「我的」页登录（游客空态按钮） */
+function goMine() {
+  uni.switchTab({ url: "/pages/mine/mine" });
+}
 
 // ==================== 汇总 ====================
 
@@ -313,6 +327,13 @@ function confirmRemove(id: number) {
 // ==================== 生命周期 ====================
 
 onShow(() => {
+  // 游客态：不发请求，清空数据并展示游客引导
+  if (authStore.isGuest) {
+    weightStore.setWeights([]);
+    stats.value = null;
+    statsLoading.value = false;
+    return;
+  }
   weightStore.fetchList();
   statsLoading.value = true;
   getStats()

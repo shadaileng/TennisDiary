@@ -1,5 +1,12 @@
 <template>
   <view class="page bg-paper min-h-screen flex flex-col">
+    <!-- 游客空态：未登录不发请求，引导登录 -->
+    <view v-if="authStore.isGuest" class="flex-1">
+      <Empty icon="🔒" text="登录后即可管理装备库" button-text="去登录" @action="goMine" />
+    </view>
+
+    <!-- 已登录内容 -->
+    <template v-else>
     <!-- Hero：装备投入 -->
     <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden relative">
       <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">MY TENNIS CLOSET</text>
@@ -86,6 +93,7 @@
       class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime-dark text-white flex items-center justify-center text-3xl shadow-lg press-btn z-20"
       @tap="goCreate"
     >+</view>
+    </template>
   </view>
 </template>
 
@@ -94,13 +102,19 @@ import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import { Empty } from "@/components";
-import { useGearStore } from "@/stores";
+import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { GEAR_CATEGORIES, fmtMoney } from "@/utils";
 import type { Gear } from "@/types";
 
+const authStore = useAuthStore();
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
+
+/** 跳转到「我的」页登录（游客空态按钮） */
+function goMine() {
+  uni.switchTab({ url: "/pages/mine/mine" });
+}
 
 const catFilter = ref("全部");
 const monthFilter = ref("全部");
@@ -177,6 +191,11 @@ function goEdit(id: number) {
 }
 
 onShow(() => {
+  // 游客态：不发请求，清空列表并展示游客引导
+  if (authStore.isGuest) {
+    gearStore.setGears([]);
+    return;
+  }
   gearStore.fetchList();
 });
 </script>

@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { STORAGE_KEYS } from "@/constants/storage";
 import { getLoginCode, getMe, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
+import { isLoggedIn as isTokenValid } from "@/utils/jwt";
 
 /** storage 键名统一从常量读取 */
 const TOKEN_KEY = STORAGE_KEYS.token;
@@ -12,7 +13,7 @@ const HAS_LOGGED_IN_KEY = STORAGE_KEYS.hasLoggedIn;
 interface AuthState {
   token: string
   user: User | null
-  /** 是否曾登录：决定启动时是否触发静默登录 */
+  /** 是否曾登录（仅用于清理旧数据，不再作为登录判断依据） */
   hasLoggedIn: boolean
 }
 
@@ -22,6 +23,9 @@ interface AuthState {
  * 负责 token 与用户信息的持久化读写（uni.setStorageSync），
  * 并暴露登录/登出 action。Phase1-8 对接 /api/auth/login 后，
  * login() 内部改调服务层。
+ *
+ * 游客模式（Step 35）：登录态基于「token 有效（存在且未过期）」判断，
+ * 未登录即为游客（isGuest），业务页不发请求并展示游客引导。
  */
 export const useAuthStore = defineStore("auth", {
   state: (): AuthState => ({
@@ -31,8 +35,10 @@ export const useAuthStore = defineStore("auth", {
   }),
 
   getters: {
-    /** 是否已登录（存在 token） */
-    isLoggedIn: (state): boolean => !!state.token,
+    /** 是否已登录：本地 token 有效（存在且未过期） */
+    isLoggedIn: (state): boolean => isTokenValid(state.token),
+    /** 是否为游客：未登录或 token 已失效 */
+    isGuest: (state): boolean => !isTokenValid(state.token),
   },
 
   actions: {
@@ -74,28 +80,24 @@ export const useAuthStore = defineStore("auth", {
     },
 
     /**
-     * 静默登录：已登录则直接返回；曾登录过（hasLoggedIn）才自动续登；
-     * 从未登录过则不请求后台，保持未登录态，等待用户手动登录。
-     * 供 App.onLaunch 调用。失败时提示并保持未登录态。
+     * 静默续登：仅在本地已有有效 token（但可能失效/需刷新）时才尝试重新登录；
+     * 从未登录或已登出（无有效 token）则保持游客态，不请求后台。
+     * 供 App.onLaunch 可选调用。失败时清空登录态。
      */
     async ensureLogin() {
-      if (this.isLoggedIn) {
-        return;
-      }
-      if (!this.hasLoggedIn) {
+      // 已有有效 token 直接返回；无有效 token（游客态）则不静默登录
+      if (this.isLoggedIn || !this.token) {
         return;
       }
       try {
         await this.login();
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "登录失败";
         console.error("静默登录失败", e);
         this.logout();
-        uni.showToast({ title: msg, icon: "none" });
       }
     },
 
-    /** 登出：清空内存态、持久化与「曾登录」标志 */
+    /** 登出：清空内存态与持久化（含「曾登录」旧标志） */
     logout() {
       this.token = "";
       this.user = null;

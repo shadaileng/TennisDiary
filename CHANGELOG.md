@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.28.0] - 2026-08-07
+
+### Added
+
+- 引入游客模式（参考 tarot 项目）：登录态改为基于「token 有效（存在且未过期）」判断（新增 `src/utils/jwt.ts` 解析 JWT 的 `exp`），新增 `auth.isGuest` 游客态 getter；`App.vue` `onLaunch` 移除无条件静默登录，未登录即保持游客态、不再自动请求后台；日记/装备/统计页在游客态不发请求并展示 `Empty` 游客引导空态（「去登录」跳转「我的」页），`request.ts` 本地短路继续作为兜底（见方案 35）
+
 ## [1.27.0] - 2026-08-07
 
 ### Added

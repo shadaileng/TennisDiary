@@ -7,7 +7,7 @@ export const STORAGE_KEYS = {
   token: "td_token",
   /** 用户信息 */
   user: "td_user",
-  /** 是否曾登录（决定启动时是否触发静默登录） */
+  /** 是否曾登录（Step 35 起不再作为登录判断依据，仅用于清理旧数据） */
   hasLoggedIn: "td_has_logged_in",
   /** 全局偏好设置 */
   settings: "td_settings",
