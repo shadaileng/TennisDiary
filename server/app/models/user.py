@@ -10,5 +10,7 @@ class User(Base):
     openid = Column(String(128), unique=True, nullable=False, index=True)
     nickname = Column(String(64), default="")
     avatar_url = Column(String(512), default="")
+    gender = Column(Integer, default=0)  # 0=保密 1=男 2=女
+    birthday = Column(String(10), default="")  # YYYY-MM-DD
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

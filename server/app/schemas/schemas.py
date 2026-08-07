@@ -8,8 +8,19 @@ class UserResponse(BaseModel):
     openid: str
     nickname: str = ""
     avatar_url: str = ""
+    gender: int = 0  # 0=保密 1=男 2=女
+    birthday: str = ""  # YYYY-MM-DD
 
     model_config = {"from_attributes": True}
+
+
+class UserUpdate(BaseModel):
+    """用户资料更新 — 所有字段可选，仅更新传入的字段"""
+
+    nickname: str | None = Field(default=None, max_length=64)
+    avatar_url: str | None = Field(default=None, max_length=512)
+    gender: int | None = Field(default=None, ge=0, le=2)
+    birthday: str | None = Field(default=None, max_length=10)
 
 
 # ==================== 认证 ====================
@@ -22,6 +33,15 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class LoginResponse(TokenResponse):
+    user: UserResponse
+    is_new: bool = False
+
+
+class UserUpdateResponse(BaseModel):
+    user: UserResponse
 
 
 # ==================== 日记 ====================

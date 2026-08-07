@@ -5,7 +5,7 @@ import os
 from app.core.config import settings
 
 # 上传目录下的子目录列表
-_UPLOAD_SUBDIRS = ["images", "videos", "frames"]
+_UPLOAD_SUBDIRS = ["images", "videos", "frames", "avatars"]
 
 
 def ensure_dirs():

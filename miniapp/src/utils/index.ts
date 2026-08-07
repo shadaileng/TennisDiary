@@ -6,6 +6,8 @@
  * Web 专属（DOM / Blob / Canvas 截图等）留待 Phase 5 / B2。
  */
 
+import { API_PREFIX, BASE_URL } from "@/config";
+
 import type { CostItem } from "@/types";
 
 // ==================== 枚举常量 ====================
@@ -97,6 +99,30 @@ export function fmtMoney(n: number): string {
 /** 花费明细合计 */
 export function sumCosts(costs: CostItem[]): number {
   return costs.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+}
+
+// ==================== 脱敏 ====================
+
+/** 中间脱敏：数字/字符串太长时保留首尾各 keep 位，中间用 ***。过短则整体 *** */
+export function maskMiddle(value: string | number, keep = 4): string {
+  const s = String(value);
+  if (s.length <= keep * 2) return "***";
+  return `${s.slice(0, keep)}***${s.slice(-keep)}`;
+}
+
+/**
+ * 将后端返回的上传文件相对 url 转为可展示的完整 URL。
+ * 头像 url 形如 `avatars/<user_id>/<uuid>.<ext>` → `/api/upload/avatar/<user_id>/<uuid>.<ext>`；
+ * 绝对地址（http/data）原样返回。
+ */
+export function resolveUploadUrl(url: string): string {
+  if (!url) return "";
+  if (/^https?:\/\//.test(url) || url.startsWith("data:")) return url;
+  const [group, user_id, ...rest] = url.split("/");
+  if (group === "avatars" && user_id && rest.length) {
+    return `${BASE_URL}${API_PREFIX}/upload/avatar/${user_id}/${rest.join("/")}`;
+  }
+  return url;
 }
 
 // ==================== 图片 ====================

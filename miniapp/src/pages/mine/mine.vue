@@ -1,28 +1,37 @@
 <template>
   <view class="page bg-paper min-h-screen pb-12">
-    <!-- 用户信息卡 -->
-    <view class="m-4 mb-3 rounded-hero bg-olive p-5 overflow-hidden relative">
+    <!-- 用户信息卡（已登录可点击进入编辑资料） -->
+    <view
+      class="m-4 mb-3 rounded-hero bg-olive p-5 overflow-hidden relative"
+      :class="{ 'press-btn': authStore.isLoggedIn }"
+      @tap="authStore.isLoggedIn && goEditProfile()"
+    >
       <view class="flex items-center gap-3">
         <view class="w-14 h-14 rounded-full bg-lime flex items-center justify-center text-2xl shrink-0">
-          {{ authStore.user?.avatar_url ? "" : "🎾" }}
+          {{ userAvatar ? "" : "🎾" }}
           <image
-            v-if="authStore.user?.avatar_url"
-            :src="authStore.user.avatar_url"
+            v-if="userAvatar"
+            :src="userAvatar"
             mode="aspectFill"
             class="w-14 h-14 rounded-full"
           />
         </view>
-        <view class="flex-1">
+        <view class="flex-1 min-w-0">
           <text class="block text-white text-lg font-bold">
             {{ authStore.user?.nickname || "未登录" }}
           </text>
           <text class="block text-white/60 text-xs mt-0.5">
-            {{ authStore.user ? "已登录" : "登录后可同步日记数据" }}
+            {{ authStore.user ? `ID ${maskMiddle(authStore.user.id)}` : "登录后可同步日记数据" }}
           </text>
+          <text
+            v-if="authStore.user"
+            class="block text-white/50 text-[11px] mt-0.5"
+          >{{ genderLabel }} · {{ birthdayLabel }}</text>
         </view>
+        <text v-if="authStore.isLoggedIn" class="text-white/60 text-xl shrink-0">›</text>
       </view>
 
-      <!-- 登录 / 登出 -->
+      <!-- 登录 / 登出 / 编辑资料 -->
       <view
         v-if="!authStore.isLoggedIn"
         class="mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
@@ -30,13 +39,20 @@
       >
         微信一键登录
       </view>
-      <view
-        v-else
-        class="mt-4 bg-white/10 text-white text-center text-sm font-medium py-2.5 rounded-full press-btn"
-        @tap="doLogout"
-      >
-        退出登录
-      </view>
+      <template v-else>
+        <view
+          class="mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
+          @tap="goEditProfile"
+        >
+          编辑资料
+        </view>
+        <view
+          class="mt-2 bg-white/10 text-white text-center text-sm font-medium py-2.5 rounded-full press-btn"
+          @tap="doLogout"
+        >
+          退出登录
+        </view>
+      </template>
     </view>
 
     <!-- 设置 -->
@@ -69,10 +85,28 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useAuthStore, useSettingsStore } from "@/stores";
+import { maskMiddle, resolveUploadUrl } from "@/utils";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
+
+/** 头像完整展示 URL */
+const userAvatar = computed(() => resolveUploadUrl(authStore.user?.avatar_url || ""));
+
+/** 性别文案 */
+const genderLabel = computed(() => {
+  const g = authStore.user?.gender;
+  return g === 1 ? "男" : g === 2 ? "女" : "保密";
+});
+
+/** 生日文案（未设置时隐藏） */
+const birthdayLabel = computed(() => (authStore.user?.birthday ? `生日 ${authStore.user.birthday}` : "未设置生日"));
+
+function goEditProfile() {
+  uni.navigateTo({ url: "/pages/profile-edit/profile-edit" });
+}
 
 async function doLogin() {
   uni.showLoading({ title: "登录中", mask: true });

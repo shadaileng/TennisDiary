@@ -28,6 +28,8 @@ export interface User {
   openid: string
   nickname: string
   avatar_url: string
+  gender: number // 0=保密 1=男 2=女
+  birthday: string // YYYY-MM-DD
 }
 
 /** 登录请求（后台 LoginRequest） */
@@ -39,6 +41,20 @@ export interface LoginRequest {
 export interface Token {
   access_token: string
   token_type: string
+}
+
+/** 登录响应（后台 LoginResponse） */
+export interface LoginResponse extends Token {
+  user: User
+  is_new: boolean
+}
+
+/** 更新用户资料入参（后台 UserUpdate） */
+export interface UserUpdate {
+  nickname?: string
+  avatar_url?: string
+  gender?: number
+  birthday?: string
 }
 
 // ==================== 日记 ====================

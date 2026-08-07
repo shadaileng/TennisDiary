@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.29.0] - 2026-08-07
+
+### Added
+
+- 用户资料编辑与登录时序修复（参考 tarot，见方案 38）：`/api/auth/login` 一次返回 `{ access_token, user, is_new }`（修复「一键登录返回 token 后仍提示请先登录」的未登录短路 bug），新增 `PUT /api/auth/me` 更新用户资料（昵称/头像/性别/生日，仅更新传入字段）与 `POST /api/upload/avatar` 头像上传，`users` 表新增 `gender`/`birthday` 列；前端新增「编辑资料」页（`profile-edit`），「我的」页用户卡可点击进入并展示脱敏 ID/性别/生日，新增 `updateProfile`/`uploadAvatar`/`resolveUploadUrl`/`maskMiddle` 等工具与对应测试
+
 ## [1.28.3] - 2026-08-07
 
 ### Fixed

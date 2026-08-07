@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 
 import { STORAGE_KEYS } from "@/constants/storage";
-import { getLoginCode, getMe, login as loginApi } from "@/services/auth";
+import { getLoginCode, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
 import { isLoggedIn as isTokenValid } from "@/utils/jwt";
 
@@ -67,16 +67,22 @@ export const useAuthStore = defineStore("auth", {
     },
 
     /**
-     * 完整登录链路：wx.login 取 code → 换 token → 取用户 → 持久化。
-     * 成功即标记「曾登录」。失败时清空登录态并抛出错误，由调用方决定提示方式。
+     * 完整登录链路：wx.login 取 code → 换 token + user → 一次持久化。
+     * 后端 /api/auth/login 一次返回 { access_token, user, is_new }，
+     * 避免「先拿 token 再 getMe」的未登录短路 bug（Step 38）。
      */
     async login() {
       const code = await getLoginCode();
-      const token = await loginApi({ code });
-      // 换取 token 后再获取用户信息（需携带 Authorization）
-      const user = await getMe();
-      this.setAuth(token.access_token, user);
-      return user;
+      const result = await loginApi({ code });
+      // 后端已返回 user，直接持久化
+      this.setAuth(result.access_token, result.user);
+      return result.user;
+    },
+
+    /** 资料更新后同步本地 user 缓存 */
+    updateUser(user: User) {
+      this.user = user;
+      uni.setStorageSync(USER_KEY, JSON.stringify(user));
     },
 
     /**

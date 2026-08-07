@@ -7,18 +7,24 @@ from app.core.auth import create_access_token, get_current_user
 from app.core.database import get_db
 from app.core.logging import logger
 from app.models.user import User
-from app.schemas.schemas import LoginRequest, TokenResponse, UserResponse
+from app.schemas.schemas import (
+    LoginRequest,
+    LoginResponse,
+    UserResponse,
+    UserUpdate,
+    UserUpdateResponse,
+)
 from app.services.wx_service import code_to_openid
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest, db: Session = Depends(get_db)):
-    """微信登录：接收 wx.login code，返回 JWT
+    """微信登录：接收 wx.login code，返回 JWT 与用户信息
 
     - 首次登录自动创建用户
-    - 已注册用户直接返回 token
+    - 已注册用户直接返回 token 与用户
     """
     # 换取 openid
     try:
@@ -42,10 +48,30 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
     # 签发 JWT
     token = create_access_token(openid)
     logger.info("微信登录成功", openid=openid, is_new=is_new)
-    return TokenResponse(access_token=token)
+    return LoginResponse(
+        access_token=token,
+        user=UserResponse.model_validate(user),
+        is_new=is_new,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     """获取当前登录用户信息"""
     return current_user
+
+
+@router.put("/me", response_model=UserUpdateResponse)
+def update_me(
+    body: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """更新当前用户资料（昵称/头像），仅更新传入字段"""
+    for key, value in body.model_dump(exclude_unset=True).items():
+        if value is not None:
+            setattr(current_user, key, value)
+    db.commit()
+    db.refresh(current_user)
+    logger.info("用户资料更新", user_id=current_user.id)
+    return UserUpdateResponse(user=UserResponse.model_validate(current_user))
