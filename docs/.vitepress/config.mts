@@ -63,6 +63,7 @@ export default defineConfig({
             { text: '26：Phase 2 业务页面实现总纲', link: '/plans/26-Phase2-业务页面实现总纲' },
             { text: '27：Phase 2-1 数据层与组件库', link: '/plans/27-Phase2-1-数据层与组件库' },
             { text: '28：Phase 2-2 日记页', link: '/plans/28-Phase2-2-日记页' },
+            { text: '29：Phase 2-3 装备页', link: '/plans/29-Phase2-3-装备页' },
           ],
         },
       ],
