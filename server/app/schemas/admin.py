@@ -208,6 +208,7 @@ class DiaryAdminResponse(BaseModel):
     gears: str  # JSON字符串
     notes: str
     created_at: float
+    user: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -224,6 +225,7 @@ class GearAdminResponse(BaseModel):
     feeling: str
     photo: str
     created_at: float
+    user: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -239,6 +241,7 @@ class WeightAdminResponse(BaseModel):
     waist: float | None = None
     hip: float | None = None
     created_at: float
+    user: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -251,6 +254,7 @@ class CheckinAdminResponse(BaseModel):
     course_id: str
     date: str
     created_at: float
+    user: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -267,6 +271,7 @@ class AnalysisAdminResponse(BaseModel):
     summary: str
     ntrp: str | None = None
     created_at: float
+    user: dict | None = None
 
     model_config = {"from_attributes": True}
 
@@ -282,5 +287,6 @@ class PostAdminResponse(BaseModel):
     content: str
     status: str
     created_at: float
+    user: dict | None = None
 
     model_config = {"from_attributes": True}

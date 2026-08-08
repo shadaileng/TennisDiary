@@ -7,10 +7,19 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.checkin import Checkin
+from app.models.user import User
 from app.schemas.admin import CheckinAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/checkins", tags=["admin-checkins"])
+
+
+def _enrich_checkin(c: Checkin, db: Session) -> CheckinAdminResponse:
+    resp = CheckinAdminResponse.model_validate(c)
+    user = db.query(User).filter(User.id == c.user_id).first()
+    if user:
+        resp.user = {"id": user.id, "nickname": user.nickname or ""}
+    return resp
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[CheckinAdminResponse]])
@@ -30,7 +39,7 @@ def list_checkins(
     checkins = query.order_by(Checkin.date.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
-            items=[CheckinAdminResponse.model_validate(c) for c in checkins],
+            items=[_enrich_checkin(c, db) for c in checkins],
             total=total,
             offset=offset,
             limit=limit,

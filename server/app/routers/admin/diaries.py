@@ -7,10 +7,19 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.diary import Diary
+from app.models.user import User
 from app.schemas.admin import DiaryAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/diaries", tags=["admin-diaries"])
+
+
+def _enrich_diary(d: Diary, db: Session) -> DiaryAdminResponse:
+    resp = DiaryAdminResponse.model_validate(d)
+    user = db.query(User).filter(User.id == d.user_id).first()
+    if user:
+        resp.user = {"id": user.id, "nickname": user.nickname or ""}
+    return resp
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[DiaryAdminResponse]])
@@ -30,7 +39,7 @@ def list_diaries(
     diaries = query.order_by(Diary.date.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
-            items=[DiaryAdminResponse.model_validate(d) for d in diaries],
+            items=[_enrich_diary(d, db) for d in diaries],
             total=total,
             offset=offset,
             limit=limit,

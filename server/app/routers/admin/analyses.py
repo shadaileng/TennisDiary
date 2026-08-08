@@ -7,10 +7,19 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.analysis import Analysis
+from app.models.user import User
 from app.schemas.admin import AnalysisAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/analyses", tags=["admin-analyses"])
+
+
+def _enrich_analysis(a: Analysis, db: Session) -> AnalysisAdminResponse:
+    resp = AnalysisAdminResponse.model_validate(a)
+    user = db.query(User).filter(User.id == a.user_id).first()
+    if user:
+        resp.user = {"id": user.id, "nickname": user.nickname or ""}
+    return resp
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[AnalysisAdminResponse]])
@@ -30,7 +39,7 @@ def list_analyses(
     analyses = query.order_by(Analysis.date.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
-            items=[AnalysisAdminResponse.model_validate(a) for a in analyses],
+            items=[_enrich_analysis(a, db) for a in analyses],
             total=total,
             offset=offset,
             limit=limit,

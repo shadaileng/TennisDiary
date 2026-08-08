@@ -7,10 +7,19 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.gear import Gear
+from app.models.user import User
 from app.schemas.admin import GearAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/gears", tags=["admin-gears"])
+
+
+def _enrich_gear(g: Gear, db: Session) -> GearAdminResponse:
+    resp = GearAdminResponse.model_validate(g)
+    user = db.query(User).filter(User.id == g.user_id).first()
+    if user:
+        resp.user = {"id": user.id, "nickname": user.nickname or ""}
+    return resp
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[GearAdminResponse]])
@@ -30,7 +39,7 @@ def list_gears(
     gears = query.order_by(Gear.id.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
-            items=[GearAdminResponse.model_validate(g) for g in gears],
+            items=[_enrich_gear(g, db) for g in gears],
             total=total,
             offset=offset,
             limit=limit,

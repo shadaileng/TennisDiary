@@ -6,11 +6,20 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
+from app.models.user import User
 from app.models.weight import WeightRecord
 from app.schemas.admin import WeightAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/weights", tags=["admin-weights"])
+
+
+def _enrich_weight(w: WeightRecord, db: Session) -> WeightAdminResponse:
+    resp = WeightAdminResponse.model_validate(w)
+    user = db.query(User).filter(User.id == w.user_id).first()
+    if user:
+        resp.user = {"id": user.id, "nickname": user.nickname or ""}
+    return resp
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[WeightAdminResponse]])
@@ -30,7 +39,7 @@ def list_weights(
     weights = query.order_by(WeightRecord.date.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
-            items=[WeightAdminResponse.model_validate(w) for w in weights],
+            items=[_enrich_weight(w, db) for w in weights],
             total=total,
             offset=offset,
             limit=limit,

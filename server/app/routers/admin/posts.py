@@ -7,10 +7,19 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.post import Post
+from app.models.user import User
 from app.schemas.admin import PostAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/posts", tags=["admin-posts"])
+
+
+def _enrich_post(p: Post, db: Session) -> PostAdminResponse:
+    resp = PostAdminResponse.model_validate(p)
+    user = db.query(User).filter(User.id == p.user_id).first()
+    if user:
+        resp.user = {"id": user.id, "nickname": user.nickname or ""}
+    return resp
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[PostAdminResponse]])
@@ -30,7 +39,7 @@ def list_posts(
     posts = query.order_by(Post.date.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
-            items=[PostAdminResponse.model_validate(p) for p in posts],
+            items=[_enrich_post(p, db) for p in posts],
             total=total,
             offset=offset,
             limit=limit,
