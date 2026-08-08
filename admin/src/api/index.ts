@@ -30,8 +30,9 @@ request.interceptors.response.use(
     const status = error.response?.status
     const message = error.response?.data?.detail || error.response?.data?.message || '请求失败'
     const toast = useToastStore()
+    const isLoginPage = window.location.pathname === '/login'
 
-    if (status === 401) {
+    if (status === 401 && !isLoginPage) {
       const authStore = useAuthStore()
       authStore.removeToken()
       toast.warning('登录已过期，请重新登录')
@@ -42,6 +43,8 @@ request.interceptors.response.use(
       toast.warning('资源不存在')
     } else if (status === 500) {
       toast.error('服务器内部错误')
+    } else if (status === 401) {
+      toast.error(message || '用户名或密码错误')
     } else {
       toast.error(message)
     }
