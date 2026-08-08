@@ -23,8 +23,9 @@
 
 ```
 workspace/
-├── server/            # FastAPI 后台（Phase B1 实施中）
-├── miniapp/           # uni-app 小程序前端（Phase 1 实施中）
+├── server/            # FastAPI 后台（Phase B1 已完成，Phase B2 待执行）
+├── miniapp/           # uni-app 小程序前端（Phase 1/2 已完成）
+├── admin/             # 后台管理前端（Phase Admin 待执行）
 ├── docs/              # VitePress 文档站点
 │   ├── plans/         # 方案文档（含执行方案）
 │   └── guides/        # 指南
@@ -195,6 +196,43 @@ server/
 | `/api/stats` | GET | 统计数据汇总 |
 | `/api/files/{filename}` | GET | 文件下载 |
 
+### 管理接口（Phase B2）
+
+管理员使用独立的账号密码登录，JWT密钥与普通用户分离。
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/api/admin/auth/login` | POST | 管理员登录（账号密码） |
+| `/api/admin/auth/me` | GET | 获取当前管理员信息 |
+| `/api/admin/auth/password` | PUT | 修改密码 |
+| `/api/admin/roles` | GET/POST | 角色列表/创建 |
+| `/api/admin/roles/{id}` | GET/PUT/DELETE | 角色详情/编辑/删除 |
+| `/api/admin/roles/permissions` | GET | 获取所有可用权限 |
+| `/api/admin/admins` | GET/POST | 管理员列表/创建 |
+| `/api/admin/admins/{id}` | GET/PUT/DELETE | 管理员详情/编辑/删除 |
+| `/api/admin/admins/{id}/password` | PUT | 重置密码 |
+| `/api/admin/admins/{id}/status` | PUT | 启用/禁用 |
+| `/api/admin/users` | GET | 用户列表（分页） |
+| `/api/admin/users/{id}` | GET/DELETE | 用户详情/删除 |
+| `/api/admin/diaries` | GET | 日记列表（分页+用户筛选） |
+| `/api/admin/diaries/{id}` | GET/DELETE | 日记详情/删除 |
+| `/api/admin/gears` | GET | 装备列表（分页+用户筛选） |
+| `/api/admin/gears/{id}` | GET/DELETE | 装备详情/删除 |
+| `/api/admin/weights` | GET | 体重记录列表（分页+用户筛选） |
+| `/api/admin/weights/{id}` | DELETE | 删除体重记录 |
+| `/api/admin/checkins` | GET | 打卡记录列表（分页+用户筛选） |
+| `/api/admin/checkins/{id}` | DELETE | 删除打卡记录 |
+| `/api/admin/analyses` | GET | 分析报告列表（分页+用户筛选） |
+| `/api/admin/analyses/{id}` | GET/DELETE | 分析详情/删除 |
+| `/api/admin/posts` | GET | 发布记录列表（分页+用户筛选） |
+| `/api/admin/posts/{id}` | GET/DELETE | 发布详情/删除 |
+| `/api/admin/system/health` | GET | 系统健康检查 |
+| `/api/admin/system/stats` | GET | 运行时指标 |
+| `/api/admin/system/logs` | GET | 日志查询 |
+| `/api/admin/system/backup` | POST | 数据库备份 |
+| `/api/admin/system/backups` | GET | 备份列表 |
+| `/api/admin/system/restore/{id}` | POST | 数据恢复 |
+
 ### 数据结构
 
 与参考源码 `docs/reference/tennis-diary/src/types.ts` 中定义一致：
@@ -223,6 +261,21 @@ Phase B1 后台基础接口已全部完成，待开展小程序前端（Phase 1�
 | B1-10 | 统计汇总 `/api/stats` | ✅ | 10-B1-10 |
 | B1-11 | 文件下载 `/api/files/{filename}` | ✅ | 11-B1-11 |
 | B1 阶段 | 后台基础接口全部完成 | ✅ | — |
+
+Phase B2 后台管理API（待执行）：
+
+| Step | 内容 | 状态 | 方案文档 |
+|------|------|:----:|------|
+| B2 总纲 | 后台管理系统总纲（API + 前端） | 📋 | 43-B2 |
+| B2-1 | 管理员模型与认证（含角色权限+管理员管理） | 📋 | 44-B2-1 |
+| B2-2 | 数据查看API（用户/日记/装备等管理接口） | 📋 | 45-B2-2 |
+| B2-3 | 系统监控API（健康检查/日志查询/备份恢复+日志分离） | 📋 | 46-B2-3 |
+
+Phase Admin 后台管理前端（待执行）：
+
+| Step | 内容 | 状态 | 方案文档 |
+|------|------|:----:|------|
+| Admin 总纲 | 后台管理前端总纲（Vite+Vue3+Tailwind） | 📋 | 47-Admin |
 
 Phase 1 小程序前端（已完成）：
 

@@ -1,5 +1,6 @@
 packages:
   - 'docs'
   - 'miniapp'
+  - 'admin'
 allowBuilds:
   esbuild: true
