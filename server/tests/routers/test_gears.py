@@ -34,7 +34,7 @@ class TestCreateGear:
         }
         resp = auth_client.post("/api/gears", json=payload)
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] > 0
         assert data["user_id"] == 1
         assert data["category"] == "球线"
@@ -48,7 +48,7 @@ class TestCreateGear:
     def test_create_gear_defaults(self, auth_client):
         resp = auth_client.post("/api/gears", json={"name": "基础球"})
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["category"] == ""
         assert data["price"] == 0
 
@@ -60,7 +60,7 @@ class TestListGears:
 
         resp = auth_client.get("/api/gears")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
@@ -71,7 +71,7 @@ class TestListGears:
 
         resp = auth_client.get("/api/gears")
         assert resp.status_code == 200
-        ids = [g["id"] for g in resp.json()]
+        ids = [g["id"] for g in resp.json()["data"]]
         assert ids == sorted(ids, reverse=True)
 
 
@@ -80,7 +80,7 @@ class TestGetGear:
         gear = _seed_gear(test_db, user_id=1)
         resp = auth_client.get(f"/api/gears/{gear.id}")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] == gear.id
         assert data["name"] == "Wilson Pro Staff"
 
@@ -97,7 +97,7 @@ class TestUpdateGear:
             f"/api/gears/{gear.id}", json={"price": 1500.0, "feeling": "更顺手了"}
         )
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["price"] == 1500.0
         assert data["feeling"] == "更顺手了"
         # 未更新字段保持不变

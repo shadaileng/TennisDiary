@@ -26,7 +26,7 @@ class TestCreateWeight:
         payload = {"date": "2026-08-05", "weight": 70.5}
         resp = auth_client.post("/api/weights", json=payload)
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] > 0
         assert data["user_id"] == 1
         assert data["weight"] == 70.5
@@ -46,7 +46,7 @@ class TestCreateWeight:
         }
         resp = auth_client.post("/api/weights", json=payload)
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["bust"] == 95.0
         assert data["waist"] == 80.0
         assert data["hip"] == 92.0
@@ -59,7 +59,7 @@ class TestListWeights:
 
         resp = auth_client.get("/api/weights")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
@@ -70,7 +70,7 @@ class TestListWeights:
 
         resp = auth_client.get("/api/weights")
         assert resp.status_code == 200
-        dates = [w["date"] for w in resp.json()]
+        dates = [w["date"] for w in resp.json()["data"]]
         assert dates == sorted(dates, reverse=True)
 
 
@@ -81,7 +81,7 @@ class TestDeleteWeight:
         assert resp.status_code in (200, 204)
 
         list_resp = auth_client.get("/api/weights")
-        ids = [w["id"] for w in list_resp.json()]
+        ids = [w["id"] for w in list_resp.json()["data"]]
         assert record.id not in ids
 
     def test_delete_other_user_weight_404(self, auth_client, test_db):

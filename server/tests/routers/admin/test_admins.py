@@ -5,7 +5,7 @@ def test_list_admins(auth_client):
     """测试管理员列表"""
     response = auth_client.get("/api/admin/admins")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["total"] >= 1
 
 
@@ -21,7 +21,7 @@ def test_create_admin(auth_client, test_roles):
         },
     )
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["username"] == "newadmin"
     assert data["role"]["code"] == "admin"
 
@@ -61,7 +61,7 @@ def test_toggle_status(auth_client, test_roles):
         },
     )
     assert create_response.status_code == 200
-    admin_id = create_response.json()["id"]
+    admin_id = create_response.json()["data"]["id"]
 
     # 测试启用/禁用
     response = auth_client.put(f"/api/admin/admins/{admin_id}/status")

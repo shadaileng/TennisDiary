@@ -8,7 +8,7 @@ def test_admin_login_success(client, test_admin):
         json={"username": "testadmin", "password": "testpass123"},
     )
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "access_token" in data
     assert data["admin"]["username"] == "testadmin"
     assert "role" in data["admin"]
@@ -27,5 +27,6 @@ def test_get_admin_info(auth_client):
     """测试获取管理员信息"""
     response = auth_client.get("/api/admin/auth/me")
     assert response.status_code == 200
-    assert response.json()["username"] == "testadmin"
-    assert "role" in response.json()
+    data = response.json()["data"]
+    assert data["username"] == "testadmin"
+    assert "role" in data

@@ -43,7 +43,7 @@ class TestCreateDiary:
         }
         resp = auth_client.post("/api/diaries", json=payload)
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] > 0
         assert data["user_id"] == 1
         assert data["type"] == "比赛"
@@ -60,7 +60,7 @@ class TestCreateDiary:
         """仅传必填字段 → 默认 type=训练 等"""
         resp = auth_client.post("/api/diaries", json={"date": "2026-08-06"})
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["type"] == "训练"
         assert data["duration"] == 0
         assert data["costs"] == []
@@ -75,7 +75,7 @@ class TestListDiaries:
 
         resp = auth_client.get("/api/diaries")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
@@ -86,7 +86,7 @@ class TestListDiaries:
 
         resp = auth_client.get("/api/diaries")
         assert resp.status_code == 200
-        dates = [d["date"] for d in resp.json()]
+        dates = [d["date"] for d in resp.json()["data"]]
         assert dates == sorted(dates, reverse=True)
 
 
@@ -95,7 +95,7 @@ class TestGetDiary:
         diary = _seed_diary(test_db, user_id=1)
         resp = auth_client.get(f"/api/diaries/{diary.id}")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] == diary.id
         assert data["notes"] == "正手有进步"
 
@@ -112,7 +112,7 @@ class TestUpdateDiary:
             f"/api/diaries/{diary.id}", json={"duration": 150, "notes": "更新后的笔记"}
         )
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["duration"] == 150
         assert data["notes"] == "更新后的笔记"
         # 未更新字段保持不变

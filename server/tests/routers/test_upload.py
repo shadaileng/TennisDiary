@@ -20,7 +20,7 @@ class TestUploadAvatar:
             files={"file": ("avatar.png", io.BytesIO(self._png_bytes()), "image/png")},
         )
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["url"].startswith("avatars/1/")
         assert data["url"].endswith(".png")
 
@@ -54,7 +54,7 @@ class TestDownloadAvatar:
             "/api/upload/avatar",
             files={"file": ("a.png", io.BytesIO(b"\x89PNGdata"), "image/png")},
         )
-        url = up.json()["url"]  # avatars/1/<uuid>.png
+        url = up.json()["data"]["url"]  # avatars/1/<uuid>.png
         filename = url.split("/")[-1]
 
         dl = auth_client.get(f"/api/upload/avatar/1/{filename}")

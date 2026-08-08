@@ -5,7 +5,7 @@ def test_list_users(auth_client, test_db):
     """测试用户列表"""
     response = auth_client.get("/api/admin/users")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "items" in data
     assert "total" in data
 
@@ -23,7 +23,7 @@ def test_get_user_detail(auth_client, test_db):
 
     response = auth_client.get(f"/api/admin/users/{user_id}")
     assert response.status_code == 200
-    assert response.json()["nickname"] == "测试用户"
+    assert response.json()["data"]["nickname"] == "测试用户"
 
 
 def test_get_user_not_found(auth_client):

@@ -23,7 +23,7 @@ class TestCreateCheckin:
         payload = {"course_id": "warmup_001", "date": "2026-08-05"}
         resp = auth_client.post("/api/checkin", json=payload)
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] > 0
         assert data["user_id"] == 1
         assert data["course_id"] == "warmup_001"
@@ -41,7 +41,7 @@ class TestCreateCheckin:
             "/api/checkin", json={"course_id": "warmup_001", "date": "2026-08-05"}
         )
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["id"] > 0  # 返回已有记录
 
         # 确认库里只有一条
@@ -60,7 +60,7 @@ class TestListCheckins:
 
         resp = auth_client.get("/api/checkin")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
@@ -71,5 +71,5 @@ class TestListCheckins:
 
         resp = auth_client.get("/api/checkin")
         assert resp.status_code == 200
-        dates = [c["date"] for c in resp.json()]
+        dates = [c["date"] for c in resp.json()["data"]]
         assert dates == sorted(dates, reverse=True)

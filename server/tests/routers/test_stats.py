@@ -68,7 +68,7 @@ class TestStats:
         """无数据 → 全 0"""
         resp = auth_client.get("/api/stats")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["total_sessions"] == 0
         assert data["total_duration"] == 0
         assert data["avg_intensity"] == 0
@@ -98,7 +98,7 @@ class TestStats:
         )
         resp = auth_client.get("/api/stats")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["total_sessions"] == 2
         assert data["total_duration"] == 150
         assert data["avg_intensity"] == 3.0
@@ -112,7 +112,7 @@ class TestStats:
         _seed_analysis(test_db, user_id=1, score=60.0)
         resp = auth_client.get("/api/stats")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["total_gears"] == 2
         assert data["total_analyses"] == 2
         assert data["avg_score"] == 70.0
@@ -132,7 +132,7 @@ class TestStats:
 
         resp = auth_client.get("/api/stats")
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["total_sessions"] == 0
         assert data["total_gears"] == 0
         assert data["total_analyses"] == 0

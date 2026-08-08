@@ -10,7 +10,7 @@ def test_system_health(auth_client, test_db):
     """测试系统健康检查增强接口"""
     response = auth_client.get("/api/admin/system/health")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["status"] == "ok"
     assert data["version"] == "1.0.0"
     assert "database" in data
@@ -22,7 +22,7 @@ def test_system_stats(auth_client, test_db):
     """测试运行时指标接口"""
     response = auth_client.get("/api/admin/system/stats")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "stats" in data
     assert "database_size" in data
     # 验证统计字段存在
@@ -40,7 +40,7 @@ def test_query_logs(auth_client, test_db):
     """测试日志查询接口"""
     response = auth_client.get("/api/admin/system/logs")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "logs" in data
     assert "total" in data
     assert isinstance(data["logs"], list)
@@ -50,7 +50,7 @@ def test_query_logs_with_params(auth_client, test_db):
     """测试日志查询接口（带参数）"""
     response = auth_client.get("/api/admin/system/logs?level=INFO&limit=10")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "logs" in data
     assert "total" in data
 
@@ -88,7 +88,7 @@ def test_list_backups(auth_client, test_db):
 
     response = auth_client.get("/api/admin/system/backups")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert "backups" in data
     assert "total" in data
     assert isinstance(data["backups"], list)

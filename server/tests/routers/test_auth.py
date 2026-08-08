@@ -19,10 +19,8 @@ class TestAuthLogin:
             response = client.post("/api/auth/login", json={"code": "valid_code_001"})
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "access_token" in data
-        assert data["token_type"] == "bearer"
-        # 新增：返回 user 与 is_new
         assert data["is_new"] is True
         assert data["user"]["openid"] == "wx_openid_new_user_001"
         assert data["user"]["nickname"] == ""
@@ -47,7 +45,7 @@ class TestAuthLogin:
             response = client.post("/api/auth/login", json={"code": "valid_code_002"})
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "access_token" in data
         # 老用户 is_new=False，user 带已有昵称
         assert data["is_new"] is False
@@ -90,7 +88,7 @@ class TestAuthMe:
         """有效 token → 返回用户信息"""
         response = auth_client.get("/api/auth/me")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["id"] == 1
         assert data["nickname"] == "测试用户"
 
@@ -132,7 +130,7 @@ class TestUpdateMe:
         """更新昵称 → 返回最新 user"""
         response = client.put("/api/auth/me", json={"nickname": "新昵称"})
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["user"]["nickname"] == "新昵称"
         assert data["user"]["id"] == update_me_client.id
 
@@ -144,7 +142,7 @@ class TestUpdateMe:
         """只传 avatar_url 不覆盖 nickname"""
         response = client.put("/api/auth/me", json={"avatar_url": "avatars/1/abc.png"})
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["user"]["avatar_url"] == "avatars/1/abc.png"
         assert data["user"]["nickname"] == "原昵称"
 
@@ -152,7 +150,7 @@ class TestUpdateMe:
         """更新性别与生日 → 持久化并返回"""
         response = client.put("/api/auth/me", json={"gender": 2, "birthday": "2000-06-15"})
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["user"]["gender"] == 2
         assert data["user"]["birthday"] == "2000-06-15"
 

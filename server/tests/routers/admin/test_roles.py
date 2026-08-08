@@ -5,7 +5,7 @@ def test_list_roles(auth_client):
     """测试角色列表"""
     response = auth_client.get("/api/admin/roles")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["total"] >= 3  # 至少3个预置角色
 
 
@@ -21,7 +21,7 @@ def test_create_role(auth_client):
         },
     )
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["data"]
     assert data["code"] == "test_role"
 
 
@@ -38,7 +38,7 @@ def test_delete_system_role(auth_client):
     """测试删除系统角色"""
     # 获取superadmin角色ID
     response = auth_client.get("/api/admin/roles")
-    roles = response.json()["items"]
+    roles = response.json()["data"]["items"]
     superadmin_id = next(r["id"] for r in roles if r["code"] == "superadmin")
 
     response = auth_client.delete(f"/api/admin/roles/{superadmin_id}")
@@ -49,4 +49,4 @@ def test_list_permissions(auth_client):
     """测试获取权限列表"""
     response = auth_client.get("/api/admin/roles/permissions")
     assert response.status_code == 200
-    assert "permissions" in response.json()
+    assert "permissions" in response.json()["data"]
