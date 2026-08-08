@@ -176,6 +176,39 @@ server/
 
 ## API 接口规范
 
+### 统一响应格式
+
+所有 API 接口返回统一的 `{code, message, success, data}` 四字段格式：
+
+**成功响应**：
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "success": true,
+  "data": { ... }
+}
+```
+
+**失败响应**：
+```json
+{
+  "code": 10001,
+  "message": "未登录",
+  "success": false,
+  "data": null
+}
+```
+
+**错误码规范**：
+| 范围 | 说明 |
+|------|------|
+| 0 | 成功 |
+| 10000-19999 | 认证/授权错误 |
+| 20000-29999 | 参数校验错误 |
+| 30000-39999 | 业务逻辑错误 |
+| 50000-59999 | 服务器内部错误 |
+
 ### 鉴权
 
 - 登录：`POST /api/auth/login`，接收 `wx.login` 的 `code`，返回 JWT
@@ -338,6 +371,7 @@ Phase 2 小程序前端（进行中）：
 | 40 | 我的页与资料页 tarot 化改造（scoped SCSS 硬编码，绕开 weapp-tailwindcss spacing 类 bug） | ✅ | 40-我的页与资料详情页tarot化改造 |
 | 41 | 修复小程序登录错误处理（`parseDetail` 去掉 `errMsg` 兜底，杜绝误弹 "request:ok"；登录 401 不触发登出引导） | ✅ | 41-修复登录错误提示-request ok误弹 |
 | 42 | 修复登录后昵称显示「未登录」（新用户昵称为空时的展示兜底，改为「微信用户」） | ✅ | 42-修复登录后昵称显示未登录 |
+| 55 | 后台API响应格式统一重构（返回code/message/success/data四字段） | ✅ | 55-后台API响应格式统一重构 |
 
 ## 注意事项
 

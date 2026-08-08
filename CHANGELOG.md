@@ -4,6 +4,32 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.37.0] - 2026-08-08
+
+### Added
+
+- 实现系统运行时长显示：`/api/admin/system/health` 接口的 `uptime` 字段从 "unknown" 改为真实运行时长，格式化为 "X天X小时X分钟X秒"
+
+### Fixed
+
+- 修复系统健康检查数据库连通性检测报错：`db.execute("SELECT 1")` 改为 `db.execute(text("SELECT 1"))`，适配 SQLAlchemy 2.0+
+
+## [1.36.0] - 2026-08-08
+
+### Added
+
+- 统一后台API响应格式：所有接口返回 `{code, message, success, data}` 四字段
+  - 新增 `schemas/common.py` 定义 `ApiResponse<T>`、`PaginatedData<T>`、`ErrorCode`
+  - 注册全局异常处理器（HTTPException/ValidationError/Exception），自动转换为统一格式
+  - 改造用户端路由（auth/diaries/gears/weights/checkin/stats/upload）
+  - 改造 Admin 路由（auth/users/diaries/gears/weights/checkins/analyses/posts/roles/admins/system）
+  - Admin 前端拦截器判断 `code===0` 返回 data，否则 reject
+  - Miniapp 前端拦截器判断 `code===0` 返回 data，否则显示 toast
+
+### Changed
+
+- 错误码规范：0=成功，10000-19999=认证授权，20000-29999=参数校验，30000-39999=业务逻辑，50000-59999=服务器内部错误
+
 ## [1.35.0] - 2026-08-08
 
 ### Added
