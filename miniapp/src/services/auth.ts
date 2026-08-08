@@ -32,8 +32,8 @@ export function getLoginCode(): Promise<string> {
 
 /** 微信登录：用 wx.login 的 code 换取 JWT + 用户信息 */
 export function login(data: LoginRequest): Promise<LoginResponse> {
-  // 登录接口无需携带 Authorization
-  return post<LoginResponse>("/auth/login", data, { auth: false });
+  // 登录接口无需携带 Authorization；401 属登录失败，交由调用方展示，不触发全局登出引导
+  return post<LoginResponse>("/auth/login", data, { auth: false, handle401: false });
 }
 
 /** 获取当前登录用户 */

@@ -70,14 +70,23 @@ function promptLogin() {
   uni.showToast({ title: "请到「我的」页登录后使用", icon: "none" });
 }
 
-/** 解析错误消息：优先取后端 detail/message，其次 errMsg */
+/**
+ * 从后端错误响应中提取可展示的错误信息。
+ *
+ * 注意：success 回调中 res.errMsg 恒为 "request:ok"，与 HTTP 状态码无关，
+ * 因此不能作为降级兜底，否则 4xx/5xx 会误提示 "request ok"。
+ * 降级策略：detail/message → 非 JSON 文本 → 基于状态码的通用提示。
+ */
 function parseDetail(res: any): string {
-  return (
-    (res?.data?.detail) ||
-    (res?.data?.message) ||
-    (res?.errMsg) ||
-    "请求失败"
-  );
+  const data = res?.data;
+  if (data && typeof data === "object") {
+    const detail = data.detail ?? data.message;
+    if (typeof detail === "string" && detail.trim()) return detail.trim();
+    if (Array.isArray(detail) && detail.length) return JSON.stringify(detail);
+  }
+  if (typeof data === "string" && data.trim()) return data.trim();
+  const status = res?.statusCode;
+  return status != null && status >= 400 ? `请求失败（HTTP ${status}）` : "请求失败";
 }
 
 // ==================== 核心 ====================

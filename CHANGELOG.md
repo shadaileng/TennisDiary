@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.31.2] - 2026-08-08
+
+### Fixed
+
+- 修复小程序登录失败时 toast 误弹无意义 "request:ok"：`services/request.ts` 的 `parseDetail` 去掉 `res.errMsg` 兜底（`uni.request` success 回调中 `errMsg` 恒为 "request:ok"，与 HTTP 状态码无关），改为优先取后端 `detail`/`message` → 非 JSON 文本 → 基于状态码的 `请求失败（HTTP 4xx/5xx）` 通用提示（见方案 41）
+- 修复登录接口 401 误触发登出引导：`services/auth.ts` 的 `login()` 传 `handle401: false`，登录失败（如 code 过期）不再弹「请到『我的』页登录后使用」，由调用方直接展示真实错误（见方案 41）
+- 修复登录成功后「我的」页昵称误显「未登录」：新注册用户后端 `nickname` 默认为空串，`mine.vue` 旧逻辑 `nickname || "未登录"` 兜底误判；改为新增 `profileName` computed，未登录显示「未登录」、已登录昵称为空显示「微信用户」（见方案 42）
+
 ## [1.31.0] - 2026-08-07
 
 ### Added

@@ -18,7 +18,7 @@
         </view>
 
         <view class="profile-info">
-          <text class="profile-nickname">{{ authStore.user?.nickname || "未登录" }}</text>
+          <text class="profile-nickname">{{ profileName }}</text>
           <text class="profile-sub">{{ authStore.user ? `ID ${maskMiddle(authStore.user.id)}` : "登录后可同步日记数据" }}</text>
           <text v-if="authStore.user" class="profile-meta">{{ genderLabel }} · {{ birthdayLabel }}</text>
         </view>
@@ -103,6 +103,12 @@ const stats = ref<Stats | null>(null);
 
 /** 头像完整展示 URL */
 const userAvatar = computed(() => resolveUploadUrl(authStore.user?.avatar_url || ""));
+
+/** 昵称：未登录显示「未登录」；已登录但未设置昵称显示「微信用户」 */
+const profileName = computed(() => {
+  if (!authStore.isLoggedIn || !authStore.user) return "未登录";
+  return authStore.user.nickname || "微信用户";
+});
 
 /** 性别文案 */
 const genderLabel = computed(() => {
