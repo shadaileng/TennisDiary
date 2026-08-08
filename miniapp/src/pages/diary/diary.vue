@@ -8,20 +8,29 @@
     <!-- 已登录内容 -->
     <template v-else>
     <!-- Hero：累计时长 -->
-    <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden relative">
+    <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden">
+      <!-- 装饰光晕 -->
+      <view class="absolute -right-8 -bottom-10 w-36 h-36 rounded-full bg-lime opacity-10" />
+      <!-- 装饰图标 -->
+      <text class="absolute -right-3 -top-4 text-6xl opacity-20 rotate-12 select-none">🏸</text>
+      <text class="absolute right-20 top-12 text-2xl opacity-25 select-none">🎾</text>
+      <!-- 内容 -->
       <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">ONE SWING AT A TIME</text>
       <text class="block text-white text-lg font-bold mt-1">享受每一拍，进步是顺便的事</text>
-      <view class="mt-4">
-        <view class="flex items-baseline justify-between text-xs">
-          <text class="text-white/60">已积累</text>
-          <text class="text-lime font-bold">
-            {{ totalHours.toFixed(1) }}
-            <text class="text-white/50 font-normal">/ 10000 小时</text>
-          </text>
+      <view class="mt-4 flex items-center justify-between">
+        <view class="flex-1">
+          <view class="flex items-baseline justify-between text-xs">
+            <text class="text-white/60">已积累</text>
+            <text class="text-lime font-bold">
+              {{ totalHours.toFixed(1) }}
+              <text class="text-white/50 font-normal">/ 10000 小时</text>
+            </text>
+          </view>
+          <view class="h-1.5 bg-white/15 rounded-full mt-1.5 overflow-hidden">
+            <view class="h-full bg-lime rounded-full" :style="{ width: `${Math.max(1, hoursPct)}%` }" />
+          </view>
         </view>
-        <view class="h-1.5 bg-white/15 rounded-full mt-1.5 overflow-hidden">
-          <view class="h-full bg-lime rounded-full" :style="{ width: `${Math.max(1, hoursPct)}%` }" />
-        </view>
+        <MoneyToggle class="ml-3 shrink-0" />
       </view>
     </view>
 
@@ -40,16 +49,19 @@
       <view v-for="group in groups" :key="group.month" class="mb-4">
         <view class="flex items-baseline justify-between px-1 mb-2">
           <text class="text-sm font-bold text-olive-light">{{ monthTitle(group.month) }}</text>
-          <text class="text-xs text-olive-light">
-            {{ group.items.length }} 次
-            <text v-if="monthCost(group.items) > 0"> · {{ fmtMoney(monthCost(group.items)) }}</text>
-          </text>
+          <view class="flex items-center gap-2">
+            <text class="text-xs text-olive-light">
+              {{ group.items.length }} 次
+              <text v-if="monthCost(group.items) > 0"> · {{ fmtMoney(monthCost(group.items)) }}</text>
+            </text>
+            <MoneyToggle />
+          </view>
         </view>
         <view class="space-y-2.5">
           <view
             v-for="d in group.items"
             :key="d.id"
-            class="card bg-white rounded-card p-3.5 active:opacity-90"
+            class="card bg-white rounded-card p-3.5 active:opacity-90 transition-opacity"
             @tap="goEdit(d.id)"
           >
             <view class="flex items-center gap-3">
@@ -81,7 +93,7 @@
 
     <!-- FAB -->
     <view
-      class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime-dark text-white flex items-center justify-center text-3xl shadow-lg press-btn z-20"
+      class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime text-ink flex items-center justify-center text-3xl shadow-fab press-btn z-20"
       @tap="goCreate"
     >+</view>
     </template>
@@ -93,6 +105,7 @@ import { computed } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
+import MoneyToggle from "@/components/MoneyToggle.vue";
 import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";
@@ -189,7 +202,12 @@ onShow(() => {
 .press-btn:active {
   opacity: 0.9;
 }
-.card:active {
-  transform: scale(0.99);
+/* 极淡卡片阴影 */
+.card {
+  box-shadow: 0 1px 8px rgba(23, 27, 20, 0.04);
+}
+/* FAB 青柠色阴影 */
+.shadow-fab {
+  box-shadow: 0 6px 20px rgba(200, 218, 43, 0.5);
 }
 </style>
