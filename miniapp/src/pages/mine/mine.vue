@@ -1,123 +1,87 @@
 <template>
-  <view class="page bg-paper min-h-screen pb-12">
+  <view class="mine-page">
     <!-- 用户信息卡（深橄榄渐变 + 青柠光斑） -->
     <view
-      class="m-4 mb-3 rounded-hero p-5 overflow-hidden relative bg-gradient-to-br from-olive via-olive-mid to-olive"
-      :class="{ 'press-btn': authStore.isLoggedIn }"
+      class="profile-card"
+      :class="{ clickable: authStore.isLoggedIn }"
       @tap="authStore.isLoggedIn && goEditProfile()"
     >
-      <!-- 青柠光斑 -->
-      <view class="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-lime/20 blur-2xl"></view>
-      <view class="absolute -bottom-16 -left-10 w-44 h-44 rounded-full bg-lime/10 blur-2xl"></view>
-
-      <!-- 用户信息 -->
-      <view class="relative flex items-center gap-3">
-        <view
-          class="w-14 h-14 rounded-full bg-lime flex items-center justify-center text-2xl shrink-0 ring-2 ring-lime/70"
-        >
-          {{ userAvatar ? "" : "🎾" }}
+      <view class="profile-header">
+        <view class="profile-avatar">
           <image
             v-if="userAvatar"
             :src="userAvatar"
             mode="aspectFill"
-            class="w-14 h-14 rounded-full"
+            class="avatar-img"
           />
+          <text v-else class="avatar-placeholder">🎾</text>
         </view>
-        <view class="flex-1 min-w-0">
-          <text class="block text-white text-lg font-bold">
-            {{ authStore.user?.nickname || "未登录" }}
-          </text>
-          <text class="block text-white/60 text-xs mt-0.5">
-            {{ authStore.user ? `ID ${maskMiddle(authStore.user.id)}` : "登录后可同步日记数据" }}
-          </text>
-          <text
-            v-if="authStore.user"
-            class="block text-white/50 text-[11px] mt-0.5"
-          >{{ genderLabel }} · {{ birthdayLabel }}</text>
+
+        <view class="profile-info">
+          <text class="profile-nickname">{{ authStore.user?.nickname || "未登录" }}</text>
+          <text class="profile-sub">{{ authStore.user ? `ID ${maskMiddle(authStore.user.id)}` : "登录后可同步日记数据" }}</text>
+          <text v-if="authStore.user" class="profile-meta">{{ genderLabel }} · {{ birthdayLabel }}</text>
         </view>
-        <text v-if="authStore.isLoggedIn" class="text-white/60 text-xl shrink-0">›</text>
+
+        <text v-if="authStore.isLoggedIn" class="profile-arrow">›</text>
       </view>
 
       <!-- 统计徽章区（登录后拉 /stats） -->
-      <view v-if="authStore.isLoggedIn" class="relative mt-4 grid grid-cols-3 gap-2">
-        <view class="bg-white/10 rounded-xl py-3 text-center">
-          <text class="block text-white text-xl font-bold">{{ stats?.total_sessions ?? 0 }}</text>
-          <text class="block text-white/60 text-[11px] mt-0.5">累计打球</text>
+      <view v-if="authStore.isLoggedIn" class="stats-row">
+        <view class="stat-item">
+          <text class="stat-value">{{ stats?.total_sessions ?? 0 }}</text>
+          <text class="stat-label">累计打球</text>
         </view>
-        <view class="bg-white/10 rounded-xl py-3 text-center">
-          <text class="block text-white text-xl font-bold">{{ fmtDuration(stats?.total_duration ?? 0) }}</text>
-          <text class="block text-white/60 text-[11px] mt-0.5">累计时长</text>
+        <view class="stat-item">
+          <text class="stat-value">{{ fmtDuration(stats?.total_duration ?? 0) }}</text>
+          <text class="stat-label">累计时长</text>
         </view>
-        <view class="bg-white/10 rounded-xl py-3 text-center">
-          <text class="block text-white text-xl font-bold">{{ stats?.total_gears ?? 0 }}</text>
-          <text class="block text-white/60 text-[11px] mt-0.5">装备</text>
+        <view class="stat-item">
+          <text class="stat-value">{{ stats?.total_gears ?? 0 }}</text>
+          <text class="stat-label">装备</text>
         </view>
       </view>
 
       <!-- 主按钮：未登录=微信一键登录；已登录=编辑资料 -->
-      <view
-        v-if="!authStore.isLoggedIn"
-        class="relative mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
-        @tap="doLogin"
-      >
-        微信一键登录
-      </view>
-      <view
-        v-else
-        class="relative mt-4 bg-white text-olive text-center text-sm font-medium py-2.5 rounded-full press-btn"
-        @tap="goEditProfile"
-      >
-        编辑资料
-      </view>
+      <view v-if="!authStore.isLoggedIn" class="primary-btn" @tap="doLogin">微信一键登录</view>
+      <view v-else class="primary-btn" @tap="goEditProfile">编辑资料</view>
     </view>
 
-    <!-- 功能菜单（仅登录后显示） -->
-    <view v-if="authStore.isLoggedIn" class="mx-4 bg-white rounded-card overflow-hidden">
-      <view
-        class="flex items-center px-4 py-3.5 press-btn"
-        @tap="goStats"
-      >
-        <text class="text-base mr-3">📊</text>
-        <text class="flex-1 text-sm text-olive">统计总览</text>
-        <text class="text-olive-light text-lg">›</text>
+    <!-- 功能入口（仅登录后显示） -->
+    <view v-if="authStore.isLoggedIn" class="menu-section">
+      <view class="menu-item" @tap="goStats">
+        <text class="menu-icon">📊</text>
+        <text class="menu-label">统计总览</text>
+        <text class="menu-arrow">›</text>
       </view>
-      <view
-        class="flex items-center px-4 py-3.5 border-t border-paper press-btn"
-        @tap="goEditProfile"
-      >
-        <text class="text-base mr-3">⚙️</text>
-        <text class="flex-1 text-sm text-olive">编辑资料</text>
-        <text class="text-olive-light text-lg">›</text>
+      <view class="menu-item" @tap="goEditProfile">
+        <text class="menu-icon">⚙️</text>
+        <text class="menu-label">编辑资料</text>
+        <text class="menu-arrow">›</text>
       </view>
-      <view class="flex items-center justify-between px-4 py-3.5 border-t border-paper">
-        <view class="flex items-center">
-          <text class="text-base mr-3">💰</text>
-          <view>
-            <text class="block text-sm text-olive">金额隐私</text>
-            <text class="block text-xs text-olive-light mt-0.5">隐藏日记与装备中的具体金额</text>
-          </view>
+      <view class="menu-item">
+        <text class="menu-icon">💰</text>
+        <view class="menu-content">
+          <text class="menu-label">金额隐私</text>
+          <text class="menu-desc">隐藏日记与装备中的具体金额</text>
         </view>
         <switch :checked="settingsStore.hideAmounts" color="#A8B822" @change="settingsStore.toggleHideAmounts()" />
       </view>
-      <view class="flex items-center justify-between px-4 py-3.5 border-t border-paper">
-        <view class="flex items-center">
-          <text class="text-base mr-3">🎨</text>
-          <view>
-            <text class="block text-sm text-olive">青柠主题</text>
-            <text class="block text-xs text-olive-light mt-0.5">使用青柠强调色</text>
-          </view>
+      <view class="menu-item">
+        <text class="menu-icon">🎨</text>
+        <view class="menu-content">
+          <text class="menu-label">青柠主题</text>
+          <text class="menu-desc">使用青柠强调色</text>
         </view>
         <switch :checked="settingsStore.useLimeTheme" color="#A8B822" @change="settingsStore.toggleLimeTheme()" />
       </view>
     </view>
 
     <!-- 关于 -->
-    <view class="mt-6 text-center px-6">
-      <text class="block text-sm text-olive font-medium">Tennis Diary</text>
-      <text class="block text-xs text-olive-light mt-1 leading-relaxed">
-        结构化记录打球数据 · 体重管理 · 装备库
-      </text>
-      <text class="block text-[11px] text-olive-light/70 mt-3">v1.0 · 为热爱网球的你而做</text>
+    <view class="about">
+      <text class="about-title">Tennis Diary</text>
+      <text class="about-desc">结构化记录打球数据 · 体重管理 · 装备库</text>
+      <text class="about-ver">v1.0 · 为热爱网球的你而做</text>
     </view>
   </view>
 </template>
@@ -188,8 +152,235 @@ async function doLogin() {
 }
 </script>
 
-<style scoped>
-.press-btn:active {
-  opacity: 0.9;
+<style lang="scss" scoped>
+// ========== 页面 ==========
+.mine-page {
+  min-height: 100vh;
+  background: #f2f2ef;
+  padding: 24rpx;
+  padding-bottom: 40rpx;
+  box-sizing: border-box;
+}
+
+// ========== 用户信息卡 ==========
+.profile-card {
+  background: linear-gradient(135deg, #242b1f, #3a4433);
+  border-radius: 28rpx;
+  padding: 32rpx;
+  margin-bottom: 24rpx;
+  position: relative;
+  overflow: hidden;
+
+  // 青柠光斑
+  &::before {
+    content: "";
+    position: absolute;
+    top: -80rpx;
+    right: -80rpx;
+    width: 260rpx;
+    height: 260rpx;
+    border-radius: 50%;
+    background: rgba(200, 218, 43, 0.2);
+    filter: blur(40rpx);
+  }
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -120rpx;
+    left: -80rpx;
+    width: 300rpx;
+    height: 300rpx;
+    border-radius: 50%;
+    background: rgba(200, 218, 43, 0.12);
+    filter: blur(50rpx);
+  }
+
+  &.clickable {
+    cursor: pointer;
+  }
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  position: relative;
+  z-index: 1;
+}
+
+.profile-avatar {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #c8da2b;
+  overflow: hidden;
+  box-shadow: 0 0 0 4rpx rgba(200, 218, 43, 0.7);
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+}
+
+.profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.profile-nickname {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.profile-sub {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.profile-meta {
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.profile-arrow {
+  font-size: 44rpx;
+  color: rgba(255, 255, 255, 0.6);
+  flex-shrink: 0;
+  padding: 0 8rpx;
+}
+
+// ========== 统计徽章区 ==========
+.stats-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 32rpx;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-item {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 16rpx;
+  padding: 20rpx 0;
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stat-label {
+  display: block;
+  font-size: 20rpx;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4rpx;
+}
+
+// ========== 主按钮 ==========
+.primary-btn {
+  margin-top: 32rpx;
+  background: #ffffff;
+  color: #242b1f;
+  text-align: center;
+  font-size: 26rpx;
+  font-weight: 500;
+  line-height: 80rpx;
+  height: 80rpx;
+  border-radius: 40rpx;
+  position: relative;
+  z-index: 1;
+}
+
+// ========== 功能入口 ==========
+.menu-section {
+  margin-bottom: 24rpx;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 12rpx;
+  cursor: pointer;
+}
+
+.menu-icon {
+  font-size: 32rpx;
+  flex-shrink: 0;
+}
+
+.menu-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.menu-label {
+  flex: 1;
+  font-size: 26rpx;
+  color: #242b1f;
+  font-weight: 500;
+}
+
+.menu-desc {
+  font-size: 20rpx;
+  color: #6b7562;
+}
+
+.menu-arrow {
+  font-size: 36rpx;
+  color: #6b7562;
+  flex-shrink: 0;
+}
+
+// ========== 关于 ==========
+.about {
+  text-align: center;
+  padding: 32rpx 40rpx;
+}
+
+.about-title {
+  display: block;
+  font-size: 28rpx;
+  color: #242b1f;
+  font-weight: 500;
+}
+
+.about-desc {
+  display: block;
+  font-size: 22rpx;
+  color: #6b7562;
+  margin-top: 8rpx;
+  line-height: 1.6;
+}
+
+.about-ver {
+  display: block;
+  font-size: 20rpx;
+  color: rgba(107, 117, 98, 0.7);
+  margin-top: 16rpx;
 }
 </style>
