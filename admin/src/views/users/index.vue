@@ -9,7 +9,7 @@
       <template #cell-avatar_url="{ row }">
         <img
           v-if="row.avatar_url"
-          :src="row.avatar_url"
+          :src="getAvatarUrl(row.avatar_url)"
           class="w-8 h-8 rounded-full"
           alt="avatar"
         />
@@ -51,7 +51,7 @@
         <div class="flex items-center gap-4">
           <img
             v-if="selectedUser.avatar_url"
-            :src="selectedUser.avatar_url"
+            :src="getAvatarUrl(selectedUser.avatar_url)"
             class="w-16 h-16 rounded-full"
             alt="avatar"
           />
@@ -90,7 +90,8 @@ const columns = [
   { key: 'id', title: 'ID' },
   { key: 'avatar_url', title: '头像' },
   { key: 'nickname', title: '昵称' },
-  { key: 'created_at', title: '注册时间' }
+  { key: 'gender', title: '性别' },
+  { key: 'created_at', title: '创建时间' }
 ]
 
 const users = ref<User[]>([])
@@ -102,6 +103,13 @@ const selectedUser = ref<User | null>(null)
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN')
+}
+
+const getAvatarUrl = (avatarUrl: string | null | undefined): string => {
+  if (!avatarUrl) return ''
+  if (avatarUrl.startsWith('http')) return avatarUrl
+  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+  return `${baseURL}/api/upload/${avatarUrl}`
 }
 
 const fetchUsers = async () => {
