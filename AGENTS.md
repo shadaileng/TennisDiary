@@ -23,7 +23,7 @@
 
 ```
 workspace/
-├── server/            # FastAPI 后台（Phase B1 已完成，Phase B2 待执行）
+├── server/            # FastAPI 后台（Phase B1/B2 已完成）
 ├── miniapp/           # uni-app 小程序前端（Phase 1/2 已完成）
 ├── admin/             # 后台管理前端（Phase Admin 待执行）
 ├── docs/              # VitePress 文档站点
@@ -262,7 +262,7 @@ Phase B1 后台基础接口已全部完成，待开展小程序前端（Phase 1�
 | B1-11 | 文件下载 `/api/files/{filename}` | ✅ | 11-B1-11 |
 | B1 阶段 | 后台基础接口全部完成 | ✅ | — |
 
-Phase B2 后台管理API（进行中）：
+Phase B2 后台管理API（已完成）：
 
 | Step | 内容 | 状态 | 方案文档 |
 |------|------|:----:|------|
