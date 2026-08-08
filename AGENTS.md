@@ -206,6 +206,7 @@ server/
 | `/api/admin/auth/login` | POST | 管理员登录（账号密码） |
 | `/api/admin/auth/me` | GET | 获取当前管理员信息 |
 | `/api/admin/auth/password` | PUT | 修改密码 |
+| `/api/admin/auth/reset-password` | POST | 通过密钥重置密码（无需登录） |
 | `/api/admin/roles` | GET/POST | 角色列表/创建 |
 | `/api/admin/roles/{id}` | GET/PUT/DELETE | 角色详情/编辑/删除 |
 | `/api/admin/roles/permissions` | GET | 获取所有可用权限 |
