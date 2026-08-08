@@ -60,6 +60,32 @@ const routes: RouteRecordRaw[] = [
         name: 'Analyses',
         component: () => import('@/views/analyses/index.vue'),
         meta: { title: '分析报告', icon: 'ChartBarIcon', permission: 'analyses:list' }
+      },
+      {
+        path: 'system',
+        name: 'System',
+        redirect: '/system/health',
+        meta: { title: '系统监控', icon: 'Cog6ToothIcon' },
+        children: [
+          {
+            path: 'health',
+            name: 'Health',
+            component: () => import('@/views/system/health.vue'),
+            meta: { title: '健康检查', permission: 'system:health' }
+          },
+          {
+            path: 'logs',
+            name: 'Logs',
+            component: () => import('@/views/system/logs.vue'),
+            meta: { title: '日志查看', permission: 'system:logs' }
+          },
+          {
+            path: 'backups',
+            name: 'Backups',
+            component: () => import('@/views/system/backups.vue'),
+            meta: { title: '备份管理', permission: 'system:backup' }
+          }
+        ]
       }
     ]
   },
