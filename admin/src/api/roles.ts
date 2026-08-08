@@ -9,13 +9,21 @@ export interface Role {
   is_system: boolean
 }
 
+export interface RoleListResponse {
+  items: Role[]
+  total: number
+}
+
 export interface Permission {
   code: string
   name: string
-  module: string
 }
 
-export function getRoles(): Promise<Role[]> {
+export interface PermissionListResponse {
+  permissions: Record<string, string>
+}
+
+export function getRoles(): Promise<RoleListResponse> {
   return request.get('/api/admin/roles')
 }
 
@@ -31,6 +39,7 @@ export function deleteRole(id: number) {
   return request.delete(`/api/admin/roles/${id}`)
 }
 
-export function getPermissions(): Promise<Permission[]> {
-  return request.get('/api/admin/roles/permissions')
+export async function getPermissions(): Promise<Permission[]> {
+  const res: PermissionListResponse = await request.get('/api/admin/roles/permissions')
+  return Object.entries(res.permissions).map(([code, name]) => ({ code, name: name as string }))
 }

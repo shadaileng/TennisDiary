@@ -49,7 +49,7 @@
         </div>
         <div>
           <p class="text-sm text-gray-500">类型</p>
-          <p>{{ selectedAnalysis.type }}</p>
+          <p>{{ selectedAnalysis.kind }}</p>
         </div>
         <div v-if="selectedAnalysis.score">
           <p class="text-sm text-gray-500">评分</p>
@@ -57,13 +57,7 @@
         </div>
         <div>
           <p class="text-sm text-gray-500">报告</p>
-          <p class="whitespace-pre-wrap">{{ selectedAnalysis.report }}</p>
-        </div>
-        <div v-if="selectedAnalysis.highlights?.length">
-          <p class="text-sm text-gray-500">亮点</p>
-          <ul class="list-disc list-inside">
-            <li v-for="(h, i) in selectedAnalysis.highlights" :key="i">{{ h }}</li>
-          </ul>
+          <p class="whitespace-pre-wrap">{{ selectedAnalysis.summary }}</p>
         </div>
       </div>
     </Modal>
@@ -81,7 +75,7 @@ const columns = [
   { key: 'id', title: 'ID' },
   { key: 'user', title: '用户' },
   { key: 'date', title: '日期' },
-  { key: 'type', title: '类型' },
+  { key: 'kind', title: '类型' },
   { key: 'score', title: '评分' },
   { key: 'created_at', title: '创建时间' }
 ]

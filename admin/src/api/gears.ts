@@ -7,8 +7,8 @@ export interface Gear {
   category: string
   buy_date: string
   price: number
-  feelings: string
-  photos: string[]
+  feeling: string
+  photo: string
   created_at: string
   user?: {
     id: number

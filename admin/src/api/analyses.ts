@@ -4,10 +4,10 @@ export interface Analysis {
   id: number
   user_id: number
   date: string
-  type: string
+  kind: string
   score: number | null
-  report: string
-  highlights: string[] | null
+  summary: string
+  ntrp: string | null
   created_at: string
   user?: {
     id: number

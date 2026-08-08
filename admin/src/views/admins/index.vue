@@ -176,7 +176,8 @@ const fetchAdmins = async () => {
 
 const fetchRoles = async () => {
   try {
-    roles.value = await getRoles()
+    const res = await getRoles()
+    roles.value = res.items
   } catch (e) {
     console.error('Failed to fetch roles:', e)
   }

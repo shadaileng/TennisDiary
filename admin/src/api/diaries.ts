@@ -4,11 +4,13 @@ export interface Diary {
   id: number
   user_id: number
   date: string
+  time: string
   type: string
   duration: number
   intensity: number
   mood: number
-  cost: number
+  costs: string
+  gears: string
   notes: string
   created_at: string
   user?: {

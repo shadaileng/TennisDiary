@@ -5,8 +5,9 @@ export interface Weight {
   user_id: number
   date: string
   weight: number
-  body_fat: number | null
-  measurements: Record<string, number> | null
+  bust: number | null
+  waist: number | null
+  hip: number | null
   created_at: string
   user?: {
     id: number
