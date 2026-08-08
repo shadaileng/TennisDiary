@@ -4,6 +4,27 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.38.0] - 2026-08-08
+
+### Added
+
+- 新增 Admin 前端 toast 提示组件（`stores/toast.ts` + `components/common/Toast.vue`），支持 success/error/warning/info 四种类型
+- API 拦截器自动显示错误提示：业务错误 code!==0、HTTP 401/403/404/500 均自动弹出 toast
+- 优化用户详情模态框布局：头像居中、信息卡片式展示、OpenID 脱敏、性别/时间格式化
+- 新增 Admin 前端 `posts.ts` 和 `checkins.ts` API 模块
+
+### Fixed
+
+- 修复 Admin 前端 API 类型定义与后端 schema 不匹配问题：`feelings`→`feeling`、`photos`→`photo`、`body_fat`→`bust/waist/hip`、`type`→`kind`、`report`→`summary`
+- 修复用户头像相对路径问题：`avatars/` → `avatar/`，拼接完整 URL
+- 修复角色管理按钮不可点击问题：移除前端 `disabled` 限制，由后端保护系统角色
+- 修复角色弹窗未重置问题：新建/编辑/关闭时清空表单
+
+### Changed
+
+- 更新文档状态与实际进度对齐（README/AGENTS/docs/plans）
+- 精简 AGENTS.md（387行→114行）
+
 ## [1.37.0] - 2026-08-08
 
 ### Added
