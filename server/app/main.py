@@ -7,8 +7,15 @@ from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
 from app.routers import auth, checkin, diaries, files, gears, stats, upload, weights
 from app.routers.admin import admins as admin_admins
+from app.routers.admin import analyses as admin_analyses
 from app.routers.admin import auth as admin_auth
+from app.routers.admin import checkins as admin_checkins
+from app.routers.admin import diaries as admin_diaries
+from app.routers.admin import gears as admin_gears
+from app.routers.admin import posts as admin_posts
 from app.routers.admin import roles as admin_roles
+from app.routers.admin import users as admin_users
+from app.routers.admin import weights as admin_weights
 
 # 启动时确保所有运行时目录存在
 ensure_dirs()
@@ -50,6 +57,13 @@ app.include_router(upload.router)
 app.include_router(admin_auth.router)
 app.include_router(admin_roles.router)
 app.include_router(admin_admins.router)
+app.include_router(admin_users.router)
+app.include_router(admin_diaries.router)
+app.include_router(admin_gears.router)
+app.include_router(admin_weights.router)
+app.include_router(admin_checkins.router)
+app.include_router(admin_analyses.router)
+app.include_router(admin_posts.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(

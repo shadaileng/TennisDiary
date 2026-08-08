@@ -2,8 +2,11 @@
 
 import json
 from datetime import datetime
+from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
+
+T = TypeVar("T")
 
 # ==================== 角色相关 ====================
 
@@ -144,3 +147,132 @@ class PermissionResponse(BaseModel):
     """权限列表响应"""
 
     permissions: dict[str, str]  # {code: description}
+
+
+# ==================== 分页相关 ====================
+
+
+class PaginationParams(BaseModel):
+    """分页参数"""
+
+    offset: int = 0
+    limit: int = 20
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """分页响应"""
+
+    items: list[T]
+    total: int
+    offset: int
+    limit: int
+
+
+# ==================== 数据查看相关 ====================
+
+
+class UserAdminResponse(BaseModel):
+    """用户信息（管理端）"""
+
+    id: int
+    openid: str  # 管理端可查看openid
+    nickname: str
+    avatar_url: str
+    gender: int
+    birthday: str
+    created_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class DiaryAdminResponse(BaseModel):
+    """日记信息（管理端）"""
+
+    id: int
+    user_id: int
+    date: str
+    time: str
+    type: str
+    duration: int
+    intensity: int
+    mood: int
+    costs: str  # JSON字符串
+    gears: str  # JSON字符串
+    notes: str
+    created_at: float
+
+    model_config = {"from_attributes": True}
+
+
+class GearAdminResponse(BaseModel):
+    """装备信息（管理端）"""
+
+    id: int
+    user_id: int
+    category: str
+    name: str
+    buy_date: str
+    price: float
+    feeling: str
+    photo: str
+    created_at: float
+
+    model_config = {"from_attributes": True}
+
+
+class WeightAdminResponse(BaseModel):
+    """体重记录（管理端）"""
+
+    id: int
+    user_id: int
+    date: str
+    weight: float
+    bust: float | None = None
+    waist: float | None = None
+    hip: float | None = None
+    created_at: float
+
+    model_config = {"from_attributes": True}
+
+
+class CheckinAdminResponse(BaseModel):
+    """打卡记录（管理端）"""
+
+    id: int
+    user_id: int
+    course_id: str
+    date: str
+    created_at: float
+
+    model_config = {"from_attributes": True}
+
+
+class AnalysisAdminResponse(BaseModel):
+    """分析报告（管理端）"""
+
+    id: int
+    user_id: int
+    date: str
+    kind: str
+    mode: str
+    score: float
+    summary: str
+    ntrp: str | None = None
+    created_at: float
+
+    model_config = {"from_attributes": True}
+
+
+class PostAdminResponse(BaseModel):
+    """发布记录（管理端）"""
+
+    id: int
+    user_id: int
+    date: str
+    platform: str
+    title: str
+    content: str
+    status: str
+    created_at: float
+
+    model_config = {"from_attributes": True}
