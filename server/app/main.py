@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import time
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,6 +32,9 @@ setup_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 记录启动时间
+    app.state.start_time = time.time()
+
     # 启动时初始化默认角色和管理员
     from app.core.database import SessionLocal
     from app.core.init_data import init_default_admin, init_default_roles

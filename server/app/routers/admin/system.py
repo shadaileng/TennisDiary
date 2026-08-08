@@ -2,10 +2,11 @@
 
 import shutil
 import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -19,8 +20,28 @@ from app.schemas.common import ApiResponse
 router = APIRouter(prefix="/api/admin/system", tags=["admin-system"])
 
 
+def _format_uptime(seconds: float) -> str:
+    """将秒数格式化为可读的运行时长字符串"""
+    days = int(seconds // 86400)
+    hours = int((seconds % 86400) // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+
+    parts = []
+    if days > 0:
+        parts.append(f"{days}天")
+    if hours > 0:
+        parts.append(f"{hours}小时")
+    if minutes > 0:
+        parts.append(f"{minutes}分钟")
+    parts.append(f"{secs}秒")
+
+    return "".join(parts)
+
+
 @router.get("/health", response_model=ApiResponse[dict])
 def system_health(
+    request: Request,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -41,7 +62,12 @@ def system_health(
         disk_usage = "unknown"
 
     # 运行时长
-    uptime = "unknown"
+    start_time = getattr(request.app.state, "start_time", None)
+    if start_time is not None:
+        uptime_seconds = time.time() - start_time
+        uptime = _format_uptime(uptime_seconds)
+    else:
+        uptime = "unknown"
 
     return ApiResponse(
         data={
