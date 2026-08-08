@@ -61,12 +61,8 @@ def upload_avatar(
 
 
 @router.get("/avatar/{user_id}/{filename}")
-def download_avatar(user_id: int, filename: str, current_user: User = Depends(get_current_user)):
-    """下载头像（仅允许访问自己的头像）"""
-    if user_id != current_user.id:
-        logger.warning("头像下载越权被拒", user_id=current_user.id, target_user_id=user_id)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
-
+def download_avatar(user_id: int, filename: str):
+    """下载头像（公开访问，无需鉴权；URL 含 user_id + UUID 不可猜测）"""
     rel_path = os.path.join(_AVATAR_DIR, str(user_id), filename)
     abs_path = _resolve_avatar_abs_path(rel_path)
     if abs_path is None or not os.path.isfile(abs_path):

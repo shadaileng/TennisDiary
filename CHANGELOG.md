@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.31.3] - 2026-08-08
+
+### Fixed
+
+- 修复头像显示 401 Unauthorized：`GET /api/upload/avatar/{user_id}/{filename}` 原先要求 JWT 鉴权，但微信 `<image>` 组件无法携带 Authorization header，导致每次展示头像都触发 401。移除该 GET 端点的 `Depends(get_current_user)`，改为公开访问（URL 含 user_id + UUID 文件名，不可猜测，安全性足够）
+
 ## [1.31.2] - 2026-08-08
 
 ### Fixed

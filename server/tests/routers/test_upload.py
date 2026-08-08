@@ -46,7 +46,7 @@ class TestUploadAvatar:
 
 
 class TestDownloadAvatar:
-    """测试 GET /api/upload/avatar/{user_id}/{filename}"""
+    """测试 GET /api/upload/avatar/{user_id}/{filename}（公开访问，无需鉴权）"""
 
     def test_download_own_avatar_success(self, auth_client):
         """先上传再下载自己的头像 → 200"""
@@ -61,11 +61,11 @@ class TestDownloadAvatar:
         assert dl.status_code == 200
 
     def test_download_other_user_avatar_denied(self, auth_client):
-        """下载他人头像 → 404"""
+        """下载他人头像（文件不存在） → 404"""
         response = auth_client.get("/api/upload/avatar/999/some.png")
         assert response.status_code == 404
 
-    def test_download_avatar_requires_auth(self, client):
-        """未登录 → 401/403"""
-        response = client.get("/api/upload/avatar/1/some.png")
-        assert response.status_code in (401, 403)
+    def test_download_avatar_no_auth_required(self, client):
+        """公开访问无需鉴权，文件不存在时返回 404"""
+        response = client.get("/api/upload/avatar/1/nonexistent.png")
+        assert response.status_code == 404
