@@ -4,7 +4,7 @@
 > |------|------|
 > | 文档编号 | 58 |
 > | 文档版本 | v1.0.0 |
-> | 文档状态 | 📋 待执行 |
+> | 文档状态 | ✅ 已完成 |
 > | 最后更新 | 2026-08-08 |
 > | 对应功能/内容 | 踩坑记录：weapp-tailwindcss 内容扫描失效问题 |
 >
@@ -13,6 +13,7 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-08 | v1.0.0 | 初版 |
+| 2026-08-08 | v1.1.0 | 补充实施记录 |
 >
 > **关联文档**：[Step 56 视觉样式改造](./56-小程序前端视觉样式与交互适配改造.md) · [Step 57 样式方案重构](./57-小程序前端样式方案重构-Tailwind-自定义-CSS.md) · [tarot 参考项目](../reference/tarot/)
 
@@ -202,7 +203,16 @@ $space-md: 16px;
    - `@import` 已弃用，Dart Sass 3.0 将移除
    - 使用 `@use "@/styles/tokens.scss" as *` 替代
 
-## 六、后续行动
+## 六、实施结果
+
+已按照方案完成全部改造：
+- 页面文件（7个）：diary/gear/stats/mine/profile-edit 及其 form 页
+- 组件文件（13个）：Seg/EmojiScale/MoneyToggle/NavBar/Popup/ActionSheet/Stepper/Tag/Cell/CellGroup/Empty/Field/LineChart
+- 设计 Token：src/styles/tokens.scss
+
+所有页面已无 Tailwind 工具类残留，构建通过。
+
+## 七、后续行动
 
 - [ ] 评估是否值得投入时间修复 `weapp-tailwindcss` 配置
 - [ ] 考虑是否将其他页面（如训练营、教练等）也改为自定义 CSS
