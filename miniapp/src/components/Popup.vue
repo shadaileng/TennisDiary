@@ -1,10 +1,10 @@
 <template>
-  <view v-if="show" class="fixed inset-0 z-50">
+  <view v-if="show" class="popup-overlay">
     <!-- 遮罩 -->
-    <view class="absolute inset-0 bg-black/40" @tap="$emit('update:show', false)" />
+    <view class="popup-mask" @tap="$emit('update:show', false)" />
     <!-- 内容区（底部弹出） -->
     <view
-      class="absolute left-0 right-0 bottom-0 bg-white rounded-t-[20px] p-4 pb-safe"
+      class="popup-content"
       @tap.stop
     >
       <slot />
@@ -27,3 +27,31 @@ defineEmits<{
   (e: "update:show", value: boolean): void
 }>();
 </script>
+
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.popup-mask {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.popup-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: $color-white;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding: $space-lg;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+</style>

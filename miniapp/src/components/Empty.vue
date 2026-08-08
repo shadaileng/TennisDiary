@@ -1,10 +1,10 @@
 <template>
-  <view class="flex flex-col items-center justify-center py-12 px-6">
-    <text v-if="icon" class="text-5xl leading-none mb-3">{{ icon }}</text>
-    <text class="text-sm text-olive-light text-center">{{ text || "暂无数据" }}</text>
+  <view class="empty">
+    <text v-if="icon" class="empty-icon">{{ icon }}</text>
+    <text class="empty-text">{{ text || "暂无数据" }}</text>
     <view
       v-if="buttonText"
-      class="mt-4 press-btn bg-lime-dark text-white text-sm font-medium px-6 py-2 rounded-full"
+      class="empty-btn press-btn"
       @tap="$emit('action')"
     >
       {{ buttonText }}
@@ -34,8 +34,41 @@ defineEmits<{
 }>();
 </script>
 
-<style scoped>
-.press-btn:active {
-  opacity: 0.9;
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px $space-lg;
+}
+
+.empty-icon {
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: $color-olive-light;
+  text-align: center;
+}
+
+.empty-btn {
+  margin-top: 16px;
+  background-color: $color-olive;
+  color: $color-white;
+  font-size: 14px;
+  font-weight: 500;
+  padding: $space-md $space-xl;
+  border-radius: 9999px;
+  transition: opacity 0.15s ease;
+  
+  &:active {
+    opacity: 0.9;
+  }
 }
 </style>

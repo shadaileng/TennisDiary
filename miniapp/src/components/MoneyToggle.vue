@@ -1,13 +1,13 @@
 <template>
   <view
-    class="w-7 h-7 rounded-full flex items-center justify-center active:opacity-60"
-    :class="settingsStore.hideAmounts ? 'bg-white/15 text-white/80' : 'bg-paper text-olive-light'"
+    class="money-toggle"
+    :class="settingsStore.hideAmounts ? 'money-toggle--hidden' : 'money-toggle--visible'"
     @tap="toggle"
   >
     <!-- 眼睛图标（显示金额） -->
     <svg
       v-if="!settingsStore.hideAmounts"
-      class="w-4 h-4"
+      class="money-toggle-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -21,7 +21,7 @@
     <!-- 眼睛斜线图标（隐藏金额） -->
     <svg
       v-else
-      class="w-4 h-4"
+      class="money-toggle-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -44,3 +44,36 @@ function toggle() {
   settingsStore.toggleHideAmounts();
 }
 </script>
+
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.money-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease;
+  
+  &--visible {
+    background-color: $color-paper;
+    color: $color-olive-light;
+  }
+  
+  &--hidden {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.8);
+  }
+  
+  &:active {
+    opacity: 0.6;
+  }
+}
+
+.money-toggle-icon {
+  width: 16px;
+  height: 16px;
+}
+</style>

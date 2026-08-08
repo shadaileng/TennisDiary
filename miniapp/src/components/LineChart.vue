@@ -7,8 +7,8 @@
       class="w-full"
       :style="{ height: `${height}px` }"
     />
-    <view v-else class="flex items-center justify-center" :style="{ height: `${height}px` }">
-      <text class="text-xs text-olive-light">暂无数据</text>
+    <view v-else class="loading-placeholder" :style="{ height: `${height}px` }">
+      <text class="loading-text">暂无数据</text>
     </view>
   </view>
 </template>
@@ -157,3 +157,18 @@ onMounted(() => {
   render();
 });
 </script>
+
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.loading-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-text {
+  font-size: 12px;
+  color: $color-olive-light;
+}
+</style>

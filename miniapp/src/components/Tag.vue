@@ -1,16 +1,14 @@
 <template>
   <text
-    class="inline-block px-2 py-0.5 rounded-full text-xs"
-    :class="colorClasses[color]"
+    class="tag"
+    :class="`tag--${color}`"
   >
     {{ text }}
   </text>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
-
-const props = withDefaults(
+withDefaults(
   defineProps<{
     /** 标签文案 */
     text: string
@@ -21,13 +19,30 @@ const props = withDefaults(
     color: "neutral",
   },
 );
-
-/** 各配色 Tailwind 类 */
-const colorClasses: Record<string, string> = {
-  lime: "bg-lime/20 text-lime-dark",
-  olive: "bg-olive/10 text-olive",
-  neutral: "bg-paper text-olive-light",
-};
-
-const classes = computed(() => colorClasses[props.color]);
 </script>
+
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  
+  &--lime {
+    background-color: rgba(200, 218, 43, 0.2);
+    color: $color-lime-dark;
+  }
+  
+  &--olive {
+    background-color: rgba(36, 43, 31, 0.1);
+    color: $color-ink;
+  }
+  
+  &--neutral {
+    background-color: $color-paper;
+    color: $color-olive-light;
+  }
+}
+</style>

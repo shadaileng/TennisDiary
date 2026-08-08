@@ -1,10 +1,10 @@
 <template>
-  <view class="flex bg-paper rounded-card p-1">
+  <view class="seg">
     <view
       v-for="opt in options"
       :key="opt"
-      class="flex-1 py-2 text-center text-sm rounded-card transition-colors"
-      :class="opt === modelValue ? 'bg-lime-dark text-white font-medium' : 'text-olive-light'"
+      class="seg-item"
+      :class="opt === modelValue ? 'seg-item--active' : 'seg-item--inactive'"
       @tap="$emit('update:modelValue', opt)"
     >
       {{ opt }}
@@ -24,3 +24,37 @@ defineEmits<{
   (e: "update:modelValue", value: string): void
 }>();
 </script>
+
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.seg {
+  display: flex;
+  background-color: $color-paper;
+  border-radius: $radius-card;
+  padding: 4px;
+}
+
+.seg-item {
+  flex: 1;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 14px;
+  border-radius: $radius-card;
+  transition: opacity 0.15s ease;
+  
+  &--active {
+    background-color: $color-olive;
+    color: $color-white;
+    font-weight: 500;
+  }
+  
+  &--inactive {
+    color: $color-olive-light;
+  }
+  
+  &:active {
+    opacity: 0.8;
+  }
+}
+</style>

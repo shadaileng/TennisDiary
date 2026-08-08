@@ -1,25 +1,25 @@
 <template>
-  <view class="nav-bar sticky top-0 z-10 bg-paper/95 backdrop-blur">
-    <view class="flex items-center h-12 px-4">
+  <view class="nav-bar">
+    <view class="nav-bar-content">
       <!-- 左侧：返回或占位 -->
-      <view class="w-10">
+      <view class="nav-bar-back">
         <text
           v-if="showBack"
-          class="text-xl text-olive leading-none"
+          class="nav-bar-back-btn"
           @tap="$emit('back')"
         >‹</text>
       </view>
 
       <!-- 标题 -->
-      <text class="flex-1 text-center text-base font-semibold text-olive truncate">
+      <text class="nav-bar-title">
         {{ title }}
       </text>
 
       <!-- 右侧操作 -->
-      <view class="w-10 flex justify-end">
+      <view class="nav-bar-right">
         <text
           v-if="rightText"
-          class="text-sm text-lime-dark font-medium"
+          class="nav-bar-right-btn"
           @tap="$emit('right')"
         >{{ rightText }}</text>
       </view>
@@ -48,3 +48,51 @@ defineEmits<{
   (e: "right"): void
 }>();
 </script>
+
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.nav-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: rgba(242, 242, 239, 0.95);
+}
+
+.nav-bar-content {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 $space-lg;
+}
+
+.nav-bar-back {
+  width: 40px;
+}
+
+.nav-bar-back-btn {
+  font-size: 20px;
+  color: $color-ink;
+  line-height: 1;
+}
+
+.nav-bar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: $color-ink;
+}
+
+.nav-bar-right {
+  width: 40px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nav-bar-right-btn {
+  font-size: 14px;
+  color: $color-lime-dark;
+  font-weight: 500;
+}
+</style>
