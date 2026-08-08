@@ -94,45 +94,15 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 
 ## 进度
 
-当前阶段：**Phase B1 后台基础接口已完成，Phase 1 小程序前端基础能力已完成**
-
-### Phase B1 — FastAPI 后台
-
-| Step | 内容 | 状态 |
+| 阶段 | 内容 | 状态 |
 |------|------|:----:|
-| B1-1 | 项目初始化 | ✅ |
-| B1-2 | 核心配置模块 | ✅ |
-| B1-3 | 数据库模型 | ✅ |
-| B1-4 | 日志系统（loguru）+ Pydantic Schemas | ✅ |
-| B1-5 | 微信登录鉴权（auth 路由 + core/auth + wx_service） | ✅ |
-| B1-6 | 日记 CRUD `/api/diaries` | ✅ |
-| B1-7 | 装备 CRUD `/api/gears` | ✅ |
-| B1-8 | 体重记录 `/api/weights` | ✅ |
-| B1-9 | 打卡 `/api/checkin` | ✅ |
-| B1-10 | 统计汇总 `/api/stats` | ✅ |
-| B1-11 | 文件下载 `/api/files/{filename}` | ✅ |
+| Phase B1 | 后台基础接口（11个） | ✅ |
+| Phase B2 | 后台管理API（角色/权限/管理员/数据查看/系统监控） | ✅ |
+| Phase Admin | 后台管理前端（Vite+Vue3+Tailwind） | ✅ |
+| Phase 1 | 小程序基础能力（工程/Tailwind/store/网络/登录） | ✅ |
+| Phase 2 | 小程序业务页面（日记/装备/统计/我的） | ✅ |
 
-### Phase 1 — 小程序前端
-
-| Step | 内容 | 状态 |
-|------|------|:----:|
-| Phase1-1 | uni-app 工程初始化（Vue3 + Vite + TS） | ✅ |
-| Phase1-2 | 目录结构 + TabBar + 占位页 | ✅ |
-| Phase1-3 | Tailwind CSS 集成（主题色） | ✅ |
-| Phase1-4 | Tailwind 自定义组件（替代 Vant） | ✅ |
-| Phase1-5 | `types.ts` 类型迁移 | ✅ |
-| Phase1-6 | Pinia store 搭建 | ✅ |
-| Phase1-7 | 网络层封装（`uni.request` + JWT） | ✅ |
-| Phase1-8 | 对接 B1 登录流程 | ✅ |
-| 21 | 前后端 `.env` 配置模板 + storage 键名收口 | ✅ |
-
-> 注：Phase 1/Phase 2 的后续步骤（22~36）进度见 [docs/README.md](docs/README.md) 文档一览。
-
-### 排障记录
-
-| Step | 内容 | 状态 |
-|------|------|:----:|
-| 37 | 修复 `config.py` `load_dotenv` 路径少算一级，微信登录 `appid missing`（41002） | ✅ |
+详细进度与方案索引见 `docs/plans/` 目录。
 
 ## 环境变量
 
