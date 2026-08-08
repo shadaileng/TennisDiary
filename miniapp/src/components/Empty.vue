@@ -1,6 +1,8 @@
 <template>
   <view class="empty">
-    <text v-if="icon" class="empty-icon">{{ icon }}</text>
+    <view class="empty-icon-wrap">
+      <text class="empty-icon">{{ icon }}</text>
+    </view>
     <text class="empty-text">{{ text || "暂无数据" }}</text>
     <view
       v-if="buttonText"
@@ -42,30 +44,42 @@ defineEmits<{
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px $space-lg;
+  padding: 64px $space-lg;
+}
+
+.empty-icon-wrap {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: $color-lime-soft;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: $space-lg;
 }
 
 .empty-icon {
   font-size: 36px;
   line-height: 1;
-  margin-bottom: 12px;
 }
 
 .empty-text {
   font-size: 14px;
   color: $color-olive-light;
   text-align: center;
+  line-height: 1.6;
+  margin-bottom: $space-lg;
 }
 
 .empty-btn {
-  margin-top: 16px;
-  background-color: $color-olive;
+  background-color: $color-lime-dark;
   color: $color-white;
   font-size: 14px;
   font-weight: 500;
-  padding: $space-md $space-xl;
+  padding: $space-md $space-2xl;
   border-radius: 9999px;
   transition: opacity 0.15s ease;
+  box-shadow: 0 4px 12px rgba(168, 184, 34, 0.3);
   
   &:active {
     opacity: 0.9;

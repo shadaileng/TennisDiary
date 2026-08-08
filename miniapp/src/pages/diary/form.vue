@@ -379,6 +379,21 @@ function confirmRemove() {
   margin-bottom: $space-sm;
 }
 
+.form-field {
+  margin-bottom: $space-md;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.form-field-label {
+  font-size: 12px;
+  color: $color-olive-light;
+  display: block;
+  margin-bottom: $space-sm;
+}
+
 .form-duration {
   margin-top: $space-md;
 }
@@ -392,11 +407,12 @@ function confirmRemove() {
 .field-input {
   background-color: #f7f7f4;
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 14px 16px;
   font-size: 14px;
   color: $color-ink;
   width: 100%;
   box-sizing: border-box;
+  min-height: 48px;
   
   &.flex-1 {
     flex: 1;
@@ -497,13 +513,16 @@ function confirmRemove() {
 
 .form-textarea {
   width: 100%;
-  min-height: 96px;
+  min-height: 120px;
   font-size: 14px;
   color: $color-ink;
   line-height: 1.6;
-  background-color: transparent;
+  background-color: #f7f7f4;
   border: none;
+  border-radius: 12px;
+  padding: 14px 16px;
   resize: none;
+  box-sizing: border-box;
 }
 
 .form-hint {

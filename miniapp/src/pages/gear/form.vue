@@ -262,17 +262,22 @@ function confirmRemove() {
 .field-input {
   background-color: #f7f7f4;
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 14px 16px;
   font-size: 14px;
   color: $color-ink;
   width: 100%;
   box-sizing: border-box;
+  min-height: 48px;
 }
 
 .field-textarea {
-  min-height: 72px;
+  min-height: 96px;
   resize: none;
   line-height: 1.6;
+  background-color: #f7f7f4;
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-sizing: border-box;
 }
 
 .field-placeholder {
