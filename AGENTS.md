@@ -235,6 +235,16 @@ server/
 | `/api/admin/system/backups` | GET | 备份列表 |
 | `/api/admin/system/restore/{id}` | POST | 数据恢复 |
 
+### 常用操作示例
+
+管理员密码重置（忘记密码时使用，需先在 `server/.env` 配置 `ADMIN_RESET_KEY`）：
+
+```bash
+curl -X POST http://localhost:8000/api/admin/auth/reset-password \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "reset_key": "your-reset-key", "new_password": "newpass123"}'
+```
+
 ### 数据结构
 
 与参考源码 `docs/reference/tennis-diary/src/types.ts` 中定义一致：
