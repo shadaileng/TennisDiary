@@ -57,6 +57,7 @@ class Settings:
     # 管理员配置
     ADMIN_DEFAULT_USERNAME: str = os.getenv("ADMIN_DEFAULT_USERNAME", "admin")
     ADMIN_DEFAULT_PASSWORD: str = os.getenv("ADMIN_DEFAULT_PASSWORD", "changeme")
+    ADMIN_RESET_KEY: str = os.getenv("ADMIN_RESET_KEY", "")
 
     # 日志分离配置
     LOG_ADMIN_FILE: str = os.getenv("LOG_ADMIN_FILE", "admin.log")

@@ -113,8 +113,16 @@ class AdminUpdateRequest(BaseModel):
 
 
 class AdminResetPasswordRequest(BaseModel):
-    """重置密码请求"""
+    """重置密码请求（管理员管理接口）"""
 
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class AdminAuthResetRequest(BaseModel):
+    """通过密钥重置密码请求（忘记密码时使用）"""
+
+    username: str = Field(..., min_length=3, max_length=64)
+    reset_key: str = Field(..., min_length=1, max_length=128)
     new_password: str = Field(..., min_length=6, max_length=128)
 
 

@@ -6,10 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth import create_admin_access_token, get_current_admin
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password
 from app.models.admin import Admin
 from app.schemas.admin import (
+    AdminAuthResetRequest,
     AdminLoginRequest,
     AdminPasswordUpdate,
     AdminResponse,
@@ -81,3 +83,20 @@ def update_password(
     admin.password_hash = hash_password(body.new_password)
     db.commit()
     return MessageResponse(message="密码修改成功")
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+def reset_password(body: AdminAuthResetRequest, db: Session = Depends(get_db)):
+    """通过密钥重置管理员密码（忘记密码时使用）"""
+    if not settings.ADMIN_RESET_KEY:
+        raise HTTPException(status_code=403, detail="密码重置功能未启用")
+    if body.reset_key != settings.ADMIN_RESET_KEY:
+        raise HTTPException(status_code=403, detail="重置密钥错误")
+
+    admin = db.query(Admin).filter(Admin.username == body.username).first()
+    if admin is None:
+        raise HTTPException(status_code=404, detail="管理员不存在")
+
+    admin.password_hash = hash_password(body.new_password)
+    db.commit()
+    return MessageResponse(message="密码重置成功")
