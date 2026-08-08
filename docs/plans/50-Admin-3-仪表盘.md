@@ -1,7 +1,78 @@
+> **本页信息**
+>
+> | 项目 | 内容 |
+> |------|------|
+> | 文档编号 | 50-Admin-3 |
+> | 文档版本 | v1.0.0 |
+> | 文档状态 | ✅ 已完成 |
+> | 最后更新 | 2026-08-08 |
+> | 对应功能/内容 | 后台管理前端仪表盘（数据概览+系统状态） |
+>
+> **变更历史**
+>
+> | 日期 | 版本 | 说明 |
+> |------|:----:|------|
+> | 2026-08-08 | v1.0.0 | 初版 |
+>
+> **关联文档**：[Phase Admin 后台管理前端总纲](./47-Admin-后台管理前端.md)
+
+# Phase Admin-3：仪表盘
+
+## 一、目标
+
+实现仪表盘页面，展示数据概览卡片（用户数、日记数、装备数、打卡数）和系统状态（磁盘使用、数据库大小、运行时长）。
+
+## 二、前置条件
+
+- Phase Admin-2 已完成（布局与登录）
+- Phase B2-3 已完成（系统监控API）
+
+## 三、详细执行步骤
+
+### 3.1 实现系统监控 API
+
+**src/api/system.ts**：
+```typescript
+import request from './index'
+
+export interface SystemStats {
+  stats: {
+    users: number
+    diaries: number
+    gears: number
+    weights: number
+    checkins: number
+    analyses: number
+    posts: number
+  }
+  database_size: string
+}
+
+export interface HealthStatus {
+  status: string
+  version: string
+  database: string
+  disk_usage: string
+  uptime: string
+}
+
+export function getSystemStats(): Promise<SystemStats> {
+  return request.get('/api/admin/system/stats')
+}
+
+export function getHealthStatus(): Promise<HealthStatus> {
+  return request.get('/api/admin/system/health')
+}
+```
+
+### 3.2 完善仪表盘页面
+
+**src/views/dashboard/index.vue**：
+```vue
 <template>
   <div class="p-6">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">仪表盘</h1>
-
+    
     <!-- 数据概览卡片 -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       <StatCard
@@ -29,7 +100,7 @@
         color="orange"
       />
     </div>
-
+    
     <!-- 系统状态 -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <!-- 系统信息 -->
@@ -60,7 +131,7 @@
           </div>
         </div>
       </div>
-
+      
       <!-- 数据库信息 -->
       <div class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-lg font-semibold text-gray-800 mb-4">数据库信息</h2>
@@ -92,7 +163,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { getSystemStats, getHealthStatus } from '@/api/system'
 import StatCard from '@/components/common/StatCard.vue'
 
@@ -130,7 +201,7 @@ onMounted(async () => {
       getHealthStatus(),
       getSystemStats()
     ])
-
+    
     Object.assign(health, healthData)
     Object.assign(systemStats, statsData)
     Object.assign(stats, statsData.stats)
@@ -139,3 +210,96 @@ onMounted(async () => {
   }
 })
 </script>
+```
+
+### 3.3 实现统计卡片组件
+
+**src/components/common/StatCard.vue**：
+```vue
+<template>
+  <div class="bg-white rounded-lg shadow-md p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-600">{{ title }}</p>
+        <p class="text-2xl font-bold" :class="colorClass">{{ value }}</p>
+      </div>
+      <div class="p-3 rounded-full" :class="iconBgClass">
+        <component :is="iconComponent" class="w-6 h-6" :class="iconClass" />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import {
+  UsersIcon,
+  DocumentTextIcon,
+  WrenchIcon,
+  CheckCircleIcon
+} from '@heroicons/vue/24/outline'
+
+const props = defineProps<{
+  title: string
+  value: number
+  icon: string
+  color: 'blue' | 'green' | 'purple' | 'orange'
+}>()
+
+const iconMap: Record<string, any> = {
+  UsersIcon,
+  DocumentTextIcon,
+  WrenchIcon,
+  CheckCircleIcon
+}
+
+const iconComponent = computed(() => iconMap[props.icon] || UsersIcon)
+
+const colorMap = {
+  blue: {
+    text: 'text-blue-600',
+    bg: 'bg-blue-100',
+    icon: 'text-blue-600'
+  },
+  green: {
+    text: 'text-green-600',
+    bg: 'bg-green-100',
+    icon: 'text-green-600'
+  },
+  purple: {
+    text: 'text-purple-600',
+    bg: 'bg-purple-100',
+    icon: 'text-purple-600'
+  },
+  orange: {
+    text: 'text-orange-600',
+    bg: 'bg-orange-100',
+    icon: 'text-orange-600'
+  }
+}
+
+const colorClass = computed(() => colorMap[props.color]?.text || 'text-gray-600')
+const iconBgClass = computed(() => colorMap[props.color]?.bg || 'bg-gray-100')
+const iconClass = computed(() => colorMap[props.color]?.icon || 'text-gray-600')
+</script>
+```
+
+## 四、验收标准
+
+| 验收项 | 标准 |
+|--------|------|
+| 统计卡片 | 正确显示用户数、日记数、装备数、打卡数 |
+| 系统信息 | 正确显示系统状态、版本、数据库状态、磁盘使用、运行时长 |
+| 数据库信息 | 正确显示数据库大小和各表数据量 |
+| 数据加载 | 页面加载时自动获取数据 |
+| 错误处理 | 数据加载失败时显示默认值 |
+
+## 五、提交规范
+
+```bash
+feat(admin): 实现仪表盘页面
+
+- 实现系统监控API封装
+- 实现统计卡片组件（StatCard）
+- 实现仪表盘页面（数据概览+系统状态）
+```
