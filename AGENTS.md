@@ -277,6 +277,7 @@ Phase Admin 后台管理前端（进行中）：
 |------|------|:----:|------|
 | Admin 总纲 | 后台管理前端总纲（Vite+Vue3+Tailwind） | 📋 | 47-Admin |
 | Admin-1 | 项目初始化（Vite+Vue3+TS+Tailwind+Router+Pinia） | ✅ | 48-Admin-1 |
+| Admin-2 | 布局与登录（MainLayout/Sidebar/Header/登录页） | ✅ | 49-Admin-2 |
 
 Phase 1 小程序前端（已完成）：
 
