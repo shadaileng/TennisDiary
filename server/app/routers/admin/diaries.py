@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.diary import Diary
-from app.schemas.admin import DiaryAdminResponse, PaginatedResponse
+from app.schemas.admin import DiaryAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/diaries", tags=["admin-diaries"])
 
 
-@router.get("", response_model=PaginatedResponse[DiaryAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[DiaryAdminResponse]])
 def list_diaries(
     offset: int = 0,
     limit: int = 20,
@@ -27,15 +28,17 @@ def list_diaries(
 
     total = query.count()
     diaries = query.order_by(Diary.date.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[DiaryAdminResponse.model_validate(d) for d in diaries],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[DiaryAdminResponse.model_validate(d) for d in diaries],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.get("/{diary_id}", response_model=DiaryAdminResponse)
+@router.get("/{diary_id}", response_model=ApiResponse[DiaryAdminResponse])
 def get_diary(
     diary_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -45,10 +48,10 @@ def get_diary(
     diary = db.query(Diary).filter(Diary.id == diary_id).first()
     if diary is None:
         raise HTTPException(status_code=404, detail="日记不存在")
-    return DiaryAdminResponse.model_validate(diary)
+    return ApiResponse(data=DiaryAdminResponse.model_validate(diary))
 
 
-@router.delete("/{diary_id}")
+@router.delete("/{diary_id}", response_model=ApiResponse[None])
 def delete_diary(
     diary_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -61,4 +64,4 @@ def delete_diary(
 
     db.delete(diary)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

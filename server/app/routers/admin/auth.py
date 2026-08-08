@@ -16,14 +16,14 @@ from app.schemas.admin import (
     AdminPasswordUpdate,
     AdminResponse,
     AdminTokenResponse,
-    MessageResponse,
     RoleResponse,
 )
+from app.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/api/admin/auth", tags=["admin-auth"])
 
 
-@router.post("/login", response_model=AdminTokenResponse)
+@router.post("/login", response_model=ApiResponse[AdminTokenResponse])
 def admin_login(body: AdminLoginRequest, db: Session = Depends(get_db)):
     """管理员登录（账号密码）"""
     admin = db.query(Admin).filter(Admin.username == body.username).first()
@@ -49,28 +49,32 @@ def admin_login(body: AdminLoginRequest, db: Session = Depends(get_db)):
     )
 
     token = create_admin_access_token(admin.id)
-    return AdminTokenResponse(
-        access_token=token,
-        admin=admin_resp,
+    return ApiResponse(
+        data=AdminTokenResponse(
+            access_token=token,
+            admin=admin_resp,
+        )
     )
 
 
-@router.get("/me", response_model=AdminResponse)
+@router.get("/me", response_model=ApiResponse[AdminResponse])
 def get_admin_info(admin: Admin = Depends(get_current_admin)):
     """获取当前管理员信息"""
     role_resp = RoleResponse.from_orm(admin.role) if admin.role else None
-    return AdminResponse(
-        id=admin.id,
-        username=admin.username,
-        nickname=admin.nickname or "",
-        role=role_resp,
-        is_active=admin.is_active,
-        last_login=admin.last_login,
-        created_at=admin.created_at,
+    return ApiResponse(
+        data=AdminResponse(
+            id=admin.id,
+            username=admin.username,
+            nickname=admin.nickname or "",
+            role=role_resp,
+            is_active=admin.is_active,
+            last_login=admin.last_login,
+            created_at=admin.created_at,
+        )
     )
 
 
-@router.put("/password", response_model=MessageResponse)
+@router.put("/password", response_model=ApiResponse[None])
 def update_password(
     body: AdminPasswordUpdate,
     admin: Admin = Depends(get_current_admin),
@@ -82,10 +86,10 @@ def update_password(
 
     admin.password_hash = hash_password(body.new_password)
     db.commit()
-    return MessageResponse(message="密码修改成功")
+    return ApiResponse(message="密码修改成功")
 
 
-@router.post("/reset-password", response_model=MessageResponse)
+@router.post("/reset-password", response_model=ApiResponse[None])
 def reset_password(body: AdminAuthResetRequest, db: Session = Depends(get_db)):
     """通过密钥重置管理员密码（忘记密码时使用）"""
     if not settings.ADMIN_RESET_KEY:
@@ -99,4 +103,4 @@ def reset_password(body: AdminAuthResetRequest, db: Session = Depends(get_db)):
 
     admin.password_hash = hash_password(body.new_password)
     db.commit()
-    return MessageResponse(message="密码重置成功")
+    return ApiResponse(message="密码重置成功")

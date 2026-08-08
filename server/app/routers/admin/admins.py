@@ -10,13 +10,12 @@ from app.models.admin import Admin
 from app.models.role import Role
 from app.schemas.admin import (
     AdminCreateRequest,
-    AdminListResponse,
     AdminResetPasswordRequest,
     AdminResponse,
     AdminUpdateRequest,
-    MessageResponse,
     RoleResponse,
 )
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/admins", tags=["admin-admins"])
 
@@ -35,7 +34,7 @@ def _admin_to_response(admin: Admin) -> AdminResponse:
     )
 
 
-@router.get("", response_model=AdminListResponse)
+@router.get("", response_model=ApiResponse[PaginatedData[AdminResponse]])
 def list_admins(
     offset: int = 0,
     limit: int = 20,
@@ -46,15 +45,17 @@ def list_admins(
     total = db.query(Admin).count()
     admins = db.query(Admin).offset(offset).limit(limit).all()
     items = [_admin_to_response(a) for a in admins]
-    return AdminListResponse(
-        items=items,
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=items,
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.post("", response_model=AdminResponse)
+@router.post("", response_model=ApiResponse[AdminResponse])
 def create_admin(
     body: AdminCreateRequest,
     admin: Admin = Depends(require_permission("admins:create")),
@@ -81,10 +82,10 @@ def create_admin(
     db.add(new_admin)
     db.commit()
     db.refresh(new_admin)
-    return _admin_to_response(new_admin)
+    return ApiResponse(data=_admin_to_response(new_admin))
 
 
-@router.get("/{admin_id}", response_model=AdminResponse)
+@router.get("/{admin_id}", response_model=ApiResponse[AdminResponse])
 def get_admin(
     admin_id: int,
     admin: Admin = Depends(require_permission("admins:view")),
@@ -94,10 +95,10 @@ def get_admin(
     target_admin = db.query(Admin).filter(Admin.id == admin_id).first()
     if target_admin is None:
         raise HTTPException(status_code=404, detail="管理员不存在")
-    return _admin_to_response(target_admin)
+    return ApiResponse(data=_admin_to_response(target_admin))
 
 
-@router.put("/{admin_id}", response_model=AdminResponse)
+@router.put("/{admin_id}", response_model=ApiResponse[AdminResponse])
 def update_admin(
     admin_id: int,
     body: AdminUpdateRequest,
@@ -124,10 +125,10 @@ def update_admin(
 
     db.commit()
     db.refresh(target_admin)
-    return _admin_to_response(target_admin)
+    return ApiResponse(data=_admin_to_response(target_admin))
 
 
-@router.put("/{admin_id}/password", response_model=MessageResponse)
+@router.put("/{admin_id}/password", response_model=ApiResponse[None])
 def reset_password(
     admin_id: int,
     body: AdminResetPasswordRequest,
@@ -141,10 +142,10 @@ def reset_password(
 
     target_admin.password_hash = hash_password(body.new_password)
     db.commit()
-    return MessageResponse(message="密码重置成功")
+    return ApiResponse(message="密码重置成功")
 
 
-@router.put("/{admin_id}/status", response_model=MessageResponse)
+@router.put("/{admin_id}/status", response_model=ApiResponse[None])
 def toggle_status(
     admin_id: int,
     admin: Admin = Depends(require_permission("admins:edit")),
@@ -162,10 +163,10 @@ def toggle_status(
     target_admin.is_active = not target_admin.is_active
     db.commit()
     status_text = "启用" if target_admin.is_active else "禁用"
-    return MessageResponse(message=f"已{status_text}")
+    return ApiResponse(message=f"已{status_text}")
 
 
-@router.delete("/{admin_id}", response_model=MessageResponse)
+@router.delete("/{admin_id}", response_model=ApiResponse[None])
 def delete_admin(
     admin_id: int,
     admin: Admin = Depends(require_permission("admins:delete")),
@@ -182,4 +183,4 @@ def delete_admin(
 
     db.delete(target_admin)
     db.commit()
-    return MessageResponse(message="删除成功")
+    return ApiResponse(message="删除成功")

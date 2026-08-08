@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.logging import get_logger
 from app.models.diary import Diary
 from app.models.user import User
+from app.schemas.common import ApiResponse
 from app.schemas.schemas import CostItem, DiaryCreate, DiaryResponse, DiaryUpdate, GearUse
 
 log = get_logger("user")
@@ -45,7 +46,7 @@ def _get_owned_diary(db: Session, diary_id: int, user: User) -> Diary:
     return diary
 
 
-@router.get("", response_model=list[DiaryResponse])
+@router.get("", response_model=ApiResponse[list[DiaryResponse]])
 def list_diaries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -54,10 +55,10 @@ def list_diaries(
     diaries = (
         db.query(Diary).filter(Diary.user_id == current_user.id).order_by(Diary.date.desc()).all()
     )
-    return [diary_to_response(d) for d in diaries]
+    return ApiResponse(data=[diary_to_response(d) for d in diaries])
 
 
-@router.post("", response_model=DiaryResponse, status_code=status.HTTP_200_OK)
+@router.post("", response_model=ApiResponse[DiaryResponse], status_code=status.HTTP_200_OK)
 def create_diary(
     body: DiaryCreate,
     db: Session = Depends(get_db),
@@ -83,20 +84,20 @@ def create_diary(
     db.commit()
     db.refresh(diary)
     log.info("创建日记成功", user_id=current_user.id, diary_id=diary.id)
-    return diary_to_response(diary)
+    return ApiResponse(data=diary_to_response(diary))
 
 
-@router.get("/{diary_id}", response_model=DiaryResponse)
+@router.get("/{diary_id}", response_model=ApiResponse[DiaryResponse])
 def get_diary(
     diary_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """日记详情"""
-    return diary_to_response(_get_owned_diary(db, diary_id, current_user))
+    return ApiResponse(data=diary_to_response(_get_owned_diary(db, diary_id, current_user)))
 
 
-@router.put("/{diary_id}", response_model=DiaryResponse)
+@router.put("/{diary_id}", response_model=ApiResponse[DiaryResponse])
 def update_diary(
     diary_id: int,
     body: DiaryUpdate,
@@ -128,10 +129,10 @@ def update_diary(
     db.commit()
     db.refresh(diary)
     log.info("更新日记成功", user_id=current_user.id, diary_id=diary.id)
-    return diary_to_response(diary)
+    return ApiResponse(data=diary_to_response(diary))
 
 
-@router.delete("/{diary_id}", status_code=status.HTTP_200_OK)
+@router.delete("/{diary_id}", response_model=ApiResponse[None], status_code=status.HTTP_200_OK)
 def delete_diary(
     diary_id: int,
     db: Session = Depends(get_db),
@@ -142,4 +143,4 @@ def delete_diary(
     db.delete(diary)
     db.commit()
     log.info("删除日记成功", user_id=current_user.id, diary_id=diary_id)
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

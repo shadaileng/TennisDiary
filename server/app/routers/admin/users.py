@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.user import User
-from app.schemas.admin import PaginatedResponse, UserAdminResponse
+from app.schemas.admin import UserAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin-users"])
 
 
-@router.get("", response_model=PaginatedResponse[UserAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[UserAdminResponse]])
 def list_users(
     offset: int = 0,
     limit: int = 20,
@@ -22,15 +23,17 @@ def list_users(
     """用户列表（分页）"""
     total = db.query(User).count()
     users = db.query(User).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[UserAdminResponse.model_validate(u) for u in users],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[UserAdminResponse.model_validate(u) for u in users],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.get("/{user_id}", response_model=UserAdminResponse)
+@router.get("/{user_id}", response_model=ApiResponse[UserAdminResponse])
 def get_user(
     user_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -40,10 +43,10 @@ def get_user(
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
-    return UserAdminResponse.model_validate(user)
+    return ApiResponse(data=UserAdminResponse.model_validate(user))
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=ApiResponse[None])
 def delete_user(
     user_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -56,4 +59,4 @@ def delete_user(
 
     db.delete(user)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

@@ -10,6 +10,7 @@ from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models.user import User
+from app.schemas.common import ApiResponse
 
 log = get_logger("user")
 
@@ -29,7 +30,7 @@ def _resolve_avatar_abs_path(rel_path: str) -> str | None:
     return candidate
 
 
-@router.post("/avatar")
+@router.post("/avatar", response_model=ApiResponse[dict])
 def upload_avatar(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -59,7 +60,7 @@ def upload_avatar(
             out.write(chunk)
 
     log.info("头像上传成功", user_id=current_user.id, path=rel_path)
-    return {"url": rel_path.replace(os.sep, "/")}
+    return ApiResponse(data={"url": rel_path.replace(os.sep, "/")})
 
 
 @router.get("/avatar/{user_id}/{filename}")

@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.post import Post
-from app.schemas.admin import PaginatedResponse, PostAdminResponse
+from app.schemas.admin import PostAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/posts", tags=["admin-posts"])
 
 
-@router.get("", response_model=PaginatedResponse[PostAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[PostAdminResponse]])
 def list_posts(
     offset: int = 0,
     limit: int = 20,
@@ -27,15 +28,17 @@ def list_posts(
 
     total = query.count()
     posts = query.order_by(Post.date.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[PostAdminResponse.model_validate(p) for p in posts],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[PostAdminResponse.model_validate(p) for p in posts],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.get("/{post_id}", response_model=PostAdminResponse)
+@router.get("/{post_id}", response_model=ApiResponse[PostAdminResponse])
 def get_post(
     post_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -45,10 +48,10 @@ def get_post(
     post = db.query(Post).filter(Post.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="发布记录不存在")
-    return PostAdminResponse.model_validate(post)
+    return ApiResponse(data=PostAdminResponse.model_validate(post))
 
 
-@router.delete("/{post_id}")
+@router.delete("/{post_id}", response_model=ApiResponse[None])
 def delete_post(
     post_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -61,4 +64,4 @@ def delete_post(
 
     db.delete(post)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

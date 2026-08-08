@@ -10,6 +10,14 @@ import { STORAGE_KEYS } from "@/constants/storage";
 
 // ==================== 类型 ====================
 
+/** 统一API响应格式 */
+export interface ApiResponse<T = any> {
+  code: number;
+  message: string;
+  success: boolean;
+  data: T | null;
+}
+
 /** 业务错误（后端 detail 或网络/状态码错误） */
 export class ApiError extends Error {
   /** HTTP 状态码（网络异常时为 -1） */
@@ -80,7 +88,10 @@ function promptLogin() {
 function parseDetail(res: any): string {
   const data = res?.data;
   if (data && typeof data === "object") {
-    const detail = data.detail ?? data.message;
+    // 优先使用新的统一响应格式
+    if (typeof data.message === "string" && data.message.trim()) return data.message.trim();
+    // 兼容旧格式
+    const detail = data.detail;
     if (typeof detail === "string" && detail.trim()) return detail.trim();
     if (Array.isArray(detail) && detail.length) return JSON.stringify(detail);
   }
@@ -125,7 +136,23 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
       success: (res) => {
         const statusCode = res.statusCode;
         if (statusCode >= 200 && statusCode < 300) {
-          resolve(res.data as T);
+          // 处理统一响应格式
+          const apiRes = res.data as ApiResponse<T>;
+          if (apiRes && typeof apiRes === "object" && "code" in apiRes) {
+            if (apiRes.code === 0) {
+              resolve(apiRes.data as T);
+            } else {
+              // 业务错误
+              if (apiRes.code === 10001 && handle401) {
+                clearAuth();
+                promptLogin();
+              }
+              reject(new ApiError(statusCode, apiRes.message || "请求失败"));
+            }
+          } else {
+            // 兼容旧格式（直接返回数据）
+            resolve(res.data as T);
+          }
           return;
         }
         if (statusCode === 401 && handle401) {

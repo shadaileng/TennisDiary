@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.analysis import Analysis
-from app.schemas.admin import AnalysisAdminResponse, PaginatedResponse
+from app.schemas.admin import AnalysisAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/analyses", tags=["admin-analyses"])
 
 
-@router.get("", response_model=PaginatedResponse[AnalysisAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[AnalysisAdminResponse]])
 def list_analyses(
     offset: int = 0,
     limit: int = 20,
@@ -27,15 +28,17 @@ def list_analyses(
 
     total = query.count()
     analyses = query.order_by(Analysis.date.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[AnalysisAdminResponse.model_validate(a) for a in analyses],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[AnalysisAdminResponse.model_validate(a) for a in analyses],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.get("/{analysis_id}", response_model=AnalysisAdminResponse)
+@router.get("/{analysis_id}", response_model=ApiResponse[AnalysisAdminResponse])
 def get_analysis(
     analysis_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -45,10 +48,10 @@ def get_analysis(
     analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
     if analysis is None:
         raise HTTPException(status_code=404, detail="分析报告不存在")
-    return AnalysisAdminResponse.model_validate(analysis)
+    return ApiResponse(data=AnalysisAdminResponse.model_validate(analysis))
 
 
-@router.delete("/{analysis_id}")
+@router.delete("/{analysis_id}", response_model=ApiResponse[None])
 def delete_analysis(
     analysis_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -61,4 +64,4 @@ def delete_analysis(
 
     db.delete(analysis)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

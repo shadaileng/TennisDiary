@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.logging import get_logger
 from app.models.checkin import Checkin
 from app.models.user import User
+from app.schemas.common import ApiResponse
 from app.schemas.schemas import CheckinCreate, CheckinResponse
 
 log = get_logger("user")
@@ -15,7 +16,7 @@ log = get_logger("user")
 router = APIRouter(prefix="/api/checkin", tags=["checkin"])
 
 
-@router.get("", response_model=list[CheckinResponse])
+@router.get("", response_model=ApiResponse[list[CheckinResponse]])
 def list_checkins(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -27,10 +28,10 @@ def list_checkins(
         .order_by(Checkin.date.desc())
         .all()
     )
-    return [CheckinResponse.model_validate(r) for r in records]
+    return ApiResponse(data=[CheckinResponse.model_validate(r) for r in records])
 
 
-@router.post("", response_model=CheckinResponse, status_code=status.HTTP_200_OK)
+@router.post("", response_model=ApiResponse[CheckinResponse], status_code=status.HTTP_200_OK)
 def create_checkin(
     body: CheckinCreate,
     db: Session = Depends(get_db),
@@ -49,7 +50,7 @@ def create_checkin(
         .first()
     )
     if existing is not None:
-        return CheckinResponse.model_validate(existing)
+        return ApiResponse(data=CheckinResponse.model_validate(existing))
 
     record = Checkin(
         user_id=current_user.id,
@@ -61,4 +62,4 @@ def create_checkin(
     db.commit()
     db.refresh(record)
     log.info("打卡成功", user_id=current_user.id, course_id=body.course_id, date=body.date)
-    return CheckinResponse.model_validate(record)
+    return ApiResponse(data=CheckinResponse.model_validate(record))

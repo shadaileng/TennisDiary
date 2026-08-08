@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.checkin import Checkin
-from app.schemas.admin import CheckinAdminResponse, PaginatedResponse
+from app.schemas.admin import CheckinAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/checkins", tags=["admin-checkins"])
 
 
-@router.get("", response_model=PaginatedResponse[CheckinAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[CheckinAdminResponse]])
 def list_checkins(
     offset: int = 0,
     limit: int = 20,
@@ -27,15 +28,17 @@ def list_checkins(
 
     total = query.count()
     checkins = query.order_by(Checkin.date.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[CheckinAdminResponse.model_validate(c) for c in checkins],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[CheckinAdminResponse.model_validate(c) for c in checkins],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.delete("/{checkin_id}")
+@router.delete("/{checkin_id}", response_model=ApiResponse[None])
 def delete_checkin(
     checkin_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -48,4 +51,4 @@ def delete_checkin(
 
     db.delete(checkin)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

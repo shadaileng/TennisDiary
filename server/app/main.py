@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
@@ -18,6 +20,7 @@ from app.routers.admin import roles as admin_roles
 from app.routers.admin import system as admin_system
 from app.routers.admin import users as admin_users
 from app.routers.admin import weights as admin_weights
+from app.schemas.common import ApiResponse, ErrorCode
 
 # 启动时确保所有运行时目录存在
 ensure_dirs()
@@ -44,6 +47,68 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Tennis Diary API", version="1.0.0", lifespan=lifespan)
 
 logger.info("Tennis Diary API 启动")
+
+
+# ==================== 全局异常处理器 ====================
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """HTTP异常处理（401/403/404等）"""
+    code = ErrorCode.UNAUTHORIZED
+    if exc.status_code == 403:
+        code = ErrorCode.FORBIDDEN
+    elif exc.status_code == 404:
+        code = ErrorCode.NOT_FOUND
+    elif exc.status_code == 422:
+        code = ErrorCode.VALIDATION_ERROR
+    elif exc.status_code >= 500:
+        code = ErrorCode.INTERNAL_ERROR
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ApiResponse(
+            code=code,
+            message=str(exc.detail),
+            success=False,
+            data=None,
+        ).model_dump(),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """参数校验异常处理"""
+    errors = []
+    for error in exc.errors():
+        loc = " → ".join(str(item) for item in error["loc"])
+        errors.append(f"{loc}: {error['msg']}")
+
+    return JSONResponse(
+        status_code=422,
+        content=ApiResponse(
+            code=ErrorCode.VALIDATION_ERROR,
+            message="参数校验失败",
+            success=False,
+            data=errors,
+        ).model_dump(),
+    )
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """未知异常处理"""
+    logger.error(f"未处理的异常: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content=ApiResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            message="服务器内部错误",
+            success=False,
+            data=None,
+        ).model_dump(),
+    )
+
 
 # 注册路由
 app.include_router(auth.router)
@@ -83,4 +148,4 @@ app.add_middleware(RequestLoggingMiddleware)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return ApiResponse(data={"status": "ok", "version": "1.0.0"})

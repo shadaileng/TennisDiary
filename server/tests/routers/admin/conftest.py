@@ -96,7 +96,7 @@ def admin_token(client, test_admin):
         "/api/admin/auth/login",
         json={"username": "testadmin", "password": "testpass123"},
     )
-    return response.json()["access_token"]
+    return response.json()["data"]["access_token"]
 
 
 @pytest.fixture(scope="module")

@@ -13,12 +13,12 @@ from app.core.auth import get_current_admin
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.admin import Admin
-from app.schemas.admin import MessageResponse
+from app.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/api/admin/system", tags=["admin-system"])
 
 
-@router.get("/health")
+@router.get("/health", response_model=ApiResponse[dict])
 def system_health(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -42,16 +42,18 @@ def system_health(
     # 运行时长
     uptime = "unknown"
 
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "database": db_status,
-        "disk_usage": disk_usage,
-        "uptime": uptime,
-    }
+    return ApiResponse(
+        data={
+            "status": "ok",
+            "version": "1.0.0",
+            "database": db_status,
+            "disk_usage": disk_usage,
+            "uptime": uptime,
+        }
+    )
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=ApiResponse[dict])
 def system_stats(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -83,13 +85,15 @@ def system_stats(
     except OSError:
         db_size = "unknown"
 
-    return {
-        "stats": stats,
-        "database_size": db_size,
-    }
+    return ApiResponse(
+        data={
+            "stats": stats,
+            "database_size": db_size,
+        }
+    )
 
 
-@router.get("/logs")
+@router.get("/logs", response_model=ApiResponse[dict])
 def query_logs(
     level: str | None = None,
     keyword: str | None = None,
@@ -99,7 +103,7 @@ def query_logs(
     """日志查询（支持按文件/级别/关键字过滤）"""
     log_file = Path(settings.LOG_DIR) / settings.LOG_FILE
     if not log_file.exists():
-        return {"logs": [], "total": 0}
+        return ApiResponse(data={"logs": [], "total": 0})
 
     logs = []
     try:
@@ -115,10 +119,10 @@ def query_logs(
     except (OSError, ValueError) as e:
         raise HTTPException(status_code=500, detail=f"读取日志文件失败: {e!s}") from e
 
-    return {"logs": logs, "total": len(logs)}
+    return ApiResponse(data={"logs": logs, "total": len(logs)})
 
 
-@router.post("/backup", response_model=MessageResponse)
+@router.post("/backup", response_model=ApiResponse[None])
 def backup_database(
     admin: Admin = Depends(get_current_admin),
 ):
@@ -144,17 +148,17 @@ def backup_database(
     except (OSError, sqlite3.Error) as e:
         raise HTTPException(status_code=500, detail=f"备份失败: {e!s}") from e
 
-    return MessageResponse(message=f"备份成功: {backup_path.name}")
+    return ApiResponse(message=f"备份成功: {backup_path.name}")
 
 
-@router.get("/backups")
+@router.get("/backups", response_model=ApiResponse[dict])
 def list_backups(
     admin: Admin = Depends(get_current_admin),
 ):
     """备份列表"""
     backup_dir = Path(settings.DATA_DIR) / "backups"
     if not backup_dir.exists():
-        return {"backups": [], "total": 0}
+        return ApiResponse(data={"backups": [], "total": 0})
 
     backups = []
     for backup_file in backup_dir.glob("backup_*.db"):
@@ -170,10 +174,10 @@ def list_backups(
     # 按创建时间倒序
     backups.sort(key=lambda x: x["created_at"], reverse=True)
 
-    return {"backups": backups, "total": len(backups)}
+    return ApiResponse(data={"backups": backups, "total": len(backups)})
 
 
-@router.post("/restore/{backup_id}", response_model=MessageResponse)
+@router.post("/restore/{backup_id}", response_model=ApiResponse[None])
 def restore_database(
     backup_id: str,
     admin: Admin = Depends(get_current_admin),
@@ -199,4 +203,4 @@ def restore_database(
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"恢复失败: {e!s}") from e
 
-    return MessageResponse(message="恢复成功，请重启应用")
+    return ApiResponse(message="恢复成功，请重启应用")

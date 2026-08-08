@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.weight import WeightRecord
-from app.schemas.admin import PaginatedResponse, WeightAdminResponse
+from app.schemas.admin import WeightAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/weights", tags=["admin-weights"])
 
 
-@router.get("", response_model=PaginatedResponse[WeightAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[WeightAdminResponse]])
 def list_weights(
     offset: int = 0,
     limit: int = 20,
@@ -27,15 +28,17 @@ def list_weights(
 
     total = query.count()
     weights = query.order_by(WeightRecord.date.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[WeightAdminResponse.model_validate(w) for w in weights],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[WeightAdminResponse.model_validate(w) for w in weights],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.delete("/{weight_id}")
+@router.delete("/{weight_id}", response_model=ApiResponse[None])
 def delete_weight(
     weight_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -48,4 +51,4 @@ def delete_weight(
 
     db.delete(weight)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

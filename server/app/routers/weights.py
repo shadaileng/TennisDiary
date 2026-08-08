@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.logging import get_logger
 from app.models.user import User
 from app.models.weight import WeightRecord
+from app.schemas.common import ApiResponse
 from app.schemas.schemas import WeightCreate, WeightResponse
 
 log = get_logger("user")
@@ -27,7 +28,7 @@ def _get_owned_weight(db: Session, weight_id: int, user: User) -> WeightRecord:
     return record
 
 
-@router.get("", response_model=list[WeightResponse])
+@router.get("", response_model=ApiResponse[list[WeightResponse]])
 def list_weights(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -39,10 +40,10 @@ def list_weights(
         .order_by(WeightRecord.date.desc())
         .all()
     )
-    return [WeightResponse.model_validate(r) for r in records]
+    return ApiResponse(data=[WeightResponse.model_validate(r) for r in records])
 
 
-@router.post("", response_model=WeightResponse, status_code=status.HTTP_200_OK)
+@router.post("", response_model=ApiResponse[WeightResponse], status_code=status.HTTP_200_OK)
 def create_weight(
     body: WeightCreate,
     db: Session = Depends(get_db),
@@ -64,10 +65,10 @@ def create_weight(
     db.commit()
     db.refresh(record)
     log.info("添加体重记录成功", user_id=current_user.id, weight_id=record.id)
-    return WeightResponse.model_validate(record)
+    return ApiResponse(data=WeightResponse.model_validate(record))
 
 
-@router.delete("/{weight_id}", status_code=status.HTTP_200_OK)
+@router.delete("/{weight_id}", response_model=ApiResponse[None], status_code=status.HTTP_200_OK)
 def delete_weight(
     weight_id: int,
     db: Session = Depends(get_db),
@@ -78,4 +79,4 @@ def delete_weight(
     db.delete(record)
     db.commit()
     log.info("删除体重记录成功", user_id=current_user.id, weight_id=weight_id)
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")

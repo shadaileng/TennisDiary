@@ -11,18 +11,17 @@ from app.core.permissions import PERMISSIONS
 from app.models.admin import Admin
 from app.models.role import Role
 from app.schemas.admin import (
-    MessageResponse,
     PermissionResponse,
     RoleCreateRequest,
-    RoleListResponse,
     RoleResponse,
     RoleUpdateRequest,
 )
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/roles", tags=["admin-roles"])
 
 
-@router.get("", response_model=RoleListResponse)
+@router.get("", response_model=ApiResponse[PaginatedData[RoleResponse]])
 def list_roles(
     admin: Admin = Depends(require_permission("roles:list")),
     db: Session = Depends(get_db),
@@ -30,10 +29,12 @@ def list_roles(
     """角色列表"""
     roles = db.query(Role).all()
     items = [RoleResponse.from_orm(r) for r in roles]
-    return RoleListResponse(items=items, total=len(items))
+    return ApiResponse(
+        data=PaginatedData(items=items, total=len(items), offset=0, limit=len(items))
+    )
 
 
-@router.post("", response_model=RoleResponse)
+@router.post("", response_model=ApiResponse[RoleResponse])
 def create_role(
     body: RoleCreateRequest,
     admin: Admin = Depends(require_permission("roles:create")),
@@ -60,18 +61,18 @@ def create_role(
     db.add(role)
     db.commit()
     db.refresh(role)
-    return RoleResponse.from_orm(role)
+    return ApiResponse(data=RoleResponse.from_orm(role))
 
 
-@router.get("/permissions", response_model=PermissionResponse)
+@router.get("/permissions", response_model=ApiResponse[PermissionResponse])
 def list_permissions(
     admin: Admin = Depends(require_permission("roles:list")),
 ):
     """获取所有可用权限"""
-    return PermissionResponse(permissions=PERMISSIONS)
+    return ApiResponse(data=PermissionResponse(permissions=PERMISSIONS))
 
 
-@router.get("/{role_id}", response_model=RoleResponse)
+@router.get("/{role_id}", response_model=ApiResponse[RoleResponse])
 def get_role(
     role_id: int,
     admin: Admin = Depends(require_permission("roles:view")),
@@ -81,10 +82,10 @@ def get_role(
     role = db.query(Role).filter(Role.id == role_id).first()
     if role is None:
         raise HTTPException(status_code=404, detail="角色不存在")
-    return RoleResponse.from_orm(role)
+    return ApiResponse(data=RoleResponse.from_orm(role))
 
 
-@router.put("/{role_id}", response_model=RoleResponse)
+@router.put("/{role_id}", response_model=ApiResponse[RoleResponse])
 def update_role(
     role_id: int,
     body: RoleUpdateRequest,
@@ -110,10 +111,10 @@ def update_role(
 
     db.commit()
     db.refresh(role)
-    return RoleResponse.from_orm(role)
+    return ApiResponse(data=RoleResponse.from_orm(role))
 
 
-@router.delete("/{role_id}", response_model=MessageResponse)
+@router.delete("/{role_id}", response_model=ApiResponse[None])
 def delete_role(
     role_id: int,
     admin: Admin = Depends(require_permission("roles:delete")),
@@ -135,4 +136,4 @@ def delete_role(
 
     db.delete(role)
     db.commit()
-    return MessageResponse(message="删除成功")
+    return ApiResponse(message="删除成功")

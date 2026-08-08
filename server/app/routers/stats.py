@@ -12,12 +12,13 @@ from app.models.analysis import Analysis
 from app.models.diary import Diary
 from app.models.gear import Gear
 from app.models.user import User
+from app.schemas.common import ApiResponse
 from app.schemas.schemas import StatsResponse
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 
-@router.get("", response_model=StatsResponse)
+@router.get("", response_model=ApiResponse[StatsResponse])
 def get_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -51,13 +52,15 @@ def get_stats(
             for c in json.loads(d.costs) if d.costs else []:
                 total_cost += float(c.get("amount", 0))
 
-    return StatsResponse(
-        total_sessions=total_sessions or 0,
-        total_duration=int(total_duration),
-        avg_intensity=round(float(avg_intensity), 2),
-        avg_mood=round(float(avg_mood), 2),
-        total_cost=round(total_cost, 2),
-        total_gears=total_gears or 0,
-        total_analyses=total_analyses or 0,
-        avg_score=round(float(avg_score), 2),
+    return ApiResponse(
+        data=StatsResponse(
+            total_sessions=total_sessions or 0,
+            total_duration=int(total_duration),
+            avg_intensity=round(float(avg_intensity), 2),
+            avg_mood=round(float(avg_mood), 2),
+            total_cost=round(total_cost, 2),
+            total_gears=total_gears or 0,
+            total_analyses=total_analyses or 0,
+            avg_score=round(float(avg_score), 2),
+        )
     )

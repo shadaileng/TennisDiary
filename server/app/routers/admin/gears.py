@@ -7,12 +7,13 @@ from app.core.auth import get_current_admin
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.gear import Gear
-from app.schemas.admin import GearAdminResponse, PaginatedResponse
+from app.schemas.admin import GearAdminResponse
+from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/gears", tags=["admin-gears"])
 
 
-@router.get("", response_model=PaginatedResponse[GearAdminResponse])
+@router.get("", response_model=ApiResponse[PaginatedData[GearAdminResponse]])
 def list_gears(
     offset: int = 0,
     limit: int = 20,
@@ -27,15 +28,17 @@ def list_gears(
 
     total = query.count()
     gears = query.order_by(Gear.id.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse(
-        items=[GearAdminResponse.model_validate(g) for g in gears],
-        total=total,
-        offset=offset,
-        limit=limit,
+    return ApiResponse(
+        data=PaginatedData(
+            items=[GearAdminResponse.model_validate(g) for g in gears],
+            total=total,
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
-@router.get("/{gear_id}", response_model=GearAdminResponse)
+@router.get("/{gear_id}", response_model=ApiResponse[GearAdminResponse])
 def get_gear(
     gear_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -45,10 +48,10 @@ def get_gear(
     gear = db.query(Gear).filter(Gear.id == gear_id).first()
     if gear is None:
         raise HTTPException(status_code=404, detail="装备不存在")
-    return GearAdminResponse.model_validate(gear)
+    return ApiResponse(data=GearAdminResponse.model_validate(gear))
 
 
-@router.delete("/{gear_id}")
+@router.delete("/{gear_id}", response_model=ApiResponse[None])
 def delete_gear(
     gear_id: int,
     admin: Admin = Depends(get_current_admin),
@@ -61,4 +64,4 @@ def delete_gear(
 
     db.delete(gear)
     db.commit()
-    return {"message": "删除成功"}
+    return ApiResponse(message="删除成功")
