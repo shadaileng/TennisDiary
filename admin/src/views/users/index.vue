@@ -47,31 +47,42 @@
 
     <!-- 用户详情模态框 -->
     <Modal v-model="showDetail" title="用户详情">
-      <div v-if="selectedUser" class="space-y-4">
-        <div class="flex items-center gap-4">
+      <div v-if="selectedUser" class="py-2">
+        <!-- 头部：头像 + 昵称 -->
+        <div class="flex flex-col items-center mb-6">
           <img
             v-if="selectedUser.avatar_url"
             :src="getAvatarUrl(selectedUser.avatar_url)"
-            class="w-16 h-16 rounded-full"
+            class="w-20 h-20 rounded-full mb-3"
             alt="avatar"
           />
-          <div>
-            <p class="font-medium">{{ selectedUser.nickname }}</p>
-            <p class="text-sm text-gray-500">ID: {{ selectedUser.id }}</p>
+          <div v-else class="w-20 h-20 bg-olive-100 rounded-full flex items-center justify-center mb-3">
+            <span class="text-olive-600 text-2xl font-medium">{{ selectedUser.nickname?.charAt(0) || 'U' }}</span>
           </div>
+          <p class="text-lg font-medium text-gray-800">{{ selectedUser.nickname || '微信用户' }}</p>
+          <p class="text-sm text-gray-400 mt-1">ID: {{ selectedUser.id }}</p>
         </div>
-        <div class="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span class="text-gray-500">性别：</span>
-            <span>{{ selectedUser.gender || '未设置' }}</span>
+
+        <!-- 信息卡片 -->
+        <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">OpenID</span>
+            <span class="text-sm text-gray-700 font-mono">{{ maskOpenid(selectedUser.openid) }}</span>
           </div>
-          <div>
-            <span class="text-gray-500">生日：</span>
-            <span>{{ selectedUser.birthday || '未设置' }}</span>
+          <div class="border-t border-gray-200"></div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">性别</span>
+            <span class="text-sm text-gray-700">{{ genderText(selectedUser.gender) }}</span>
           </div>
-          <div>
-            <span class="text-gray-500">注册时间：</span>
-            <span>{{ formatDate(selectedUser.created_at) }}</span>
+          <div class="border-t border-gray-200"></div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">生日</span>
+            <span class="text-sm text-gray-700">{{ selectedUser.birthday || '未设置' }}</span>
+          </div>
+          <div class="border-t border-gray-200"></div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-gray-500">注册时间</span>
+            <span class="text-sm text-gray-700">{{ formatDateTime(selectedUser.created_at) }}</span>
           </div>
         </div>
       </div>
@@ -103,6 +114,27 @@ const selectedUser = ref<User | null>(null)
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN')
+}
+
+const formatDateTime = (date: string) => {
+  if (!date) return '--'
+  return new Date(date).toLocaleString('zh-CN', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const genderText = (gender: number | null): string => {
+  const map: Record<number, string> = { 0: '保密', 1: '男', 2: '女' }
+  return gender !== null ? map[gender] || '未知' : '未设置'
+}
+
+const maskOpenid = (openid: string): string => {
+  if (!openid || openid.length < 8) return openid || '--'
+  return openid.slice(0, 4) + '****' + openid.slice(-4)
 }
 
 const getAvatarUrl = (avatarUrl: string | null | undefined): string => {
