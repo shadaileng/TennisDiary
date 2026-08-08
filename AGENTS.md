@@ -279,6 +279,7 @@ Phase Admin 后台管理前端（进行中）：
 | Admin-1 | 项目初始化（Vite+Vue3+TS+Tailwind+Router+Pinia） | ✅ | 48-Admin-1 |
 | Admin-2 | 布局与登录（MainLayout/Sidebar/Header/登录页） | ✅ | 49-Admin-2 |
 | Admin-3 | 仪表盘（汇总卡片+系统状态） | ✅ | 50-Admin-3 |
+| Admin-4 | 管理功能（用户/角色/管理员管理） | ✅ | 51-Admin-4 |
 
 Phase 1 小程序前端（已完成）：
 
