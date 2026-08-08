@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
+from app.middleware.logging import RequestLoggingMiddleware
 from app.routers import auth, checkin, diaries, files, gears, stats, upload, weights
 from app.routers.admin import admins as admin_admins
 from app.routers.admin import analyses as admin_analyses
@@ -14,6 +15,7 @@ from app.routers.admin import diaries as admin_diaries
 from app.routers.admin import gears as admin_gears
 from app.routers.admin import posts as admin_posts
 from app.routers.admin import roles as admin_roles
+from app.routers.admin import system as admin_system
 from app.routers.admin import users as admin_users
 from app.routers.admin import weights as admin_weights
 
@@ -64,6 +66,7 @@ app.include_router(admin_weights.router)
 app.include_router(admin_checkins.router)
 app.include_router(admin_analyses.router)
 app.include_router(admin_posts.router)
+app.include_router(admin_system.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(
@@ -73,6 +76,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 请求日志中间件（实现日志分离）
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.get("/health")

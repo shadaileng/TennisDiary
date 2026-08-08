@@ -58,5 +58,10 @@ class Settings:
     ADMIN_DEFAULT_USERNAME: str = os.getenv("ADMIN_DEFAULT_USERNAME", "admin")
     ADMIN_DEFAULT_PASSWORD: str = os.getenv("ADMIN_DEFAULT_PASSWORD", "changeme")
 
+    # 日志分离配置
+    LOG_ADMIN_FILE: str = os.getenv("LOG_ADMIN_FILE", "admin.log")
+    LOG_USER_FILE: str = os.getenv("LOG_USER_FILE", "user.log")
+    LOG_JSON_ENABLED: bool = os.getenv("LOG_JSON_ENABLED", "false").lower() == "true"
+
 
 settings = Settings()
