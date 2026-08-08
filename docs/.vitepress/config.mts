@@ -79,6 +79,8 @@ export default defineConfig({
             { text: '42：修复登录后昵称显示未登录', link: '/plans/42-修复登录后昵称显示未登录' },
             { text: '55：后台 API 响应格式统一重构', link: '/plans/55-后台API响应格式统一重构' },
             { text: '56：小程序前端视觉样式与交互适配改造', link: '/plans/56-小程序前端视觉样式与交互适配改造' },
+            { text: '57：小程序前端样式方案重构 Tailwind→自定义 CSS', link: '/plans/57-小程序前端样式方案重构-Tailwind-自定义-CSS' },
+            { text: '58：踩坑记录 weapp-tailwindcss 内容扫描失效', link: '/plans/58-踩坑记录-weapp-tailwindcss内容扫描失效' },
           ],
         },
       ],
