@@ -9,7 +9,10 @@
     <template v-else>
     <!-- 汇总卡片 -->
     <view class="px-4 pt-4">
-      <text class="block px-1 mb-2 text-xs text-olive-light">数据总览</text>
+      <view class="flex items-center justify-between px-1 mb-2">
+        <text class="text-xs text-olive-light">数据总览</text>
+        <MoneyToggle />
+      </view>
 
       <!-- 空态：没有任何统计数据 -->
       <view v-if="!statsLoading && stats && !hasAnyData" class="mt-1">
@@ -23,37 +26,37 @@
 
       <!-- 统计卡片 -->
       <view v-else class="grid grid-cols-2 gap-3">
-        <view class="card bg-white rounded-card p-4">
+        <view class="card bg-white rounded-card p-4 active:opacity-90 transition-opacity">
           <text class="block text-xs text-olive-light">累计打球</text>
           <text class="block text-2xl font-bold text-olive mt-1">
             {{ stats?.total_sessions ?? 0 }}<text class="text-sm font-medium text-olive-light ml-1">次</text>
           </text>
         </view>
-        <view class="card bg-white rounded-card p-4">
+        <view class="card bg-white rounded-card p-4 active:opacity-90 transition-opacity">
           <text class="block text-xs text-olive-light">累计时长</text>
           <text class="block text-2xl font-bold text-olive mt-1">
             {{ fmtDuration(stats?.total_duration ?? 0) }}
           </text>
         </view>
-        <view class="card bg-white rounded-card p-4">
+        <view class="card bg-white rounded-card p-4 active:opacity-90 transition-opacity">
           <text class="block text-xs text-olive-light">平均强度</text>
           <text class="block text-2xl font-bold text-olive mt-1">
             {{ (stats?.avg_intensity ?? 0).toFixed(1) }}
           </text>
         </view>
-        <view class="card bg-white rounded-card p-4">
+        <view class="card bg-white rounded-card p-4 active:opacity-90 transition-opacity">
           <text class="block text-xs text-olive-light">平均心情</text>
           <text class="block text-2xl font-bold text-olive mt-1">
             {{ (stats?.avg_mood ?? 0).toFixed(1) }}
           </text>
         </view>
-        <view class="card bg-white rounded-card p-4">
+        <view class="card bg-white rounded-card p-4 active:opacity-90 transition-opacity">
           <text class="block text-xs text-olive-light">总花费</text>
           <text class="block text-2xl font-bold text-lime-dark mt-1">
             {{ costText }}
           </text>
         </view>
-        <view class="card bg-white rounded-card p-4">
+        <view class="card bg-white rounded-card p-4 active:opacity-90 transition-opacity">
           <text class="block text-xs text-olive-light">装备数</text>
           <text class="block text-2xl font-bold text-olive mt-1">
             {{ stats?.total_gears ?? 0 }}<text class="text-sm font-medium text-olive-light ml-1">件</text>
@@ -71,17 +74,17 @@
 
       <!-- 三格 -->
       <view class="grid grid-cols-3 gap-3">
-        <view class="bg-white rounded-card p-3 text-center">
+        <view class="card bg-white rounded-card p-3 text-center active:opacity-90 transition-opacity">
           <text class="block text-[11px] text-olive-light">当前</text>
           <text class="block text-xl font-bold text-olive mt-0.5">{{ latest ? latest.weight : "—" }}</text>
           <text class="block text-[10px] text-olive-light">kg</text>
         </view>
-        <view class="bg-white rounded-card p-3 text-center">
+        <view class="card bg-white rounded-card p-3 text-center active:opacity-90 transition-opacity">
           <text class="block text-[11px] text-olive-light">累计变化</text>
           <text class="block text-xl font-bold mt-0.5" :class="deltaColor">{{ deltaText }}</text>
           <text class="block text-[10px] text-olive-light">kg</text>
         </view>
-        <view class="bg-white rounded-card p-3 text-center">
+        <view class="card bg-white rounded-card p-3 text-center active:opacity-90 transition-opacity">
           <text class="block text-[11px] text-olive-light">记录</text>
           <text class="block text-xl font-bold text-olive mt-0.5">{{ weightStore.weights.length }}</text>
           <text class="block text-[10px] text-olive-light">次</text>
@@ -89,7 +92,7 @@
       </view>
 
       <!-- 体重趋势折线图 -->
-      <view v-if="weightData.length >= 2" class="bg-white rounded-card p-4 mt-3">
+      <view v-if="weightData.length >= 2" class="card bg-white rounded-card p-4 mt-3">
         <text class="block text-sm font-semibold text-olive mb-2">体重趋势</text>
         <LineChart :data="weightData" :height="130" color="#C8DA2B" unit="kg" />
       </view>
@@ -100,11 +103,11 @@
       </view>
 
       <!-- 历史记录 -->
-      <view v-else-if="weightStore.weights.length > 0" class="bg-white rounded-card mt-3 overflow-hidden">
+      <view v-else-if="weightStore.weights.length > 0" class="card bg-white rounded-card mt-3 overflow-hidden">
         <view
           v-for="w in weightStore.sortedWeights"
           :key="w.id"
-          class="flex items-center px-4 py-2.5 border-b border-paper last:border-0"
+          class="flex items-center px-4 py-2.5 border-b border-paper last:border-0 active:opacity-90 transition-opacity"
         >
           <text class="text-[13px] text-olive-light w-24 shrink-0">{{ w.date }}</text>
           <text class="text-[15px] font-bold text-olive flex-1">{{ w.weight }} kg</text>
@@ -166,6 +169,7 @@ import { onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import LineChart from "@/components/LineChart.vue";
+import MoneyToggle from "@/components/MoneyToggle.vue";
 import Popup from "@/components/Popup.vue";
 import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
 import { getStats } from "@/services/data";
@@ -362,5 +366,9 @@ onShow(() => {
 }
 .press-btn:active {
   opacity: 0.9;
+}
+/* 极淡卡片阴影 */
+.card {
+  box-shadow: 0 1px 8px rgba(23, 27, 20, 0.04);
 }
 </style>
