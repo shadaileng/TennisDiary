@@ -271,11 +271,12 @@ Phase B2 后台管理API（已完成）：
 | B2-2 | 数据查看API（用户/日记/装备等管理接口） | ✅ | 45-B2-2 |
 | B2-3 | 系统监控API（健康检查/日志查询/备份恢复+日志分离） | ✅ | 46-B2-3 |
 
-Phase Admin 后台管理前端（待执行）：
+Phase Admin 后台管理前端（进行中）：
 
 | Step | 内容 | 状态 | 方案文档 |
 |------|------|:----:|------|
 | Admin 总纲 | 后台管理前端总纲（Vite+Vue3+Tailwind） | 📋 | 47-Admin |
+| Admin-1 | 项目初始化（Vite+Vue3+TS+Tailwind+Router+Pinia） | ✅ | 48-Admin-1 |
 
 Phase 1 小程序前端（已完成）：
 
