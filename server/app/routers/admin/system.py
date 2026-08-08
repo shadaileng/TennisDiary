@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -26,7 +27,7 @@ def system_health(
     """系统健康检查增强"""
     try:
         # 数据库连通性
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_status = "ok"
     except SQLAlchemyError as e:
         db_status = f"error: {e!s}"
