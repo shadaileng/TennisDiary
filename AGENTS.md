@@ -263,6 +263,9 @@ Phase 2 小程序前端（进行中）：
 | 37 | 修复 `config.py` `load_dotenv` 路径少算一级（后端加载不到 `server/.env`，`WX_APPID`/`WX_SECRET` 为空，微信登录报 `appid missing` 41002） | ✅ | 37-修复config加载路径-微信登录appid缺失 |
 | 38 | 修复登录时序 bug（一键登录返回 token 后提示请先登录）+ 用户资料编辑（头像/昵称/uid，参考 tarot） | ✅ | 38-修复登录时序与用户资料编辑-参考tarot |
 | 39 | 后端接入 Alembic 数据库迁移（基线迁移 + 模型集中导出 + 迁移测试） | ✅ | 39-Alembic数据库迁移接入 |
+| 40 | 我的页与资料页 tarot 化改造（scoped SCSS 硬编码，绕开 weapp-tailwindcss spacing 类 bug） | ✅ | 40-我的页与资料详情页tarot化改造 |
+| 41 | 修复小程序登录错误处理（`parseDetail` 去掉 `errMsg` 兜底，杜绝误弹 "request:ok"；登录 401 不触发登出引导） | ✅ | 41-修复登录错误提示-request ok误弹 |
+| 42 | 修复登录后昵称显示「未登录」（新用户昵称为空时的展示兜底，改为「微信用户」） | ✅ | 42-修复登录后昵称显示未登录 |
 
 ## 注意事项
 
