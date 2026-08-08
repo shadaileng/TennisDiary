@@ -3,7 +3,7 @@
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold text-gray-800">角色管理</h1>
       <button
-        @click="showForm = true"
+        @click="createNewRole"
         class="px-4 py-2 bg-olive-600 text-white rounded-lg hover:bg-olive-700"
       >
         新建角色
@@ -42,7 +42,7 @@
     </Table>
 
     <!-- 角色表单模态框 -->
-    <Modal v-model="showForm" :title="editingRole ? '编辑角色' : '新建角色'">
+    <Modal v-model="showForm" :title="editingRole ? '编辑角色' : '新建角色'" @update:modelValue="closeModal">
       <form @submit.prevent="saveRole" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">角色名称</label>
@@ -93,7 +93,7 @@
 
       <template #footer>
         <button
-          @click="showForm = false"
+          @click="closeModal"
           class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
         >
           取消
@@ -163,6 +163,18 @@ const editRole = (role: Role) => {
   showForm.value = true
 }
 
+const createNewRole = () => {
+  editingRole.value = null
+  form.value = { name: '', code: '', description: '', permissions: [] }
+  showForm.value = true
+}
+
+const closeModal = () => {
+  showForm.value = false
+  editingRole.value = null
+  form.value = { name: '', code: '', description: '', permissions: [] }
+}
+
 const saveRole = async () => {
   try {
     if (editingRole.value) {
@@ -170,9 +182,7 @@ const saveRole = async () => {
     } else {
       await createRole(form.value)
     }
-    showForm.value = false
-    editingRole.value = null
-    form.value = { name: '', code: '', description: '', permissions: [] }
+    closeModal()
     await fetchRoles()
   } catch (e) {
     console.error('Failed to save role:', e)
