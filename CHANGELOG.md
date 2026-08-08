@@ -4,6 +4,21 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.32.0] - 2026-08-08
+
+### Added
+
+- 新增角色权限系统与管理员管理功能（Phase B2-1）：
+  - 新增 `Role` 模型与 `Admin` 模型（含 `role_id` 外键关联）
+  - 实现权限常量定义（`permissions.py`），包含用户/数据/系统/管理员/角色管理共 30+ 权限
+  - 实现初始角色数据初始化（超级管理员/普通管理员/只读管理员）
+  - 实现管理员认证（登录/获取信息/修改密码），使用独立 JWT 密钥
+  - 实现角色管理接口（CRUD + 权限列表）
+  - 实现管理员管理接口（列表/创建/编辑/重置密码/启用禁用/删除）
+  - 新增权限校验依赖（`require_permission`），支持细粒度权限控制
+  - 新增 Alembic 迁移脚本（`add roles and admins tables`）
+  - 完成测试用例（14 个测试全部通过）
+
 ## [1.31.3] - 2026-08-08
 
 ### Fixed

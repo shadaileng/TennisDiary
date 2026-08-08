@@ -4,20 +4,24 @@
 （`alembic/env.py` 中 `from app.models import *`）与运行时均能发现所有表。
 """
 
+from app.models.admin import Admin
 from app.models.analysis import Analysis
 from app.models.checkin import Checkin
 from app.models.diary import Diary
 from app.models.gear import Gear
 from app.models.post import Post
+from app.models.role import Role
 from app.models.user import User
 from app.models.weight import WeightRecord
 
 __all__ = [
+    "Admin",
     "Analysis",
     "Checkin",
     "Diary",
     "Gear",
     "Post",
+    "Role",
     "User",
     "WeightRecord",
 ]

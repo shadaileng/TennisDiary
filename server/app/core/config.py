@@ -54,5 +54,9 @@ class Settings:
         "<level>{message}</level>",
     )
 
+    # 管理员配置
+    ADMIN_DEFAULT_USERNAME: str = os.getenv("ADMIN_DEFAULT_USERNAME", "admin")
+    ADMIN_DEFAULT_PASSWORD: str = os.getenv("ADMIN_DEFAULT_PASSWORD", "changeme")
+
 
 settings = Settings()

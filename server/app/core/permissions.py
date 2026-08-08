@@ -1,0 +1,103 @@
+"""权限定义"""
+
+# 权限字典：key=权限编码, value=权限描述
+PERMISSIONS = {
+    # 用户管理
+    "users:list": "查看用户列表",
+    "users:view": "查看用户详情",
+    "users:delete": "删除用户",
+    # 数据管理
+    "diaries:list": "查看日记列表",
+    "diaries:view": "查看日记详情",
+    "diaries:delete": "删除日记",
+    "gears:list": "查看装备列表",
+    "gears:view": "查看装备详情",
+    "gears:delete": "删除装备",
+    "weights:list": "查看体重记录",
+    "weights:delete": "删除体重记录",
+    "checkins:list": "查看打卡记录",
+    "checkins:delete": "删除打卡记录",
+    "analyses:list": "查看分析报告",
+    "analyses:view": "查看分析详情",
+    "analyses:delete": "删除分析报告",
+    "posts:list": "查看发布记录",
+    "posts:view": "查看发布详情",
+    "posts:delete": "删除发布记录",
+    # 系统管理
+    "system:health": "查看系统健康",
+    "system:stats": "查看运行时指标",
+    "system:logs": "查看日志",
+    "system:backup": "数据库备份",
+    "system:restore": "数据恢复",
+    # 管理员管理
+    "admins:list": "查看管理员列表",
+    "admins:view": "查看管理员详情",
+    "admins:create": "创建管理员",
+    "admins:edit": "编辑管理员",
+    "admins:delete": "删除管理员",
+    "admins:reset_password": "重置密码",
+    # 角色管理
+    "roles:list": "查看角色列表",
+    "roles:view": "查看角色详情",
+    "roles:create": "创建角色",
+    "roles:edit": "编辑角色",
+    "roles:delete": "删除角色",
+}
+
+# 预置角色
+DEFAULT_ROLES = [
+    {
+        "name": "超级管理员",
+        "code": "superadmin",
+        "description": "拥有全部权限，系统内置角色",
+        "permissions": list(PERMISSIONS.keys()),
+        "is_system": True,
+    },
+    {
+        "name": "普通管理员",
+        "code": "admin",
+        "description": "可管理用户数据",
+        "permissions": [
+            "users:list",
+            "users:view",
+            "users:delete",
+            "diaries:list",
+            "diaries:view",
+            "diaries:delete",
+            "gears:list",
+            "gears:view",
+            "gears:delete",
+            "weights:list",
+            "weights:delete",
+            "checkins:list",
+            "checkins:delete",
+            "analyses:list",
+            "analyses:view",
+            "analyses:delete",
+            "posts:list",
+            "posts:view",
+            "posts:delete",
+        ],
+        "is_system": True,
+    },
+    {
+        "name": "只读管理员",
+        "code": "viewer",
+        "description": "只能查看数据，不能修改",
+        "permissions": [
+            "users:list",
+            "users:view",
+            "diaries:list",
+            "diaries:view",
+            "gears:list",
+            "gears:view",
+            "weights:list",
+            "checkins:list",
+            "analyses:list",
+            "analyses:view",
+            "posts:list",
+            "posts:view",
+        ],
+        "is_system": True,
+    },
+]
