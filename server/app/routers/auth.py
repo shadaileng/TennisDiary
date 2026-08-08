@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import create_access_token, get_current_user
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.schemas import (
     LoginRequest,
@@ -15,6 +15,8 @@ from app.schemas.schemas import (
     UserUpdateResponse,
 )
 from app.services.wx_service import code_to_openid
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -30,10 +32,10 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
     try:
         openid = await code_to_openid(body.code)
     except ValueError as e:
-        logger.warning("微信登录失败：无效 code，原因={}", e)
+        log.warning("微信登录失败：无效 code，原因={}", e)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)) from e
     except RuntimeError as e:
-        logger.error("微信登录失败：code2session 调用异常，原因={}", e)
+        log.error("微信登录失败：code2session 调用异常，原因={}", e)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e)) from e
 
     # 查找或创建用户
@@ -47,7 +49,7 @@ async def login(body: LoginRequest, db: Session = Depends(get_db)):
 
     # 签发 JWT
     token = create_access_token(openid)
-    logger.info("微信登录成功", openid=openid, is_new=is_new)
+    log.info("微信登录成功", openid=openid, is_new=is_new)
     return LoginResponse(
         access_token=token,
         user=UserResponse.model_validate(user),
@@ -73,5 +75,5 @@ def update_me(
             setattr(current_user, key, value)
     db.commit()
     db.refresh(current_user)
-    logger.info("用户资料更新", user_id=current_user.id)
+    log.info("用户资料更新", user_id=current_user.id)
     return UserUpdateResponse(user=UserResponse.model_validate(current_user))

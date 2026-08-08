@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.checkin import Checkin
 from app.models.user import User
 from app.schemas.schemas import CheckinCreate, CheckinResponse
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/checkin", tags=["checkin"])
 
@@ -58,5 +60,5 @@ def create_checkin(
     db.add(record)
     db.commit()
     db.refresh(record)
-    logger.info("打卡成功", user_id=current_user.id, course_id=body.course_id, date=body.date)
+    log.info("打卡成功", user_id=current_user.id, course_id=body.course_id, date=body.date)
     return CheckinResponse.model_validate(record)

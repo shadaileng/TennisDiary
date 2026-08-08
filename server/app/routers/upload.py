@@ -8,8 +8,10 @@ from fastapi.responses import FileResponse
 
 from app.core.auth import get_current_user
 from app.core.config import settings
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.user import User
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
@@ -40,7 +42,7 @@ def upload_avatar(
     """
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in _ALLOWED_EXT:
-        logger.warning("头像上传拒绝：非法扩展名", user_id=current_user.id, ext=ext)
+        log.warning("头像上传拒绝：非法扩展名", user_id=current_user.id, ext=ext)
         detail = "仅支持 jpg/jpeg/png/webp 图片"
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
@@ -56,7 +58,7 @@ def upload_avatar(
         while chunk := file.file.read(1024 * 1024):
             out.write(chunk)
 
-    logger.info("头像上传成功", user_id=current_user.id, path=rel_path)
+    log.info("头像上传成功", user_id=current_user.id, path=rel_path)
     return {"url": rel_path.replace(os.sep, "/")}
 
 

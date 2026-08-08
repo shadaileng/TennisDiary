@@ -7,10 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.diary import Diary
 from app.models.user import User
 from app.schemas.schemas import CostItem, DiaryCreate, DiaryResponse, DiaryUpdate, GearUse
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/diaries", tags=["diaries"])
 
@@ -80,7 +82,7 @@ def create_diary(
     db.add(diary)
     db.commit()
     db.refresh(diary)
-    logger.info("创建日记成功", user_id=current_user.id, diary_id=diary.id)
+    log.info("创建日记成功", user_id=current_user.id, diary_id=diary.id)
     return diary_to_response(diary)
 
 
@@ -125,7 +127,7 @@ def update_diary(
 
     db.commit()
     db.refresh(diary)
-    logger.info("更新日记成功", user_id=current_user.id, diary_id=diary.id)
+    log.info("更新日记成功", user_id=current_user.id, diary_id=diary.id)
     return diary_to_response(diary)
 
 
@@ -139,5 +141,5 @@ def delete_diary(
     diary = _get_owned_diary(db, diary_id, current_user)
     db.delete(diary)
     db.commit()
-    logger.info("删除日记成功", user_id=current_user.id, diary_id=diary_id)
+    log.info("删除日记成功", user_id=current_user.id, diary_id=diary_id)
     return {"message": "删除成功"}

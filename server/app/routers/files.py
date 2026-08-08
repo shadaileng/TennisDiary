@@ -9,9 +9,11 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.gear import Gear
 from app.models.user import User
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -53,11 +55,11 @@ def download_file(
     """下载当前用户拥有的文件，完成路径穿越防护与归属校验"""
     abs_path = _resolve_safe_path(filename)
     if abs_path is None:
-        logger.warning("文件下载路径穿越被拒", user_id=current_user.id, filename=filename)
+        log.warning("文件下载路径穿越被拒", user_id=current_user.id, filename=filename)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
     if not _is_file_owned(db, current_user, filename):
-        logger.warning("文件下载越权被拒", user_id=current_user.id, filename=filename)
+        log.warning("文件下载越权被拒", user_id=current_user.id, filename=filename)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
     if not os.path.isfile(abs_path):
@@ -65,5 +67,5 @@ def download_file(
 
     ext = os.path.splitext(abs_path)[1].lower()
     media_type = _MEDIA_TYPES.get(ext, "application/octet-stream")
-    logger.info("文件下载成功", user_id=current_user.id, filename=filename)
+    log.info("文件下载成功", user_id=current_user.id, filename=filename)
     return FileResponse(abs_path, media_type=media_type)

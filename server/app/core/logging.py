@@ -4,9 +4,9 @@
 支持级别过滤、按大小滚动切割、按时间保留。
 
 日志分离：
-- admin.log：后台管理API日志
-- user.log：小程序API日志
-- app.log：通用日志（保留兼容）
+- admin.log：后台管理 API 日志（由 middleware 自动标记 source=admin）
+- user.log：小程序 API 日志（middleware + get_logger("user")）
+- app.log：通用日志（启动日志、默认 source=app）
 
 模块在 import 时即调用 setup_logging()，保证任何模块
 `from app.core.logging import logger` 拿到的都是已配置好的 logger。

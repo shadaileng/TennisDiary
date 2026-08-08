@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.user import User
 from app.models.weight import WeightRecord
 from app.schemas.schemas import WeightCreate, WeightResponse
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/weights", tags=["weights"])
 
@@ -61,7 +63,7 @@ def create_weight(
     db.add(record)
     db.commit()
     db.refresh(record)
-    logger.info("添加体重记录成功", user_id=current_user.id, weight_id=record.id)
+    log.info("添加体重记录成功", user_id=current_user.id, weight_id=record.id)
     return WeightResponse.model_validate(record)
 
 
@@ -75,5 +77,5 @@ def delete_weight(
     record = _get_owned_weight(db, weight_id, current_user)
     db.delete(record)
     db.commit()
-    logger.info("删除体重记录成功", user_id=current_user.id, weight_id=weight_id)
+    log.info("删除体重记录成功", user_id=current_user.id, weight_id=weight_id)
     return {"message": "删除成功"}

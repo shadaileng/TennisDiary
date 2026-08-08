@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
 from app.models.gear import Gear
 from app.models.user import User
 from app.schemas.schemas import GearCreate, GearResponse, GearUpdate
+
+log = get_logger("user")
 
 router = APIRouter(prefix="/api/gears", tags=["gears"])
 
@@ -53,7 +55,7 @@ def create_gear(
     db.add(gear)
     db.commit()
     db.refresh(gear)
-    logger.info("添加装备成功", user_id=current_user.id, gear_id=gear.id)
+    log.info("添加装备成功", user_id=current_user.id, gear_id=gear.id)
     return GearResponse.model_validate(gear)
 
 
@@ -92,7 +94,7 @@ def update_gear(
 
     db.commit()
     db.refresh(gear)
-    logger.info("更新装备成功", user_id=current_user.id, gear_id=gear.id)
+    log.info("更新装备成功", user_id=current_user.id, gear_id=gear.id)
     return GearResponse.model_validate(gear)
 
 
@@ -106,5 +108,5 @@ def delete_gear(
     gear = _get_owned_gear(db, gear_id, current_user)
     db.delete(gear)
     db.commit()
-    logger.info("删除装备成功", user_id=current_user.id, gear_id=gear_id)
+    log.info("删除装备成功", user_id=current_user.id, gear_id=gear_id)
     return {"message": "删除成功"}
