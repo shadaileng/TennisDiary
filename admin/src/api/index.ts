@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
 import type { ApiResponse } from '@/types/api'
 
 const request = axios.create({
@@ -19,6 +20,8 @@ request.interceptors.response.use(
   response => {
     const res = response.data as ApiResponse<any>
     if (res.code !== 0) {
+      const toast = useToastStore()
+      toast.error(res.message || '操作失败')
       return Promise.reject(new Error(res.message))
     }
     return res.data
@@ -26,14 +29,24 @@ request.interceptors.response.use(
   error => {
     const status = error.response?.status
     const message = error.response?.data?.detail || error.response?.data?.message || '请求失败'
+    const toast = useToastStore()
 
     if (status === 401) {
       const authStore = useAuthStore()
       authStore.removeToken()
+      toast.warning('登录已过期，请重新登录')
       window.location.href = '/login'
+    } else if (status === 403) {
+      toast.error('权限不足')
+    } else if (status === 404) {
+      toast.warning('资源不存在')
+    } else if (status === 500) {
+      toast.error('服务器内部错误')
+    } else {
+      toast.error(message)
     }
 
-    return Promise.reject(new Error(message))
+    return Promise.reject(error)
   }
 )
 
