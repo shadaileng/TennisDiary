@@ -29,14 +29,12 @@
         <button
           @click="editRole(row)"
           class="text-olive-600 hover:text-olive-800 mr-3"
-          :disabled="row.is_system"
         >
           编辑
         </button>
         <button
           @click="confirmDelete(row)"
           class="text-red-600 hover:text-red-800"
-          :disabled="row.is_system"
         >
           删除
         </button>
