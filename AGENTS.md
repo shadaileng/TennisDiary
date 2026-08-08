@@ -16,6 +16,7 @@
 | 小程序前端 | uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Tailwind CSS（自定义组件） |
 | 后端 | FastAPI（Python 3.10+）+ SQLite + SQLAlchemy |
 | 依赖管理 | uv（后端）、pnpm（前端/文档） |
+| Node 运行时 | **≥ 22.12（建议 24 LTS）**，版本在根目录 `.nvmrc` 用 `24` 固定（nvm/n 自动切换） |
 | 文档 | VitePress |
 
 ## 项目结构
@@ -266,6 +267,7 @@ Phase 2 小程序前端（进行中）：
 ## 注意事项
 
 - 后台使用 `uv` 而非 `pip` 管理依赖
+- **Node 必须 ≥ 22.12（建议 24 LTS）**：根目录 `.nvmrc` 已固定 `24`，进入项目自动切换；低于 22.12 时 `@weapp-tailwindcss/postcss`（CommonJS）`require()` 纯 ESM 包 `@csstools/css-color-parser` 会报 `require() of ES Module ... not supported`，导致 `pnpm build:mp-weixin` 加载 `vite.config.ts` 失败
 - **`server/app/core/config.py` 用绝对路径加载 `server/.env`：`Path(__file__).resolve().parent.parent.parent / ".env"`（config.py 位于 `app/core/` 下，向上三级），改动目录结构时勿改错层级，否则微信配置等全部读不到**
 - **数据库迁移用 Alembic**：`cd server && uv run alembic upgrade head`（或 `revision --autogenerate -m "..."` / `current`）。模型变更后自动生成迁移并 upgrade，严禁手工 `create_all`；`app/models/__init__.py` 已集中导出全部模型，新增模型务必在其中登记，否则迁移发现不到
   - **字段更新三步流程**：① 改模型（新增模型类须在 `app/models/__init__.py` 登记）→ ② `uv run alembic revision --autogenerate -m "描述"` 生成增量迁移 → ③ `uv run alembic upgrade head` 应用
