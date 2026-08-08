@@ -1,41 +1,41 @@
 <template>
-  <view class="page bg-paper min-h-screen flex flex-col">
+  <view class="diary-page">
     <!-- 游客空态：未登录不发请求，引导登录 -->
-    <view v-if="authStore.isGuest" class="flex-1">
+    <view v-if="authStore.isGuest" class="diary-empty-guide">
       <Empty icon="🔒" text="登录后即可记录与同步网球数据" button-text="去登录" @action="goMine" />
     </view>
 
     <!-- 已登录内容 -->
     <template v-else>
     <!-- Hero：累计时长 -->
-    <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden">
+    <view class="diary-hero">
       <!-- 装饰光晕 -->
-      <view class="absolute -right-8 -bottom-10 w-36 h-36 rounded-full bg-lime opacity-10" />
+      <view class="diary-hero-glow" />
       <!-- 装饰图标 -->
-      <text class="absolute -right-3 -top-4 text-6xl opacity-20 rotate-12 select-none">🏸</text>
-      <text class="absolute right-20 top-12 text-2xl opacity-25 select-none">🎾</text>
+      <text class="diary-hero-icon diary-hero-icon--racket">🏸</text>
+      <text class="diary-hero-icon diary-hero-icon--ball">🎾</text>
       <!-- 内容 -->
-      <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">ONE SWING AT A TIME</text>
-      <text class="block text-white text-lg font-bold mt-1">享受每一拍，进步是顺便的事</text>
-      <view class="mt-4 flex items-center justify-between">
-        <view class="flex-1">
-          <view class="flex items-baseline justify-between text-xs">
-            <text class="text-white/60">已积累</text>
-            <text class="text-lime font-bold">
+      <text class="diary-hero-slogan">ONE SWING AT A TIME</text>
+      <text class="diary-hero-title">享受每一拍，进步是顺便的事</text>
+      <view class="diary-hero-progress">
+        <view class="diary-hero-progress-content">
+          <view class="diary-hero-progress-label">
+            <text class="diary-hero-progress-text">已积累</text>
+            <text class="diary-hero-progress-value">
               {{ totalHours.toFixed(1) }}
-              <text class="text-white/50 font-normal">/ 10000 小时</text>
+              <text class="diary-hero-progress-unit">/ 10000 小时</text>
             </text>
           </view>
-          <view class="h-1.5 bg-white/15 rounded-full mt-1.5 overflow-hidden">
-            <view class="h-full bg-lime rounded-full" :style="{ width: `${Math.max(1, hoursPct)}%` }" />
+          <view class="diary-hero-progress-bar">
+            <view class="diary-hero-progress-bar-fill" :style="{ width: `${Math.max(1, hoursPct)}%` }" />
           </view>
         </view>
-        <MoneyToggle class="ml-3 shrink-0" />
+        <MoneyToggle />
       </view>
     </view>
 
     <!-- 空态 -->
-    <view v-if="!diaryStore.loading && diaryStore.diaries.length === 0" class="flex-1">
+    <view v-if="!diaryStore.loading && diaryStore.diaries.length === 0" class="diary-empty">
       <Empty
         icon="🏸"
         text="还没有日记，打完球来记一笔吧"
@@ -45,57 +45,52 @@
     </view>
 
     <!-- 按月分组列表 -->
-    <view v-else class="px-4 pb-28">
-      <view v-for="group in groups" :key="group.month" class="mb-4">
-        <view class="flex items-baseline justify-between px-1 mb-2">
-          <text class="text-sm font-bold text-olive-light">{{ monthTitle(group.month) }}</text>
-          <view class="flex items-center gap-2">
-            <text class="text-xs text-olive-light">
+    <view v-else class="diary-list">
+      <view v-for="group in groups" :key="group.month" class="diary-month">
+        <view class="diary-month-header">
+          <text class="diary-month-title">{{ monthTitle(group.month) }}</text>
+          <view class="diary-month-meta">
+            <text class="diary-month-count">
               {{ group.items.length }} 次
-              <text v-if="monthCost(group.items) > 0"> · {{ fmtMoney(monthCost(group.items)) }}</text>
+              <text v-if="monthCost(group.items) > 0" class="diary-month-cost"> · {{ fmtMoney(monthCost(group.items)) }}</text>
             </text>
             <MoneyToggle />
           </view>
         </view>
-        <view class="space-y-2.5">
+        <view class="diary-month-items">
           <view
             v-for="d in group.items"
             :key="d.id"
-            class="card bg-white rounded-card p-3.5 active:opacity-90 transition-opacity"
+            class="diary-card"
             @tap="goEdit(d.id)"
           >
-            <view class="flex items-center gap-3">
-              <view class="w-11 h-11 rounded-2xl bg-lime-soft text-lime-dark flex items-center justify-center text-xl shrink-0">
-                {{ typeIcon(d.type) }}
-              </view>
-              <view class="flex-1 min-w-0">
-                <view class="flex items-center gap-2">
-                  <text class="font-semibold text-olive">{{ d.type }}</text>
-                  <text class="text-xs text-olive-light">{{ d.date.slice(5) }} {{ weekdayCN(d.date) }} {{ d.time }}</text>
-                </view>
-                <view class="flex items-center gap-2 mt-1 text-xs text-olive-light flex-wrap">
-                  <text>{{ fmtDuration(d.duration) }}</text>
-                  <text>·</text>
-                  <text>{{ intensityEmoji(d.intensity) }} {{ intensityLabel(d.intensity) }}</text>
-                  <text>·</text>
-                  <text>{{ moodEmoji(d.mood) }}</text>
-                  <text v-if="costOf(d) > 0">·</text>
-                  <text v-if="costOf(d) > 0" class="text-lime-dark font-semibold">{{ costText(d) }}</text>
-                </view>
-                <text v-if="d.notes" class="block text-xs text-olive-light mt-1 truncate">{{ d.notes }}</text>
-              </view>
-              <text class="text-olive-light text-sm shrink-0">›</text>
+            <view class="diary-card-icon">
+              {{ typeIcon(d.type) }}
             </view>
+            <view class="diary-card-content">
+              <view class="diary-card-header">
+                <text class="diary-card-type">{{ d.type }}</text>
+                <text class="diary-card-time">{{ d.date.slice(5) }} {{ weekdayCN(d.date) }} {{ d.time }}</text>
+              </view>
+              <view class="diary-card-meta">
+                <text class="diary-card-duration">{{ fmtDuration(d.duration) }}</text>
+                <text class="diary-card-sep">·</text>
+                <text class="diary-card-intensity">{{ intensityEmoji(d.intensity) }} {{ intensityLabel(d.intensity) }}</text>
+                <text class="diary-card-sep">·</text>
+                <text class="diary-card-mood">{{ moodEmoji(d.mood) }}</text>
+                <text v-if="costOf(d) > 0" class="diary-card-sep">·</text>
+                <text v-if="costOf(d) > 0" class="diary-card-cost">{{ costText(d) }}</text>
+              </view>
+              <text v-if="d.notes" class="diary-card-notes">{{ d.notes }}</text>
+            </view>
+            <text class="diary-card-arrow">›</text>
           </view>
         </view>
       </view>
     </view>
 
     <!-- FAB -->
-    <view
-      class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime text-ink flex items-center justify-center text-3xl shadow-fab press-btn z-20"
-      @tap="goCreate"
-    >+</view>
+    <view class="diary-fab" @tap="goCreate">+</view>
     </template>
   </view>
 </template>
@@ -198,16 +193,283 @@ onShow(() => {
 });
 </script>
 
-<style scoped>
-.press-btn:active {
-  opacity: 0.9;
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.diary-page {
+  background-color: $color-paper;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
-/* 极淡卡片阴影 */
-.card {
-  box-shadow: 0 1px 8px rgba(23, 27, 20, 0.04);
+
+.diary-empty-guide {
+  flex: 1;
 }
-/* FAB 青柠色阴影 */
-.shadow-fab {
-  box-shadow: 0 6px 20px rgba(200, 218, 43, 0.5);
+
+// Hero
+.diary-hero {
+  margin: $space-xl;
+  margin-bottom: $space-md;
+  border-radius: $radius-hero;
+  background-color: $color-olive;
+  padding: $space-xl;
+  overflow: hidden;
+  position: relative;
+}
+
+.diary-hero-glow {
+  position: absolute;
+  right: -32px;
+  bottom: -40px;
+  width: 144px;
+  height: 144px;
+  border-radius: 50%;
+  background-color: $color-lime;
+  opacity: 0.1;
+}
+
+.diary-hero-icon {
+  position: absolute;
+  opacity: 0.2;
+  user-select: none;
+  
+  &--racket {
+    right: -12px;
+    top: -16px;
+    font-size: 48px;
+    transform: rotate(12deg);
+  }
+  
+  &--ball {
+    right: 96px;
+    top: 48px;
+    font-size: 24px;
+    opacity: 0.25;
+  }
+}
+
+.diary-hero-slogan {
+  color: $color-lime;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.25em;
+  display: block;
+}
+
+.diary-hero-title {
+  color: $color-white;
+  font-size: 18px;
+  font-weight: bold;
+  display: block;
+  margin-top: 4px;
+}
+
+.diary-hero-progress {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.diary-hero-progress-content {
+  flex: 1;
+}
+
+.diary-hero-progress-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.diary-hero-progress-text {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.diary-hero-progress-value {
+  color: $color-lime;
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.diary-hero-progress-unit {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.diary-hero-progress-bar {
+  height: 6px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.diary-hero-progress-bar-fill {
+  height: 100%;
+  background-color: $color-lime;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+// 空态
+.diary-empty {
+  flex: 1;
+}
+
+// 列表
+.diary-list {
+  padding: 0 $space-md $space-2xl;
+}
+
+.diary-month {
+  margin-bottom: $space-lg;
+}
+
+.diary-month-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 $space-xs;
+  margin-bottom: $space-sm;
+}
+
+.diary-month-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: $color-olive-light;
+}
+
+.diary-month-meta {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+}
+
+.diary-month-count {
+  font-size: 12px;
+  color: $color-olive-light;
+}
+
+.diary-month-cost {
+  color: $color-olive-light;
+}
+
+.diary-month-items {
+  display: flex;
+  flex-direction: column;
+  gap: $space-md;
+}
+
+// 卡片
+.diary-card {
+  background-color: $color-white;
+  border-radius: $radius-card;
+  padding: $space-md;
+  box-shadow: $shadow-card;
+  display: flex;
+  align-items: flex-start;
+  gap: $space-md;
+  transition: opacity 0.15s ease;
+  
+  &:active {
+    opacity: 0.9;
+  }
+}
+
+.diary-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background-color: $color-lime-soft;
+  color: $color-lime-dark;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.diary-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.diary-card-header {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+}
+
+.diary-card-type {
+  font-size: 15px;
+  font-weight: 600;
+  color: $color-ink;
+}
+
+.diary-card-time {
+  font-size: 12px;
+  color: $color-olive-light;
+}
+
+.diary-card-meta {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+  margin-top: 4px;
+  font-size: 12px;
+  color: $color-olive-light;
+  flex-wrap: wrap;
+}
+
+.diary-card-sep {
+  color: $color-olive-light;
+}
+
+.diary-card-cost {
+  color: $color-lime-dark;
+  font-weight: 600;
+}
+
+.diary-card-notes {
+  display: block;
+  font-size: 12px;
+  color: $color-olive-light;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diary-card-arrow {
+  color: $color-olive-light;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+// FAB
+.diary-fab {
+  position: fixed;
+  right: $space-lg;
+  bottom: $space-2xl;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: $color-lime;
+  color: $color-ink;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  box-shadow: $shadow-fab;
+  z-index: 20;
+  transition: opacity 0.15s ease;
+  
+  &:active {
+    opacity: 0.9;
+  }
 }
 </style>

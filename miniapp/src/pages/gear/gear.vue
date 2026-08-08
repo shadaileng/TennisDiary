@@ -1,53 +1,53 @@
 <template>
-  <view class="page bg-paper min-h-screen flex flex-col">
+  <view class="gear-page">
     <!-- 游客空态：未登录不发请求，引导登录 -->
-    <view v-if="authStore.isGuest" class="flex-1">
+    <view v-if="authStore.isGuest" class="gear-empty-guide">
       <Empty icon="🔒" text="登录后即可管理装备库" button-text="去登录" @action="goMine" />
     </view>
 
     <!-- 已登录内容 -->
     <template v-else>
     <!-- Sticky 容器：Hero + 筛选栏 -->
-    <view class="sticky top-0 z-10 bg-paper">
+    <view class="gear-sticky">
       <!-- Hero：装备投入 -->
-      <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden">
+      <view class="gear-hero">
         <!-- 装饰光晕 -->
-        <view class="absolute -right-8 -bottom-10 w-36 h-36 rounded-full bg-lime opacity-10" />
+        <view class="gear-hero-glow" />
         <!-- 装饰图标 -->
-        <text class="absolute -right-2 -top-3 text-5xl opacity-20 rotate-12 select-none">👕</text>
-        <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">MY TENNIS CLOSET</text>
-        <view class="flex items-end justify-between mt-1.5">
-          <view class="flex items-center gap-2">
+        <text class="gear-hero-icon">👕</text>
+        <text class="gear-hero-slogan">MY TENNIS CLOSET</text>
+        <view class="gear-hero-content">
+          <view class="gear-hero-stats">
             <view>
-              <text class="block text-white/60 text-xs">{{ totalLabel }}</text>
-              <text class="block text-white text-[26px] font-bold">{{ totalText }}</text>
+              <text class="gear-hero-stats-label">{{ totalLabel }}</text>
+              <text class="gear-hero-stats-value">{{ totalText }}</text>
             </view>
             <MoneyToggle />
           </view>
-          <text class="bg-white/10 text-white text-xs rounded-full px-3 py-1.5 mb-1">{{ filtered.length }} 件装备</text>
+          <text class="gear-hero-count">{{ filtered.length }} 件装备</text>
         </view>
       </view>
 
       <!-- 筛选 chips -->
-      <view v-if="gearStore.gears.length > 0" class="px-4 space-y-1.5 pb-3">
-        <scroll-view scroll-x class="w-full whitespace-nowrap">
-          <view class="inline-flex gap-1.5 py-0.5">
+      <view v-if="gearStore.gears.length > 0" class="gear-filters">
+        <scroll-view scroll-x class="gear-filter-row">
+          <view class="gear-filter-chips">
             <view
               v-for="c in catOptions"
               :key="c"
-              class="inline-block shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-opacity"
-              :class="catFilter === c ? 'bg-lime text-olive' : 'bg-white text-olive-light border border-paper'"
+              class="gear-filter-chip"
+              :class="catFilter === c ? 'gear-filter-chip--active' : ''"
               @tap="catFilter = c"
             >{{ c }}</view>
           </view>
         </scroll-view>
-        <scroll-view scroll-x class="w-full whitespace-nowrap">
-          <view class="inline-flex gap-1.5 py-0.5">
+        <scroll-view scroll-x class="gear-filter-row">
+          <view class="gear-filter-chips">
             <view
               v-for="mo in monthOptions"
               :key="mo"
-              class="inline-block shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-opacity"
-              :class="monthFilter === mo ? 'bg-olive text-lime' : 'bg-white text-olive-light border border-paper'"
+              class="gear-filter-chip"
+              :class="monthFilter === mo ? 'gear-filter-chip--active-month' : ''"
               @tap="monthFilter = mo"
             >{{ mo === "全部" ? "全部月份" : mo.replace("-", "/") }}</view>
           </view>
@@ -56,53 +56,46 @@
     </view>
 
     <!-- 空态 -->
-    <view v-if="!gearStore.loading && gearStore.gears.length === 0" class="flex-1">
+    <view v-if="!gearStore.loading && gearStore.gears.length === 0" class="gear-empty">
       <Empty icon="🎒" text="还没有装备记录，点右下角添加" button-text="添加装备" @action="goCreate" />
     </view>
-    <view v-else-if="!gearStore.loading && filtered.length === 0" class="flex-1">
+    <view v-else-if="!gearStore.loading && filtered.length === 0" class="gear-empty">
       <Empty icon="🔍" text="该筛选条件下没有装备" button-text="清除筛选" @action="clearFilter" />
     </view>
 
     <!-- 画报卡片流 -->
-    <view v-else class="px-4 pb-28">
-      <view class="grid grid-cols-2 gap-3">
-        <view
-          v-for="g in filtered"
-          :key="g.id"
-          class="relative rounded-hero overflow-hidden aspect-[3/4] shadow-card active:opacity-90 transition-opacity"
-          @tap="goEdit(g.id)"
-        >
-          <!-- 照片封面 / 无照片渐变 -->
-          <image
-            v-if="g.photo"
-            :src="g.photo"
-            mode="aspectFill"
-            class="absolute inset-0 w-full h-full"
-          />
-          <view v-else class="absolute inset-0 flex items-center justify-center" :style="noPhotoBg">
-            <text class="text-4xl opacity-60">{{ catIcon(g.category) }}</text>
-          </view>
+    <view v-else class="gear-grid">
+      <view
+        v-for="g in filtered"
+        :key="g.id"
+        class="gear-card"
+        @tap="goEdit(g.id)"
+      >
+        <!-- 照片封面 / 无照片渐变 -->
+        <image
+          v-if="g.photo"
+          :src="g.photo"
+          mode="aspectFill"
+          class="gear-card-image"
+        />
+        <view v-else class="gear-card-placeholder" :style="noPhotoBg">
+          <text class="gear-card-placeholder-icon">{{ catIcon(g.category) }}</text>
+        </view>
 
-          <text class="absolute top-2.5 left-2.5 bg-lime text-olive text-[11px] font-bold rounded-full px-2.5 py-1">
-            {{ g.category }}
-          </text>
+        <text class="gear-card-category">{{ g.category }}</text>
 
-          <view class="absolute inset-x-0 bottom-0 px-3 pb-3 pt-10" style="background: linear-gradient(to top, rgba(23,27,20,0.85), rgba(23,27,20,0.4), transparent)">
-            <text class="block text-white text-sm font-semibold leading-snug">{{ g.name }}</text>
-            <view class="flex items-center justify-between mt-1.5">
-              <text class="text-white/60 text-[11px]">{{ g.buy_date }}</text>
-              <text v-if="g.price > 0" class="text-lime text-sm font-bold">{{ priceText(g) }}</text>
-            </view>
+        <view class="gear-card-footer">
+          <text class="gear-card-name">{{ g.name }}</text>
+          <view class="gear-card-meta">
+            <text class="gear-card-date">{{ g.buy_date }}</text>
+            <text v-if="g.price > 0" class="gear-card-price">{{ priceText(g) }}</text>
           </view>
         </view>
       </view>
     </view>
 
     <!-- FAB -->
-    <view
-      class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime text-ink flex items-center justify-center text-3xl shadow-fab press-btn z-20"
-      @tap="goCreate"
-    >+</view>
+    <view class="gear-fab" @tap="goCreate">+</view>
     </template>
   </view>
 </template>
@@ -211,16 +204,266 @@ onShow(() => {
 });
 </script>
 
-<style scoped>
-.press-btn:active {
-  opacity: 0.9;
+<style scoped lang="scss">
+@import "@/styles/tokens.scss";
+
+.gear-page {
+  background-color: $color-paper;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
-/* 中等阴影（画报卡片） */
-.shadow-card {
-  box-shadow: 0 1px 8px rgba(23, 27, 20, 0.06);
+
+.gear-empty-guide {
+  flex: 1;
 }
-/* FAB 青柠色阴影 */
-.shadow-fab {
-  box-shadow: 0 6px 20px rgba(200, 218, 43, 0.5);
+
+// Sticky 容器
+.gear-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: $color-paper;
+}
+
+// Hero
+.gear-hero {
+  margin: $space-xl;
+  margin-bottom: $space-md;
+  border-radius: $radius-hero;
+  background-color: $color-olive;
+  padding: $space-xl;
+  overflow: hidden;
+  position: relative;
+}
+
+.gear-hero-glow {
+  position: absolute;
+  right: -32px;
+  bottom: -40px;
+  width: 144px;
+  height: 144px;
+  border-radius: 50%;
+  background-color: $color-lime;
+  opacity: 0.1;
+}
+
+.gear-hero-icon {
+  position: absolute;
+  right: -8px;
+  top: -12px;
+  font-size: 40px;
+  opacity: 0.2;
+  transform: rotate(12deg);
+  user-select: none;
+}
+
+.gear-hero-slogan {
+  color: $color-lime;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.25em;
+  display: block;
+}
+
+.gear-hero-content {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.gear-hero-stats {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+}
+
+.gear-hero-stats-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  display: block;
+}
+
+.gear-hero-stats-value {
+  color: $color-white;
+  font-size: 26px;
+  font-weight: bold;
+  display: block;
+  margin-top: 2px;
+}
+
+.gear-hero-count {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: $color-white;
+  font-size: 12px;
+  border-radius: 9999px;
+  padding: $space-sm $space-md;
+  margin-bottom: $space-sm;
+}
+
+// 筛选
+.gear-filters {
+  padding: 0 $space-md;
+  display: flex;
+  flex-direction: column;
+  gap: $space-sm;
+  margin-bottom: $space-md;
+}
+
+.gear-filter-row {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.gear-filter-chips {
+  display: inline-flex;
+  gap: $space-sm;
+  padding: $space-xs 0;
+}
+
+.gear-filter-chip {
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  padding: $space-sm $space-md;
+  font-size: 12px;
+  font-weight: 500;
+  transition: opacity 0.15s ease;
+  background-color: $color-white;
+  color: $color-olive-light;
+  border: 1px solid $color-paper;
+  
+  &--active {
+    background-color: $color-lime;
+    color: $color-olive;
+  }
+  
+  &--active-month {
+    background-color: $color-olive;
+    color: $color-lime;
+  }
+  
+  &:active {
+    opacity: 0.8;
+  }
+}
+
+// 空态
+.gear-empty {
+  flex: 1;
+}
+
+// 网格
+.gear-grid {
+  padding: 0 $space-md $space-2xl;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $space-md;
+}
+
+// 卡片
+.gear-card {
+  position: relative;
+  border-radius: $radius-hero;
+  overflow: hidden;
+  aspect-ratio: 3/4;
+  box-shadow: $shadow-card-md;
+  transition: opacity 0.15s ease;
+  
+  &:active {
+    opacity: 0.9;
+  }
+}
+
+.gear-card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gear-card-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gear-card-placeholder-icon {
+  font-size: 36px;
+  opacity: 0.6;
+}
+
+.gear-card-category {
+  position: absolute;
+  top: $space-sm;
+  left: $space-sm;
+  background-color: $color-lime;
+  color: $color-olive;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 9999px;
+  padding: $space-xs $space-sm;
+}
+
+.gear-card-footer {
+  position: absolute;
+  left: $space-md;
+  right: $space-md;
+  bottom: $space-md;
+  padding: $space-lg $space-md $space-md;
+  background: linear-gradient(to top, rgba(23, 27, 20, 0.85), rgba(23, 27, 20, 0.4), transparent);
+}
+
+.gear-card-name {
+  color: $color-white;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: block;
+}
+
+.gear-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: $space-sm;
+}
+
+.gear-card-date {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+}
+
+.gear-card-price {
+  color: $color-lime;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+// FAB
+.gear-fab {
+  position: fixed;
+  right: $space-lg;
+  bottom: $space-2xl;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: $color-lime;
+  color: $color-ink;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: bold;
+  box-shadow: $shadow-fab;
+  z-index: 20;
+  transition: opacity 0.15s ease;
+  
+  &:active {
+    opacity: 0.9;
+  }
 }
 </style>

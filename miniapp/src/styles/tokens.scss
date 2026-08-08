@@ -1,0 +1,41 @@
+// ============================================
+// Tennis Diary 小程序设计 Token
+// 参考 tarot 项目实现方式
+// ============================================
+
+// 颜色
+$color-lime: #C8DA2B;
+$color-lime-dark: #A8B822;
+$color-lime-soft: #F0F5CE;
+$color-olive: #242B1F;
+$color-olive-light: #6B7562;
+$color-paper: #F2F2EF;
+$color-ink: #171B14;
+$color-white: #FFFFFF;
+
+// 圆角
+$radius-card: 20px;
+$radius-hero: 28px;
+$radius-full: 9999px;
+
+// 阴影
+$shadow-card: 0 1px 8px rgba(23, 27, 20, 0.04);
+$shadow-card-md: 0 1px 8px rgba(23, 27, 20, 0.06);
+$shadow-fab: 0 6px 20px rgba(200, 218, 43, 0.5);
+
+// 间距
+$space-xs: 4px;
+$space-sm: 8px;
+$space-md: 16px;
+$space-lg: 24px;
+$space-xl: 32px;
+$space-2xl: 48px;
+$space-3xl: 64px;
+
+// 字体大小
+$font-size-xs: 10px;
+$font-size-sm: 12px;
+$font-size-base: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 20px;
+$font-size-2xl: 26px;
