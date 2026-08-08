@@ -35,17 +35,17 @@
 cd D:\workspace\TennisDiary
 npm create vite@latest admin -- --template vue-ts
 cd admin
-npm install
+pnpm install
 ```
 
 ### 3.2 安装依赖
 
 ```bash
 # 核心依赖
-npm install vue-router@4 pinia axios dayjs @heroicons/vue
+pnpm add vue-router@4 pinia axios dayjs @heroicons/vue
 
 # 开发依赖
-npm install -D tailwindcss@3 postcss autoprefixer @tailwindcss/forms
+pnpm add -D tailwindcss@3 postcss autoprefixer @tailwindcss/forms
 npx tailwindcss init -p
 ```
 
@@ -470,7 +470,7 @@ interface ImportMeta {
 
 | 验收项 | 标准 |
 |--------|------|
-| 项目初始化 | `npm run dev` 启动成功 |
+| 项目初始化 | `pnpm dev` 启动成功 |
 | Tailwind CSS | 自定义 olive/lime 颜色可用 |
 | Vue Router | 路由跳转正常，未登录重定向到登录页 |
 | Pinia | 状态管理正常 |

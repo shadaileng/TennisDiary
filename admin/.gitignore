@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+package-lock.json
 
 # 环境变量文件（仅保留 .env.example）
 .env*

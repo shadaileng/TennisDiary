@@ -25,11 +25,12 @@
 workspace/
 ├── server/            # FastAPI 后台（Phase B1/B2 已完成）
 ├── miniapp/           # uni-app 小程序前端（Phase 1/2 已完成）
-├── admin/             # 后台管理前端（Phase Admin 待执行）
+├── admin/             # 后台管理前端（Phase Admin 已完成）
 ├── docs/              # VitePress 文档站点
 │   ├── plans/         # 方案文档（含执行方案）
 │   └── guides/        # 指南
-└── package.json       # 文档站点依赖
+├── package.json       # pnpm workspace 根配置
+└── pnpm-workspace.yaml
 ```
 
 ## 工作流程
