@@ -37,12 +37,6 @@ request.interceptors.response.use(
       authStore.removeToken()
       toast.warning('登录已过期，请重新登录')
       window.location.href = '/login'
-    } else if (status === 403) {
-      toast.error('权限不足')
-    } else if (status === 404) {
-      toast.warning('资源不存在')
-    } else if (status === 500) {
-      toast.error('服务器内部错误')
     } else if (status === 401) {
       toast.error(message || '用户名或密码错误')
     } else {
