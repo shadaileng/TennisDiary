@@ -7,42 +7,52 @@
 
     <!-- 已登录内容 -->
     <template v-else>
-    <!-- Hero：装备投入 -->
-    <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden relative">
-      <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">MY TENNIS CLOSET</text>
-      <view class="flex items-end justify-between mt-1.5">
-        <view>
-          <text class="block text-white/60 text-xs">{{ totalLabel }}</text>
-          <text class="block text-white text-[26px] font-bold">{{ totalText }}</text>
+    <!-- Sticky 容器：Hero + 筛选栏 -->
+    <view class="sticky top-0 z-10 bg-paper">
+      <!-- Hero：装备投入 -->
+      <view class="m-4 mb-2 rounded-hero bg-olive p-5 overflow-hidden">
+        <!-- 装饰光晕 -->
+        <view class="absolute -right-8 -bottom-10 w-36 h-36 rounded-full bg-lime opacity-10" />
+        <!-- 装饰图标 -->
+        <text class="absolute -right-2 -top-3 text-5xl opacity-20 rotate-12 select-none">👕</text>
+        <text class="block text-lime text-[10px] font-bold tracking-[0.25em]">MY TENNIS CLOSET</text>
+        <view class="flex items-end justify-between mt-1.5">
+          <view class="flex items-center gap-2">
+            <view>
+              <text class="block text-white/60 text-xs">{{ totalLabel }}</text>
+              <text class="block text-white text-[26px] font-bold">{{ totalText }}</text>
+            </view>
+            <MoneyToggle />
+          </view>
+          <text class="bg-white/10 text-white text-xs rounded-full px-3 py-1.5 mb-1">{{ filtered.length }} 件装备</text>
         </view>
-        <text class="bg-white/10 text-white text-xs rounded-full px-3 py-1.5 mb-1">{{ filtered.length }} 件装备</text>
       </view>
-    </view>
 
-    <!-- 筛选 chips -->
-    <view v-if="gearStore.gears.length > 0" class="px-4 space-y-1.5 mb-1">
-      <scroll-view scroll-x class="w-full whitespace-nowrap">
-        <view class="inline-flex gap-1.5 py-0.5">
-          <view
-            v-for="c in catOptions"
-            :key="c"
-            class="inline-block shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-            :class="catFilter === c ? 'bg-lime text-olive' : 'bg-white text-olive-light border border-paper'"
-            @tap="catFilter = c"
-          >{{ c }}</view>
-        </view>
-      </scroll-view>
-      <scroll-view scroll-x class="w-full whitespace-nowrap">
-        <view class="inline-flex gap-1.5 py-0.5">
-          <view
-            v-for="mo in monthOptions"
-            :key="mo"
-            class="inline-block shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-            :class="monthFilter === mo ? 'bg-olive text-lime' : 'bg-white text-olive-light border border-paper'"
-            @tap="monthFilter = mo"
-          >{{ mo === "全部" ? "全部月份" : mo.replace("-", "/") }}</view>
-        </view>
-      </scroll-view>
+      <!-- 筛选 chips -->
+      <view v-if="gearStore.gears.length > 0" class="px-4 space-y-1.5 pb-3">
+        <scroll-view scroll-x class="w-full whitespace-nowrap">
+          <view class="inline-flex gap-1.5 py-0.5">
+            <view
+              v-for="c in catOptions"
+              :key="c"
+              class="inline-block shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-opacity"
+              :class="catFilter === c ? 'bg-lime text-olive' : 'bg-white text-olive-light border border-paper'"
+              @tap="catFilter = c"
+            >{{ c }}</view>
+          </view>
+        </scroll-view>
+        <scroll-view scroll-x class="w-full whitespace-nowrap">
+          <view class="inline-flex gap-1.5 py-0.5">
+            <view
+              v-for="mo in monthOptions"
+              :key="mo"
+              class="inline-block shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-opacity"
+              :class="monthFilter === mo ? 'bg-olive text-lime' : 'bg-white text-olive-light border border-paper'"
+              @tap="monthFilter = mo"
+            >{{ mo === "全部" ? "全部月份" : mo.replace("-", "/") }}</view>
+          </view>
+        </scroll-view>
+      </view>
     </view>
 
     <!-- 空态 -->
@@ -59,7 +69,7 @@
         <view
           v-for="g in filtered"
           :key="g.id"
-          class="relative rounded-hero overflow-hidden aspect-[3/4] active:opacity-90"
+          class="relative rounded-hero overflow-hidden aspect-[3/4] shadow-card active:opacity-90 transition-opacity"
           @tap="goEdit(g.id)"
         >
           <!-- 照片封面 / 无照片渐变 -->
@@ -90,7 +100,7 @@
 
     <!-- FAB -->
     <view
-      class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime-dark text-white flex items-center justify-center text-3xl shadow-lg press-btn z-20"
+      class="fixed right-5 bottom-28 w-14 h-14 rounded-full bg-lime text-ink flex items-center justify-center text-3xl shadow-fab press-btn z-20"
       @tap="goCreate"
     >+</view>
     </template>
@@ -102,6 +112,7 @@ import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
+import MoneyToggle from "@/components/MoneyToggle.vue";
 import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { GEAR_CATEGORIES, fmtMoney } from "@/utils";
@@ -126,13 +137,13 @@ const noPhotoBg = {
 
 /** 分类 emoji 图标 */
 const CAT_ICON: Record<string, string> = {
-  球拍: "🏸",
+  球拍: "🎾",
   球鞋: "👟",
   衣服: "👕",
   袜子: "🧦",
   帽子: "🧢",
   毛巾: "🧻",
-  网球: "🎾",
+  网球: "⚾",
   其他: "📦",
 };
 
@@ -204,7 +215,12 @@ onShow(() => {
 .press-btn:active {
   opacity: 0.9;
 }
-.card:active {
-  transform: scale(0.99);
+/* 中等阴影（画报卡片） */
+.shadow-card {
+  box-shadow: 0 1px 8px rgba(23, 27, 20, 0.06);
+}
+/* FAB 青柠色阴影 */
+.shadow-fab {
+  box-shadow: 0 6px 20px rgba(200, 218, 43, 0.5);
 }
 </style>
