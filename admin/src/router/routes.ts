@@ -36,6 +36,30 @@ const routes: RouteRecordRaw[] = [
         name: 'Admins',
         component: () => import('@/views/admins/index.vue'),
         meta: { title: '管理员', icon: 'UserGroupIcon', permission: 'admins:list' }
+      },
+      {
+        path: 'diaries',
+        name: 'Diaries',
+        component: () => import('@/views/diaries/index.vue'),
+        meta: { title: '日记管理', icon: 'DocumentTextIcon', permission: 'diaries:list' }
+      },
+      {
+        path: 'gears',
+        name: 'Gears',
+        component: () => import('@/views/gears/index.vue'),
+        meta: { title: '装备管理', icon: 'WrenchIcon', permission: 'gears:list' }
+      },
+      {
+        path: 'weights',
+        name: 'Weights',
+        component: () => import('@/views/weights/index.vue'),
+        meta: { title: '体重管理', icon: 'ScaleIcon', permission: 'weights:list' }
+      },
+      {
+        path: 'analyses',
+        name: 'Analyses',
+        component: () => import('@/views/analyses/index.vue'),
+        meta: { title: '分析报告', icon: 'ChartBarIcon', permission: 'analyses:list' }
       }
     ]
   },

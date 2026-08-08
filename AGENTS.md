@@ -280,6 +280,7 @@ Phase Admin 后台管理前端（进行中）：
 | Admin-2 | 布局与登录（MainLayout/Sidebar/Header/登录页） | ✅ | 49-Admin-2 |
 | Admin-3 | 仪表盘（汇总卡片+系统状态） | ✅ | 50-Admin-3 |
 | Admin-4 | 管理功能（用户/角色/管理员管理） | ✅ | 51-Admin-4 |
+| Admin-5 | 数据管理（日记/装备/体重/分析） | ✅ | 52-Admin-5 |
 
 Phase 1 小程序前端（已完成）：
 
