@@ -77,6 +77,8 @@ export default defineConfig({
             { text: '40：我的页与资料详情页 tarot 化改造', link: '/plans/40-我的页与资料详情页tarot化改造' },
             { text: '41：修复登录错误提示 request ok 误弹', link: '/plans/41-修复登录错误提示-request ok误弹' },
             { text: '42：修复登录后昵称显示未登录', link: '/plans/42-修复登录后昵称显示未登录' },
+            { text: '55：后台 API 响应格式统一重构', link: '/plans/55-后台API响应格式统一重构' },
+            { text: '56：小程序前端视觉样式与交互适配改造', link: '/plans/56-小程序前端视觉样式与交互适配改造' },
           ],
         },
       ],

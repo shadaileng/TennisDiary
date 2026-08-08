@@ -122,6 +122,7 @@ cd admin && pnpm build                 # 构建管理端
 | Phase Admin | 后台管理前端（Vite+Vue3+Tailwind） | ✅ |
 | Phase 1 | 小程序基础能力（工程/Tailwind/store/网络/登录） | ✅ |
 | Phase 2 | 小程序业务页面（日记/装备/统计/我的） | ✅ |
+| Phase 2.5 | 小程序视觉样式与交互适配 | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 
