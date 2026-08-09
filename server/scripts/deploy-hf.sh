@@ -225,6 +225,22 @@ done
 # 敏感配置通过 HF API 设置为 Secrets，不推送到 git repo
 log_info "设置 HF Space Secrets..."
 
+# 预检：for 循环前先验证 token 有效性与 Space secrets 端点可写
+log_info "预检 HF API 鉴权..."
+AUTH_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -L \
+  "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
+  -H "Authorization: Bearer ${HF_TOKEN}")
+
+if [ "$AUTH_CHECK" = "401" ] || [ "$AUTH_CHECK" = "403" ]; then
+  fail "HF_TOKEN 无效或无权限访问该 Space (HTTP $AUTH_CHECK)"
+elif [ "$AUTH_CHECK" = "404" ]; then
+  fail "HF Space 不存在: ${HF_USERNAME}/${HF_SPACE_NAME}"
+elif [ "$AUTH_CHECK" != "200" ]; then
+  log_warn "  ⚠ 预检异常 (HTTP $AUTH_CHECK)，继续尝试设置 Secrets..."
+else
+  log_ok "  ✓ HF API 鉴权通过"
+fi
+
 SECRET_NAMES=("JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD" "ADMIN_RESET_KEY")
 SECRET_VALUES=("${JWT_SECRET}" "${WX_APPID}" "${WX_SECRET}" "${ADMIN_DEFAULT_PASSWORD}" "${ADMIN_RESET_KEY}")
 
