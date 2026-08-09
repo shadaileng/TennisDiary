@@ -1,12 +1,14 @@
 name: Deploy Server to Oracle Cloud
 
-on:
-  push:
-    branches: [master]
-    paths:
-      - 'server/**'
-      - '.github/workflows/deploy-server-oci.yml'
-  workflow_dispatch:
+# ⛔ 已禁用：OCI 方案尚未启用（免费档 Created 需先建 VM/配 SSH），暂不自动部署。
+# 启用方法：取消下方 on 触发分、删除上方禁用说明。
+# on:
+#   push:
+#     branches: [master]
+#     paths:
+#       - 'server/**'
+#       - '.github/workflows/deploy-server-oci.yml'
+#   workflow_dispatch:
 
 jobs:
   deploy:

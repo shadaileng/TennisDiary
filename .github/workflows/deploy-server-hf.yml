@@ -1,17 +1,14 @@
 name: Deploy Server to HuggingFace Spaces
 
-on:
-  push:
-    branches: [master]
-    paths:
-      - 'server/**'
-      - '.github/workflows/deploy-server-hf.yml'
-  workflow_dispatch:
-    inputs:
-      space_name:
-        description: 'HF Space 名称（覆盖默认值）'
-        required: false
-        default: ''
+# ⛔ 已禁用：HF Space 免费 Docker 档需 PRO 订阅（HTTP 402），无法免费部署。
+# 启用方法：取消下方 on 触发分、删除上方禁用说明。部署已切换为魔搭/OCI 方案。
+# on:
+#   push:
+#     branches: [master]
+#     paths:
+#       - 'server/**'
+#       - '.github/workflows/deploy-server-hf.yml'
+#   workflow_dispatch:
 
 jobs:
   deploy:
