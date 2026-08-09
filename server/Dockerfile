@@ -41,7 +41,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 # 运行时环境变量默认值（可被 docker-compose 或 HF Space 覆盖）
-ENV DATA_DIR=/app/data
+# HF Space 持久化卷挂载到 /data，默认指向此处
+ENV DATA_DIR=/data
 ENV UPLOAD_DIR=${DATA_DIR}/uploads
 ENV LOG_DIR=${DATA_DIR}/logs
 

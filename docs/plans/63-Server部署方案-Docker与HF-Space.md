@@ -62,9 +62,9 @@ EXPOSE 7860
 
 # 环境变量（可通过 docker-compose 或 HF Space 注入）
 ENV PYTHONUNBUFFERED=1
-ENV DATA_DIR=/app/data
-ENV UPLOAD_DIR=/app/data/uploads
-ENV LOG_DIR=/app/data/logs
+ENV DATA_DIR=/data
+ENV UPLOAD_DIR=/data/uploads
+ENV LOG_DIR=/data/logs
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
@@ -101,7 +101,7 @@ services:
     ports:
       - "${SERVER_PORT:-8000}:7860"
     volumes:
-      - server_data:/app/data
+      - server_data:/data
     env_file:
       - .env
     restart: unless-stopped
@@ -118,7 +118,7 @@ volumes:
 
 ### 4.1 数据持久化
 
-- SQLite 数据库文件位于 `server_data` 卷（`/app/data/tennis_diary.db`）
+- SQLite 数据库文件位于 `server_data` 卷（`/data/tennis_diary.db`）
 - 上传文件（图片/视频）同样在卷内，容器重建不丢失
 - 日志文件也在卷内，便于日志分析
 

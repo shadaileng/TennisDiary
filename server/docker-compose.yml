@@ -8,7 +8,7 @@ services:
     ports:
       - "${SERVER_PORT:-8000}:7860"
     volumes:
-      - server_data:${DATA_DIR:-/app/data}
+      - server_data:${DATA_DIR:-/data}
     env_file:
       - .env
     restart: unless-stopped

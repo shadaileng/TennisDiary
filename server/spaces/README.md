@@ -63,7 +63,7 @@
 # 1. 进入 HF Space Settings → Storage
 # 2. 添加 Volume：
 #    - Name: data
-#    - Mount path: /app/data
+#    - Mount path: /data
 #    - Size: 5 GB（足够 SQLite + 图片上传）
 #
 # 这样数据库和上传文件会持久保存在 HF 后端，容器重建不丢失。
@@ -124,7 +124,7 @@
 # ② SQLite 单文件锁限制并发，HF Space CPU 档适合低流量场景
 #    （日活 < 100）。如需更高并发，部署到自有服务器 + PostgreSQL。
 #
-# ③ 数据持久化必须挂载 volume 到 /app/data，否则容器重建后数据丢失。
+# ③ 数据持久化必须挂载 volume 到 /data，否则容器重建后数据丢失。
 #
 # ④ 每次修改代码后重新推送镜像或重新触发 HF 构建。
 #
@@ -152,7 +152,7 @@
 #   # 或使用 HF Space 的 volume 导出功能
 #
 # 恢复方法：
-#   # 将备份的 .db 文件放回挂载的 volume 目录 /app/data/
+#   # 将备份的 .db 文件放回挂载的 volume 目录 /data/
 #   # 重启容器
 #
 # ------------------------------------------------------------------

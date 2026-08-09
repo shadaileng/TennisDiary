@@ -8,7 +8,7 @@ set -e
 # ============================================================
 
 echo "🚀 Tennis Diary Server starting..."
-echo "   DATA_DIR:  ${DATA_DIR:-/app/data}"
+echo "   DATA_DIR:  ${DATA_DIR:-/data}"
 echo "   PORT:      ${PORT:-7860}"
 echo "   LOG_LEVEL: ${LOG_LEVEL:-info}"
 
