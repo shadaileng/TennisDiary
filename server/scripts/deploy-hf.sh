@@ -163,9 +163,13 @@ else
   if [ "$CREATE_STATUS" = "200" ] || [ "$CREATE_STATUS" = "201" ]; then
     log_ok "  ✓ Space 创建成功"
   else
-    log_warn "  ⚠ Space 创建失败 (HTTP $CREATE_STATUS)，请确认名称是否可用或手动创建"
-    log_warn "     访问 https://huggingface.co/new-space 手动创建"
-    log_warn "     创建后重新运行部署脚本"
+    CREATE_BODY=$(echo "$CREATE_RESPONSE" | sed '$d')
+    log_error "  ✗ Space 创建失败 (HTTP $CREATE_STATUS)"
+    if [ -n "$CREATE_BODY" ]; then
+      log_error "     响应: $CREATE_BODY"
+    fi
+    log_error "     请确认 Space 名称是否可用，或访问 https://huggingface.co/new-space 手动创建"
+    fail "Space 创建失败，终止部署（请创建后重新运行）"
   fi
 fi
 
