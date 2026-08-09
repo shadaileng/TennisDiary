@@ -4,6 +4,23 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.39.0] - 2026-08-09
+
+### Added
+
+- 事件日志新增 `trace_id` 和 `action` 独立字段，`extra` 只保留业务 payload
+- 业务动作类型统一为 `business`，网络错误为 `network`，崩溃为 `crash`
+- 管理端事件日志新增 `action` 搜索框和表格列
+- 事件日志支持按 `trace_id` 和 `action` 精确过滤
+
+### Fixed
+
+- 修复头像上传后响应解析失败导致头像不更新的问题
+- 修复编辑日记/装备时因 `editingId` 非响应式导致保存变成新增的问题
+- 修复 form.vue 中 `ref` 未导入导致编译错误
+- 修复 Admin 端日记/装备/体重创建时间显示 1970 年问题
+- 修复日记/装备/体重列表排序问题：按创建时间倒序排列
+
 ## [1.38.0] - 2026-08-08
 
 ### Added
