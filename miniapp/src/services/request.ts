@@ -135,6 +135,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
       header: finalHeaders,
       timeout,
       success: (res) => {
+        console.log("[request success]", method, url, res.statusCode);
         const statusCode = res.statusCode;
         if (statusCode >= 200 && statusCode < 300) {
           // 处理统一响应格式
@@ -169,6 +170,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
         reject(new ApiError(statusCode, parseDetail(res)));
       },
       fail: (err) => {
+        console.error("[request fail]", method, url, err);
         logError(`网络请求失败 ${method} ${url}: ${err.errMsg || "未知错误"}`, {
           method,
           url,
