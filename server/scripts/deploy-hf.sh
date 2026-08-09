@@ -200,6 +200,15 @@ else
   fail "Dockerfile 不存在: $SERVER_DIR/Dockerfile"
 fi
 
+# 复制 README.hf.md → README.md（HF Space 配置：SDK/Docker + 卡片元数据）
+# HF 通过 README.md 的 front matter 识别 Docker SDK 并展示卡片信息
+if [ -f "$SERVER_DIR/README.hf.md" ]; then
+  cp "$SERVER_DIR/README.hf.md" "$TMP_DIR/README.md"
+  log_info "  ✓ README.md (from README.hf.md)"
+else
+  log_warn "  ✗ README.hf.md (不存在，跳过)"
+fi
+
 # 复制 .dockerignore
 if [ -f "$SERVER_DIR/.dockerignore" ]; then
   cp "$SERVER_DIR/.dockerignore" "$TMP_DIR/.dockerignore"
