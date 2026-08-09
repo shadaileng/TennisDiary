@@ -1,0 +1,28 @@
+name: Deploy Server to Oracle Cloud
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-server-oci.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Oracle Cloud VM
+        run: bash server/scripts/deploy-oci.sh
+        env:
+          OCI_VM_USER: ${{ secrets.OCI_VM_USER }}
+          OCI_VM_HOST: ${{ secrets.OCI_VM_HOST }}
+          OCI_SSH_PORT: ${{ secrets.OCI_SSH_PORT }}
+          OCI_SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_SECRET: ${{ secrets.WX_SECRET }}
+          ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
+          ADMIN_RESET_KEY: ${{ secrets.ADMIN_RESET_KEY }}

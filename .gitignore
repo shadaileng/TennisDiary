@@ -65,9 +65,14 @@ Thumbs.db
 .env.local
 .env.*.local
 .env.hf
+.env.oci
+.env.modelscope
 *.env
 !*.env.example
 !*.env.hf.example
+!*.env.oci.example
+!*.env.koyeb.example
+!*.env.modelscope.example
 
 # API Keys / 凭证（切勿提交）
 secrets/

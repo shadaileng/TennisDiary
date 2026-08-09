@@ -75,6 +75,9 @@ docs/
 │   ├── 60-LineChart-Canvas-修复.md
 │   ├── 61-miniapp构建警告修复-Sass与循环依赖.md
 │   └── 62-Admin事件日志详情弹窗.md
+│   └── 63-Server部署方案-Docker与HF-Space.md
+│   └── 64-Server部署方案-Oracle-Cloud.md
+│   └── 65-Server部署方案-ModelScope-创空间.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -143,6 +146,9 @@ docs/
 | Admin-7：测试与部署 | v1.0.0 | 方案 | `plans/54-Admin-7-测试与部署.md` | 测试与部署 | ✅ 已完成 |
 | 55：后台 API 响应格式统一重构 | v1.0.0 | 方案 | `plans/55-后台API响应格式统一重构.md` | 统一后台所有 API 响应格式为 `{code, message, success, data}` | ✅ 已完成 |
 | 56：小程序前端视觉样式与交互适配改造 | v1.1.0 | 方案 | `plans/56-小程序前端视觉样式与交互适配改造.md` | 对照参考源码，增强日记/装备/统计页视觉样式与交互 | ✅ 已完成 |
+| 63：Server 部署方案（Docker + HF Space） | v1.0.0 | 方案 | `plans/63-Server部署方案-Docker与HF-Space.md` | Docker 镜像 + HF Space 免费托管部署 | ✅ 已完成 |
+| 64：Server 部署方案（Oracle Cloud） | v1.0.0 | 方案 | `plans/64-Server部署方案-Oracle-Cloud.md` | Oracle Cloud Always Free 免费 VM 部署（SSH + Docker Compose） | 📋 待执行 |
+| 65：Server 部署方案（魔搭创空间） | v1.0.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署 | 📋 待执行 |
 ## 文档类型说明
 
 | 类型 | 说明 | 生命周期 |
@@ -224,6 +230,9 @@ docs/
 | 60：LineChart-Canvas-修复 | LineChart Canvas 修复 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
 | 61：miniapp 构建警告修复 — Sass 与循环依赖 | 小程序前端 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
 | 62：Admin 事件日志详情弹窗 | 后台管理前端 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
+| 63-Server部署方案-Docker与HF-Space | Server 部署 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
+| 64-Server部署方案-Oracle-Cloud | Server 部署 | 📋 待执行 | 2026-08-09 | - |
+| 65-Server部署方案-ModelScope-创空间 | Server 部署 | 📋 待执行 | 2026-08-09 | - |
 
 ## 约定
 

@@ -127,6 +127,9 @@ cd admin && pnpm build                 # 构建管理端
 | Phase 2.7 | 输入框与空状态样式优化 | ✅ |
 | Phase 59  | 事件锚点与线上事件日志（小程序埋点 + 后台查询 + 管理端页面） | ✅ |
 | Phase 61  | 构建警告修复（Sass @import → additionalData + 循环依赖） | ✅ |
+| Server-1  | Server 部署方案（Docker + HF Space） | ✅ |
+| Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM） | 📋 待执行 |
+| Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio） | 📋 待执行 |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 

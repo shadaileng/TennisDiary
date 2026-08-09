@@ -4,6 +4,33 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.42.0] - 2026-08-09
+
+### Added
+
+- 新增 Server 部署方案（魔搭创空间 ModelScope Studio Docker 免费托管）：
+  - 创建 `docs/plans/65-Server部署方案-ModelScope-创空间.md`（方案文档）
+  - 创建 `server/modelscope/ms_deploy.json`（docker sdk / CPU 免费档 / 7860 端口）
+  - 创建 `server/modelscope/README.md`（建仓、Secrets、反代、验证完整指南）
+  - 创建 `server/scripts/deploy-modelscope.sh`（打包 + API Secrets + git push + 健康检查）
+  - 创建 `server/.env.modelscope.example`（魔搭部署配置模板）
+  - 创建 `.github/workflows/deploy-server-modelscope.yml`（push server/** 自动部署）
+- 复用既有 Dockerfile（监听 7860），敏感环境变量通过魔搭 Secrets API 注入，不推送 git
+
+## [1.41.1] - 2026-08-09
+
+### Added
+
+- 新增 Server 部署方案（Oracle Cloud Always Free 免费 VM）：
+  - 创建 `docs/plans/64-Server部署方案-Oracle-Cloud.md`（方案文档）
+  - 创建 `server/oci/README.md`（建机、安全组、Block Volume、初始化、部署完整指南）
+  - 创建 `server/scripts/oci-bootstrap.sh`（VM 初始化：Docker/Compose/UFW/可选 Nginx+Let's Encrypt）
+  - 创建 `server/scripts/deploy-oci.sh`（rsync 同步代码 + 远端 docker compose 重建 + 健康检查）
+  - 创建 `server/.env.oci.example`（OCI SSH 配置模板）
+  - 创建 `.github/workflows/deploy-server-oci.yml`（push server/** 自动部署到 OCI VM）
+- 部署脚本支持 SSH 私钥「路径 / 内容」两种形式，CI 直接传私钥内容到临时文件
+- 远端 .env 自动生成（JWT/WX/管理员凭据），敏感信息不推送到代码仓库
+
 ## [1.41.0] - 2026-08-09
 
 ### Added

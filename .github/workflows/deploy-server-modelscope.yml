@@ -1,0 +1,27 @@
+name: Deploy Server to ModelScope Studio
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-server-modelscope.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to ModelScope Studio
+        run: bash server/scripts/deploy-modelscope.sh
+        env:
+          MODEL_SCOPE_TOKEN: ${{ secrets.MODEL_SCOPE_TOKEN }}
+          MODEL_SCOPE_USERNAME: ${{ secrets.MODEL_SCOPE_USERNAME }}
+          MODEL_SCOPE_STUDIO_NAME: ${{ secrets.MODEL_SCOPE_STUDIO_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_SECRET: ${{ secrets.WX_SECRET }}
+          ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
+          ADMIN_RESET_KEY: ${{ secrets.ADMIN_RESET_KEY }}
