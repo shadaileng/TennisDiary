@@ -141,6 +141,34 @@ else
   log_ok "  ✓ 环境变量配置完整"
 fi
 
+# ---------- 检查/创建 HF Space ----------
+log_info "检查 HF Space: ${HF_USERNAME}/${HF_SPACE_NAME}..."
+
+SPACE_INFO=$(curl -s -o /dev/null -w "%{http_code}" -L \
+  "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}" \
+  -H "Authorization: Bearer ${HF_TOKEN}")
+
+if [ "$SPACE_INFO" = "200" ]; then
+  log_ok "  ✓ Space 已存在"
+else
+  log_info "Space 不存在，正在创建..."
+  CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+    "https://huggingface.co/api/spaces" \
+    -H "Authorization: Bearer ${HF_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"id\": \"${HF_USERNAME}/${HF_SPACE_NAME}\", \"sdk\": \"docker\", \"hardware\": \"cpu-basic\"}")
+  
+  CREATE_STATUS=$(echo "$CREATE_RESPONSE" | tail -n1)
+  
+  if [ "$CREATE_STATUS" = "200" ] || [ "$CREATE_STATUS" = "201" ]; then
+    log_ok "  ✓ Space 创建成功"
+  else
+    log_warn "  ⚠ Space 创建失败 (HTTP $CREATE_STATUS)，请确认名称是否可用或手动创建"
+    log_warn "     访问 https://huggingface.co/new-space 手动创建"
+    log_warn "     创建后重新运行部署脚本"
+  fi
+fi
+
 log_info "项目目录: $PROJECT_DIR"
 log_info "Server 目录: $SERVER_DIR"
 log_info "用户名: $HF_USERNAME"
