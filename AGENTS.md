@@ -110,8 +110,8 @@ cd admin && pnpm build                 # 构建管理端
 
 详见 `docs/plans/` 中各方案文档，或启动服务后访问 `/docs`（Swagger）。
 
-- **用户端**：`/api/auth/*`、`/api/diaries`、`/api/gears`、`/api/weights`、`/api/checkin`、`/api/stats`、`/api/files/*`、`/api/upload/*`
-- **管理端**：`/api/admin/auth/*`、`/api/admin/roles`、`/api/admin/admins`、`/api/admin/users`、`/api/admin/diaries`、`/api/admin/gears`、`/api/admin/weights`、`/api/admin/checkins`、`/api/admin/analyses`、`/api/admin/posts`、`/api/admin/system/*`
+- **用户端**：`/api/auth/*`、`/api/diaries`、`/api/gears`、`/api/weights`、`/api/checkin`、`/api/stats`、`/api/files/*`、`/api/upload/*`、`/api/events`
+- **管理端**：`/api/admin/auth/*`、`/api/admin/roles`、`/api/admin/admins`、`/api/admin/users`、`/api/admin/diaries`、`/api/admin/gears`、`/api/admin/weights`、`/api/admin/checkins`、`/api/admin/analyses`、`/api/admin/posts`、`/api/admin/system/*`、`/api/admin/events`
 
 ## 项目进度
 
@@ -125,6 +125,7 @@ cd admin && pnpm build                 # 构建管理端
 | Phase 2.5 | 小程序视觉样式与交互适配 | ✅ |
 | Phase 2.6 | 小程序样式方案重构（Tailwind→自定义 CSS） | ✅ |
 | Phase 2.7 | 输入框与空状态样式优化 | ✅ |
+| Phase 59  | 事件锚点与线上事件日志（小程序埋点 + 后台查询 + 管理端页面） | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 
