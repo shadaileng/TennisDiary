@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.40.3] - 2026-08-09
+
+### Fixed
+
+- 修复 LineChart 组件使用 `getCurrentInstance().proxy` 替代 `this`，解决 Canvas 节点查询失败的问题
+
 ## [1.40.2] - 2026-08-09
 
 ### Fixed

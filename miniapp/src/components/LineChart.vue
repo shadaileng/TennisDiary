@@ -14,7 +14,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { getCurrentInstance, onMounted, watch } from "vue";
+
+const instance = getCurrentInstance();
 
 const props = withDefaults(
   defineProps<{
@@ -56,7 +58,7 @@ function draw() {
     y: padY + (props.height - padY * 2) * (1 - (d.value - min) / range),
   }));
 
-  const query = uni.createSelectorQuery().in(this);
+  const query = uni.createSelectorQuery().in(instance.proxy);
   query.select("#lineChart")
     .fields({ node: true, size: true })
     .exec((res) => {
