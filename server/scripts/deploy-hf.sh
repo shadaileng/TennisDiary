@@ -131,14 +131,15 @@ for item in "${FILES_TO_COPY[@]}"; do
   fi
 done
 
-# ---------- 2. 创建 .env.hf（包含敏感配置） ----------
-log_info "创建 .env.hf（包含 HF Space 环境变量）..."
+# ---------- 2. 创建 .env（包含敏感配置） ----------
+# HF Docker Runner 会自动读取 repo 根目录的 .env 文件作为环境变量注入容器
+log_info "创建 .env（包含 HF Space 环境变量）..."
 
-cat > "$TMP_DIR/.env.hf" <<EOF
+cat > "$TMP_DIR/.env" <<EOF
 # ============================================================
-# Tennis Diary Server - HF Space 环境变量
+# Tennis Diary Server - 环境变量
 # 此文件由 deploy-hf.sh 自动生成，包含敏感配置
-# HF Space 会将此文件中的变量作为环境变量注入容器
+# HF Docker Runner 会自动读取此文件并注入环境变量
 # ============================================================
 
 # 应用
@@ -178,7 +179,7 @@ LOG_ADMIN_FILE=admin.log
 LOG_USER_FILE=user.log
 EOF
 
-log_info "  ✓ .env.hf 已创建"
+log_info "  ✓ .env 已创建"
 
 # ---------- 3. 验证临时目录 ----------
 file_count=$(find "$TMP_DIR" -maxdepth 1 -type f | wc -l)

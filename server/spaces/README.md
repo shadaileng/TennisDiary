@@ -42,8 +42,9 @@
 # ③ 部署流程：
 #    GitHub Actions 运行 server/scripts/deploy-hf.sh
 #    → 将 server/ 文件复制到临时目录
-#    → 生成 .env.hf（包含敏感环境变量）
+#    → 生成 .env 文件（包含敏感环境变量）
 #    → 推送到 HF Space git repo
+#    → HF Docker Runner 读取 .env 并注入环境变量
 #    → HF 自动构建 Docker 镜像并启动
 #
 # ------------------------------------------------------------------
