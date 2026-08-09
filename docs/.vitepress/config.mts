@@ -84,6 +84,8 @@ export default defineConfig({
               { text: '59：小程序事件锚点与线上事件日志', link: '/plans/59-小程序事件锚点与线上事件日志' },
                { text: '59-v1.1：业务动作埋点与精确时间', link: '/plans/59-业务动作埋点与精确时间' },
                { text: '60：LineChart Canvas 修复', link: '/plans/60-LineChart-Canvas-修复' },
+               { text: '61：miniapp 构建警告修复 — Sass 与循环依赖', link: '/plans/61-miniapp构建警告修复-Sass与循环依赖' },
+               { text: '62：Admin 事件日志详情弹窗', link: '/plans/62-Admin事件日志详情弹窗' },
               { text: 'B2-1：管理员模型与认证', link: '/plans/44-B2-1-管理员模型与认证' },
              { text: 'B2-2：数据查看 API', link: '/plans/45-B2-2-数据查看API' },
              { text: 'B2-3：系统监控 API', link: '/plans/46-B2-3-系统监控API' },

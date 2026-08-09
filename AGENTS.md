@@ -126,6 +126,7 @@ cd admin && pnpm build                 # 构建管理端
 | Phase 2.6 | 小程序样式方案重构（Tailwind→自定义 CSS） | ✅ |
 | Phase 2.7 | 输入框与空状态样式优化 | ✅ |
 | Phase 59  | 事件锚点与线上事件日志（小程序埋点 + 后台查询 + 管理端页面） | ✅ |
+| Phase 61  | 构建警告修复（Sass @import → additionalData + 循环依赖） | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 
