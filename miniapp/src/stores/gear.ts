@@ -62,13 +62,13 @@ export const useGearStore = defineStore("gear", {
     async create(body: GearCreate): Promise<Gear> {
       const traceId = createTraceId();
       try {
-        logInfo("添加装备", { trace_id: traceId, page: getCurrentPage(), category: body.category });
+        logInfo("添加装备", { trace_id: traceId, category: body.category }, "gear_create");
         const g = await createGear(body);
         this.gears = [g, ...this.gears];
-        logInfo("装备添加成功", { trace_id: traceId, gear_id: g.id });
+        logInfo("装备添加成功", { trace_id: traceId, gear_id: g.id }, "gear_created");
         return g;
       } catch (e) {
-        logError("装备添加失败", { trace_id: traceId, error: (e as Error).message });
+        logError("装备添加失败", { trace_id: traceId, error: (e as Error).message }, "gear_create_failed");
         throw e;
       }
     },
@@ -77,13 +77,13 @@ export const useGearStore = defineStore("gear", {
     async update(id: number, body: GearUpdate): Promise<Gear> {
       const traceId = createTraceId();
       try {
-        logInfo("编辑装备", { trace_id: traceId, page: getCurrentPage(), gear_id: id });
+        logInfo("编辑装备", { trace_id: traceId, gear_id: id }, "gear_update");
         const g = await updateGear(id, body);
         this.gears = this.gears.map((x) => (x.id === id ? g : x));
-        logInfo("装备更新成功", { trace_id: traceId, gear_id: id });
+        logInfo("装备更新成功", { trace_id: traceId, gear_id: id }, "gear_updated");
         return g;
       } catch (e) {
-        logError("装备更新失败", { trace_id: traceId, gear_id: id, error: (e as Error).message });
+        logError("装备更新失败", { trace_id: traceId, gear_id: id, error: (e as Error).message }, "gear_update_failed");
         throw e;
       }
     },
@@ -92,12 +92,12 @@ export const useGearStore = defineStore("gear", {
     async remove(id: number) {
       const traceId = createTraceId();
       try {
-        logInfo("删除装备", { trace_id: traceId, page: getCurrentPage(), gear_id: id });
+        logInfo("删除装备", { trace_id: traceId, gear_id: id }, "gear_delete");
         await deleteGear(id);
         this.gears = this.gears.filter((x) => x.id !== id);
-        logInfo("装备删除成功", { trace_id: traceId, gear_id: id });
+        logInfo("装备删除成功", { trace_id: traceId, gear_id: id }, "gear_deleted");
       } catch (e) {
-        logError("装备删除失败", { trace_id: traceId, gear_id: id, error: (e as Error).message });
+        logError("装备删除失败", { trace_id: traceId, gear_id: id, error: (e as Error).message }, "gear_delete_failed");
         throw e;
       }
     },

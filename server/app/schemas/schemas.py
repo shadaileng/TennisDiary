@@ -244,6 +244,8 @@ class StatsResponse(BaseModel):
 class EventLogCreate(BaseModel):
     level: str = Field(..., pattern="^(info|warn|error|fatal)$")
     type: str = "custom"
+    trace_id: str | None = None
+    action: str | None = None
     message: str
     stack: str = ""
     page: str = ""
@@ -257,6 +259,8 @@ class EventLogResponse(BaseModel):
     user_id: int | None
     level: str
     type: str = "custom"
+    trace_id: str | None
+    action: str | None
     message: str
     stack: str = ""
     page: str = ""

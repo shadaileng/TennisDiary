@@ -5,6 +5,8 @@ export interface EventLog {
   user_id: number | null
   level: 'info' | 'warn' | 'error' | 'fatal'
   type: 'network' | 'business' | 'crash' | 'custom'
+  trace_id: string | null
+  action: string | null
   message: string
   stack: string
   page: string
@@ -17,9 +19,9 @@ export interface EventLog {
 export interface EventLogListParams {
   level?: string
   type?: string
-  user_id?: number
-  keyword?: string
   trace_id?: string
+  action?: string
+  keyword?: string
   page?: number
   page_size?: number
 }

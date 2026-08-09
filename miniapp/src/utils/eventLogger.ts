@@ -20,6 +20,8 @@ export type EventType = "network" | "business" | "crash" | "custom";
 export interface EventLogPayload {
   level: LogLevel;
   type: EventType;
+  traceId: string;
+  action?: string;
   message: string;
   stack?: string;
   page?: string;
@@ -105,6 +107,8 @@ function flushOne(payload: EventLogPayload): void {
   const body: Record<string, any> = {
     level: payload.level,
     type: payload.type,
+    trace_id: payload.traceId,
+    action: payload.action || null,
     message: payload.message,
     stack: payload.stack || "",
     page: payload.page ?? getCurrentPage(),
@@ -155,10 +159,13 @@ export function createTraceId(): string {
 }
 
 /** 记录信息事件（批量上报） */
-export function logInfo(message: string, extra?: Record<string, any>): void {
+export function logInfo(message: string, extra?: Record<string, any>, action?: string): void {
+  const traceId = createTraceId();
   pendingBatch.push({
     level: "info",
-    type: "custom",
+    type: "business",
+    traceId,
+    action,
     message,
     extra,
   });
@@ -166,10 +173,13 @@ export function logInfo(message: string, extra?: Record<string, any>): void {
 }
 
 /** 记录警告事件（批量上报，≥5 条立即触发） */
-export function logWarn(message: string, extra?: Record<string, any>): void {
+export function logWarn(message: string, extra?: Record<string, any>, action?: string): void {
+  const traceId = createTraceId();
   pendingBatch.push({
     level: "warn",
-    type: "custom",
+    type: "business",
+    traceId,
+    action,
     message,
     extra,
   });
@@ -185,11 +195,15 @@ export function logWarn(message: string, extra?: Record<string, any>): void {
 export function logError(
   message: string,
   extra?: Record<string, any>,
+  action?: string,
   stack?: string,
 ): void {
+  const traceId = createTraceId();
   flushOne({
     level: "error",
     type: "business",
+    traceId,
+    action,
     message,
     stack: stack || "",
     extra,
@@ -202,9 +216,11 @@ export function logFatal(
   extra?: Record<string, any>,
   stack?: string,
 ): void {
+  const traceId = createTraceId();
   flushOne({
     level: "fatal",
     type: "crash",
+    traceId,
     message,
     stack: stack || "",
     extra,

@@ -64,13 +64,13 @@ export const useDiaryStore = defineStore("diary", {
     async create(body: DiaryCreate): Promise<Diary> {
       const traceId = createTraceId();
       try {
-        logInfo("创建日记", { trace_id: traceId, page: getCurrentPage(), type: body.type });
+        logInfo("创建日记", { trace_id: traceId, type: body.type }, "diary_create");
         const d = await createDiary(body);
         this.diaries = [d, ...this.diaries];
-        logInfo("日记创建成功", { trace_id: traceId, diary_id: d.id });
+        logInfo("日记创建成功", { trace_id: traceId, diary_id: d.id }, "diary_created");
         return d;
       } catch (e) {
-        logError("日记创建失败", { trace_id: traceId, error: (e as Error).message });
+        logError("日记创建失败", { trace_id: traceId, error: (e as Error).message }, "diary_create_failed");
         throw e;
       }
     },
@@ -79,13 +79,13 @@ export const useDiaryStore = defineStore("diary", {
     async update(id: number, body: DiaryUpdate): Promise<Diary> {
       const traceId = createTraceId();
       try {
-        logInfo("编辑日记", { trace_id: traceId, page: getCurrentPage(), diary_id: id });
+        logInfo("编辑日记", { trace_id: traceId, diary_id: id }, "diary_update");
         const d = await updateDiary(id, body);
         this.diaries = this.diaries.map((x) => (x.id === id ? d : x));
-        logInfo("日记更新成功", { trace_id: traceId, diary_id: id });
+        logInfo("日记更新成功", { trace_id: traceId, diary_id: id }, "diary_updated");
         return d;
       } catch (e) {
-        logError("日记更新失败", { trace_id: traceId, diary_id: id, error: (e as Error).message });
+        logError("日记更新失败", { trace_id: traceId, diary_id: id, error: (e as Error).message }, "diary_update_failed");
         throw e;
       }
     },
@@ -94,12 +94,12 @@ export const useDiaryStore = defineStore("diary", {
     async remove(id: number) {
       const traceId = createTraceId();
       try {
-        logInfo("删除日记", { trace_id: traceId, page: getCurrentPage(), diary_id: id });
+        logInfo("删除日记", { trace_id: traceId, diary_id: id }, "diary_delete");
         await deleteDiary(id);
         this.diaries = this.diaries.filter((x) => x.id !== id);
-        logInfo("日记删除成功", { trace_id: traceId, diary_id: id });
+        logInfo("日记删除成功", { trace_id: traceId, diary_id: id }, "diary_deleted");
       } catch (e) {
-        logError("日记删除失败", { trace_id: traceId, diary_id: id, error: (e as Error).message });
+        logError("日记删除失败", { trace_id: traceId, diary_id: id, error: (e as Error).message }, "diary_delete_failed");
         throw e;
       }
     },

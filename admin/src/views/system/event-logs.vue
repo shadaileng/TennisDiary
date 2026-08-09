@@ -41,6 +41,15 @@
           />
         </div>
         <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">业务动作</label>
+          <input
+            v-model="filters.action"
+            type="text"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+            placeholder="输入 action 过滤"
+          />
+        </div>
+        <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">操作链路</label>
           <input
             v-model="filters.traceId"
@@ -74,6 +83,7 @@
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">时间</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">级别</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">类型</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">动作</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">消息</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">页面</th>
             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">设备</th>
@@ -95,6 +105,9 @@
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
               {{ event.type }}
             </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              {{ event.action || '--' }}
+            </td>
             <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
               {{ event.message }}
             </td>
@@ -106,7 +119,7 @@
             </td>
           </tr>
           <tr v-if="events.length === 0">
-            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
               暂无事件日志
             </td>
           </tr>
@@ -138,6 +151,7 @@ const pageSize = ref(20)
 const filters = reactive({
   level: '',
   type: '',
+  action: '',
   keyword: '',
   traceId: '',
 })
@@ -163,6 +177,7 @@ const fetchEvents = async () => {
     const res = await getEventLogs({
       level: filters.level || undefined,
       type: filters.type || undefined,
+      action: filters.action || undefined,
       keyword: filters.keyword || undefined,
       trace_id: filters.traceId || undefined,
       page: currentPage.value,
@@ -178,6 +193,7 @@ const fetchEvents = async () => {
 const resetFilters = () => {
   filters.level = ''
   filters.type = ''
+  filters.action = ''
   filters.keyword = ''
   filters.traceId = ''
   currentPage.value = 1

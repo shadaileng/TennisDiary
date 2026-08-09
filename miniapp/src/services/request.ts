@@ -153,7 +153,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
                 url,
                 statusCode,
                 code: apiRes.code,
-              });
+              }, "api_error");
               reject(new ApiError(statusCode, apiRes.message || "请求失败"));
             }
           } else {
@@ -173,7 +173,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           method,
           url,
           status: -1,
-        });
+        }, "network_error");
         reject(new ApiError(-1, err.errMsg || "网络请求失败"));
       },
     });
