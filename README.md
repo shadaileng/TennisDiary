@@ -87,6 +87,7 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 
 ## 文档
 
+- [Server 文档](server/README.md) - 后端服务启动、数据库迁移、常用命令
 - [方案文档](docs/README.md) - 各阶段方案与进度（VitePress 文档中心）
 - [开发指南](docs/guides/) - VitePress 踩坑记录等
 
@@ -101,6 +102,7 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 | Phase Admin | 后台管理前端（Vite+Vue3+Tailwind） | ✅ |
 | Phase 1 | 小程序基础能力（工程/Tailwind/store/网络/登录） | ✅ |
 | Phase 2 | 小程序业务页面（日记/装备/统计/我的） | ✅ |
+| Server README | 后端服务文档（迁移操作/常用命令） | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 
