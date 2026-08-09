@@ -112,8 +112,27 @@ fi
 # ---------- 临时目录 ----------
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
+cd "$TMP_DIR"
 
-# ---------- 1. 复制核心文件 ----------
+# ---------- 1. 初始化 Git（以远端 master 为基底） ----------
+# 魔搭 Git 认证：用户名固定 oauth2，密码为 Access Token
+#   https://oauth2:<token>@www.modelscope.cn/studios/<user>/<studio>.git
+MS_HOST="${MS_HOST:-www.modelscope.cn}"
+git init -q
+git config user.name  "$MODEL_SCOPE_USERNAME"
+git config user.email "${MODEL_SCOPE_USERNAME}@users.modelscope.cn"
+git remote add origin "https://oauth2:${MODEL_SCOPE_TOKEN}@${MS_HOST}/studios/${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}.git"
+
+# 拉取远端 master 历史作为基底（远端已存在内容时避免历史不相关导致 push 被拒）
+if git fetch origin master 2>/dev/null; then
+  git checkout -q -B master FETCH_HEAD
+  log_info "已基于远端 master 建立基底（包含 ${MODEL_SCOPE_STUDIO_NAME} 已有内容）"
+else
+  git checkout -q -B master
+  log_info "远端暂无 master，创建空分支（首次部署）"
+fi
+
+# ---------- 2. 复制核心文件（覆盖/新增部署文件） ----------
 log_info "打包 server/ 到临时目录: $TMP_DIR"
 MS_DIR="$SERVER_DIR/modelscope"
 
@@ -148,7 +167,7 @@ done
 file_count=$(find "$TMP_DIR" -maxdepth 1 -type f | wc -l)
 [ "$file_count" -gt 0 ] || fail "临时目录为空，打包失败"
 
-# ---------- 2. 通过 API 设置 Secrets ----------
+# ---------- 3. 通过 API 设置 Secrets ----------
 # 魔搭 docker 类型不支持 ms_deploy.json 注入环境变量，
 # 只能通过创空间 Secrets API 设置。
 log_info "通过 API 设置创空间 Secrets..."
@@ -167,31 +186,25 @@ for i in "${!SECRET_NAMES[@]}"; do
   fi
 done
 
-# ---------- 3. 初始化 Git 并推送 ----------
-# 魔搭 Git 认证：用户名固定 oauth2，密码为 Access Token
-#   https://oauth2:<token>@www.modelscope.cn/studios/<user>/<studio>.git
-MS_HOST="${MS_HOST:-www.modelscope.cn}"
+# ---------- 4. 提交并推送（基于远端基底，覆盖部署文件） ----------
 log_info "推送至魔搭: ${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}"
 
-cd "$TMP_DIR"
-git init -q
-git config user.name  "$MODEL_SCOPE_USERNAME"
-git config user.email "${MODEL_SCOPE_USERNAME}@users.modelscope.cn"
-git remote add origin "https://oauth2:${MODEL_SCOPE_TOKEN}@${MS_HOST}/studios/${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}.git"
-
-git checkout -b main
 git add -A
-git commit -m "deploy: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" --quiet
+if ! git commit -m "deploy: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" --quiet 2>&1; then
+  log_error "git commit 失败（若提示 nothing to commit 表示与远端内容一致）"
+  ls -la
+  fail "无法创建提交，请检查文件是否正确复制"
+fi
 
-log_info "注意: 魔搭默认分支为 master，推送 main:master ..."
-if git push -u origin main:master 2>&1; then
+log_info "注意: 魔搭默认分支为 master，推送 master ..."
+if git push -u origin master 2>&1; then
   log_ok "✅ 代码推送成功！"
 else
   log_error "推送失败，请检查 MODEL_SCOPE_TOKEN / MODEL_SCOPE_USERNAME / 分支"
   exit 1
 fi
 
-# ---------- 4. 触发部署（可选，推送通常自动触发） ----------
+# ---------- 5. 触发部署（可选，推送通常自动触发） ----------
 log_info "触发创空间部署..."
 DEPLOY_RESP=$(ms_post "$MS_API_BASE/studios/${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}/deploy" "{}" || true)
 if [ -n "$DEPLOY_RESP" ]; then
@@ -200,7 +213,7 @@ else
   log_warn "  ⚠ 部署触发失败（推送后魔搭通常会自动构建）"
 fi
 
-# ---------- 5. 健康检查 ----------
+# ---------- 6. 健康检查 ----------
 STUDIO_URL="https://${MODEL_SCOPE_USERNAME}-${MODEL_SCOPE_STUDIO_NAME}.ms.show"
 HEALTH_URL="${STUDIO_URL}/health"
 log_info "等待构建与部署（首次约 3-5 分钟）..."
