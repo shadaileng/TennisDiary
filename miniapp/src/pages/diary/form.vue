@@ -206,12 +206,16 @@ const costTotalText = computed(() =>
 );
 
 onLoad(async (query) => {
+  console.log('[form] onLoad query:', query);
   const id = query?.id;
+  console.log('[form] id:', id, 'type:', typeof id);
   if (!id) return;
   editingId = Number(id);
+  console.log('[form] editingId:', editingId);
   uni.setNavigationBarTitle({ title: "编辑日记" });
   try {
     const d = await getDiary(editingId);
+    console.log('[form] loaded diary:', d);
     form.date = d.date;
     form.time = d.time || "";
     form.type = d.type;
@@ -222,6 +226,7 @@ onLoad(async (query) => {
     form.gears = d.gears.map((g) => ({ name: g.name, feeling: g.feeling }));
     form.notes = d.notes || "";
   } catch (e) {
+    console.error('[form] load error:', e);
     uni.showToast({ title: "日记加载失败", icon: "none" });
   }
 });
@@ -291,15 +296,19 @@ async function save() {
     notes: form.notes.trim(),
   };
   try {
+    console.log('[form] save: isEditing=', isEditing.value, 'editingId=', editingId);
     if (isEditing.value && editingId != null) {
+      console.log('[form] calling update with id:', editingId);
       await diaryStore.update(editingId, body);
     } else {
+      console.log('[form] calling create');
       await diaryStore.create(body);
     }
     uni.showToast({ title: isEditing.value ? "日记已更新" : "日记已保存", icon: "success" });
     setTimeout(() => uni.navigateBack(), 500);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "保存失败";
+    console.error('[form] save error:', e);
     uni.showToast({ title: msg, icon: "none" });
   }
 }
