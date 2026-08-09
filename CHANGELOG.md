@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.39.2] - 2026-08-09
+
+### Fixed
+
+- 移除「我的」页面重复的编辑资料入口
+
 ## [1.39.1] - 2026-08-09
 
 ### Fixed

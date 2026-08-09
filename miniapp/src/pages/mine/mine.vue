@@ -54,11 +54,6 @@
         <text class="menu-label">统计总览</text>
         <text class="menu-arrow">›</text>
       </view>
-      <view class="menu-item" @tap="goEditProfile">
-        <text class="menu-icon">⚙️</text>
-        <text class="menu-label">编辑资料</text>
-        <text class="menu-arrow">›</text>
-      </view>
       <view class="menu-item">
         <text class="menu-icon">💰</text>
         <view class="menu-content">
