@@ -131,55 +131,49 @@ for item in "${FILES_TO_COPY[@]}"; do
   fi
 done
 
-# ---------- 2. 创建 .env（包含敏感配置） ----------
-# HF Docker Runner 会自动读取 repo 根目录的 .env 文件作为环境变量注入容器
-log_info "创建 .env（包含 HF Space 环境变量）..."
+# ---------- 2. 设置 HF Space Secrets ----------
+# 敏感配置通过 HF API 设置为 Secrets，不推送到 git repo
+log_info "设置 HF Space Secrets..."
 
-cat > "$TMP_DIR/.env" <<EOF
-# ============================================================
-# Tennis Diary Server - 环境变量
-# 此文件由 deploy-hf.sh 自动生成，包含敏感配置
-# HF Docker Runner 会自动读取此文件并注入环境变量
-# ============================================================
+SECRET_NAMES=("JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
+SECRET_VALUES=("${JWT_SECRET}" "${WX_APPID}" "${WX_SECRET}" "${ADMIN_DEFAULT_PASSWORD}")
 
-# 应用
-DEBUG=false
+for i in "${!SECRET_NAMES[@]}"; do
+  name="${SECRET_NAMES[$i]}"
+  value="${SECRET_VALUES[$i]}"
+  
+  SECRET_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L -X POST \
+    "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
+    -H "Authorization: Bearer ${HF_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"key\": \"${name}\", \"value\": \"${value}\"}")
+  
+  if [ "$SECRET_RESPONSE" = "200" ]; then
+    log_ok "  ✓ ${name} Secret 已设置"
+  else
+    log_warn "  ⚠ ${name} Secret 设置失败 (HTTP $SECRET_RESPONSE)"
+  fi
+done
 
-# 数据库（HF Space 持久化卷 /data）
-DATA_DIR=/data
-DATABASE_URL=sqlite:////data/tennis_diary.db
+# 设置非敏感配置为 Variables（可选，也可手动在 HF 后台设置）
+VAR_NAMES=("DEBUG" "DATA_DIR" "DATABASE_URL" "JWT_EXPIRATION_HOURS" 
+           "UPLOAD_DIR" "MAX_UPLOAD_SIZE_MB" "LOG_LEVEL" "LOG_DIR"
+           "ADMIN_DEFAULT_USERNAME")
+VAR_VALUES=("false" "/data" "sqlite:////data/tennis_diary.db" "720"
+            "/data/uploads" "100" "INFO" "/data/logs" "admin")
 
-# JWT
-JWT_SECRET=${JWT_SECRET}
-JWT_EXPIRATION_HOURS=720
+for i in "${!VAR_NAMES[@]}"; do
+  name="${VAR_NAMES[$i]}"
+  value="${VAR_VALUES[$i]}"
+  
+  curl -s -o /dev/null -w "" -L -X POST \
+    "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
+    -H "Authorization: Bearer ${HF_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"key\": \"${name}\", \"value\": \"${value}\"}" || true
+done
 
-# 微信小程序
-WX_APPID=${WX_APPID}
-WX_SECRET=${WX_SECRET}
-
-# 文件上传
-UPLOAD_DIR=/data/uploads
-MAX_UPLOAD_SIZE_MB=100
-
-# 日志
-LOG_LEVEL=INFO
-LOG_DIR=/data/logs
-LOG_FILE=app.log
-LOG_ROTATION=10 MB
-LOG_RETENTION=7 days
-LOG_JSON_ENABLED=false
-
-# 管理员
-ADMIN_DEFAULT_USERNAME=admin
-ADMIN_DEFAULT_PASSWORD=${ADMIN_DEFAULT_PASSWORD}
-ADMIN_RESET_KEY=
-
-# 日志分离
-LOG_ADMIN_FILE=admin.log
-LOG_USER_FILE=user.log
-EOF
-
-log_info "  ✓ .env 已创建"
+log_info "  ✓ 环境变量已配置（Secrets + Variables）"
 
 # ---------- 3. 验证临时目录 ----------
 file_count=$(find "$TMP_DIR" -maxdepth 1 -type f | wc -l)
@@ -230,10 +224,6 @@ else
   log_error "Remote: $SPACE_REMOTE"
   exit 1
 fi
-
-# ---------- 5. 验证 HF Space 是否启动 ----------
-log_info "等待 HF Space 构建启动（约 2-3 分钟）..."
-log_info "可在 HF Space → Logs 标签页查看构建进度"
 
 log_ok "✅ 部署完成！请等待 HF Space 构建完成后访问 API 文档。"
 log_ok "   构建完成后访问: https://${HF_USERNAME}-${HF_SPACE_NAME}.hf.space/docs"
