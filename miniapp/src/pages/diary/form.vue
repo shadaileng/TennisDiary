@@ -198,8 +198,8 @@ const form = reactive<DiaryFormState>({
   notes: "",
 });
 
-let editingId: number | null = null;
-const isEditing = computed(() => editingId != null);
+let editingId = ref<number | null>(null);
+const isEditing = computed(() => editingId.value != null);
 
 const costTotalText = computed(() =>
   settingsStore.hideAmounts ? "¥**" : fmtMoney(sumCosts(form.costs)),
@@ -210,11 +210,11 @@ onLoad(async (query) => {
   const id = query?.id;
   console.log('[form] id:', id, 'type:', typeof id);
   if (!id) return;
-  editingId = Number(id);
-  console.log('[form] editingId:', editingId);
-  uni.setNavigationBarTitle({ title: "编辑日记" });
-  try {
-    const d = await getDiary(editingId);
+       editingId.value = Number(id);
+   console.log('[form] editingId:', editingId.value);
+   uni.setNavigationBarTitle({ title: "编辑日记" });
+   try {
+     const d = await getDiary(editingId.value);
     console.log('[form] loaded diary:', d);
     form.date = d.date;
     form.time = d.time || "";
@@ -296,10 +296,10 @@ async function save() {
     notes: form.notes.trim(),
   };
   try {
-    console.log('[form] save: isEditing=', isEditing.value, 'editingId=', editingId);
-    if (isEditing.value && editingId != null) {
-      console.log('[form] calling update with id:', editingId);
-      await diaryStore.update(editingId, body);
+    console.log('[form] save: isEditing=', isEditing.value, 'editingId=', editingId.value);
+    if (isEditing.value && editingId.value != null) {
+      console.log('[form] calling update with id:', editingId.value);
+      await diaryStore.update(editingId.value, body);
     } else {
       console.log('[form] calling create');
       await diaryStore.create(body);
@@ -319,9 +319,9 @@ function confirmRemove() {
     content: "确定删除这篇日记？",
     confirmColor: "#A8B822",
     success: async (res) => {
-      if (!res.confirm || editingId == null) return;
+      if (!res.confirm || editingId.value == null) return;
       try {
-        await diaryStore.remove(editingId);
+        await diaryStore.remove(editingId.value);
         uni.showToast({ title: "已删除", icon: "success" });
         setTimeout(() => uni.navigateBack(), 500);
       } catch (e) {

@@ -114,16 +114,16 @@ const form = reactive<GearFormState>({
   photo: "",
 });
 
-let editingId: number | null = null;
-const isEditing = computed(() => editingId != null);
+let editingId = ref<number | null>(null);
+const isEditing = computed(() => editingId.value != null);
 
 onLoad(async (query) => {
   const id = query?.id;
   if (!id) return;
-  editingId = Number(id);
+      editingId.value = Number(id);
   uni.setNavigationBarTitle({ title: "编辑装备" });
   try {
-    const g = await getGear(editingId);
+    const g = await getGear(editingId.value);
     form.category = g.category || "球拍";
     form.name = g.name || "";
     form.buy_date = g.buy_date || todayStr();
@@ -172,8 +172,8 @@ async function save() {
     photo: form.photo || undefined,
   };
   try {
-    if (isEditing.value && editingId != null) {
-      await gearStore.update(editingId, body);
+    if (isEditing.value && editingId.value != null) {
+      await gearStore.update(editingId.value, body);
     } else {
       await gearStore.create(body);
     }
@@ -191,9 +191,9 @@ function confirmRemove() {
     content: "确定删除这件装备？",
     confirmColor: "#A8B822",
     success: async (res) => {
-      if (!res.confirm || editingId == null) return;
+      if (!res.confirm || editingId.value == null) return;
       try {
-        await gearStore.remove(editingId);
+        await gearStore.remove(editingId.value);
         uni.showToast({ title: "已删除", icon: "success" });
         setTimeout(() => uni.navigateBack(), 500);
       } catch (e) {
