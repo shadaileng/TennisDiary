@@ -84,6 +84,12 @@ const routes: RouteRecordRaw[] = [
             name: 'Backups',
             component: () => import('@/views/system/backups.vue'),
             meta: { title: '备份管理', permission: 'system:backup' }
+          },
+          {
+            path: 'event-logs',
+            name: 'EventLogs',
+            component: () => import('@/views/system/event-logs.vue'),
+            meta: { title: '事件日志', permission: 'system:logs' }
           }
         ]
       }

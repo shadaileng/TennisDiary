@@ -8,6 +8,7 @@ from app.models.admin import Admin
 from app.models.analysis import Analysis
 from app.models.checkin import Checkin
 from app.models.diary import Diary
+from app.models.event_log import EventLog
 from app.models.gear import Gear
 from app.models.post import Post
 from app.models.role import Role
@@ -19,6 +20,7 @@ __all__ = [
     "Analysis",
     "Checkin",
     "Diary",
+    "EventLog",
     "Gear",
     "Post",
     "Role",

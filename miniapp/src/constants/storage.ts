@@ -11,4 +11,6 @@ export const STORAGE_KEYS = {
   hasLoggedIn: "td_has_logged_in",
   /** 全局偏好设置 */
   settings: "td_settings",
+  /** 待上报的离线事件日志（上报失败时缓存，启动时补发） */
+  eventLogPending: "td_event_log_pending",
 } as const;

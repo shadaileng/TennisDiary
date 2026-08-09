@@ -1,5 +1,6 @@
 import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
+import { logError, logWarn } from "@/utils/eventLogger";
 
 /**
  * 网络请求封装
@@ -147,6 +148,12 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
                 clearAuth();
                 promptLogin();
               }
+              logError(`API业务错误 ${method} ${url}: ${apiRes.message}`, {
+                method,
+                url,
+                statusCode,
+                code: apiRes.code,
+              });
               reject(new ApiError(statusCode, apiRes.message || "请求失败"));
             }
           } else {
@@ -162,6 +169,11 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
         reject(new ApiError(statusCode, parseDetail(res)));
       },
       fail: (err) => {
+        logError(`网络请求失败 ${method} ${url}: ${err.errMsg || "未知错误"}`, {
+          method,
+          url,
+          status: -1,
+        });
         reject(new ApiError(-1, err.errMsg || "网络请求失败"));
       },
     });

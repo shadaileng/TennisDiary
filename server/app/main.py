@@ -1,5 +1,5 @@
-from contextlib import asynccontextmanager
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -10,11 +10,13 @@ from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
 from app.middleware.logging import RequestLoggingMiddleware
 from app.routers import auth, checkin, diaries, files, gears, stats, upload, weights
+from app.routers import events as user_events
 from app.routers.admin import admins as admin_admins
 from app.routers.admin import analyses as admin_analyses
 from app.routers.admin import auth as admin_auth
 from app.routers.admin import checkins as admin_checkins
 from app.routers.admin import diaries as admin_diaries
+from app.routers.admin import events as admin_events
 from app.routers.admin import gears as admin_gears
 from app.routers.admin import posts as admin_posts
 from app.routers.admin import roles as admin_roles
@@ -123,6 +125,7 @@ app.include_router(checkin.router)
 app.include_router(stats.router)
 app.include_router(files.router)
 app.include_router(upload.router)
+app.include_router(user_events.router)
 
 # 注册管理路由
 app.include_router(admin_auth.router)
@@ -136,6 +139,7 @@ app.include_router(admin_checkins.router)
 app.include_router(admin_analyses.router)
 app.include_router(admin_posts.router)
 app.include_router(admin_system.router)
+app.include_router(admin_events.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(

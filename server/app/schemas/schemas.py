@@ -235,6 +235,27 @@ class StatsResponse(BaseModel):
     avg_score: float = 0
 
 
+# ==================== 事件日志 ====================
+
+
+class EventLogCreate(BaseModel):
+    level: str = Field(..., pattern="^(info|warn|error|fatal)$")
+    type: str = "custom"
+    message: str
+    stack: str = ""
+    page: str = ""
+    extra: dict = {}
+    device_info: dict = {}
+
+
+class EventLogResponse(EventLogCreate):
+    id: int
+    user_id: int | None
+    created_at: float
+
+    model_config = {"from_attributes": True}
+
+
 # ==================== 通用 ====================
 
 
