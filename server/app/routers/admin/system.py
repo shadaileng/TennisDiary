@@ -136,8 +136,10 @@ def query_logs(
     try:
         with open(log_file, encoding="utf-8") as f:
             for line in f:
-                if level and f"[{level}]" not in line:
-                    continue
+                if level:
+                    # loguru 输出格式：`INFO     `（无方括号，大写）
+                    if f"{level.upper():<8}" not in line:
+                        continue
                 if keyword and keyword not in line:
                     continue
                 logs.append(line.strip())
