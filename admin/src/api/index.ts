@@ -4,7 +4,7 @@ import { useToastStore } from '@/stores/toast'
 import type { ApiResponse } from '@/types/api'
 
 const request = axios.create({
-  baseURL: '',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 15000
 })
 
