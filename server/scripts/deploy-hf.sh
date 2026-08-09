@@ -79,6 +79,67 @@ ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD:-changeme}"
 [ "$HF_TOKEN" != "hf_xxxxxxxxxxxxxxxxx" ]  || fail "请修改 HF_TOKEN 为实际值"
 [ "$HF_USERNAME" != "your-hf-username" ]   || fail "请修改 HF_USERNAME 为实际值"
 
+# ---------- 检测运行环境 ----------
+IS_GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
+
+if [ "$IS_GITHUB_ACTIONS" = "true" ]; then
+  log_info "检测到 GitHub Actions 环境"
+  log_info "校验 GitHub Secrets 配置..."
+
+  # GitHub Actions 必需的 Secrets
+  REQUIRED_SECRETS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "JWT_SECRET" "WX_APPID" "WX_SECRET")
+  MISSING_SECRETS=()
+
+  for secret in "${REQUIRED_SECRETS[@]}"; do
+    if [ -z "${!secret:-}" ]; then
+      MISSING_SECRETS+=("$secret")
+    fi
+  done
+
+  if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+    log_error "以下 GitHub Secrets 未配置："
+    for secret in "${MISSING_SECRETS[@]}"; do
+      log_error "  - $secret"
+    done
+    log_error ""
+    log_error "请在 GitHub Repo Settings → Secrets and variables → Actions 中添加："
+    for secret in "${REQUIRED_SECRETS[@]}"; do
+      log_error "  $secret"
+    done
+    fail "GitHub Secrets 配置不完整"
+  fi
+
+  log_ok "  ✓ GitHub Secrets 配置完整"
+else
+  log_info "本地部署模式"
+  log_info "校验 .env.hf 配置文件..."
+
+  # 本地部署必需的变量
+  LOCAL_REQUIRED_VARS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "JWT_SECRET" "WX_APPID" "WX_SECRET")
+  MISSING_VARS=()
+
+  for var in "${LOCAL_REQUIRED_VARS[@]}"; do
+    if [ -z "${!var:-}" ]; then
+      MISSING_VARS+=("$var")
+    fi
+  done
+
+  if [ ${#MISSING_VARS[@]} -gt 0 ]; then
+    log_error "以下环境变量未设置："
+    for var in "${MISSING_VARS[@]}"; do
+      log_error "  - $var"
+    done
+    log_error ""
+    log_error "请执行以下操作："
+    log_error "  1. cp .env.hf.example .env.hf"
+    log_error "  2. 编辑 .env.hf 填入实际值"
+    log_error "  3. 运行: bash scripts/deploy-hf.sh"
+    fail "环境变量配置不完整"
+  fi
+
+  log_ok "  ✓ 环境变量配置完整"
+fi
+
 log_info "项目目录: $PROJECT_DIR"
 log_info "Server 目录: $SERVER_DIR"
 log_info "用户名: $HF_USERNAME"
