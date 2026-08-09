@@ -152,14 +152,21 @@ if [ "$SPACE_INFO" = "200" ]; then
   log_ok "  ✓ Space 已存在"
 else
   log_info "Space 不存在，正在创建..."
+  # 正确端点：POST /api/repos/create（创建 Space 本质是创建带 space 类型的 repo）
   CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-    "https://huggingface.co/api/spaces" \
+    "https://huggingface.co/api/repos/create" \
     -H "Authorization: Bearer ${HF_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "{\"id\": \"${HF_USERNAME}/${HF_SPACE_NAME}\", \"sdk\": \"docker\", \"hardware\": \"cpu-basic\"}")
-  
+    -d "{
+      \"name\": \"${HF_SPACE_NAME}\",
+      \"type\": \"space\",
+      \"sdk\": \"docker\",
+      \"organization\": \"${HF_USERNAME}\",
+      \"private\": false
+    }")
+
   CREATE_STATUS=$(echo "$CREATE_RESPONSE" | tail -n1)
-  
+
   if [ "$CREATE_STATUS" = "200" ] || [ "$CREATE_STATUS" = "201" ]; then
     log_ok "  ✓ Space 创建成功"
   else
