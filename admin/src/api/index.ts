@@ -30,13 +30,13 @@ request.interceptors.response.use(
     const status = error.response?.status
     const message = error.response?.data?.detail || error.response?.data?.message || '请求失败'
     const toast = useToastStore()
-    const isLoginPage = window.location.pathname === '/login'
+    const isLoginPage = window.location.pathname.startsWith(`${import.meta.env.VITE_ADMIN_BASE || ''}/login`)
 
     if (status === 401 && !isLoginPage) {
       const authStore = useAuthStore()
       authStore.removeToken()
       toast.warning('登录已过期，请重新登录')
-      window.location.href = '/login'
+      window.location.href = `${import.meta.env.VITE_ADMIN_BASE || ''}/login`
     } else if (status === 401) {
       toast.error(message || '用户名或密码错误')
     } else {
