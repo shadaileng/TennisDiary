@@ -150,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, reactive, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
 import EmojiScale from "@/components/EmojiScale.vue";
