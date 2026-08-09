@@ -1,5 +1,7 @@
 """小程序事件日志上报路由（公开接口，免鉴权）"""
 
+import json
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -31,8 +33,8 @@ async def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
         message=body.message,
         stack=body.stack,
         page=body.page,
-        extra=body.extra,
-        device_info=body.device_info,
+        extra=json.dumps(body.extra, ensure_ascii=False),
+        device_info=json.dumps(body.device_info, ensure_ascii=False),
         client_time=body.client_time,
     )
     db.add(event)
