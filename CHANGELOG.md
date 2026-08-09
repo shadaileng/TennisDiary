@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.40.2] - 2026-08-09
+
+### Fixed
+
+- 修复 LineChart 组件在小程序中 SVG 路径数据未正确渲染的问题（改回 Canvas 2D 并使用 `this` 上下文）
+
 ## [1.40.1] - 2026-08-09
 
 ### Fixed
