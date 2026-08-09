@@ -9,7 +9,7 @@ export interface Gear {
   price: number
   feeling: string
   photo: string
-  created_at: string
+  created_at: number
   user?: {
     id: number
     nickname: string

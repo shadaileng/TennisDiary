@@ -12,7 +12,7 @@ export interface Diary {
   costs: string
   gears: string
   notes: string
-  created_at: string
+  created_at: number
   user?: {
     id: number
     nickname: string
