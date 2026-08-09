@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.39.3] - 2026-08-09
+
+### Fixed
+
+- 修复统计页面体重趋势折线图不显示的问题（使用双重 nextTick 确保 canvas 节点就绪）
+
 ## [1.39.2] - 2026-08-09
 
 ### Fixed

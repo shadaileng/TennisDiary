@@ -132,20 +132,22 @@ function render() {
   }
   drawable.value = true;
   nextTick(() => {
-    uni
-      .createSelectorQuery()
-      .select("#lineChart")
-      .fields({ node: true, size: true }, (info: any) => {
-        if (!info?.node) return;
-        const canvas = info.node;
-        const ctx = canvas.getContext("2d");
-        const dpr = uni.getSystemInfoSync().pixelRatio || 2;
-        canvas.width = info.width * dpr;
-        canvas.height = props.height * dpr;
-        ctx.scale(dpr, dpr);
-        draw(canvas, ctx, info.width, props.height, dpr);
-      })
-      .exec();
+    nextTick(() => {
+      uni
+        .createSelectorQuery()
+        .select("#lineChart")
+        .fields({ node: true, size: true }, (info: any) => {
+          if (!info?.node) return;
+          const canvas = info.node;
+          const ctx = canvas.getContext("2d");
+          const dpr = uni.getSystemInfoSync().pixelRatio || 2;
+          canvas.width = info.width * dpr;
+          canvas.height = props.height * dpr;
+          ctx.scale(dpr, dpr);
+          draw(canvas, ctx, info.width, props.height, dpr);
+        })
+        .exec();
+    });
   });
 }
 
