@@ -325,7 +325,6 @@ function confirmRemove() {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .form-page {
   background-color: $color-paper;

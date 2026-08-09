@@ -194,7 +194,6 @@ onShow(() => {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .diary-page {
   background-color: $color-paper;

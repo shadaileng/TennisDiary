@@ -46,7 +46,6 @@ function toggle() {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .money-toggle {
   width: 28px;

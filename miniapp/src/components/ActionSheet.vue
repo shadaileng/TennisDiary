@@ -64,7 +64,6 @@ function onSelect(item: ActionSheetAction) {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .action-sheet-overlay {
   position: fixed;

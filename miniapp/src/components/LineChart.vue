@@ -139,7 +139,6 @@ watch(() => props.data, draw, { deep: true });
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .loading-placeholder {
   display: flex;

@@ -205,7 +205,6 @@ onShow(() => {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .gear-page {
   background-color: $color-paper;

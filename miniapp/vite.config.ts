@@ -52,6 +52,7 @@ export default defineConfig({
     preprocessorOptions: {
       scss: {
         silenceDeprecations: ["legacy-js-api"],
+        additionalData: `@use "@/styles/tokens.scss" as *;`,
       },
     },
   },

@@ -26,7 +26,6 @@ defineEmits<{
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .seg {
   display: flex;

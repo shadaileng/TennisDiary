@@ -54,7 +54,6 @@ function onPlus() {
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .stepper {
   display: flex;

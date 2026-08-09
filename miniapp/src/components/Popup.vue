@@ -29,7 +29,6 @@ defineEmits<{
 </script>
 
 <style scoped lang="scss">
-@import "@/styles/tokens.scss";
 
 .popup-overlay {
   position: fixed;

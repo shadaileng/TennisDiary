@@ -10,7 +10,6 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
-import { useAuthStore } from "@/stores/auth";
 
 // ==================== 类型 ====================
 
@@ -101,6 +100,8 @@ export function flushPendingEvents(): void {
 
 /** 上报单条事件日志 */
 function flushOne(payload: EventLogPayload): void {
+  // 延迟导入，避免循环依赖（stores/auth → services/auth → request → eventLogger → stores/auth）
+  const { useAuthStore } = require("@/stores/auth");
   const authStore = useAuthStore();
   const token = uni.getStorageSync(STORAGE_KEYS.token) as string;
 
@@ -159,12 +160,12 @@ export function createTraceId(): string {
 }
 
 /** 记录信息事件（批量上报） */
-export function logInfo(message: string, extra?: Record<string, any>, action?: string): void {
-  const traceId = createTraceId();
+export function logInfo(message: string, extra?: Record<string, any>, action?: string, traceId?: string): void {
+  const currentTraceId = traceId || createTraceId();
   pendingBatch.push({
     level: "info",
     type: "business",
-    traceId,
+    traceId: currentTraceId,
     action,
     message,
     extra,
@@ -173,12 +174,12 @@ export function logInfo(message: string, extra?: Record<string, any>, action?: s
 }
 
 /** 记录警告事件（批量上报，≥5 条立即触发） */
-export function logWarn(message: string, extra?: Record<string, any>, action?: string): void {
-  const traceId = createTraceId();
+export function logWarn(message: string, extra?: Record<string, any>, action?: string, traceId?: string): void {
+  const currentTraceId = traceId || createTraceId();
   pendingBatch.push({
     level: "warn",
     type: "business",
-    traceId,
+    traceId: currentTraceId,
     action,
     message,
     extra,
@@ -197,12 +198,13 @@ export function logError(
   extra?: Record<string, any>,
   action?: string,
   stack?: string,
+  traceId?: string,
 ): void {
-  const traceId = createTraceId();
+  const currentTraceId = traceId || createTraceId();
   flushOne({
     level: "error",
     type: "business",
-    traceId,
+    traceId: currentTraceId,
     action,
     message,
     stack: stack || "",
@@ -215,12 +217,13 @@ export function logFatal(
   message: string,
   extra?: Record<string, any>,
   stack?: string,
+  traceId?: string,
 ): void {
-  const traceId = createTraceId();
+  const currentTraceId = traceId || createTraceId();
   flushOne({
     level: "fatal",
     type: "crash",
-    traceId,
+    traceId: currentTraceId,
     message,
     stack: stack || "",
     extra,
