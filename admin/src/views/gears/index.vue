@@ -55,8 +55,9 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('zh-CN')
+const formatDate = (timestamp: number) => {
+  if (!timestamp) return '--'
+  return new Date(timestamp * 1000).toLocaleDateString('zh-CN')
 }
 
 const fetchGears = async () => {
