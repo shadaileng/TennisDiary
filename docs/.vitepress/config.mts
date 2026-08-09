@@ -82,6 +82,7 @@ export default defineConfig({
              { text: '57：小程序前端样式方案重构 Tailwind→自定义 CSS', link: '/plans/57-小程序前端样式方案重构-Tailwind-自定义-CSS' },
               { text: '58：踩坑记录 weapp-tailwindcss 内容扫描失效', link: '/plans/58-踩坑记录-weapp-tailwindcss内容扫描失效' },
               { text: '59：小程序事件锚点与线上事件日志', link: '/plans/59-小程序事件锚点与线上事件日志' },
+              { text: '59-v1.1：业务动作埋点与精确时间', link: '/plans/59-业务动作埋点与精确时间' },
              { text: 'B2-1：管理员模型与认证', link: '/plans/44-B2-1-管理员模型与认证' },
              { text: 'B2-2：数据查看 API', link: '/plans/45-B2-2-数据查看API' },
              { text: 'B2-3：系统监控 API', link: '/plans/46-B2-3-系统监控API' },
