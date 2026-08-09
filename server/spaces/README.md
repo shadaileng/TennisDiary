@@ -42,9 +42,8 @@
 # ③ 部署流程：
 #    GitHub Actions 运行 server/scripts/deploy-hf.sh
 #    → 将 server/ 文件复制到临时目录
-#    → 生成 .env 文件（包含敏感环境变量）
-#    → 推送到 HF Space git repo
-#    → HF Docker Runner 读取 .env 并注入环境变量
+#    → 通过 HF API 设置 Secrets（JWT_SECRET、WX_SECRET 等敏感信息）
+#    → 推送到 HF Space git repo（仅代码，不含敏感信息）
 #    → HF 自动构建 Docker 镜像并启动
 #
 # ------------------------------------------------------------------
@@ -82,16 +81,25 @@
 #    docker.io/huggingface/your-username/tennis-diary-server:latest
 #
 # ------------------------------------------------------------------
-# 四、配置环境变量（HF Space Settings → Variables）
+# 四、环境变量配置（通过部署脚本自动设置）
 # ------------------------------------------------------------------
-# 复制 .env.example，按需填写后在 HF 后台设置：
+# 敏感环境变量通过 HF API 设置为 Secrets，不推送到 git repo：
 #
-#   JWT_SECRET=<强随机 32 位以上字符串>
-#   WX_APPID=<微信小程序 AppID>
-#   WX_SECRET=<微信小程序 Secret>
-#   ADMIN_DEFAULT_PASSWORD=<修改默认密码>
+#   - JWT_SECRET        (Secret)
+#   - WX_APPID          (Secret)
+#   - WX_SECRET         (Secret)
+#   - ADMIN_DEFAULT_PASSWORD (Secret)
 #
-# 注意：JWT_SECRET 和 WX_SECRET 是敏感信息，切勿提交到代码仓库！
+# 非敏感配置也通过 API 设置为 Variables：
+#
+#   - DEBUG=false
+#   - DATA_DIR=/data
+#   - DATABASE_URL=sqlite:////data/tennis_diary.db
+#   - LOG_LEVEL=INFO
+#   - 等...
+#
+# 部署脚本会自动调用 HF API 设置这些变量，无需手动配置。
+# 如需手动调整，可在 HF Space Settings → Variables and secrets 中修改。
 #
 # ------------------------------------------------------------------
 # 六、配置持久化存储（关键）
