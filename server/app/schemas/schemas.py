@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+import json
+from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator
 
 # ==================== 用户 ====================
 
@@ -249,13 +252,37 @@ class EventLogCreate(BaseModel):
     client_time: int | None = None
 
 
-class EventLogResponse(EventLogCreate):
+class EventLogResponse(BaseModel):
     id: int
     user_id: int | None
+    level: str
+    type: str = "custom"
+    message: str
+    stack: str = ""
+    page: str = ""
+    extra: dict = {}
+    device_info: dict = {}
     client_time: int | None
     created_at: float
 
     model_config = {"from_attributes": True}
+
+    @field_validator("extra", "device_info", mode="before")
+    @classmethod
+    def parse_json_field(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return v or {}
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_created_at(cls, v):
+        if isinstance(v, datetime):
+            return v.timestamp()
+        return v
 
 
 # ==================== 通用 ====================
