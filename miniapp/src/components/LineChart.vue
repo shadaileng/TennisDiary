@@ -13,15 +13,19 @@
         </text>
       </g>
       <!-- X 轴标签 -->
-      <text v-if="data.length <= 8" v-for="(d, i) in data" :key="i" :x="points[i].x" :y="height - 2" :fill="'#9CA3AF'" text-anchor="middle" font-size="9">
-        {{ d.label }}
-      </text>
-      <text v-else :x="points[0].x" :y="height - 2" :fill="'#9CA3AF'" text-anchor="start" font-size="9">
-        {{ data[0].label }}
-      </text>
-      <text v-else :x="points[points.length - 1].x" :y="height - 2" :fill="'#9CA3AF'" text-anchor="end" font-size="9">
-        {{ data[data.length - 1].label }}
-      </text>
+      <template v-if="data.length <= 8">
+        <text v-for="(d, i) in data" :key="i" :x="points[i].x" :y="height - 2" :fill="'#9CA3AF'" text-anchor="middle" font-size="9">
+          {{ d.label }}
+        </text>
+      </template>
+      <template v-else>
+        <text :x="points[0].x" :y="height - 2" :fill="'#9CA3AF'" text-anchor="start" font-size="9">
+          {{ data[0].label }}
+        </text>
+        <text :x="points[points.length - 1].x" :y="height - 2" :fill="'#9CA3AF'" text-anchor="end" font-size="9">
+          {{ data[data.length - 1].label }}
+        </text>
+      </template>
     </svg>
     <view v-else class="loading-placeholder" :style="{ height: `${height}px` }">
       <text class="loading-text">暂无数据</text>

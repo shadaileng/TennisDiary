@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.40.1] - 2026-08-09
+
+### Fixed
+
+- 修复 LineChart 组件 X 轴标签 `wx:else` 编译错误（改用 `<template>` 包裹）
+
 ## [1.40.0] - 2026-08-09
 
 ### Changed
