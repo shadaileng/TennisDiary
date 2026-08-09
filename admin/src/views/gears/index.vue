@@ -57,7 +57,7 @@ const pageSize = ref(20)
 
 const formatDate = (timestamp: number) => {
   if (!timestamp) return '--'
-  return new Date(timestamp * 1000).toLocaleDateString('zh-CN')
+  return new Date(timestamp * 1000).toLocaleString('zh-CN')
 }
 
 const fetchGears = async () => {
