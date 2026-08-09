@@ -11,6 +11,7 @@ docs/.vitepress/cache/
 dist/
 build/
 *.tsbuildinfo
+docs/reference
 
 # ========================
 # Package manager
@@ -63,8 +64,10 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env.hf
 *.env
 !*.env.example
+!*.env.hf.example
 
 # API Keys / 凭证（切勿提交）
 secrets/

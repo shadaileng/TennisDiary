@@ -1,0 +1,31 @@
+name: Deploy Server to HuggingFace Spaces
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-server-hf.yml'
+  workflow_dispatch:
+    inputs:
+      space_name:
+        description: 'HF Space 名称（覆盖默认值）'
+        required: false
+        default: ''
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to HuggingFace Spaces
+        run: bash server/scripts/deploy-hf.sh
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ github.event.inputs.space_name || secrets.HF_SPACE_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_SECRET: ${{ secrets.WX_SECRET }}
+          ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
