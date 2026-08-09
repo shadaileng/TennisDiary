@@ -31,9 +31,13 @@
 #    - HF_TOKEN: Hugging Face Access Token（需有 Space 写入权限）
 #    - HF_USERNAME: HF 用户名
 #    - HF_SPACE_NAME: HF Space 名称（如 tennis-diary-server）
-#    - JWT_SECRET: JWT 签名密钥
+#    - JWT_SECRET: JWT 签名密钥（生成命令见下方）
 #    - WX_APPID: 微信小程序 AppID
 #    - WX_SECRET: 微信小程序 Secret
+#
+#    JWT_SECRET 生成命令（任选其一）：
+#      python -c "import secrets; print(secrets.token_hex(32))"
+#      openssl rand -hex 32
 #
 # ② 触发部署：
 #    - 推送 server/ 目录变更到 master 分支自动触发
@@ -85,7 +89,9 @@
 # ------------------------------------------------------------------
 # 敏感环境变量通过 HF API 设置为 Secrets，不推送到 git repo：
 #
-#   - JWT_SECRET        (Secret)
+#   - JWT_SECRET        (Secret) - 生成命令：
+#                        python -c "import secrets; print(secrets.token_hex(32))"
+#                        openssl rand -hex 32
 #   - WX_APPID          (Secret)
 #   - WX_SECRET         (Secret)
 #   - ADMIN_DEFAULT_PASSWORD (Secret)
