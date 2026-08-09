@@ -12,6 +12,8 @@
 - 业务动作类型统一为 `business`，网络错误为 `network`，崩溃为 `crash`
 - 管理端事件日志新增 `action` 搜索框和表格列
 - 事件日志支持按 `trace_id` 和 `action` 精确过滤
+- 小程序业务动作埋点覆盖：登录、资料更新、日记 CRUD、装备 CRUD、体重 CRUD
+- 埋点携带精确操作时间 `client_time`（毫秒时间戳）和唯一操作链路 ID `trace_id`
 
 ### Fixed
 
