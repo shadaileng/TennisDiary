@@ -4,6 +4,24 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.41.0] - 2026-08-09
+
+### Added
+
+- 新增 Server 部署方案（Docker + HF Space）：
+  - 创建多阶段 Dockerfile（builder + runtime，镜像体积约 300MB）
+  - 创建 docker-compose.yml（含数据卷持久化，默认端口 8000）
+  - 创建 .dockerignore（排除 .venv、tests、__pycache__ 等）
+  - 创建 docker-entrypoint.sh（启动时自动执行 alembic upgrade head）
+  - 创建 .github/workflows/deploy-server-hf.yml（GitHub Actions 自动部署）
+  - 创建 server/scripts/deploy-hf.sh（HF Space 部署脚本）
+  - 创建 server/.env.hf.example（HF Space 环境变量模板）
+  - 创建 server/spaces/README.md（HF Space 部署完整指南）
+  - 创建 docs/plans/63-Server部署方案-Docker与HF-Space.md（方案文档）
+- 部署脚本通过 HF API 设置 Secrets，敏感信息不推送到 git repo
+- 环境变量校验：检测 GitHub Actions 环境，校验必需 Secrets 是否配置
+- JWT_SECRET 生成命令文档（python/openssl 两种方式）
+
 ## [1.40.5] - 2026-08-09
 
 ### Fixed
