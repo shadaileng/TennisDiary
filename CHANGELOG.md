@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.40.0] - 2026-08-09
+
+### Changed
+
+- LineChart 组件从 Canvas 2D 迁移到 SVG，解决小程序自定义组件中节点获取失败的问题
+
 ## [1.39.4] - 2026-08-09
 
 ### Fixed
