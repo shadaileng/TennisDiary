@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.39.1] - 2026-08-09
+
+### Fixed
+
+- 修复 LineChart 组件使用 `getCurrentInstance()` 在小程序环境中返回 null 导致 `$scope` 报错的问题
+
 ## [1.39.0] - 2026-08-09
 
 ### Added

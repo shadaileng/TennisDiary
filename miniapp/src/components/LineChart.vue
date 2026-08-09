@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { getCurrentInstance, nextTick, onMounted, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
 
 const props = withDefaults(
   defineProps<{
@@ -134,7 +134,6 @@ function render() {
   nextTick(() => {
     uni
       .createSelectorQuery()
-      .in(getCurrentInstance())
       .select("#lineChart")
       .fields({ node: true, size: true }, (info: any) => {
         if (!info?.node) return;
