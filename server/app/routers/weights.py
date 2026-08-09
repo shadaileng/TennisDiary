@@ -33,11 +33,11 @@ def list_weights(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """当前用户的体重记录列表，按 date 倒序"""
+    """当前用户的体重记录列表，按创建时间倒序"""
     records = (
         db.query(WeightRecord)
         .filter(WeightRecord.user_id == current_user.id)
-        .order_by(WeightRecord.date.desc())
+        .order_by(WeightRecord.created_at.desc())
         .all()
     )
     return ApiResponse(data=[WeightResponse.model_validate(r) for r in records])

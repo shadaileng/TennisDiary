@@ -63,15 +63,16 @@ class TestListWeights:
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
-    def test_list_ordered_by_date_desc(self, auth_client, test_db):
-        _seed_weight(test_db, user_id=1, date="2026-08-01")
-        _seed_weight(test_db, user_id=1, date="2026-08-10")
-        _seed_weight(test_db, user_id=1, date="2026-08-05")
+    def test_list_ordered_by_created_at_desc(self, auth_client, test_db):
+        # 创建三条体重记录，显式设置递增的 created_at
+        _seed_weight(test_db, user_id=1, date="2026-08-01", created_at=1000.0)
+        _seed_weight(test_db, user_id=1, date="2026-08-02", created_at=2000.0)
+        _seed_weight(test_db, user_id=1, date="2026-08-03", created_at=3000.0)
 
         resp = auth_client.get("/api/weights")
         assert resp.status_code == 200
-        dates = [w["date"] for w in resp.json()["data"]]
-        assert dates == sorted(dates, reverse=True)
+        ids = [w["id"] for w in resp.json()["data"]]
+        assert ids == [3, 2, 1]
 
 
 class TestDeleteWeight:

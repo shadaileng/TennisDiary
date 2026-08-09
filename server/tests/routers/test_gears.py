@@ -64,15 +64,16 @@ class TestListGears:
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
-    def test_list_ordered_by_id_desc(self, auth_client, test_db):
-        _seed_gear(test_db, user_id=1, name="A")
-        _seed_gear(test_db, user_id=1, name="B")
-        _seed_gear(test_db, user_id=1, name="C")
+    def test_list_ordered_by_created_at_desc(self, auth_client, test_db):
+        # 创建三条装备，显式设置递增的 created_at
+        _seed_gear(test_db, user_id=1, name="A", created_at=1000.0)
+        _seed_gear(test_db, user_id=1, name="B", created_at=2000.0)
+        _seed_gear(test_db, user_id=1, name="C", created_at=3000.0)
 
         resp = auth_client.get("/api/gears")
         assert resp.status_code == 200
         ids = [g["id"] for g in resp.json()["data"]]
-        assert ids == sorted(ids, reverse=True)
+        assert ids == [3, 2, 1]
 
 
 class TestGetGear:

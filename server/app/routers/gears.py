@@ -29,8 +29,13 @@ def list_gears(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """当前用户的装备列表，按 id 倒序"""
-    gears = db.query(Gear).filter(Gear.user_id == current_user.id).order_by(Gear.id.desc()).all()
+    """当前用户的装备列表，按创建时间倒序"""
+    gears = (
+        db.query(Gear)
+        .filter(Gear.user_id == current_user.id)
+        .order_by(Gear.created_at.desc())
+        .all()
+    )
     return ApiResponse(data=[GearResponse.model_validate(g) for g in gears])
 
 

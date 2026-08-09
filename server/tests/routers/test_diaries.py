@@ -79,15 +79,17 @@ class TestListDiaries:
         assert len(data) == 1
         assert data[0]["user_id"] == 1
 
-    def test_list_ordered_by_date_desc(self, auth_client, test_db):
-        _seed_diary(test_db, user_id=1, date="2026-08-01")
-        _seed_diary(test_db, user_id=1, date="2026-08-10")
-        _seed_diary(test_db, user_id=1, date="2026-08-05")
+    def test_list_ordered_by_created_at_desc(self, auth_client, test_db):
+        # 创建三条日记，显式设置递增的 created_at
+        _seed_diary(test_db, user_id=1, date="2026-08-01", created_at=1000.0)
+        _seed_diary(test_db, user_id=1, date="2026-08-02", created_at=2000.0)
+        _seed_diary(test_db, user_id=1, date="2026-08-03", created_at=3000.0)
 
         resp = auth_client.get("/api/diaries")
         assert resp.status_code == 200
-        dates = [d["date"] for d in resp.json()["data"]]
-        assert dates == sorted(dates, reverse=True)
+        ids = [d["id"] for d in resp.json()["data"]]
+        # 按 created_at 降序，所以 id 也应该是降序（因为 id 和 created_at 正相关）
+        assert ids == [3, 2, 1]
 
 
 class TestGetDiary:

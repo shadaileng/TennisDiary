@@ -51,9 +51,12 @@ def list_diaries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """当前用户的日记列表，按日期倒序"""
+    """当前用户的日记列表，按创建时间倒序"""
     diaries = (
-        db.query(Diary).filter(Diary.user_id == current_user.id).order_by(Diary.date.desc()).all()
+        db.query(Diary)
+        .filter(Diary.user_id == current_user.id)
+        .order_by(Diary.created_at.desc())
+        .all()
     )
     return ApiResponse(data=[diary_to_response(d) for d in diaries])
 
