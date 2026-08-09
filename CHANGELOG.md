@@ -4,6 +4,20 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.40.5] - 2026-08-09
+
+### Fixed
+
+- 修复 Admin 端 API 直连问题：移除代理配置，生产构建使用相对路径直连后台
+- 修复 Admin 端支持生产环境子路径部署，login 路由使用 `VITE_ADMIN_BASE` 环境变量
+- 修复 Admin 端 `VITE_API_BASE_URL` 环境变量配置，dev 模式通过 proxy 转发，生产模式直连
+
+## [1.40.4] - 2026-08-09
+
+### Fixed
+
+- 修复事件日志 trace_id 不一致问题：登录、体重、装备、日记的原子操作（开始→成功/失败）现在使用同一个 trace_id，便于链路追踪
+
 ## [1.40.3] - 2026-08-09
 
 ### Fixed
