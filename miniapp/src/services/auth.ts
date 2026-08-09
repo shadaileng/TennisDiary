@@ -61,8 +61,13 @@ export function uploadAvatar(tempPath: string): Promise<string> {
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
-            const data = JSON.parse(res.data as string) as { url: string };
-            resolve(data.url);
+            const parsed = JSON.parse(res.data as string) as { url?: string; code?: number; data?: { url?: string } };
+            const url = parsed.url ?? parsed.data?.url;
+            if (url) {
+              resolve(url);
+            } else {
+              reject(new Error("上传响应解析失败"));
+            }
           } catch {
             reject(new Error("上传响应解析失败"));
           }
