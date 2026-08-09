@@ -36,7 +36,7 @@ def list_weights(
         query = query.filter(WeightRecord.user_id == user_id)
 
     total = query.count()
-    weights = query.order_by(WeightRecord.date.desc()).offset(offset).limit(limit).all()
+    weights = query.order_by(WeightRecord.created_at.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
             items=[_enrich_weight(w, db) for w in weights],

@@ -36,7 +36,7 @@ def list_gears(
         query = query.filter(Gear.user_id == user_id)
 
     total = query.count()
-    gears = query.order_by(Gear.id.desc()).offset(offset).limit(limit).all()
+    gears = query.order_by(Gear.created_at.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
             items=[_enrich_gear(g, db) for g in gears],

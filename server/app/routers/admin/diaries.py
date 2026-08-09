@@ -36,7 +36,7 @@ def list_diaries(
         query = query.filter(Diary.user_id == user_id)
 
     total = query.count()
-    diaries = query.order_by(Diary.date.desc()).offset(offset).limit(limit).all()
+    diaries = query.order_by(Diary.created_at.desc()).offset(offset).limit(limit).all()
     return ApiResponse(
         data=PaginatedData(
             items=[_enrich_diary(d, db) for d in diaries],
