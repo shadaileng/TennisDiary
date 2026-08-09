@@ -34,6 +34,8 @@
 #    - JWT_SECRET: JWT 签名密钥（生成命令见下方）
 #    - WX_APPID: 微信小程序 AppID
 #    - WX_SECRET: 微信小程序 Secret
+#    - ADMIN_DEFAULT_PASSWORD: 管理员初始密码
+#    - ADMIN_RESET_KEY: 管理员重置密钥（可为空）
 #
 #    JWT_SECRET 生成命令（任选其一）：
 #      python -c "import secrets; print(secrets.token_hex(32))"
@@ -95,6 +97,7 @@
 #   - WX_APPID          (Secret)
 #   - WX_SECRET         (Secret)
 #   - ADMIN_DEFAULT_PASSWORD (Secret)
+#   - ADMIN_RESET_KEY   (Secret, 可为空)
 #
 # 非敏感配置也通过 API 设置为 Variables：
 #
