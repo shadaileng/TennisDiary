@@ -246,11 +246,13 @@ class EventLogCreate(BaseModel):
     page: str = ""
     extra: dict = {}
     device_info: dict = {}
+    client_time: int | None = None
 
 
 class EventLogResponse(EventLogCreate):
     id: int
     user_id: int | None
+    client_time: int | None
     created_at: float
 
     model_config = {"from_attributes": True}

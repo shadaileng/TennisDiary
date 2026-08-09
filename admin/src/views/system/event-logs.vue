@@ -40,6 +40,15 @@
             placeholder="搜索消息"
           />
         </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">操作链路</label>
+          <input
+            v-model="filters.traceId"
+            type="text"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+            placeholder="输入 trace_id 查看完整操作链"
+          />
+        </div>
         <div class="flex items-end gap-2">
           <button
             @click="fetchEvents"
@@ -73,7 +82,7 @@
         <tbody class="bg-white divide-y divide-gray-200">
           <tr v-for="event in events" :key="event.id" class="hover:bg-gray-50">
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ formatDateTime(event.created_at) }}
+              {{ formatClientTime(event.client_time) }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
               <span
@@ -130,6 +139,7 @@ const filters = reactive({
   level: '',
   type: '',
   keyword: '',
+  traceId: '',
 })
 
 const levelClass = (level: string): string => {
@@ -142,8 +152,10 @@ const levelClass = (level: string): string => {
   return map[level] || 'bg-gray-100 text-gray-800'
 }
 
-const formatDateTime = (timestamp: number): string => {
-  return new Date(timestamp * 1000).toLocaleString('zh-CN')
+/** client_time 是毫秒时间戳，直接使用 */
+const formatClientTime = (ts: number | null): string => {
+  if (!ts) return '--'
+  return new Date(ts).toLocaleString('zh-CN')
 }
 
 const fetchEvents = async () => {
@@ -152,6 +164,7 @@ const fetchEvents = async () => {
       level: filters.level || undefined,
       type: filters.type || undefined,
       keyword: filters.keyword || undefined,
+      trace_id: filters.traceId || undefined,
       page: currentPage.value,
       page_size: pageSize.value,
     })
@@ -166,6 +179,7 @@ const resetFilters = () => {
   filters.level = ''
   filters.type = ''
   filters.keyword = ''
+  filters.traceId = ''
   currentPage.value = 1
   fetchEvents()
 }

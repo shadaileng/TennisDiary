@@ -2,6 +2,16 @@ import { defineStore } from "pinia";
 
 import { createDiary, deleteDiary, getDiaries, updateDiary } from "@/services/data";
 import type { Diary, DiaryCreate, DiaryUpdate } from "@/types";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+
+function getCurrentPage(): string {
+  try {
+    const pages = getCurrentPages();
+    return pages[pages.length - 1]?.route || "";
+  } catch {
+    return "";
+  }
+}
 
 interface DiaryState {
   diaries: Diary[]
@@ -52,27 +62,45 @@ export const useDiaryStore = defineStore("diary", {
 
     /** 创建日记（POST /api/diaries），成功后插入列表头部 */
     async create(body: DiaryCreate): Promise<Diary> {
-      const d = await createDiary(body);
-      this.diaries = [d, ...this.diaries];
-      return d;
+      const traceId = createTraceId();
+      try {
+        logInfo("创建日记", { trace_id: traceId, page: getCurrentPage(), type: body.type });
+        const d = await createDiary(body);
+        this.diaries = [d, ...this.diaries];
+        logInfo("日记创建成功", { trace_id: traceId, diary_id: d.id });
+        return d;
+      } catch (e) {
+        logError("日记创建失败", { trace_id: traceId, error: (e as Error).message });
+        throw e;
+      }
     },
 
     /** 编辑日记（PUT /api/diaries/{id}），成功后替换列表项 */
     async update(id: number, body: DiaryUpdate): Promise<Diary> {
-      const d = await updateDiary(id, body);
-      this.diaries = this.diaries.map((x) => (x.id === id ? d : x));
-      if (this.current?.id === id) {
-        this.current = d;
+      const traceId = createTraceId();
+      try {
+        logInfo("编辑日记", { trace_id: traceId, page: getCurrentPage(), diary_id: id });
+        const d = await updateDiary(id, body);
+        this.diaries = this.diaries.map((x) => (x.id === id ? d : x));
+        logInfo("日记更新成功", { trace_id: traceId, diary_id: id });
+        return d;
+      } catch (e) {
+        logError("日记更新失败", { trace_id: traceId, diary_id: id, error: (e as Error).message });
+        throw e;
       }
-      return d;
     },
 
     /** 删除日记（DELETE /api/diaries/{id}），成功后从列表移除 */
     async remove(id: number) {
-      await deleteDiary(id);
-      this.diaries = this.diaries.filter((x) => x.id !== id);
-      if (this.current?.id === id) {
-        this.current = null;
+      const traceId = createTraceId();
+      try {
+        logInfo("删除日记", { trace_id: traceId, page: getCurrentPage(), diary_id: id });
+        await deleteDiary(id);
+        this.diaries = this.diaries.filter((x) => x.id !== id);
+        logInfo("日记删除成功", { trace_id: traceId, diary_id: id });
+      } catch (e) {
+        logError("日记删除失败", { trace_id: traceId, diary_id: id, error: (e as Error).message });
+        throw e;
       }
     },
   },

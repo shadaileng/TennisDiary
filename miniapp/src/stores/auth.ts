@@ -4,6 +4,16 @@ import { STORAGE_KEYS } from "@/constants/storage";
 import { getLoginCode, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
 import { isLoggedIn as isTokenValid } from "@/utils/jwt";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+
+function getCurrentPage(): string {
+  try {
+    const pages = getCurrentPages();
+    return pages[pages.length - 1]?.route || "";
+  } catch {
+    return "";
+  }
+}
 
 /** storage 键名统一从常量读取 */
 const TOKEN_KEY = STORAGE_KEYS.token;
@@ -72,15 +82,24 @@ export const useAuthStore = defineStore("auth", {
      * 避免「先拿 token 再 getMe」的未登录短路 bug（Step 38）。
      */
     async login() {
-      const code = await getLoginCode();
-      const result = await loginApi({ code });
-      // 后端已返回 user，直接持久化
-      this.setAuth(result.access_token, result.user);
-      return result.user;
+      const traceId = createTraceId();
+      try {
+        logInfo("开始登录", { trace_id: traceId, page: getCurrentPage() });
+        const code = await getLoginCode();
+        const result = await loginApi({ code });
+        this.setAuth(result.access_token, result.user);
+        logInfo("登录成功", { trace_id: traceId, is_new: result.is_new });
+        return result.user;
+      } catch (e) {
+        logError("登录失败", { trace_id: traceId, error: (e as Error).message });
+        throw e;
+      }
     },
 
     /** 资料更新后同步本地 user 缓存 */
     updateUser(user: User) {
+      const traceId = createTraceId();
+      logInfo("更新个人资料", { trace_id: traceId, page: getCurrentPage() });
       this.user = user;
       uni.setStorageSync(USER_KEY, JSON.stringify(user));
     },

@@ -10,6 +10,7 @@ export interface EventLog {
   page: string
   extra: Record<string, any>
   device_info: Record<string, any>
+  client_time: number | null
   created_at: number
 }
 
@@ -18,6 +19,7 @@ export interface EventLogListParams {
   type?: string
   user_id?: number
   keyword?: string
+  trace_id?: string
   page?: number
   page_size?: number
 }

@@ -33,6 +33,7 @@ async def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
         page=body.page,
         extra=body.extra,
         device_info=body.device_info,
+        client_time=body.client_time,
     )
     db.add(event)
     db.commit()

@@ -19,6 +19,7 @@ def list_event_logs(
     type: str | None = Query(None, description="按类型过滤：network/business/crash/custom"),
     user_id: int | None = Query(None, description="按用户ID过滤"),
     keyword: str | None = Query(None, description="关键字搜索 message"),
+    trace_id: str | None = Query(None, description="按操作链路 ID 过滤"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     admin: Admin = Depends(get_current_admin),
@@ -35,10 +36,14 @@ def list_event_logs(
         query = query.filter(EventLog.user_id == user_id)
     if keyword:
         query = query.filter(EventLog.message.like(f"%{keyword}%"))
+    if trace_id:
+        query = query.filter(EventLog.extra.like(f"%{trace_id}%"))
 
     total = query.count()
+    # 优先按 client_time 降序，回退到 created_at
     items = (
-        query.order_by(EventLog.created_at.desc())
+        query
+        .order_by(EventLog.client_time.desc().nullslast(), EventLog.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()

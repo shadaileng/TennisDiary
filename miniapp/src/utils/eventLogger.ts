@@ -110,6 +110,7 @@ function flushOne(payload: EventLogPayload): void {
     page: payload.page ?? getCurrentPage(),
     extra: payload.extra || {},
     device_info: payload.deviceInfo || getDeviceInfo(),
+    client_time: Date.now(),
   };
 
   if (authStore.isLoggedIn && authStore.user) {
@@ -147,6 +148,11 @@ function batchFlush(): void {
 }
 
 // ==================== 公开 API ====================
+
+/** 生成唯一 trace ID（毫秒时间戳 + 随机后缀） */
+export function createTraceId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 /** 记录信息事件（批量上报） */
 export function logInfo(message: string, extra?: Record<string, any>): void {
