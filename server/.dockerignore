@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+!*.env.example
+
+# API Keys
+secrets/
+*.key
+*.pem
+*.crt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test
+coverage/
+.nyc_output/
+.pytest_cache/
+.mypy_cache/
+
+# SQLite (运行时数据，不入库)
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads (运行时数据，不入库)
+uploads/
+media/
+tmp/
+temp/
+
+# Build outputs
+node_modules/
+dist/
+build/
+
+# Docker
+.docker/
+docker-compose.override.yml
