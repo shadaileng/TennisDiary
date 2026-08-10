@@ -4,6 +4,16 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.43.0] - 2026-08-10
+
+### Added
+
+- 新增 Cloudflare Workers 反向代理（`proxy/` 目录），解决魔搭 `.ms.show` 网关 CORS 预检不返回 `X-Auth-Token` 导致 admin 前端跨域问题
+- Worker 支持 OPTIONS 预检返回自定义 CORS 头 + 服务端转发透传 `X-Auth-Token`
+- 新增方案文档 `docs/plans/67-Cloudflare-Workers-代理-ModelScope-方案.md`
+- 新增 `proxy/README.md`，含快速开始、部署命令与前端接入说明
+- `proxy/` 加入 pnpm workspace
+
 ## [1.42.3] - 2026-08-10
 
 ### Fixed

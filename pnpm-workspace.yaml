@@ -2,5 +2,6 @@ packages:
   - 'docs'
   - 'miniapp'
   - 'admin'
+  - 'proxy'
 allowBuilds:
   esbuild: true

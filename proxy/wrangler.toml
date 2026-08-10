@@ -1,0 +1,7 @@
+name = "tennis-diary-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# 目标上游（魔搭创空间域名），通过 wrangler secret 设置或 .dev.vars 注入
+[vars]
+# UPSTREAM = "https://{owner}-{studio}.ms.show"
