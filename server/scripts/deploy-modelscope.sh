@@ -144,9 +144,16 @@ fi
 log_info "打包 server/ 到临时目录: $TMP_DIR"
 MS_DIR="$SERVER_DIR/modelscope"
 
-# Dockerfile（魔搭用根目录 Dockerfile 构建）
-[ -f "$SERVER_DIR/Dockerfile" ] && cp "$SERVER_DIR/Dockerfile" "$TMP_DIR/Dockerfile" \
-  || fail "Dockerfile 不存在: $SERVER_DIR/Dockerfile"
+# Dockerfile（优先使用魔搭专用版 modelscope/Dockerfile，含阿里云源加速；否则回退根目录通用版）
+if [ -f "$MS_DIR/Dockerfile" ]; then
+  cp "$MS_DIR/Dockerfile" "$TMP_DIR/Dockerfile"
+  log_ok "  ✓ Dockerfile (modelscope 专用，阿里云源加速)"
+elif [ -f "$SERVER_DIR/Dockerfile" ]; then
+  cp "$SERVER_DIR/Dockerfile" "$TMP_DIR/Dockerfile"
+  log_ok "  ✓ Dockerfile (通用版)"
+else
+  fail "Dockerfile 不存在"
+fi
 
 # ms_deploy.json（魔搭部署配置）
 [ -f "$MS_DIR/ms_deploy.json" ] && cp "$MS_DIR/ms_deploy.json" "$TMP_DIR/ms_deploy.json" \

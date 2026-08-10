@@ -6,6 +6,11 @@
 
 ## [1.42.1] - 2026-08-10
 
+### Changed
+
+- 魔搭构建加速：新增 `server/modelscope/Dockerfile` 专属镜像，apt 源替换为 `mirrors.aliyun.com`、pip/uv 索引指向阿里云 PyPI，解决跨境网络导致的构建慢问题
+- `deploy-modelscope.sh` 优先复制魔搭专用 Dockerfile（含阿里云源加速），无则回退根目录通用版
+
 ### Fixed
 
 - 修复魔搭创空间 Docker 构建失败：`server/.gitignore` 忽略 `uv.lock` 导致 GitHub Actions checkout 后缺文件，`Dockerfile` 的 `COPY pyproject.toml uv.lock ./` 在 COPY 阶段直接报错
