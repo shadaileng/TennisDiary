@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.43.1] - 2026-08-10
+
+### Fixed
+
+- 修复 `eventLogger.ts` 中 `require("@/stores/auth")` 在小程序环境别名解析失败，导致模块未定义错误
+
 ## [1.43.0] - 2026-08-10
 
 ### Added

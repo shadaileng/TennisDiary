@@ -100,10 +100,10 @@ export function flushPendingEvents(): void {
 
 /** 上报单条事件日志 */
 function flushOne(payload: EventLogPayload): void {
-  // 延迟导入，避免循环依赖（stores/auth → services/auth → request → eventLogger → stores/auth）
-  const { useAuthStore } = require("@/stores/auth");
-  const authStore = useAuthStore();
+  // 直接从 storage 读取，避免循环依赖（stores/auth → services/auth → request → eventLogger → stores/auth）
   const token = uni.getStorageSync(STORAGE_KEYS.token) as string;
+  const userRaw = uni.getStorageSync(STORAGE_KEYS.user) as string;
+  const userId: string | null = userRaw ? (JSON.parse(userRaw) as any)?.id || null : null;
 
   const body: Record<string, any> = {
     level: payload.level,
@@ -118,8 +118,8 @@ function flushOne(payload: EventLogPayload): void {
     client_time: Date.now(),
   };
 
-  if (authStore.isLoggedIn && authStore.user) {
-    body.extra.user_id = authStore.user.id;
+  if (userId) {
+    body.extra.user_id = userId;
   }
 
   const fullUrl = `${BASE_URL}${API_PREFIX}/events`;
