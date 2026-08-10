@@ -190,6 +190,8 @@ done
 log_info "推送至魔搭: ${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}"
 
 git add -A
+# 兜底：确保 uv.lock / pyproject.toml 一定入库（即使被 .gitignore 忽略）
+git add -f uv.lock pyproject.toml 2>/dev/null || true
 if ! git commit -m "deploy: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" --quiet 2>&1; then
   log_error "git commit 失败（若提示 nothing to commit 表示与远端内容一致）"
   ls -la

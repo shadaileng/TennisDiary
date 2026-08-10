@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.42.1] - 2026-08-10
+
+### Fixed
+
+- 修复魔搭创空间 Docker 构建失败：`server/.gitignore` 忽略 `uv.lock` 导致 GitHub Actions checkout 后缺文件，`Dockerfile` 的 `COPY pyproject.toml uv.lock ./` 在 COPY 阶段直接报错
+- 将 `server/uv.lock` 纳入版本管理，保证本地 / CI / 魔搭三方依赖一致
+- 部署脚本 `deploy-modelscope.sh` 在 `git add -A` 后补 `git add -f uv.lock pyproject.toml` 兜底，防止再次因忽略规则漏包
+
 ## [1.42.0] - 2026-08-09
 
 ### Added

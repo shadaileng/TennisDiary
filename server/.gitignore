@@ -8,8 +8,7 @@ data/
 venv/
 .venv/
 
-# uv
-uv.lock
+# uv（uv.lock 纳入版本管理，保证本地/CI/魔搭三方依赖一致）
 .python-version
 
 # 测试
