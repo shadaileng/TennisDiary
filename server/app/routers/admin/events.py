@@ -45,8 +45,7 @@ def list_event_logs(
     total = query.count()
     # 优先按 client_time 降序，回退到 created_at
     items = (
-        query
-        .order_by(EventLog.client_time.desc().nullslast(), EventLog.created_at.desc())
+        query.order_by(EventLog.client_time.desc().nullslast(), EventLog.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
