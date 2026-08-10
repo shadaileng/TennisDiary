@@ -200,6 +200,7 @@ const form = reactive<DiaryFormState>({
 
 let editingId = ref<number | null>(null);
 const isEditing = computed(() => editingId.value != null);
+const saving = ref(false);
 
 const costTotalText = computed(() =>
   settingsStore.hideAmounts ? "¥**" : fmtMoney(sumCosts(form.costs)),
@@ -275,10 +276,12 @@ function onNotesInput(e: any) {
 }
 
 async function save() {
+  if (saving.value) return;
   if (!form.date || !form.duration) {
     uni.showToast({ title: "请填写日期和时长", icon: "none" });
     return;
   }
+  saving.value = true;
   const body = {
     date: form.date,
     time: form.time,
@@ -301,6 +304,8 @@ async function save() {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "保存失败";
     uni.showToast({ title: msg, icon: "none" });
+  } finally {
+    saving.value = false;
   }
 }
 

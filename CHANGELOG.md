@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.43.3] - 2026-08-10
+
+### Fixed
+
+- 修复表单保存按钮可连点导致重复提交，新增 `saving` 锁防止并发请求
+
 ## [1.43.2] - 2026-08-10
 
 ### Fixed

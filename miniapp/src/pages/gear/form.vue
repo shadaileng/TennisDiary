@@ -116,6 +116,7 @@ const form = reactive<GearFormState>({
 
 let editingId = ref<number | null>(null);
 const isEditing = computed(() => editingId.value != null);
+const saving = ref(false);
 
 onLoad(async (query) => {
   const id = query?.id;
@@ -159,10 +160,12 @@ async function onPickPhoto() {
 }
 
 async function save() {
+  if (saving.value) return;
   if (!form.name.trim()) {
     uni.showToast({ title: "请填写装备名称", icon: "none" });
     return;
   }
+  saving.value = true;
   const body = {
     category: form.category,
     name: form.name.trim(),
@@ -182,6 +185,8 @@ async function save() {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "保存失败";
     uni.showToast({ title: msg, icon: "none" });
+  } finally {
+    saving.value = false;
   }
 }
 
