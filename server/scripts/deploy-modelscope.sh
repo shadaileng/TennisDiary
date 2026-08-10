@@ -17,6 +17,11 @@
 #   MODEL_SCOPE_TOKEN=modelscope_xxx MODEL_SCOPE_USERNAME=yourname \
 #   MODEL_SCOPE_STUDIO_NAME=tennis-diary-server \
 #   JWT_SECRET=xxx WX_APPID=xxx WX_SECRET=xxx bash scripts/deploy-modelscope.sh
+#
+# 说明：
+#   - 默认推送完成后即结束，不在 runner 上等待健康检查（避免 GitHub Actions 计费时长被浪费）
+#   - 本地需要等待构建完成时，追加 WAIT_FOR_HEALTH=1：
+#       ... bash scripts/deploy-modelscope.sh 前加 WAIT_FOR_HEALTH=1
 # ============================================================
 
 set -euo pipefail
@@ -70,6 +75,9 @@ WX_APPID="${WX_APPID:-}"
 WX_SECRET="${WX_SECRET:-}"
 ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD:-changeme}"
 ADMIN_RESET_KEY="${ADMIN_RESET_KEY:-}"
+# 是否在部署后等待健康检查。默认关闭（避免在 GitHub Actions runner 上长时间占用执行额度）。
+# 本地手动部署需要等待时可设为 1：WAIT_FOR_HEALTH=1
+WAIT_FOR_HEALTH="${WAIT_FOR_HEALTH:-0}"
 
 # ---------- 校验变量 ----------
 [ -n "$MODEL_SCOPE_TOKEN" ]    || fail "MODEL_SCOPE_TOKEN 未设置（检查 .env.modelscope 或环境变量）"
@@ -215,26 +223,30 @@ else
   log_warn "  ⚠ 部署触发失败（推送后魔搭通常会自动构建）"
 fi
 
-# ---------- 6. 健康检查 ----------
+# ---------- 6. 健康检查（可选，默认关闭） ----------
 STUDIO_URL="https://${MODEL_SCOPE_USERNAME}-${MODEL_SCOPE_STUDIO_NAME}.ms.show"
-HEALTH_URL="${STUDIO_URL}/health"
-log_info "等待构建与部署（首次约 3-5 分钟）..."
-log_info "健康检查: $HEALTH_URL"
+log_ok "✅ 代码推送成功，已触发魔搭自动构建！"
+log_ok "   创空间: $STUDIO_URL"
+log_ok "   API 文档: ${STUDIO_URL}/docs"
+log_info "构建在魔搭侧异步进行，可在创空间页面查看日志。"
 
-HCODE=""
-for _ in $(seq 1 40); do
-  HCODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$HEALTH_URL" || true)
-  [ "$HCODE" = "200" ] && break
-  sleep 10
-done
+if [ "$WAIT_FOR_HEALTH" = "1" ]; then
+  HEALTH_URL="${STUDIO_URL}/health"
+  log_info "等待构建与部署（首次约 3-5 分钟）..."
+  log_info "健康检查: $HEALTH_URL"
 
-if [ "$HCODE" = "200" ]; then
-  log_ok "✅ 部署成功！"
-  log_ok "   创空间: $STUDIO_URL"
-  log_ok "   API 文档: ${STUDIO_URL}/docs"
-else
-  log_warn "  ⚠ /health 未在约 7 分钟内返回 200（HTTP ${HCODE:-无响应}）"
-  log_warn "    请在魔搭创空间页面查看构建日志（build / run）"
-  log_warn "    常见问题：端口非 7860、环境变量缺失、构建超时"
-  exit 1
+  HCODE=""
+  for _ in $(seq 1 40); do
+    HCODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$HEALTH_URL" || true)
+    [ "$HCODE" = "200" ] && break
+    sleep 10
+  done
+
+  if [ "$HCODE" = "200" ]; then
+    log_ok "✅ 部署成功，服务已就绪！"
+  else
+    log_warn "  ⚠ /health 未在约 7 分钟内返回 200（HTTP ${HCODE:-无响应}）"
+    log_warn "    请在魔搭创空间页面查看构建日志（build / run）"
+    log_warn "    常见问题：端口非 7860、环境变量缺失、构建超时"
+  fi
 fi
