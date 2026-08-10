@@ -32,7 +32,7 @@ export function getLoginCode(): Promise<string> {
 
 /** 微信登录：用 wx.login 的 code 换取 JWT + 用户信息 */
 export function login(data: LoginRequest): Promise<LoginResponse> {
-  // 登录接口无需携带 Authorization；401 属登录失败，交由调用方展示，不触发全局登出引导
+  // 登录接口无需携带鉴权头；401 属登录失败，交由调用方展示，不触发全局登出引导
   return post<LoginResponse>("/auth/login", data, { auth: false, handle401: false });
 }
 
@@ -48,7 +48,7 @@ export function updateProfile(data: UserUpdate): Promise<{ user: User }> {
 
 /**
  * 上传头像（uni.uploadFile），返回可展示的相对 URL。
- * 需携带 Authorization；注意 content-type 由 uni.uploadFile 自动设置 multipart/form-data。
+ * 需携带 X-Auth-Token；注意 content-type 由 uni.uploadFile 自动设置 multipart/form-data。
  */
 export function uploadAvatar(tempPath: string): Promise<string> {
   const token = uni.getStorageSync(STORAGE_KEYS.token) as string;
@@ -57,7 +57,7 @@ export function uploadAvatar(tempPath: string): Promise<string> {
       url: `${BASE_URL}${API_PREFIX}/upload/avatar`,
       filePath: tempPath,
       name: "file",
-      header: token ? { Authorization: `Bearer ${token}` } : {},
+      header: token ? { 'X-Auth-Token': token } : {},
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {

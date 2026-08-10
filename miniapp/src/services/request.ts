@@ -35,7 +35,7 @@ export class ApiError extends Error {
 }
 
 export interface RequestOptions {
-  /** 是否携带 Authorization（默认 true） */
+  /** 是否携带鉴权头 X-Auth-Token（默认 true） */
   auth?: boolean
   /** 是否允许 401 触发登出（默认 true） */
   handle401?: boolean
@@ -123,7 +123,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
   if (auth) {
     const token = getToken();
     if (token) {
-      finalHeaders.Authorization = `Bearer ${token}`;
+      finalHeaders['X-Auth-Token'] = token;
     }
   }
 

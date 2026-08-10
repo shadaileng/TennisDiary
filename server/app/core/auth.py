@@ -4,19 +4,30 @@ import json
 from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 
-security = HTTPBearer()
+# 自定义鉴权头（魔搭网关占用 Authorization，需绕开）
+AUTH_HEADER = "X-Auth-Token"
+auth_scheme = APIKeyHeader(name=AUTH_HEADER, auto_error=False)
 
 # 管理员JWT配置（独立密钥）
 ADMIN_JWT_SECRET = "admin-secret-change-in-production"
 ADMIN_JWT_ALGORITHM = "HS256"
 ADMIN_JWT_EXPIRATION_HOURS = 24
+
+
+def get_token_from_header(
+    x_auth_token: str | None = Depends(auth_scheme),
+) -> str:
+    """从请求头读取 JWT，统一使用 X-Auth-Token"""
+    if not x_auth_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return x_auth_token
 
 
 def create_access_token(openid: str) -> str:
@@ -51,13 +62,13 @@ def create_admin_access_token(admin_id: int) -> str:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = Depends(get_token_from_header),
     db: Session = Depends(get_db),
 ):
     """从JWT获取当前用户"""
     from app.models.user import User
 
-    openid = decode_access_token(credentials.credentials)
+    openid = decode_access_token(token)
     user = db.query(User).filter(User.openid == openid).first()
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")
@@ -65,13 +76,12 @@ def get_current_user(
 
 
 def get_current_admin(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = Depends(get_token_from_header),
     db: Session = Depends(get_db),
 ):
     """从JWT获取当前管理员"""
     from app.models.admin import Admin
 
-    token = credentials.credentials
     try:
         payload = jwt.decode(token, ADMIN_JWT_SECRET, algorithms=[ADMIN_JWT_ALGORITHM])
         if payload.get("type") != "admin":

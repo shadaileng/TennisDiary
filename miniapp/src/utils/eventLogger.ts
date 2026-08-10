@@ -129,7 +129,7 @@ function flushOne(payload: EventLogPayload): void {
     data: body,
     header: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token ? { 'X-Auth-Token': token } : {}),
     },
     timeout: 5000,
     success() {

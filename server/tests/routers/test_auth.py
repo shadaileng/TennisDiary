@@ -101,7 +101,7 @@ class TestAuthMe:
         """无效 token → 401"""
         response = client.get(
             "/api/auth/me",
-            headers={"Authorization": "Bearer invalid.token.here"},
+            headers={"X-Auth-Token": "invalid.token.here"},
         )
         assert response.status_code == 401
 

@@ -4,6 +4,17 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.42.3] - 2026-08-10
+
+### Fixed
+
+- 修复魔搭创空间鉴权头被网关占用导致登录后 `/me` 401：后端 `auth.py` 以 `APIKeyHeader` 统一读取自定义头 `X-Auth-Token`，移除 `Authorization` 回退与 `Request` 注入
+- admin 前端 `api/index.ts` 请求头改用 `X-Auth-Token`
+- miniapp 三处（`request.ts` / `auth.ts` / `eventLogger.ts`）请求头改用 `X-Auth-Token`
+- 后端测试 `test_auth.py` / `admin/conftest.py` 同步改用 `X-Auth-Token`
+- 诊断脚本 `diag-admin-auth.sh` 改用 `X-Auth-Token`，判断依据同步更新
+- 新增方案文档 `docs/plans/66-ModelScope部署鉴权头兼容改造.md`
+
 ## [1.42.2] - 2026-08-10
 
 ### Fixed

@@ -106,7 +106,7 @@ cd admin && pnpm build                 # 构建管理端
 ### 鉴权
 
 - 登录：`POST /api/auth/login`，接收 `wx.login` code，返回 JWT
-- 请求头：`Authorization: Bearer <jwt>`
+- 请求头：`X-Auth-Token: <jwt>`（魔搭网关占用 `Authorization`，统一改用自定义头）
 - 有效期：30 天
 
 ### 端点概览
@@ -133,6 +133,7 @@ cd admin && pnpm build                 # 构建管理端
 | Server-1  | Server 部署方案（Docker + HF Space，代码已实现；HF 已停用） | ⏳ 已归档 |
 | Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM，代码已实现；待建 VM 启用 CI） | ✅ |
 | Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio，代码已实现；当前启用） | ✅ |
+| Phase 66  | ModelScope 部署鉴权头兼容改造（后端统一 `X-Auth-Token`，移除 `Authorization` 回退） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

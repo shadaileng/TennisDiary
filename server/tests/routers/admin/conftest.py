@@ -102,5 +102,5 @@ def admin_token(client, test_admin):
 @pytest.fixture(scope="module")
 def auth_client(client, admin_token):
     """带鉴权的测试客户端"""
-    client.headers["Authorization"] = f"Bearer {admin_token}"
+    client.headers["X-Auth-Token"] = admin_token
     return client
