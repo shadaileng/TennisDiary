@@ -158,7 +158,7 @@ import Seg from "@/components/Seg.vue";
 import { useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
-import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, sumCosts, todayStr } from "@/utils";
+import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
 import type { SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
@@ -297,7 +297,7 @@ async function save() {
       await diaryStore.create(body);
     }
     uni.showToast({ title: isEditing.value ? "日记已更新" : "日记已保存", icon: "success" });
-    setTimeout(() => uni.navigateBack(), 500);
+    setTimeout(() => safeNavigateBack("/pages/diary/diary"), 500);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "保存失败";
     uni.showToast({ title: msg, icon: "none" });
@@ -314,7 +314,7 @@ function confirmRemove() {
       try {
         await diaryStore.remove(editingId.value);
         uni.showToast({ title: "已删除", icon: "success" });
-        setTimeout(() => uni.navigateBack(), 500);
+        setTimeout(() => safeNavigateBack("/pages/diary/diary"), 500);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "删除失败";
         uni.showToast({ title: msg, icon: "none" });

@@ -176,3 +176,16 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
     });
   });
 }
+
+/**
+ * 安全返回上一页：若栈深不足（当前为首页）则跳转到 tabBar 首页。
+ * 适用于 form 页面保存/删除后返回，避免 navigateBack 在栈底抛错。
+ */
+export function safeNavigateBack(fallbackUrl = "/pages/diary/diary"): void {
+  const pages = getCurrentPages();
+  if (pages.length > 1) {
+    uni.navigateBack();
+  } else {
+    uni.switchTab({ url: fallbackUrl });
+  }
+}

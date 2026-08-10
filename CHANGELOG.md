@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.43.2] - 2026-08-10
+
+### Fixed
+
+- 修复 form 页面（日记/装备）在页面栈底时 `navigateBack` 抛错，改用 `safeNavigateBack` 自动回退到 tabBar
+
 ## [1.43.1] - 2026-08-10
 
 ### Fixed
