@@ -55,6 +55,9 @@ COPY alembic/ ./alembic/
 COPY alembic.ini ./
 COPY scripts/ ./scripts/
 
+# 确保入口脚本可执行（git 索引中无执行位，COPY 后需显式添加）
+RUN chmod +x scripts/docker-entrypoint.sh
+
 # 健康检查（每 30s 检查一次，5s 超时，重试 3 次）
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')" || exit 1
