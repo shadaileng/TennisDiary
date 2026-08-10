@@ -5,9 +5,9 @@ FastAPI 后台服务，提供小程序与管理端的所有 API。
 ## 技术栈
 
 - **框架**：FastAPI + SQLAlchemy 2.0（声明式 ORM）
-- **数据库**：SQLite（开发/测试）、PostgreSQL（生产）
+- **数据库**：SQLite（单文件，本地与生产 Docker 部署均使用）
 - **迁移工具**：Alembic
-- **依赖管理**：uv
+- **依赖管理**：uv（`uv.lock` 已纳入版本管理）
 - **测试**：pytest
 - **代码质量**：ruff（lint + format）
 
@@ -93,9 +93,16 @@ server/
 │   ├── schemas/       # Pydantic 数据模型
 │   └── services/      # 业务逻辑
 ├── tests/             # pytest 测试（镜像 app/ 结构）
-├── data/              # SQLite 数据文件（不纳入版本管理）
-├── uploads/           # 用户上传文件（不纳入版本管理）
+├── data/              # 运行时数据（SQLite + 上传文件，不纳入版本管理）
+├── scripts/           # 运维/部署脚本（verify / docker-entrypoint / hf / oci / modelscope）
+├── modelscope/        # 魔搭创空间部署（ms_deploy.json + 专属 Dockerfile + README）
+├── oci/               # Oracle Cloud 部署指南
+├── spaces/            # HF Space 部署说明
+├── Dockerfile         # 生产镜像（多阶段构建）
+├── docker-compose.yml # 本地一键启动（含数据卷持久化）
+├── README.hf.md       # HF Space 前端配置（sdk: docker）
 ├── pyproject.toml     # uv 项目配置
+├── uv.lock            # 依赖锁定（已纳入版本管理）
 └── .env.example       # 环境变量模板
 ```
 
@@ -113,3 +120,34 @@ server/
 | `WX_APPID` | 微信小程序 AppID | — |
 | `WX_SECRET` | 微信小程序 Secret | — |
 | `AI_API_KEY` | AI API Key | — |
+
+## 部署方案
+
+项目提供三种 Server 部署方案，代码均已实现。当前**启用**魔搭方案，HF/OCI 的 CI 处于停用状态。
+
+| 方案 | 目录 | CI | 状态 |
+|------|------|:----:|:----:|
+| Docker 本地 / 自有服务器 | `Dockerfile` + `docker-compose.yml` | — | ✅ 有效 |
+| HF Space 免费托管 | `spaces/` + `README.hf.md` + `.env.hf.example` + `scripts/deploy-hf.sh` | `workflows-disabled/` | ⏳ 已停用（需 PRO 订阅） |
+| Oracle Cloud 免费 VM | `oci/` + `scripts/{oci-bootstrap,deploy-oci}.sh` + `.env.oci.example` | `workflows-disabled/` | ✅ 代码完成，待建 VM 启用 |
+| 魔搭创空间 | `modelscope/` + `scripts/deploy-modelscope.sh` + `.env.modelscope.example` | `workflows/deploy-server-modelscope.yml` | ✅ 当前启用 |
+
+### 本地 Docker 运行
+
+```bash
+cd server
+cp .env.example .env   # 填写 JWT_SECRET / WX_APPID / WX_SECRET
+docker compose up -d
+# 访问 http://localhost:8000/docs
+```
+
+### 魔搭创空间（当前启用）
+
+```bash
+cd server
+cp .env.modelscope.example .env.modelscope
+# 编辑填入 MODEL_SCOPE_TOKEN / MODEL_SCOPE_USERNAME / MODEL_SCOPE_STUDIO_NAME 等
+bash scripts/deploy-modelscope.sh
+```
+
+> 微信小程序要求 `request` 合法域名须为**已备案 HTTPS 域名**，托管平台的默认域名（`.hf.space` / `.ms.show`）无法备案，需自备域名 Nginx 反代。详见各方案文档（`docs/plans/63/64/65-*`）。

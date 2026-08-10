@@ -33,10 +33,10 @@ docs/
 │   ├── 19-Phase1-7-网络层封装.md
 │   ├── 20-Phase1-8-对接B1登录流程.md
 │   ├── 21-环境变量配置模板.md
-│   └── 22-前端环境变量-AppID与域名白名单校验.md
-│   └── 23-构建警告清理-Tailwind与Sass弃用警告.md
-│   └── 24-修复wxss编译错误与联调排障.md
-│   └── 25-静默登录门控-首次启动不请求后台.md
+│   ├── 22-前端环境变量-AppID与域名白名单校验.md
+│   ├── 23-构建警告清理-Tailwind与Sass弃用警告.md
+│   ├── 24-修复wxss编译错误与联调排障.md
+│   ├── 25-静默登录门控-首次启动不请求后台.md
 │   ├── 26-Phase2-业务页面实现总纲.md
 │   ├── 27-Phase2-1-数据层与组件库.md
 │   ├── 28-Phase2-2-日记页.md
@@ -51,10 +51,10 @@ docs/
 │   ├── 37-修复config加载路径-微信登录appid缺失.md
 │   ├── 38-修复登录时序与用户资料编辑-参考tarot.md
 │   ├── 39-Alembic数据库迁移接入.md
-│   └── 40-我的页与资料详情页tarot化改造.md
-│   └── 41-修复登录错误提示-request ok误弹.md
-│   └── 42-修复登录后昵称显示未登录.md
-│   ├── 43-B2-后台管理系统总纲.md
+│   ├── 40-我的页与资料详情页tarot化改造.md
+│   ├── 41-修复登录错误提示-request ok误弹.md
+│   ├── 42-修复登录后昵称显示未登录.md
+│   ├── 43-B2-后台管理API总纲.md
 │   ├── 44-B2-1-管理员模型与认证.md
 │   ├── 45-B2-2-数据查看API.md
 │   ├── 46-B2-3-系统监控API.md
@@ -65,25 +65,26 @@ docs/
 │   ├── 51-Admin-4-管理功能.md
 │   ├── 52-Admin-5-数据管理.md
 │   ├── 53-Admin-6-系统监控.md
-│   └── 54-Admin-7-测试与部署.md
-│   └── 55-后台API响应格式统一重构.md
-│   └── 56-小程序前端视觉样式与交互适配改造.md
+│   ├── 54-Admin-7-测试与部署.md
+│   ├── 55-后台API响应格式统一重构.md
+│   ├── 56-小程序前端视觉样式与交互适配改造.md
 │   ├── 57-小程序前端样式方案重构-Tailwind-自定义-CSS.md
 │   ├── 58-踩坑记录-weapp-tailwindcss内容扫描失效.md
 │   ├── 59-小程序事件锚点与线上事件日志.md
 │   ├── 59-业务动作埋点与精确时间.md
+│   ├── 60-LineChart-Canvas-to-SVG.md
 │   ├── 60-LineChart-Canvas-修复.md
 │   ├── 61-miniapp构建警告修复-Sass与循环依赖.md
-│   └── 62-Admin事件日志详情弹窗.md
-│   └── 63-Server部署方案-Docker与HF-Space.md
-│   └── 64-Server部署方案-Oracle-Cloud.md
+│   ├── 62-Admin事件日志详情弹窗.md
+│   ├── 63-Server部署方案-Docker与HF-Space.md
+│   ├── 64-Server部署方案-Oracle-Cloud.md
 │   └── 65-Server部署方案-ModelScope-创空间.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
 ├── references/                  # 参考类（持续维护）
-├── guides/                      # 指南/手册类（持续维护）
-│   └── 01-vitepress-踩坑记录.md
+└── guides/                      # 指南/手册类（持续维护）
+    └── 01-vitepress-踩坑记录.md
 ```
 
 ## 文档一览
@@ -101,7 +102,7 @@ docs/
 | B1-9：打卡接口 | v1.0.0 | 方案 | `plans/09-B1-9-打卡接口.md` | `/api/checkin` 查询与签到 | ✅ 已完成 |
 | B1-10：统计汇总接口 | v1.0.0 | 方案 | `plans/10-B1-10-统计汇总接口.md` | `/api/stats` 数据汇总 | ✅ 已完成 |
 | B1-11：文件下载接口 | v1.0.0 | 方案 | `plans/11-B1-11-文件下载接口.md` | `/api/files/{filename}` 文件下载 | ✅ 已完成 |
-| Phase1：uni-app 小程序前端工程初始化 | v1.0.0 | 方案 | `plans/12-Phase1-uni-app小程序前端工程初始化.md` | 小程序前端工程初始化与基础能力搭建总纲 | 📋 待执行 |
+| Phase1：uni-app 小程序前端工程初始化 | v1.0.0 | 方案 | `plans/12-Phase1-uni-app小程序前端工程初始化.md` | 小程序前端工程初始化与基础能力搭建总纲 | ✅ 已完成 |
 | Phase1-1：uni-app 工程初始化 | v1.0.0 | 方案 | `plans/13-Phase1-1-uni-app工程初始化.md` | uni-app（Vue3+Vite+TS）工程骨架 | ✅ 已完成 |
 | Phase1-2：目录结构与 TabBar | v1.0.0 | 方案 | `plans/14-Phase1-2-目录结构与TabBar.md` | 目录结构、四 Tab TabBar 与占位页 | ✅ 已完成 |
 | Phase1-3：Tailwind CSS 集成 | v1.0.0 | 方案 | `plans/15-Phase1-3-Tailwind集成.md` | Tailwind CSS 集成与橄榄绿/青柠主题色 | ✅ 已完成 |
@@ -132,11 +133,11 @@ docs/
 | 40：我的页与资料详情页 tarot 化改造 | v1.3.0 | 方案 | `plans/40-我的页与资料详情页tarot化改造.md` | 我的页/资料详情页改 scoped SCSS，绕开 weapp-tailwindcss spacing 类 bug | ✅ 已完成 |
 | 41：修复登录错误提示 "request ok" 误弹 | v1.0.0 | 方案 | `plans/41-修复登录错误提示-request ok误弹.md` | 修复小程序错误处理：`parseDetail` 去掉 `errMsg` 兜底 + 登录 401 不触发登出引导 | ✅ 已完成 |
 | 42：修复登录后昵称显示未登录 | v1.0.0 | 方案 | `plans/42-修复登录后昵称显示未登录.md` | 新用户昵称为空时「我的」页误显「未登录」，改为「微信用户」 | ✅ 已完成 |
-| B2 总纲：后台管理系统 | v1.0.0 | 方案 | `plans/43-B2-后台管理系统总纲.md` | 后台管理系统总纲（API + 前端） | ✅ 已完成 |
+| B2 总纲：后台管理 API | v1.0.0 | 方案 | `plans/43-B2-后台管理API总纲.md` | 后台管理系统总纲（API + 前端） | ✅ 已完成 |
 | B2-1：管理员模型与认证 | v1.0.0 | 方案 | `plans/44-B2-1-管理员模型与认证.md` | 管理员模型、角色权限、管理员管理 | ✅ 已完成 |
 | B2-2：数据查看 API | v1.1.0 | 方案 | `plans/45-B2-2-数据查看API.md` | 用户/日记/装备等管理接口（列表接口返回 user 对象） | ✅ 已完成 |
 | B2-3：系统监控 API | v1.2.0 | 方案 | `plans/46-B2-3-系统监控API.md` | 健康检查/日志查询/备份恢复/日志过滤修复 | ✅ 已完成 |
-| Admin 总纲：后台管理前端 | v1.0.0 | 方案 | `plans/47-Admin-后台管理前端.md` | 后台管理前端总纲（Vite+Vue3+Tailwind） | 📋 待执行 |
+| Admin 总纲：后台管理前端 | v1.0.0 | 方案 | `plans/47-Admin-后台管理前端.md` | 后台管理前端总纲（Vite+Vue3+Tailwind） | ✅ 已完成 |
 | Admin-1：项目初始化 | v1.0.0 | 方案 | `plans/48-Admin-1-项目初始化.md` | Vite+Vue3+TS+Tailwind+Router+Pinia | ✅ 已完成 |
 | Admin-2：布局与登录 | v1.0.0 | 方案 | `plans/49-Admin-2-布局与登录.md` | MainLayout/Sidebar/Header/登录页 | ✅ 已完成 |
 | Admin-3：仪表盘 | v1.0.0 | 方案 | `plans/50-Admin-3-仪表盘.md` | 汇总卡片+系统状态 | ✅ 已完成 |
@@ -146,9 +147,16 @@ docs/
 | Admin-7：测试与部署 | v1.0.0 | 方案 | `plans/54-Admin-7-测试与部署.md` | 测试与部署 | ✅ 已完成 |
 | 55：后台 API 响应格式统一重构 | v1.0.0 | 方案 | `plans/55-后台API响应格式统一重构.md` | 统一后台所有 API 响应格式为 `{code, message, success, data}` | ✅ 已完成 |
 | 56：小程序前端视觉样式与交互适配改造 | v1.1.0 | 方案 | `plans/56-小程序前端视觉样式与交互适配改造.md` | 对照参考源码，增强日记/装备/统计页视觉样式与交互 | ✅ 已完成 |
-| 63：Server 部署方案（Docker + HF Space） | v1.0.0 | 方案 | `plans/63-Server部署方案-Docker与HF-Space.md` | Docker 镜像 + HF Space 免费托管部署 | ✅ 已完成 |
-| 64：Server 部署方案（Oracle Cloud） | v1.0.0 | 方案 | `plans/64-Server部署方案-Oracle-Cloud.md` | Oracle Cloud Always Free 免费 VM 部署（SSH + Docker Compose） | 📋 待执行 |
-| 65：Server 部署方案（魔搭创空间） | v1.0.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署 | 📋 待执行 |
+| 57：小程序前端样式方案重构 Tailwind→自定义 CSS | v1.0.0 | 方案 | `plans/57-小程序前端样式方案重构-Tailwind-自定义-CSS.md` | 样式方案从 Tailwind 迁移到自定义 CSS | ✅ 已完成 |
+| 58：踩坑记录 weapp-tailwindcss 内容扫描失效 | v1.0.0 | 方案 | `plans/58-踩坑记录-weapp-tailwindcss内容扫描失效.md` | 记录 weapp-tailwindcss 内容扫描失效踩坑与解决 | ✅ 已完成 |
+| 59：小程序事件锚点与线上事件日志 | v1.0.0 | 方案 | `plans/59-小程序事件锚点与线上事件日志.md` | 小程序埋点 + 后台事件日志查询 | ✅ 已完成 |
+| 59-v1.1：业务动作埋点与精确时间 | v1.1.0 | 方案 | `plans/59-业务动作埋点与精确时间.md` | 业务动作埋点增强 + 精确时间 | ✅ 已完成 |
+| 60：LineChart Canvas 修复 | v1.2.0 | 方案 | `plans/60-LineChart-Canvas-修复.md` | 修复统计页折线图 Canvas 2D 渲染问题（getCurrentInstance） | ✅ 已完成 |
+| 61：miniapp 构建警告修复 — Sass 与循环依赖 | v1.0.0 | 方案 | `plans/61-miniapp构建警告修复-Sass与循环依赖.md` | 修复 Sass @import → additionalData 与循环依赖警告 | ✅ 已完成 |
+| 62：Admin 事件日志详情弹窗 | v1.0.0 | 方案 | `plans/62-Admin事件日志详情弹窗.md` | 后台管理端事件日志详情弹窗 | ✅ 已完成 |
+| 63：Server 部署方案（Docker + HF Space） | v1.1.0 | 方案 | `plans/63-Server部署方案-Docker与HF-Space.md` | Docker 镜像 + HF Space 托管部署（代码已实现，HF 已停用） | ⏳ 已归档 |
+| 64：Server 部署方案（Oracle Cloud） | v1.1.0 | 方案 | `plans/64-Server部署方案-Oracle-Cloud.md` | Oracle Cloud Always Free 免费 VM 部署（SSH + Docker Compose） | ✅ 已完成（待建 VM 启用） |
+| 65：Server 部署方案（魔搭创空间） | v1.1.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署（当前启用） | ✅ 已完成 |
 ## 文档类型说明
 
 | 类型 | 说明 | 生命周期 |
@@ -173,7 +181,7 @@ docs/
 | 09-B1-9-打卡接口 | Phase B1 后台 | ✅ 已完成 | 2026-08-05 | 2026-08-05 |
 | 10-B1-10-统计汇总接口 | Phase B1 后台 | ✅ 已完成 | 2026-08-05 | 2026-08-05 |
 | 11-B1-11-文件下载接口 | Phase B1 后台 | ✅ 已完成 | 2026-08-05 | 2026-08-05 |
-| 12-Phase1-uni-app小程序前端工程初始化 | Phase 1 小程序前端 | 📋 待执行 | 2026-08-05 | - |
+| 12-Phase1-uni-app小程序前端工程初始化 | Phase 1 小程序前端 | ✅ 已完成 | 2026-08-05 | 2026-08-06 |
 | 13-Phase1-1-uni-app工程初始化 | Phase 1 小程序前端 | ✅ 已完成 | 2026-08-05 | 2026-08-05 |
 | 14-Phase1-2-目录结构与TabBar | Phase 1 小程序前端 | ✅ 已完成 | 2026-08-05 | 2026-08-05 |
 | 15-Phase1-3-Tailwind集成 | Phase 1 小程序前端 | ✅ 已完成 | 2026-08-05 | 2026-08-05 |
@@ -204,11 +212,11 @@ docs/
 | 40-我的页与资料详情页tarot化改造 | 小程序前端 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 41-修复登录错误提示-request ok误弹 | 小程序前端 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 42-修复登录后昵称显示未登录 | 小程序前端 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
-| 43-B2-后台管理系统总纲 | Phase B2 后台管理 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
+| 43-B2-后台管理API总纲 | Phase B2 后台管理 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 44-B2-1-管理员模型与认证 | Phase B2 后台管理 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 45-B2-2-数据查看API | Phase B2 后台管理 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 46-B2-3-系统监控API | Phase B2 后台管理 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
-| 47-Admin-后台管理前端 | Phase Admin | 📋 待执行 | - | - |
+| 47-Admin-后台管理前端 | Phase Admin | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 48-Admin-1-项目初始化 | Phase Admin | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 49-Admin-2-布局与登录 | Phase Admin | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 50-Admin-3-仪表盘 | Phase Admin | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
@@ -221,18 +229,13 @@ docs/
 | 57-小程序前端样式方案重构-Tailwind→自定义 CSS | 小程序前端 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 58-踩坑记录-weapp-tailwindcss内容扫描失效 | 小程序前端 | ✅ 已完成 | 2026-08-08 | 2026-08-08 |
 | 59-小程序事件锚点与线上事件日志 | 小程序埋点 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 59-业务动作埋点与精确时间 | 小程序埋点增强 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
+| 59-v1.1-业务动作埋点与精确时间 | 小程序埋点增强 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
 | 60-LineChart-Canvas-修复 | LineChart Canvas 修复 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
 | 61-miniapp构建警告修复-Sass与循环依赖 | 小程序前端 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
 | 62-Admin事件日志详情弹窗 | 后台管理前端 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 59-小程序事件锚点与线上事件日志 | 小程序埋点 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 59-v1.1-业务动作埋点与精确时间 | 小程序埋点增强 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 60：LineChart-Canvas-修复 | LineChart Canvas 修复 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 61：miniapp 构建警告修复 — Sass 与循环依赖 | 小程序前端 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 62：Admin 事件日志详情弹窗 | 后台管理前端 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 63-Server部署方案-Docker与HF-Space | Server 部署 | ✅ 已完成 | 2026-08-09 | 2026-08-09 |
-| 64-Server部署方案-Oracle-Cloud | Server 部署 | 📋 待执行 | 2026-08-09 | - |
-| 65-Server部署方案-ModelScope-创空间 | Server 部署 | 📋 待执行 | 2026-08-09 | - |
+| 63-Server部署方案-Docker与HF-Space | Server 部署 | ⏳ 已归档（HF 停用） | 2026-08-09 | 2026-08-09 |
+| 64-Server部署方案-Oracle-Cloud | Server 部署 | ✅ 已完成（待建 VM 启用） | 2026-08-09 | 2026-08-09 |
+| 65-Server部署方案-ModelScope-创空间 | Server 部署 | ✅ 已完成（当前启用） | 2026-08-09 | 2026-08-09 |
 
 ## 约定
 

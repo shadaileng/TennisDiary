@@ -3,9 +3,9 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 65 |
-> | 文档版本 | v1.0.0 |
-> | 文档状态 | 📋 待执行 |
-> | 最后更新 | 2026-08-09 |
+> | 文档版本 | v1.2.0 |
+> | 文档状态 | ✅ 已完成（当前启用） |
+> | 最后更新 | 2026-08-10 |
 > | 对应功能/内容 | Server 部署方案（魔搭创空间 ModelScope Studio） |
 >
 > **变更历史**
@@ -13,6 +13,8 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-09 | v1.0.0 | 初版 |
+> | 2026-08-10 | v1.1.0 | 代码已实现；`deploy-server-modelscope.yml` 为当前唯一启用的部署 CI；新增 `modelscope/Dockerfile`（阿里云源加速构建） |
+> | 2026-08-10 | v1.2.0 | 补充"部署后 API 访问"章节：`.ms.show` 域名、鉴权流程、微信域名限制与反代说明 |
 >
 > **关联文档**：[63-Server 部署方案-Docker 与 HF Space](./63-Server部署方案-Docker与HF-Space.md) · [64-Server 部署方案-Oracle Cloud](./64-Server部署方案-Oracle-Cloud.md)
 
@@ -53,11 +55,12 @@ CPU 免费档（2 vCPU / 16G RAM）可免费托管 FastAPI 后台，且**国内�
 |------|------|------|
 | 部署配置 | `server/modelscope/ms_deploy.json` | 魔搭创空间部署配置（sdk/资源/端口） |
 | 部署指南 | `server/modelscope/README.md` | 魔搭创空间建仓 + 推送部署完整指南 |
+| 专属镜像 | `server/modelscope/Dockerfile` | 魔搭专用 Dockerfile（apt/pip/uv 指向阿里云源，加速跨境构建） |
 | 部署脚本 | `server/scripts/deploy-modelscope.sh` | 一键镜像 + 推送 + 设置 Secrets |
 | 配置模板 | `server/.env.modelscope.example` | 魔搭 SSH 连接参数模板 |
 | CI | `.github/workflows/deploy-server-modelscope.yml` | push `server/**` 自动部署到魔搭 |
 
-> 复用已有 `Dockerfile`、`docker-entrypoint.sh`，无需镜像改动。
+> 部署脚本优先复制 `modelscope/Dockerfile`（含阿里云源加速），无则回退根目录通用 `Dockerfile`。复用 `docker-entrypoint.sh`。
 
 ---
 
@@ -123,6 +126,72 @@ bash scripts/deploy-modelscope.sh
 
 反代配置与 HF 方案（`spaces/README.md` 七→八）完全相同，仅 `proxy_pass` 目标改为
 `https://{owner}-{studio}.ms.show`。
+
+### 3.6 部署后 API 访问方式
+
+#### 3.6.1 访问地址
+
+魔搭创空间部署完成后，每个创空间会获得一个固定的 `.ms.show` 直连域名：
+
+```
+https://{owner}-{studio}.ms.show
+```
+
+- `owner` = 你的魔搭用户名（如 `zhangsan`）
+- `studio_name` = 创空间名称（默认 `tennis-diary-server`）
+- 端口固定为 **7860**，但 `.ms.show` 域名已直接映射到 7860，**访问时无需带端口号**
+
+#### 3.6.2 主要 API 入口
+
+| 功能 | 地址 |
+|------|------|
+| Swagger 接口文档 | `https://{owner}-{studio}.ms.show/docs` |
+| 健康检查 | `https://{owner}-{studio}.ms.show/health` |
+| 登录接口 | `https://{owner}-{studio}.ms.show/api/auth/login` |
+| 业务接口（日记/装备/统计等） | `https://{owner}-{studio}.ms.show/api/diaries`、`/api/gears`、`/api/stats` 等 |
+| 管理端接口 | `https://{owner}-{studio}.ms.show/api/admin/*` |
+
+#### 3.6.3 访问前需等待构建
+
+推送代码后魔搭会异步自动构建镜像（首次约 3-5 分钟），构建完成前访问会 404 或超时。
+部署脚本设置 `WAIT_FOR_HEALTH=1` 时会轮询 `/health` 直到返回 200。
+
+#### 3.6.4 鉴权流程
+
+所有数据接口（如 `/api/diaries`、`/api/stats`）都需要登录鉴权：
+
+1. **获取登录 code**：小程序端用 `wx.login` 获取 code
+2. **调用登录接口**：`POST /api/auth/login` 传 code，换取 JWT（有效期 30 天）
+3. **携带 Token 访问**：请求头加 `Authorization: Bearer <jwt>`
+
+响应统一格式为 `{"code": 0, "message": "ok", "success": true, "data": {...}}`。
+
+#### 3.6.5 微信小程序域名限制（务必注意）
+
+1. **`.ms.show` 无法备案**：微信小程序要求 `request` 合法域名必须为**已备案域名**。
+   `.ms.show` 域名不能备案，所以**不能直接作为微信小程序的请求域名**。
+2. **解决方式**：自备一个**已备案的域名**，配置 Nginx 反向代理将 `.ms.show` 反代到该域名。
+   反代配置与 HF 方案（`spaces/README.md` 七→八节）一致，仅需把 `proxy_pass` 目标改为：
+   ```
+   https://{owner}-{studio}.ms.show
+   ```
+3. **健康检查地址**：反代后域名下仍可用 `/health` 做存活探测。
+
+#### 3.6.6 验证步骤
+
+```bash
+# 1. 健康检查
+curl https://{owner}-{studio}.ms.show/health
+# 期望：{"code":0,...}
+
+# 2. Swagger 文档
+# 浏览器打开 https://{owner}-{studio}.ms.show/docs
+
+# 3. 测试登录接口
+curl -X POST https://{owner}-{studio}.ms.show/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"code":"..."}'
+```
 
 ---
 
@@ -201,3 +270,12 @@ feat(server): 添加魔搭创空间部署方案
 - 创建 deploy-modelscope.sh（打包 + API Secrets + git push）
 - 创建 .env.modelscope.example 与 GitHub Actions
 ```
+
+---
+
+## 九、当前状态说明（2026-08-10）
+
+- **代码已全部实现**：`modelscope/ms_deploy.json`、`modelscope/README.md`、`modelscope/Dockerfile`、`scripts/deploy-modelscope.sh`、`.env.modelscope.example`、GitHub Actions workflow 均已创建（CHANGELOG 1.42.0 / 1.42.1）。
+- **当前启用**：`.github/workflows/deploy-server-modelscope.yml` 是当前唯一启用的部署 CI（HF、OCI 的 workflow 均在 `workflows-disabled/`）。
+- **构建加速**：1.42.1 新增 `modelscope/Dockerfile`，apt/pip/uv 指向阿里云源，解决跨境网络导致的构建慢问题；同时将 `server/uv.lock` 纳入版本管理，保证本地 / CI / 魔搭三方依赖一致。
+- **局限提示**：免费 CPU 档时长有限，适合演示与低流量；正式生产建议用 Oracle Cloud（[64](./64-Server部署方案-Oracle-Cloud.md)）常驻。

@@ -23,11 +23,14 @@
 
 ```
 workspace/
-├── server/            # FastAPI 后台
+├── server/            # FastAPI 后台（含部署：Docker/oci/modelscope/spaces）
 ├── miniapp/           # uni-app 小程序前端
 ├── admin/             # 后台管理前端（Vite + Vue 3）
 ├── docs/
 │   └── plans/         # 方案文档（执行索引）
+├── .github/
+│   ├── workflows/                 # 启用的 CI（当前仅 modelscope 部署）
+│   └── workflows-disabled/        # 停用的 CI（HF/OCI 部署，待启用）
 ├── package.json       # pnpm workspace 根配置
 └── pnpm-workspace.yaml
 ```
@@ -127,9 +130,11 @@ cd admin && pnpm build                 # 构建管理端
 | Phase 2.7 | 输入框与空状态样式优化 | ✅ |
 | Phase 59  | 事件锚点与线上事件日志（小程序埋点 + 后台查询 + 管理端页面） | ✅ |
 | Phase 61  | 构建警告修复（Sass @import → additionalData + 循环依赖） | ✅ |
-| Server-1  | Server 部署方案（Docker + HF Space） | ✅ |
-| Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM） | 📋 待执行 |
-| Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio） | 📋 待执行 |
+| Server-1  | Server 部署方案（Docker + HF Space，代码已实现；HF 已停用） | ⏳ 已归档 |
+| Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM，代码已实现；待建 VM 启用 CI） | ✅ |
+| Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio，代码已实现；当前启用） | ✅ |
+
+> 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
 详细进度与方案索引见 `docs/plans/` 目录。
 

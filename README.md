@@ -33,27 +33,33 @@ workspace/
 │   │   ├── schemas/        # Pydantic 数据模型
 │   │   └── services/       # 业务逻辑
 │   ├── tests/              # pytest 测试（镜像 app/ 结构）
-│   ├── data/               # SQLite 数据文件
-│   ├── uploads/            # 用户上传文件
-│   ├── scripts/verify.sh   # 一键验证（ruff + pytest）
+│   ├── data/               # 运行时数据（SQLite + 上传文件，不纳入版本管理）
+│   ├── scripts/            # 脚本（verify.sh / 部署脚本 docker/hf/oci/modelscope）
+│   ├── modelscope/         # 魔搭创空间部署配置（ms_deploy.json + 专属 Dockerfile）
+│   ├── oci/                # Oracle Cloud 部署指南
+│   ├── spaces/             # HF Space 部署说明
+│   ├── Dockerfile          # 生产镜像（多阶段）
+│   ├── docker-compose.yml  # 本地一键启动（含数据卷持久化）
 │   └── pyproject.toml      # uv 项目配置
 ├── miniapp/                # uni-app 小程序前端
 │   └── src/
-│       ├── components/     # Tailwind 自定义组件
+│       ├── components/     # 自定义组件
 │       ├── config/         # 环境变量配置
 │       ├── constants/      # 常量（含 storage 键名收口）
 │       ├── pages/          # 页面
 │       ├── services/       # 网络层（uni.request + JWT）
 │       ├── stores/         # Pinia 状态管理
-│       ├── styles/         # 全局样式 / Tailwind
+│       ├── styles/         # 全局样式
 │       ├── types/          # 类型定义
 │       ├── utils/          # 工具函数
 │       ├── pages.json      # 路由 + TabBar
 │       └── manifest.json   # 应用配置
+├── admin/                  # 后台管理前端（Vite + Vue 3 + Tailwind）
 ├── docs/                   # VitePress 文档站点
 │   ├── plans/              # 方案文档
 │   └── guides/             # 指南
-└── package.json            # 文档站点依赖（pnpm workspace）
+├── .github/workflows/      # CI（当前仅 modelscope 部署启用）
+└── package.json            # pnpm workspace 根配置
 ```
 
 ## 快速开始
@@ -102,7 +108,14 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 | Phase Admin | 后台管理前端（Vite+Vue3+Tailwind） | ✅ |
 | Phase 1 | 小程序基础能力（工程/Tailwind/store/网络/登录） | ✅ |
 | Phase 2 | 小程序业务页面（日记/装备/统计/我的） | ✅ |
-| Server README | 后端服务文档（迁移操作/常用命令） | ✅ |
+| Phase 2.5 | 小程序视觉样式与交互适配 | ✅ |
+| Phase 2.6 | 小程序样式方案重构（Tailwind→自定义 CSS） | ✅ |
+| Phase 2.7 | 输入框与空状态样式优化 | ✅ |
+| Phase 59  | 事件锚点与线上事件日志（小程序埋点 + 后台查询 + 管理端页面） | ✅ |
+| Phase 61  | 构建警告修复（Sass @import → additionalData + 循环依赖） | ✅ |
+| Server-1  | Server 部署方案（Docker + HF Space，代码已实现；HF 已停用） | ⏳ 已归档 |
+| Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM，代码已实现；待建 VM 启用 CI） | ✅ |
+| Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio，代码已实现；当前启用） | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 

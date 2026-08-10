@@ -3,9 +3,9 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 63 |
-> | 文档版本 | v1.0.0 |
-> | 文档状态 | 📋 待执行 |
-> | 最后更新 | 2026-08-09 |
+> | 文档版本 | v1.1.0 |
+> | 文档状态 | ⏳ 已归档（代码已实现，HF 部署已停用） |
+> | 最后更新 | 2026-08-10 |
 > | 对应功能/内容 | Server 部署方案（Docker + HF Space） |
 >
 > **变更历史**
@@ -13,8 +13,9 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-09 | v1.0.0 | 初版 |
+> | 2026-08-10 | v1.1.0 | 代码已实现；因 HF Space 免费 Docker 档要求 PRO 订阅（HTTP 402），HF 部署 workflow 已移至 `workflows-disabled/` 停用，改为魔搭/OCI 方案 |
 >
-> **关联文档**：[01-Tennis Diary 迁移微信小程序分析](./01-tennis-diary-迁移微信小程序分析.md) · [39-Alembic 数据库迁移接入](./39-Alembic数据库迁移接入.md)
+> **关联文档**：[01-Tennis Diary 迁移微信小程序分析](./01-tennis-diary-迁移微信小程序分析.md) · [39-Alembic 数据库迁移接入](./39-Alembic数据库迁移接入.md) · [64-Server 部署方案-Oracle Cloud](./64-Server部署方案-Oracle-Cloud.md) · [65-Server 部署方案-ModelScope 创空间](./65-Server部署方案-ModelScope-创空间.md)
 
 # Phase Server-1：Server 部署方案（Docker + HF Space）
 
@@ -282,3 +283,13 @@ feat(server): 添加 Docker 与 HF Space 部署方案
 - 创建 docker-entrypoint.sh（启动时自动迁移）
 - 创建 spaces/README.md（HF Space 部署指南）
 ```
+
+---
+
+## 十、当前状态说明（2026-08-10）
+
+- **代码已全部实现**：Dockerfile、docker-compose.yml、.dockerignore、docker-entrypoint.sh、spaces/README.md、.env.hf.example、deploy-hf.sh、GitHub Actions workflow 均已创建（CHANGELOG 1.41.0）。
+- **HF 部署已停用**：因 HF Space 免费 Docker 档已改为要求 PRO 订阅（HTTP 402），无法免费部署。`deploy-server-hf.yml` 已移至 `.github/workflows-disabled/`（注释明确"部署已切换为魔搭/OCI 方案"）。
+- **`Dockerfile.space` 实际未创建**：HF Space 方案重构后改为在 `server/` 根目录直接用主 `Dockerfile`（`README.hf.md` 作为 HF 专属前端配置），不再需要 `Dockerfile.space`。
+- **替代方案**：Oracle Cloud（[64](./64-Server部署方案-Oracle-Cloud.md)）与魔搭创空间（[65](./65-Server部署方案-ModelScope-创空间.md)）。当前**启用**的是魔搭方案。
+- **Docker 本地/自有服务器部署**（第一节的目标）仍然有效，未受 HF 停用影响。

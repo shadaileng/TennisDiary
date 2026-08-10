@@ -3,9 +3,9 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 64 |
-> | 文档版本 | v1.0.0 |
-> | 文档状态 | 📋 待执行 |
-> | 最后更新 | 2026-08-09 |
+> | 文档版本 | v1.1.0 |
+> | 文档状态 | ✅ 已完成（代码）· 待建 VM 启用 |
+> | 最后更新 | 2026-08-10 |
 > | 对应功能/内容 | Server 部署方案（Oracle Cloud Always Free） |
 >
 > **变更历史**
@@ -13,8 +13,9 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-09 | v1.0.0 | 初版 |
+> | 2026-08-10 | v1.1.0 | 代码已实现（脚本/指南/CI/env 模板）；因尚未创建 OCI VM，CI workflow 已移至 `workflows-disabled/`，待建机后启用 |
 >
-> **关联文档**：[01-Tennis Diary 迁移微信小程序分析](./01-tennis-diary-迁移微信小程序分析.md) · [63-Server 部署方案-Docker 与 HF Space](./63-Server部署方案-Docker与HF-Space.md)
+> **关联文档**：[01-Tennis Diary 迁移微信小程序分析](./01-tennis-diary-迁移微信小程序分析.md) · [63-Server 部署方案-Docker 与 HF Space](./63-Server部署方案-Docker与HF-Space.md) · [65-Server 部署方案-ModelScope 创空间](./65-Server部署方案-ModelScope-创空间.md)
 
 # Phase Server-2：Server 部署方案（Oracle Cloud Always Free）
 
@@ -187,3 +188,12 @@ feat(server): 添加 Oracle Cloud Always Free 部署方案
 - 创建 deploy-oci.sh（rsync 同步 + compose 重建）
 - 创建 .env.oci.example 与 GitHub Actions
 ```
+
+---
+
+## 九、当前状态说明（2026-08-10）
+
+- **代码已全部实现**：`oci/README.md`、`scripts/oci-bootstrap.sh`、`scripts/deploy-oci.sh`、`.env.oci.example`、GitHub Actions workflow 均已创建（CHANGELOG 1.41.1）。
+- **CI 待启用**：因尚未创建 Oracle Cloud 免费 VM，`deploy-server-oci.yml` 已移至 `.github/workflows-disabled/`。建机并完成 `oci-bootstrap.sh` 初始化后，将 workflow 移回 `.github/workflows/` 即可启用自动部署。
+- **当前启用方案**：魔搭创空间（[65](./65-Server部署方案-ModelScope-创空间.md)），适合快速演示；OCI 常驻 + 200GB 卷适合作为正式生产目标。
+- **本地手动部署不受影响**：即使不启用 CI，也可按第三节 `deploy-oci.sh` 手动部署。
