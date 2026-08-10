@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.42.2] - 2026-08-10
+
+### Fixed
+
+- 修复魔搭创空间 `.ms.show` 公网访问被网关拦截返回 `10011402001`：部署脚本 `deploy-modelscope.sh` 新增 `MODEL_SCOPE_VISIBILITY` 变量（默认 `false`=公开体验），创建创空间时不再写死 `private: true`
+- `.env.modelscope.example` 补充创空间可见性配置说明（`true`=私密 / `false`=公开体验）
+
 ## [1.42.1] - 2026-08-10
 
 ### Changed

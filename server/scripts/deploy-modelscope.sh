@@ -69,6 +69,8 @@ load_env_file
 MODEL_SCOPE_TOKEN="${MODEL_SCOPE_TOKEN:-}"
 MODEL_SCOPE_USERNAME="${MODEL_SCOPE_USERNAME:-}"
 MODEL_SCOPE_STUDIO_NAME="${MODEL_SCOPE_STUDIO_NAME:-tennis-diary-server}"
+# 创空间可见性：true=私密, false=公开体验（默认公开，避免 .ms.show 公网访问被网关拦截返回 10011402001）
+MODEL_SCOPE_VISIBILITY="${MODEL_SCOPE_VISIBILITY:-false}"
 MS_API_BASE="${MS_API_BASE:-https://modelscope.cn/openapi/v1}"
 JWT_SECRET="${JWT_SECRET:-}"
 WX_APPID="${WX_APPID:-}"
@@ -107,7 +109,7 @@ else
     \"repo_name\": \"${MODEL_SCOPE_STUDIO_NAME}\",
     \"sdk_type\": \"docker\",
     \"display_name\": \"Tennis Diary Server\",
-    \"private\": true
+    \"private\": ${MODEL_SCOPE_VISIBILITY}
   }" || true)
   if [ -n "$CREATE_RESP" ] && ! echo "$CREATE_RESP" | grep -q "error"; then
     log_ok "  ✓ 创空间创建成功"
