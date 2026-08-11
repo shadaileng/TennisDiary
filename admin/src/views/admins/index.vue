@@ -118,7 +118,8 @@
         </button>
         <button
           @click="saveAdmin"
-          class="px-4 py-2 bg-olive-600 text-white rounded-md hover:bg-olive-700"
+          :disabled="saving"
+          class="px-4 py-2 bg-olive-600 text-white rounded-md hover:bg-olive-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           保存
         </button>
@@ -134,6 +135,11 @@ import { getRoles, type Role } from '@/api/roles'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Modal from '@/components/common/Modal.vue'
+import { useToastStore } from '@/stores/toast'
+import { useActionLock } from '@/composables/useActionLock'
+
+const toast = useToastStore()
+const { pending: saving, runWithLock } = useActionLock()
 
 const columns = [
   { key: 'id', title: 'ID' },
@@ -194,8 +200,9 @@ const editAdmin = (admin: Admin) => {
   showForm.value = true
 }
 
-const saveAdmin = async () => {
+const saveAdmin = () => runWithLock(async () => {
   try {
+    const isEdit = !!editingAdmin.value
     if (editingAdmin.value) {
       await updateAdmin(editingAdmin.value.id, {
         nickname: form.value.nickname,
@@ -212,43 +219,46 @@ const saveAdmin = async () => {
     showForm.value = false
     editingAdmin.value = null
     form.value = { username: '', password: '', nickname: '', role_id: '' }
+    toast.success(isEdit ? '管理员已更新' : '管理员已创建')
     await fetchAdmins()
   } catch (e) {
     console.error('Failed to save admin:', e)
   }
-}
+})
 
-const resetPwd = async (admin: Admin) => {
+const resetPwd = (admin: Admin) => runWithLock(async () => {
   const newPwd = prompt(`请输入 ${admin.username} 的新密码：`)
   if (newPwd) {
     try {
       await resetPassword(admin.id, newPwd)
-      alert('密码已重置')
+      toast.success('密码已重置')
     } catch (e) {
       console.error('Failed to reset password:', e)
     }
   }
-}
+})
 
-const toggleStatus = async (admin: Admin) => {
+const toggleStatus = (admin: Admin) => runWithLock(async () => {
   try {
     await toggleAdminStatus(admin.id, !admin.is_active)
+    toast.success(`管理员已${admin.is_active ? '禁用' : '启用'}`)
     await fetchAdmins()
   } catch (e) {
     console.error('Failed to toggle status:', e)
   }
-}
+})
 
-const confirmDelete = async (admin: Admin) => {
+const confirmDelete = (admin: Admin) => runWithLock(async () => {
   if (confirm(`确定要删除管理员 ${admin.username} 吗？`)) {
     try {
       await deleteAdmin(admin.id)
+      toast.success('管理员已删除')
       await fetchAdmins()
     } catch (e) {
       console.error('Failed to delete admin:', e)
     }
   }
-}
+})
 
 onMounted(() => {
   fetchAdmins()

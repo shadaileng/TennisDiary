@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.44.0] - 2026-08-11
+
+### Added
+
+- admin 新增全局 Loading 遮罩：axios 拦截器以请求计数器控制，所有 API 请求自动显示加载反馈；新增 `useActionLock` 组合式函数，列表页提交类操作（保存/重置密码/状态切换/删除）防重复提交并补充成功 toast 提示。详见 `docs/plans/68-Admin全局Loading与防重复提交.md`
+
 ## [1.43.4] - 2026-08-11
 
 ### Fixed
