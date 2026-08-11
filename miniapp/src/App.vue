@@ -1,5 +1,10 @@
+<template>
+  <Loading />
+</template>
+
 <script setup lang="ts">
 import { onLaunch, onShow, onHide, onError } from "@dcloudio/uni-app";
+import Loading from "@/components/Loading.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
 import { logFatal, flushPendingEvents } from "@/utils/eventLogger";

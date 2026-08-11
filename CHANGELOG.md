@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.45.0] - 2026-08-11
+
+### Added
+
+- miniapp 新增全局 Loading 遮罩：`request.ts` 以请求计数器控制 loading 开关（并发请求不提前消失），新增 `useAppStore` 与 `Loading.vue` 全屏遮罩组件并在 `App.vue` 挂载。详见 `docs/plans/69-miniapp全局Loading遮罩.md`
+
 ## [1.44.0] - 2026-08-11
 
 ### Added

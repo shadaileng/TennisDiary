@@ -1,5 +1,6 @@
 import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
+import { useAppStore } from "@/stores/app";
 import { logError, logWarn } from "@/utils/eventLogger";
 
 /**
@@ -79,6 +80,28 @@ function promptLogin() {
   uni.showToast({ title: "请到「我的」页登录后使用", icon: "none" });
 }
 
+/** 请求计数器：用于并发场景下正确关闭全局 loading */
+let pendingCount = 0;
+
+/**
+ * 全局 loading 开关（请求计数器版）
+ *
+ * 发起请求时 ++，请求结束（success/fail 任一终态）时 --，
+ * 归零才关闭 loading，保证并发请求不会提前消失。
+ */
+function setGlobalLoading(loading: boolean) {
+  const appStore = useAppStore();
+  if (loading) {
+    pendingCount++;
+    appStore.setLoading(true);
+  } else {
+    pendingCount = Math.max(0, pendingCount - 1);
+    if (pendingCount === 0) {
+      appStore.setLoading(false);
+    }
+  }
+}
+
 /**
  * 从后端错误响应中提取可展示的错误信息。
  *
@@ -128,6 +151,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
   }
 
   return new Promise<T>((resolve, reject) => {
+    setGlobalLoading(true);
     uni.request({
       url: fullUrl,
       method,
@@ -135,6 +159,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
       header: finalHeaders,
       timeout,
       success: (res) => {
+        setGlobalLoading(false);
         console.log("[request success]", method, url, res.statusCode);
         const statusCode = res.statusCode;
         if (statusCode >= 200 && statusCode < 300) {
@@ -170,6 +195,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
         reject(new ApiError(statusCode, parseDetail(res)));
       },
       fail: (err) => {
+        setGlobalLoading(false);
         console.error("[request fail]", method, url, err);
         logError(`网络请求失败 ${method} ${url}: ${err.errMsg || "未知错误"}`, {
           method,
