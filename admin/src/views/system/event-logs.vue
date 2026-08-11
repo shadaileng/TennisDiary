@@ -4,7 +4,7 @@
 
     <!-- 筛选条件 -->
     <div class="bg-white rounded-lg shadow-md p-4 mb-6">
-      <div class="flex flex-wrap gap-4">
+      <div class="flex flex-wrap gap-x-6 gap-y-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">级别</label>
           <select
@@ -77,16 +77,17 @@
 
     <!-- 事件列表 -->
     <div class="bg-white rounded-lg shadow-md overflow-hidden">
-      <table class="min-w-full divide-y divide-gray-200">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">时间</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">级别</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">类型</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">动作</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">消息</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">页面</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">设备</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">时间</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">级别</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">类型</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">动作</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">消息</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">用户</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">设备</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -96,10 +97,10 @@
             class="hover:bg-gray-50 cursor-pointer"
             @click="() => { selectedEvent = event; event.user_id && getUserInfo(event.user_id) }"
           >
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ formatClientTime(event.client_time) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-4 py-4 whitespace-nowrap">
               <span
                 class="px-2 py-1 text-xs rounded-full font-medium"
                 :class="levelClass(event.level)"
@@ -107,32 +108,30 @@
                 {{ event.level.toUpperCase() }}
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
               {{ event.type }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
               {{ event.action || '--' }}
             </td>
-            <td class="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+            <td class="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">
               {{ event.message }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ event.page || '--' }}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ userDisplayName(event.user_id) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
               {{ event.device_info?.model || '--' }}
             </td>
           </tr>
           <tr v-if="events.length === 0">
-            <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+            <td colspan="7" class="px-4 py-12 text-center text-gray-500">
               暂无事件日志
             </td>
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- 分页 -->

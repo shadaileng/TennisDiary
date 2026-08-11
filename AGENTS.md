@@ -138,6 +138,7 @@ cd admin && pnpm build                 # 构建管理端
 | Phase 67  | Cloudflare Workers 反向代理（解决魔搭网关 CORS 预检 + `X-Auth-Token` 透传） | ✅ |
 | Fix 2026-08-10 | 小程序表单保存防重复提交、`safeNavigateBack` 栈底回退、`eventLogger` 移除 `require()` 别名解析 | ✅ |
 | Phase 68 | Admin 全局 Loading 遮罩（axios 拦截器请求计数器）与提交类操作防重复提交（`useActionLock`） | ✅ |
+| Fix 2026-08-11 | Admin 事件日志表格布局优化（移除"页面"列、表头防换行、表格横向滚动、列宽对齐公共 Table 组件） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

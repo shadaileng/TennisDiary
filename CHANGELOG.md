@@ -10,6 +10,10 @@
 
 - admin 新增全局 Loading 遮罩：axios 拦截器以请求计数器控制，所有 API 请求自动显示加载反馈；新增 `useActionLock` 组合式函数，列表页提交类操作（保存/重置密码/状态切换/删除）防重复提交并补充成功 toast 提示。详见 `docs/plans/68-Admin全局Loading与防重复提交.md`
 
+### Fixed
+
+- admin 事件日志表格布局优化：移除"页面"列、表头防换行（`whitespace-nowrap`）、表格容器支持横向滚动（`overflow-x-auto`）、列宽与内边距对齐公共 `Table` 组件，避免表格过宽挤压侧边栏
+
 ## [1.43.4] - 2026-08-11
 
 ### Fixed
