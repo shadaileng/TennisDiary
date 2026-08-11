@@ -55,6 +55,7 @@ workspace/
 │       ├── pages.json      # 路由 + TabBar
 │       └── manifest.json   # 应用配置
 ├── admin/                  # 后台管理前端（Vite + Vue 3 + Tailwind）
+├── proxy/                  # Cloudflare Workers 反向代理（魔搭 CORS + 鉴权头透传）
 ├── docs/                   # VitePress 文档站点
 │   ├── plans/              # 方案文档
 │   └── guides/             # 指南
@@ -116,6 +117,7 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 | Server-1  | Server 部署方案（Docker + HF Space，代码已实现；HF 已停用） | ⏳ 已归档 |
 | Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM，代码已实现；待建 VM 启用 CI） | ✅ |
 | Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio，代码已实现；当前启用） | ✅ |
+| Phase 67  | Cloudflare Workers 反向代理（解决魔搭网关 CORS + 鉴权头透传） | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 

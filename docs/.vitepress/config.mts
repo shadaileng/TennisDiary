@@ -139,6 +139,13 @@ export default defineConfig({
             { text: '65：魔搭创空间（当前启用）', link: '/plans/65-Server部署方案-ModelScope-创空间' },
           ],
         },
+        {
+          text: '前端跨域代理',
+          collapsed: false,
+          items: [
+            { text: '67：Cloudflare Workers 代理 ModelScope', link: '/plans/67-Cloudflare-Workers-代理-ModelScope-方案' },
+          ],
+        },
       ],
       '/guides/': [
         {

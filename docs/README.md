@@ -78,7 +78,8 @@ docs/
 │   ├── 62-Admin事件日志详情弹窗.md
 │   ├── 63-Server部署方案-Docker与HF-Space.md
 │   ├── 64-Server部署方案-Oracle-Cloud.md
-│   └── 65-Server部署方案-ModelScope-创空间.md
+│   ├── 65-Server部署方案-ModelScope-创空间.md
+│   └── 67-Cloudflare-Workers-代理-ModelScope-方案.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -157,6 +158,7 @@ docs/
 | 63：Server 部署方案（Docker + HF Space） | v1.1.0 | 方案 | `plans/63-Server部署方案-Docker与HF-Space.md` | Docker 镜像 + HF Space 托管部署（代码已实现，HF 已停用） | ⏳ 已归档 |
 | 64：Server 部署方案（Oracle Cloud） | v1.1.0 | 方案 | `plans/64-Server部署方案-Oracle-Cloud.md` | Oracle Cloud Always Free 免费 VM 部署（SSH + Docker Compose） | ✅ 已完成（待建 VM 启用） |
 | 65：Server 部署方案（魔搭创空间） | v1.1.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署（当前启用） | ✅ 已完成 |
+| 67：Cloudflare Workers 代理 ModelScope 方案 | v1.0.0 | 方案 | `plans/67-Cloudflare-Workers-代理-ModelScope-方案.md` | Worker 反向代理解决魔搭 CORS 预检 + `X-Auth-Token` 透传 | ✅ 已完成 |
 ## 文档类型说明
 
 | 类型 | 说明 | 生命周期 |
@@ -236,6 +238,7 @@ docs/
 | 63-Server部署方案-Docker与HF-Space | Server 部署 | ⏳ 已归档（HF 停用） | 2026-08-09 | 2026-08-09 |
 | 64-Server部署方案-Oracle-Cloud | Server 部署 | ✅ 已完成（待建 VM 启用） | 2026-08-09 | 2026-08-09 |
 | 65-Server部署方案-ModelScope-创空间 | Server 部署 | ✅ 已完成（当前启用） | 2026-08-09 | 2026-08-09 |
+| 67-Cloudflare-Workers-代理-ModelScope-方案 | 前端跨域代理 | ✅ 已完成 | 2026-08-10 | 2026-08-10 |
 
 ## 约定
 
