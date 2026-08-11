@@ -3,7 +3,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build
+# Nginx 部署挂 /admin/ 子路径，使用 build:nginx（BUILD_BASE=/admin/）
+RUN npm run build:nginx
 
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html

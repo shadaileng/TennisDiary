@@ -1,0 +1,16 @@
+# Admin 管理端 Cloudflare Workers 部署配置
+# 部署：cd admin && pnpm build && npx wrangler deploy
+# CI：仓库 .github/workflows/deploy-admin-workers.yml
+name = "tennis-diary-admin"
+main = "worker/index.ts"
+compatibility_date = "2024-01-01"
+
+# Vite 构建产物静态托管：worker/index.ts 经 ASSETS 绑定伺服 dist/
+# SPA fallback 与静态资源长缓存由 worker/index.ts 内的 fetch handler 处理
+assets = { directory = "./dist", binding = "ASSETS" }
+
+# 说明：
+# - API 网关由独立 Worker tennis-diary-proxy（proxy/）承担，此处仅托管静态资源 dist/。
+# - 使用纯 Cloudflare Workers（wrangler deploy），非 Pages。
+# - VITE_API_BASE_URL 在构建期内联，部署前请在 admin/.env 或 CI Variables 中配置。
+# - 生产建议绑定已备案自定义域名，大陆访问更稳定（*.workers.dev 大陆不稳定）。

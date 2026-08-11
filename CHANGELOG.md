@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.47.0] - 2026-08-11
+
+### Added
+
+- admin 新增 Cloudflare Workers 部署方式：生产构建 `base` 从硬编码 `/admin/` 改为默认 `/`（读取 `BUILD_BASE`），Nginx 特例用 `pnpm build:nginx`（`BUILD_BASE=/admin/`）保持 `/admin/` 前缀；新增 `admin/worker/index.ts`（纯 Workers 入口，`ASSETS` 绑定伺服 `dist/`，SPA history fallback + 静态长缓存）与 `admin/wrangler.toml`；Dockerfile 改用 `build:nginx`；新增 `.github/workflows/deploy-admin-workers.yml`（wrangler-action 自动部署）。详见 `docs/plans/71-Admin-Cloudflare-Workers-部署.md`
+
 ## [1.46.0] - 2026-08-11
 
 ### Added
