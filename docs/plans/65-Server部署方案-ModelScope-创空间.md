@@ -60,7 +60,7 @@ CPU 免费档（2 vCPU / 16G RAM）可免费托管 FastAPI 后台，且**国内�
 | 配置模板 | `server/.env.modelscope.example` | 魔搭 SSH 连接参数模板 |
 | CI | `.github/workflows/deploy-server-modelscope.yml` | push `server/**` 自动部署到魔搭 |
 
-> 部署脚本优先复制 `modelscope/Dockerfile`（含阿里云源加速），无则回退根目录通用 `Dockerfile`。复用 `docker-entrypoint.sh`。
+> 部署脚本优先复制 `modelscope/Dockerfile`（含阿里云源加速 + `DATA_DIR` 固化指向持久化卷 `/mnt/workspace`），无则回退根目录通用 `Dockerfile`。复用 `docker-entrypoint.sh`。
 
 ---
 
@@ -246,7 +246,7 @@ server/
 | API 文档 | `https://{u}-{s}.ms.show/docs` | Swagger 正常 |
 | 健康检查 | `curl https://{u}-{s}.ms.show/health` | `{"code":0,...}` |
 | 数据库迁移 | 日志 `Migrations complete.` | alembic 无错误 |
-| 数据持久化 | 容器重启后查库 | `/mnt/workspace` 数据不丢 |
+| 数据持久化 | 容器重启后查库 | `/mnt/workspace` 数据不丢（`DATA_DIR` 已指向该卷） |
 
 ---
 

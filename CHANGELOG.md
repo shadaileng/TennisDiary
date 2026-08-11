@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.47.1] - 2026-08-11
+
+### Fixed
+
+- 修复魔搭创空间数据持久化失效：`server/modelscope/Dockerfile` 的 `DATA_DIR` 从非持久化的 `/data` 改为魔搭持久化卷 `/mnt/workspace`，容器重启后 SQLite 数据库、上传文件与日志不再丢失（转移/重命名创空间除外）。同步更新 `modelscope/README.md` 与 `docs/plans/65-*.md`。
+
 ## [1.47.0] - 2026-08-11
 
 ### Added

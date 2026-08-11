@@ -56,7 +56,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 # 运行时环境变量默认值（可被 docker-compose 或魔搭 Secrets 覆盖）
-ENV DATA_DIR=/data
+# 魔搭创空间持久化卷固定为 /mnt/workspace，DATA_DIR 指向它以保证重启后数据不丢
+ENV DATA_DIR=/mnt/workspace
 ENV UPLOAD_DIR=${DATA_DIR}/uploads
 ENV LOG_DIR=${DATA_DIR}/logs
 
