@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.43.4] - 2026-08-11
+
+### Fixed
+
+- 修复 admin 用户管理与事件日志详情中头像 URL 未拼接后台地址：`users/index.vue` 的 `getAvatarUrl` 与 `system/event-logs.vue` 的 `resolveAvatarUrl` 重新引入 `VITE_API_BASE_URL` 前缀，生产环境（管理端与后台不同域名）头像不再 404
+
 ## [1.43.3] - 2026-08-10
 
 ### Fixed

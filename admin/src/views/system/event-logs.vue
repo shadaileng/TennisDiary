@@ -322,8 +322,9 @@ const userDisplayName = (userId: number | null): string => {
 
 const resolveAvatarUrl = (url: string): string => {
   if (url.startsWith('http')) return url
+  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
   const path = url.replace(/^avatars\//, 'avatar/')
-  return `/api/upload/${path}`
+  return `${baseURL}/api/upload/${path}`
 }
 
 const fetchEvents = async () => {

@@ -140,8 +140,9 @@ const maskOpenid = (openid: string): string => {
 const getAvatarUrl = (avatarUrl: string | null | undefined): string => {
   if (!avatarUrl) return ''
   if (avatarUrl.startsWith('http')) return avatarUrl
+  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
   const path = avatarUrl.replace(/^avatars\//, 'avatar/')
-  return `/api/upload/${path}`
+  return `${baseURL}/api/upload/${path}`
 }
 
 const fetchUsers = async () => {
