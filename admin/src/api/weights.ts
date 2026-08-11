@@ -24,6 +24,10 @@ export function getWeights(params: { offset?: number; limit?: number; user_id?: 
   return request.get('/api/admin/weights', { params })
 }
 
+export function getWeight(id: number): Promise<Weight> {
+  return request.get(`/api/admin/weights/${id}`)
+}
+
 export function deleteWeight(id: number) {
   return request.delete(`/api/admin/weights/${id}`)
 }

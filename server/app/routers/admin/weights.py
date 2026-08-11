@@ -47,6 +47,19 @@ def list_weights(
     )
 
 
+@router.get("/{weight_id}", response_model=ApiResponse[WeightAdminResponse])
+def get_weight(
+    weight_id: int,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """体重记录详情"""
+    weight = db.query(WeightRecord).filter(WeightRecord.id == weight_id).first()
+    if weight is None:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    return ApiResponse(data=WeightAdminResponse.model_validate(weight))
+
+
 @router.delete("/{weight_id}", response_model=ApiResponse[None])
 def delete_weight(
     weight_id: int,

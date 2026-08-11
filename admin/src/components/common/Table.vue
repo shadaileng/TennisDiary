@@ -16,7 +16,13 @@
         </tr>
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-for="(row, index) in data" :key="index" class="hover:bg-gray-50">
+        <tr
+          v-for="(row, index) in data"
+          :key="index"
+          class="hover:bg-gray-50"
+          :class="{ 'cursor-pointer': rowClickable }"
+          @click="rowClickable && emit('row-click', row)"
+        >
           <td
             v-for="column in columns"
             :key="column.key"
@@ -26,7 +32,7 @@
               {{ row[column.key] }}
             </slot>
           </td>
-          <td v-if="$slots.actions" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+          <td v-if="$slots.actions" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
             <slot name="actions" :row="row" />
           </td>
         </tr>
@@ -44,5 +50,10 @@
 defineProps<{
   columns: Array<{ key: string; title: string }>
   data: any[]
+  rowClickable?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'row-click', row: any): void
 }>()
 </script>

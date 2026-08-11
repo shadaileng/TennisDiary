@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.46.0] - 2026-08-11
+
+### Added
+
+- admin 日记/装备/体重管理页新增点击行查看详情：公共 `Table` 组件增加可选 `rowClickable` prop（向后兼容，默认关闭）与 `row-click` 事件，actions 列 `@click.stop` 阻止删除误触发行点击；三个页面接入事件日志风格的自定义大弹窗（`max-w-2xl`、两列网格、遮罩/右上角/底部三处关闭），日记 JSON 字段（costs/gears）解析格式化展示。详见 `docs/plans/70-Admin-日记装备体重点击查看.md`
+- 后端补齐体重单条查询接口 `GET /api/admin/weights/{id}`（与日记/装备对齐），前端 `weights.ts` 新增 `getWeight`
+
 ## [1.45.1] - 2026-08-11
 
 ### Fixed
