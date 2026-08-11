@@ -3,9 +3,9 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 31 |
-> | 文档版本 | v1.1.0 |
+> | 文档版本 | v1.2.0 |
 > | 文档状态 | ✅ 已完成 |
-> | 最后更新 | 2026-08-07 |
+> | 最后更新 | 2026-08-11 |
 > | 对应功能/内容 | Phase 2-5：我的页（用户信息 + 手动登录/登出 + 设置入口），补齐 Step 25 遗留的手动登录入口 |
 >
 > **变更历史**
@@ -14,6 +14,7 @@
 > |------|:----:|------|
 > | 2026-08-07 | v1.0.0 | 初版 |
 > | 2026-08-07 | v1.1.0 | 实施完成：我的页（用户信息 + 手动登录/登出 + 设置） |
+> | 2026-08-11 | v1.2.0 | 修复「编辑资料」重复跳转：移除整卡点击，收敛到右侧箭头 + 底部按钮（`.stop` 阻止冒泡） |
 >
 > **关联文档**：[Phase 2 总纲（26）](./26-Phase2-业务页面实现总纲.md) · [Phase1-8 对接登录（20）](./20-Phase1-8-对接B1登录流程.md) · [Step 25 静默登录门控（25）](./25-静默登录门控-首次启动不请求后台.md)
 
@@ -52,7 +53,8 @@
 
 **操作区**：
 - 未登录：整卡可点的「微信一键登录」按钮 → `auth.login()`
-- 已登录：「退出登录」按钮（`uni.showModal` 确认）→ `auth.logout()`
+- 已登录：「编辑资料」按钮 + 卡片右侧 `›` 箭头 → `navigateTo` 到 `pages/profile-edit/profile-edit`（编辑资料页）；卡片其他区域不触发跳转
+- 退出登录：在编辑资料页底部，`uni.showModal` 确认 → `auth.logout()`
 
 **设置区**（CellGroup + switch）：
 - 金额隐私：`settings.hideAmounts` 开关
@@ -100,3 +102,7 @@
   - 补齐 Step 25 遗留的手动登录入口：未登录显示「微信一键登录」→ `auth.login()`；已登录显示「退出登录」→ `auth.logout()`（`uni.showModal` 确认）
   - 设置开关用小程序 `switch` 绑定 `settings.toggleHideAmounts()`/`toggleLimeTheme()`
   - 验证：`pnpm type-check`、`pnpm build:mp-weixin` 通过
+- 2026-08-11：修复「编辑资料」重复跳转
+  - 问题：用户信息卡 `profile-card` 整体绑定 `@tap` 跳转，且底部「编辑资料」按钮位于卡内也绑定 `@tap`，事件冒泡导致 `goEditProfile()` 触发两次，`uni.navigateTo` 打开两个编辑资料页
+  - 修复：移除整张卡的 `@tap` 与 `clickable` class；跳转收敛到卡片右侧 `›` 箭头（`@tap="goEditProfile"`）与底部「编辑资料」按钮（`@tap.stop="goEditProfile"`，`.stop` 阻止冒泡）
+  - 验证：`pnpm type-check` 通过

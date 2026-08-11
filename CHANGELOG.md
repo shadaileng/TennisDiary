@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.45.1] - 2026-08-11
+
+### Fixed
+
+- 修复 miniapp「我的」页「编辑资料」重复跳转（打开两次）：用户信息卡整体绑定的 `@tap` 与卡内底部「编辑资料」按钮事件冒泡叠加导致 `navigateTo` 触发两次。移除整卡点击，跳转收敛到卡片右侧 `›` 箭头与底部按钮（`@tap.stop` 阻止冒泡）。详见 `docs/plans/31-Phase2-5-我的页.md`
+
 ## [1.45.0] - 2026-08-11
 
 ### Added

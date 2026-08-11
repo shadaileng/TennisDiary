@@ -1,11 +1,7 @@
 <template>
   <view class="mine-page">
     <!-- 用户信息卡（深橄榄渐变 + 青柠光斑） -->
-    <view
-      class="profile-card"
-      :class="{ clickable: authStore.isLoggedIn }"
-      @tap="authStore.isLoggedIn && goEditProfile()"
-    >
+    <view class="profile-card">
       <view class="profile-header">
         <view class="profile-avatar">
           <image
@@ -23,7 +19,7 @@
           <text v-if="authStore.user" class="profile-meta">{{ genderLabel }} · {{ birthdayLabel }}</text>
         </view>
 
-        <text v-if="authStore.isLoggedIn" class="profile-arrow">›</text>
+        <text v-if="authStore.isLoggedIn" class="profile-arrow" @tap="goEditProfile">›</text>
       </view>
 
       <!-- 统计徽章区（登录后拉 /stats） -->
@@ -44,7 +40,7 @@
 
       <!-- 主按钮：未登录=微信一键登录；已登录=编辑资料 -->
       <view v-if="!authStore.isLoggedIn" class="primary-btn" @tap="doLogin">微信一键登录</view>
-      <view v-else class="primary-btn" @tap="goEditProfile">编辑资料</view>
+      <view v-else class="primary-btn" @tap.stop="goEditProfile">编辑资料</view>
     </view>
 
     <!-- 功能入口（仅登录后显示） -->

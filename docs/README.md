@@ -122,7 +122,7 @@ docs/
 | 28：Phase 2-2 日记页 | v1.1.0 | 方案 | `plans/28-Phase2-2-日记页.md` | 日记列表 + 新建/编辑表单，对接 `/api/diaries` | ✅ 已完成 |
 | 29：Phase 2-3 装备页 | v1.1.0 | 方案 | `plans/29-Phase2-3-装备页.md` | 装备画报卡片流 + 表单 + 照片上传，对接 `/api/gears` | ✅ 已完成 |
 | 30：Phase 2-4 统计页 | v1.1.0 | 方案 | `plans/30-Phase2-4-统计页.md` | 汇总卡片 + 体重管理 + LineChart 折线图，对接 `/api/stats` `/api/weights` | ✅ 已完成 |
-| 31：Phase 2-5 我的页 | v1.1.0 | 方案 | `plans/31-Phase2-5-我的页.md` | 用户信息 + 手动登录/登出 + 设置入口 | ✅ 已完成 |
+| 31：Phase 2-5 我的页 | v1.2.0 | 方案 | `plans/31-Phase2-5-我的页.md` | 用户信息 + 手动登录/登出 + 设置入口 | ✅ 已完成 |
 | 32：Tailwind 适配方案迁移 weapp-tailwindcss | v1.0.0 | 方案 | `plans/32-Tailwind适配方案迁移-weapp-tailwindcss.md` | 从 `tailwindcss-miniprogram-preset` 迁移到 `weapp-tailwindcss`，根治 WXSS 编译错误 | ✅ 已完成 |
 | 33：未登录友好提示 — 网络层门控与数据层兜底 | v1.0.0 | 方案 | `plans/33-未登录友好提示-网络层门控与数据层兜底.md` | 未登录时网络层门控 + 数据层 try/catch 兜底，友好提示引导登录 | ✅ 已完成 |
 | 34：空数据处理完善 — 统计页数据总览空态 | v1.0.0 | 方案 | `plans/34-空数据处理完善-统计页数据总览空态.md` | 统计页「数据总览」无数据时展示空态引导 | ✅ 已完成 |
