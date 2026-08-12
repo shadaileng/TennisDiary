@@ -26,10 +26,17 @@ export interface LogEntry {
   total: number
 }
 
+export type BackupType = 'manual' | 'pre_restore' | 'upload'
+
 export interface Backup {
   name: string
   size: string
   created_at: string
+  type?: BackupType
+  status?: 'created' | 'restored' | 'deleted'
+  note?: string
+  restored_from_id?: number | null
+  restored_from_name?: string | null
 }
 
 export interface BackupList {
@@ -59,4 +66,14 @@ export function getBackups(): Promise<BackupList> {
 
 export function restoreBackup(backupId: string): Promise<{ message: string }> {
   return request.post(`/api/admin/system/restore/${backupId}`)
+}
+
+export function deleteBackup(backupId: string): Promise<{ message: string }> {
+  return request.delete(`/api/admin/system/backup/${backupId}`)
+}
+
+export function uploadBackup(file: File): Promise<{ message: string }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/api/admin/system/backup/upload', formData)
 }

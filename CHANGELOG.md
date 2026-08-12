@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.48.0] - 2026-08-12
+
+### Added
+
+- admin 备份管理增强：新增独立元数据库 `backup_meta.db`（`backup_records` 记录备份/恢复/上传/删除事件，与业务库隔离、不参与业务备份恢复，纯表驱动列表）；新增上传备份接口（multipart `.tar.gz`/`.db`）、下载备份（`FileResponse`）、删除备份（软删+物理删）；恢复前生成 `pre_restore_*` 完整兜底备份并关联 `restored_from_id`，保证同时只有一个 `restored` 状态；前端新增「上传备份」按钮、「恢复状态」列（已恢复/未使用，关联兜底文件名经 `:title` 悬浮展示）、类型徽标（恢复前兜底/上传）、下载/删除按钮。详见 `docs/plans/72-Admin-备份管理增强.md`
+
 ## [1.47.1] - 2026-08-11
 
 ### Fixed

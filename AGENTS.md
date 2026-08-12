@@ -141,6 +141,7 @@ cd admin && pnpm build                 # 构建管理端
 | Fix 2026-08-11 | Admin 事件日志表格布局优化（移除"页面"列、表头防换行、表格横向滚动、列宽对齐公共 Table 组件） | ✅ |
 | Fix 2026-08-11 | 小程序「我的」页「编辑资料」重复跳转修复（移除整卡点击，收敛到右侧箭头 + 底部按钮 `.stop` 阻止冒泡） | ✅ |
 | Step 70 | Admin 日记/装备/体重点击行查看详情（公共 Table 增加可选 `rowClickable`、三个页面接入自定义大弹窗、后端补齐体重单条查询接口） | ✅ |
+| Step 72 | Admin 备份管理增强（独立元数据库 `backup_meta.db` + 上传/下载/删除联动 + 恢复状态展示） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

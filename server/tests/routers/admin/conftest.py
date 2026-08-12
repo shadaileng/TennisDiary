@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.backup_meta import MetaBase, get_backup_meta_db
 from app.core.database import Base, get_db
 from app.core.permissions import DEFAULT_ROLES
 from app.core.security import hash_password
@@ -77,13 +78,36 @@ def test_admin(test_db, test_roles):
 
 
 @pytest.fixture(scope="module")
-def client(test_db):
+def test_meta_db():
+    """独立备份元数据库会话（临时文件隔离，不污染真实 backup_meta.db）"""
+    fd, path = tempfile.mkstemp(suffix="_meta.db", prefix="test_backup_meta_")
+    os.close(fd)
+    engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+    # 确保 BackupRecord 已注册到 MetaBase.metadata，create_all 才能建表
+    from app.models.backup_record import BackupRecord  # noqa: F401
+
+    MetaBase.metadata.create_all(bind=engine)
+    MetaSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = MetaSession()
+    yield db
+    db.close()
+    MetaBase.metadata.drop_all(bind=engine)
+    engine.dispose()
+    os.unlink(path)
+
+
+@pytest.fixture(scope="module")
+def client(test_db, test_meta_db):
     """注入测试数据库的 TestClient"""
 
     def override_get_db():
         yield test_db
 
+    def override_get_backup_meta_db():
+        yield test_meta_db
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_backup_meta_db] = override_get_backup_meta_db
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
