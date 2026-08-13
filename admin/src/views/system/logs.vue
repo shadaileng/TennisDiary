@@ -27,9 +27,15 @@
             placeholder="搜索关键字"
           />
         </div>
-        <div class="flex items-end">
+        <div class="flex items-end gap-2">
           <button
-            @click="fetchLogs"
+            @click="fetchLogs(true)"
+            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
+          >
+            刷新
+          </button>
+          <button
+            @click="fetchLogs(true)"
             class="px-4 py-2 bg-olive-600 text-white rounded-md hover:bg-olive-700"
           >
             查询
@@ -40,8 +46,15 @@
 
     <!-- 日志列表 -->
     <div class="bg-white rounded-lg shadow-md overflow-hidden">
-      <div class="p-4 border-b">
-        <span class="text-sm text-gray-600">共 {{ logs.length }} 条日志</span>
+      <div class="p-4 border-b flex items-center justify-between">
+        <span class="text-sm text-gray-600">已加载 {{ logs.length }} 条日志</span>
+        <button
+          @click="loadMore"
+          :disabled="!hasMore"
+          class="px-3 py-1 text-sm bg-olive-50 text-olive-700 rounded-md hover:bg-olive-100 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          加载更早
+        </button>
       </div>
       <div class="max-h-[600px] overflow-y-auto">
         <div
@@ -60,27 +73,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { getLogs } from '@/api/system'
 
+const PAGE_SIZE = 500
+
 const logs = ref<string[]>([])
+const hasMore = ref(false)
 const filters = reactive({
   level: '',
   keyword: ''
 })
+// 若翻过页，暂停自动刷新，避免打断查看历史
+let viewedOlder = false
 
-const fetchLogs = async () => {
+const fetchLogs = async (reset = true) => {
   try {
     const data = await getLogs({
       level: filters.level || undefined,
       keyword: filters.keyword || undefined,
-      limit: 500
+      limit: PAGE_SIZE,
+      offset: reset ? 0 : logs.value.length // 续载则跳过已加载的匹配数
     })
-    logs.value = data.logs
+    logs.value = reset ? data.logs : [...logs.value, ...data.logs]
+    hasMore.value = data.has_more
+    if (reset) viewedOlder = false
   } catch (e) {
     console.error('Failed to fetch logs:', e)
   }
 }
 
-onMounted(fetchLogs)
+const loadMore = () => {
+  viewedOlder = true
+  fetchLogs(false)
+}
+
+let timer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  fetchLogs()
+  // 仅停留在最新页时自动刷新，避免打断历史查看
+  timer = setInterval(() => !viewedOlder && fetchLogs(), 10_000)
+})
+onUnmounted(() => clearInterval(timer))
 </script>

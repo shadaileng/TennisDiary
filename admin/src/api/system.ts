@@ -24,6 +24,7 @@ export interface HealthStatus {
 export interface LogEntry {
   logs: string[]
   total: number
+  has_more: boolean
 }
 
 export type BackupType = 'manual' | 'pre_restore' | 'upload'
@@ -52,7 +53,12 @@ export function getHealthStatus(): Promise<HealthStatus> {
   return request.get('/api/admin/system/health')
 }
 
-export function getLogs(params: { level?: string; keyword?: string; limit?: number }): Promise<LogEntry> {
+export function getLogs(params: {
+  level?: string
+  keyword?: string
+  limit?: number
+  offset?: number
+}): Promise<LogEntry> {
   return request.get('/api/admin/system/logs', { params })
 }
 

@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.50.0] - 2026-08-13
+
+### Added
+
+- admin 日志查看倒序分页优化：后端 `query_logs` 改为尾部 64KB 分块倒序读取（最新优先），新增 `offset` 游标与 `has_more` 标记支持向前翻页加载更早日志；前端日志页新增「刷新」按钮、「加载更早」分页按钮（offset 续载不重叠）、「已加载 N 条」计数，并增加停留最新页时 10s 自动轮询（翻页查看历史不打断）；新增 3 个测试用例（最新优先、offset 分页不重叠、短文件 `has_more=False`）。详见 `docs/plans/74-日志查看倒序分页优化.md`
+
 ## [1.49.0] - 2026-08-13
 
 ### Added

@@ -68,6 +68,50 @@ def test_query_logs_with_params(auth_client, test_db):
     assert "total" in data
 
 
+def _write_test_log(n: int = 600) -> None:
+    """写入 n 行日志到已隔离的 LOG_DIR（autouse _isolate_data_dirs 生效）。
+
+    行内容格式：`INFO     LOG-{i:03d}`（对应 loguru 8 字符级别对齐）。
+    """
+    log_dir = Path(settings.LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / settings.LOG_FILE
+    with open(log_file, "w", encoding="utf-8") as f:
+        for i in range(n):
+            f.write(f"INFO     LOG-{i:03d}\n")
+
+
+def test_query_logs_returns_latest_first(auth_client, test_db):
+    """超过 limit 时应返回最新日志（倒序读取，最新优先）"""
+    _write_test_log(n=600)
+
+    data = auth_client.get("/api/admin/system/logs?limit=10").json()["data"]
+    assert data["logs"][0] == "INFO     LOG-599"  # 最新行在最前
+    assert len(data["logs"]) == 10
+    assert data["has_more"] is True
+
+
+def test_query_logs_offset_pagination(auth_client, test_db):
+    """offset 应加载更早的日志，且与首页不重叠"""
+    _write_test_log(n=600)
+
+    first = auth_client.get("/api/admin/system/logs?limit=10").json()["data"]["logs"]
+    second = auth_client.get("/api/admin/system/logs?limit=10&offset=10").json()["data"]["logs"]
+
+    assert first[0] == "INFO     LOG-599"
+    assert second[0] == "INFO     LOG-589"  # 更早一页
+    assert not set(first) & set(second)  # 无重叠
+
+
+def test_query_logs_has_more_false_when_short(auth_client, test_db):
+    """日志条数少于 limit 时 has_more 应为 False"""
+    _write_test_log(n=5)
+
+    data = auth_client.get("/api/admin/system/logs?limit=10").json()["data"]
+    assert data["has_more"] is False
+    assert len(data["logs"]) == 5
+
+
 def test_backup_database(auth_client, test_db):
     """测试数据目录整体备份接口（tar.gz）"""
     # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path

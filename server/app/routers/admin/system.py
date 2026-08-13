@@ -1,5 +1,6 @@
 """系统监控路由"""
 
+import os
 import shutil
 import tarfile
 import time
@@ -132,30 +133,66 @@ def query_logs(
     level: str | None = None,
     keyword: str | None = None,
     limit: int = 100,
+    offset: int = 0,
     admin: Admin = Depends(get_current_admin),
 ):
-    """日志查询（支持按文件/级别/关键字过滤）"""
+    """日志查询（尾部倒序读取，最新优先；offset 用于向前翻页加载更早）"""
     log_file = Path(settings.LOG_DIR) / settings.LOG_FILE
     if not log_file.exists():
-        return ApiResponse(data={"logs": [], "total": 0})
+        return ApiResponse(data={"logs": [], "total": 0, "has_more": False})
 
-    logs = []
+    def _matches(line: str) -> bool:
+        if level:
+            # loguru 输出格式：`INFO     `（无方括号，大写，8 字符对齐）
+            if f"{level.upper():<8}" not in line:
+                return False
+        if keyword and keyword not in line:
+            return False
+        return True
+
+    collected: list[str] = []
+    matched = 0  # 已扫描到的匹配总数（从新到旧累计，offset 游标依据）
     try:
-        with open(log_file, encoding="utf-8") as f:
-            for line in f:
-                if level:
-                    # loguru 输出格式：`INFO     `（无方括号，大写）
-                    if f"{level.upper():<8}" not in line:
+        with open(log_file, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            chunk_size = 64 * 1024  # 每块 64KB，大文件也快
+            pos = size
+            carry = b""  # 块首残行，需与更早的块拼接
+            while pos > 0 and len(collected) < limit:
+                read_size = min(chunk_size, pos)
+                pos -= read_size
+                f.seek(pos)
+                data = f.read(read_size) + carry
+                lines = data.split(b"\n")
+                carry = lines[0]
+                for raw in reversed(lines[1:]):
+                    if not raw:
                         continue
-                if keyword and keyword not in line:
-                    continue
-                logs.append(line.strip())
-                if len(logs) >= limit:
-                    break
+                    line = raw.decode("utf-8", errors="replace")
+                    if not _matches(line):
+                        continue
+                    matched += 1
+                    if matched > offset and len(collected) < limit:
+                        collected.append(line.strip())
+            # 处理文件最开头残留的一行
+            if carry and len(collected) < limit:
+                line = carry.decode("utf-8", errors="replace")
+                if _matches(line):
+                    matched += 1
+                    if matched > offset:
+                        collected.append(line.strip())
     except (OSError, ValueError) as e:
         raise HTTPException(status_code=500, detail=f"读取日志文件失败: {e!s}") from e
 
-    return ApiResponse(data={"logs": logs, "total": len(logs)})
+    # has_more：仍存在未扫描区域（pos > 0）或凑满 limit 提前停止（可能还有更早匹配）
+    return ApiResponse(
+        data={
+            "logs": collected,  # 从新到旧
+            "total": matched,  # 本次扫描范围内匹配总数（新→旧累计，供 offset 游标计算）
+            "has_more": pos > 0 or len(collected) >= limit,
+        }
+    )
 
 
 def _pack_data_dir(backup_path: Path) -> None:

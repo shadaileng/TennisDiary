@@ -134,6 +134,7 @@ export default defineConfig({
             { text: '70：Admin 日记/装备/体重点击查看详情', link: '/plans/70-Admin-日记装备体重点击查看' },
             { text: '71：Admin Cloudflare Workers 部署', link: '/plans/71-Admin-Cloudflare-Workers-部署' },
             { text: '72：Admin 备份管理增强', link: '/plans/72-Admin-备份管理增强' },
+            { text: '74：日志查看倒序分页优化', link: '/plans/74-日志查看倒序分页优化' },
           ],
         },
         {

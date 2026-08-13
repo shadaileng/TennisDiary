@@ -79,7 +79,15 @@ docs/
 │   ├── 63-Server部署方案-Docker与HF-Space.md
 │   ├── 64-Server部署方案-Oracle-Cloud.md
 │   ├── 65-Server部署方案-ModelScope-创空间.md
-│   └── 67-Cloudflare-Workers-代理-ModelScope-方案.md
+│   ├── 66-ModelScope部署鉴权头兼容改造.md
+│   ├── 67-Cloudflare-Workers-代理-ModelScope-方案.md
+│   ├── 68-Admin全局Loading与防重复提交.md
+│   ├── 69-miniapp全局Loading遮罩.md
+│   ├── 70-Admin-日记装备体重点击查看.md
+│   ├── 71-Admin-Cloudflare-Workers-部署.md
+│   ├── 72-Admin-备份管理增强.md
+│   ├── 73-测试体系引入-env-test实现环境隔离.md
+│   └── 74-日志查看倒序分页优化.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -160,6 +168,7 @@ docs/
 | 65：Server 部署方案（魔搭创空间） | v1.1.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署（当前启用） | ✅ 已完成 |
 | 67：Cloudflare Workers 代理 ModelScope 方案 | v1.0.0 | 方案 | `plans/67-Cloudflare-Workers-代理-ModelScope-方案.md` | Worker 反向代理解决魔搭 CORS 预检 + `X-Auth-Token` 透传 | ✅ 已完成 |
 | 73：测试体系引入 `.env.test` 实现环境隔离 | v1.0.0 | 方案 | `plans/73-测试体系引入-env-test实现环境隔离.md` | 测试配置环境隔离（pytest-env + 环境感知加载 + `data_test/` 落盘隔离） | ✅ 已完成 |
+| 74：日志查看倒序分页优化 | v1.0.0 | 方案 | `plans/74-日志查看倒序分页优化.md` | Admin 日志查看倒序读取 + 游标分页（解决只能看最早 500 条） | ✅ 已完成 |
 
 ## 文档类型说明
 
@@ -242,6 +251,7 @@ docs/
 | 65-Server部署方案-ModelScope-创空间 | Server 部署 | ✅ 已完成（当前启用） | 2026-08-09 | 2026-08-09 |
 | 67-Cloudflare-Workers-代理-ModelScope-方案 | 前端跨域代理 | ✅ 已完成 | 2026-08-10 | 2026-08-10 |
 | 73-测试体系引入-env-test实现环境隔离 | 测试与工程优化 | ✅ 已完成 | 2026-08-13 | 2026-08-13 |
+| 74-日志查看倒序分页优化 | 后台管理端优化 | ✅ 已完成 | 2026-08-13 | 2026-08-13 |
 
 ## 约定
 
