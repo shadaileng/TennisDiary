@@ -170,6 +170,7 @@ export default defineConfig({
             { text: '75-1：AI 评分代理接口', link: '/plans/75-1-AI评分代理接口' },
             { text: '75-2：视频上传与抽帧', link: '/plans/75-2-视频上传与抽帧' },
             { text: '75-3：MediaPipe 姿态推理', link: '/plans/75-3-MediaPipe姿态推理' },
+            { text: '75-4：分析报告落库与历史查询', link: '/plans/75-4-分析报告落库与历史查询' },
           ],
         },
       ],

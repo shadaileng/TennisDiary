@@ -9,7 +9,20 @@ from fastapi.responses import JSONResponse
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
 from app.middleware.logging import RequestLoggingMiddleware
-from app.routers import ai, auth, checkin, diaries, files, gears, stats, upload, video, weights
+from app.routers import (
+    ai,
+    analyses,
+    auth,
+    checkin,
+    diaries,
+    files,
+    gears,
+    pose,
+    stats,
+    upload,
+    video,
+    weights,
+)
 from app.routers import events as user_events
 from app.routers.admin import admins as admin_admins
 from app.routers.admin import analyses as admin_analyses
@@ -119,6 +132,8 @@ async def general_exception_handler(request: Request, exc: Exception):
 # 注册路由
 app.include_router(auth.router)
 app.include_router(ai.router)
+app.include_router(analyses.router)
+app.include_router(pose.router)
 app.include_router(video.router)
 app.include_router(diaries.router)
 app.include_router(gears.router)

@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.53.0] - 2026-08-13
+
+### Added
+
+- server MediaPipe 姿态推理接口 `POST /api/pose/analyze`：CPU 推理逐帧输出 33 关键点（归一化坐标 + visibility）+ 首个可测帧的三角度测量（肘角/膝角/躯干倾角，`measure_angles` 与参考版 `pose.ts` 对齐）；mediapipe 懒加载预检、模型缺失返回 503、无人检测返回 200 + `detected=false`。新增依赖 `mediapipe` 与 `server/models/` 目录（模型文件不纳入版本管理）。详见 `docs/plans/75-3-MediaPipe姿态推理.md`
+- server 用户端分析报告落库与历史查询：`POST /api/analyses`（AI 分析成功后落库）、`GET /api/analyses`（历史列表，分页倒序，仅本人）、`GET /api/analyses/{id}`（详情，完整六维报告结构化 JSON）、`DELETE /api/analyses/{id}`；`Analysis` 模型新增 `video_url` 列 + Alembic 增量迁移。详见 `docs/plans/75-4-分析报告落库与历史查询.md`
+
 ## [1.52.0] - 2026-08-13
 
 ### Added

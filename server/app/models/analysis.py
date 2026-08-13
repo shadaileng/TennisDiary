@@ -17,5 +17,6 @@ class Analysis(Base):
     report = Column(Text, nullable=True)  # JSON: AnalysisReport
     thumb = Column(Text, nullable=True)  # 封面帧路径
     highlights = Column(Text, nullable=True)  # JSON: 高光帧路径数组
+    video_url = Column(String(255), nullable=True)  # 视频文件相对路径（75-2 返回）
     created_at = Column(Float, default=0)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

@@ -92,7 +92,8 @@ docs/
 │   ├── 75-B2-Admin同步AI网关功能.md
 │   ├── 75-1-AI评分代理接口.md
 │   ├── 75-2-视频上传与抽帧.md
-│   └── 75-3-MediaPipe姿态推理.md
+│   ├── 75-3-MediaPipe姿态推理.md
+│   └── 75-4-分析报告落库与历史查询.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -178,7 +179,8 @@ docs/
 | 75-B2-Admin：Admin 同步 AI 网关功能 | v1.1.0 | 方案 | `plans/75-B2-Admin同步AI网关功能.md` | Admin 同步三件套：分析报告管理增强 + AI 网关状态监控 + Admin 静态文件服务 | ✅ 已完成 |
 | 75-1：AI 评分代理接口 | v1.0.0 | 方案 | `plans/75-1-AI评分代理接口.md` | `POST /api/ai/analyze` 六维评分代理（OpenAI 兼容，Key 存服务端，失败降级） | ✅ 已完成 |
 | 75-2：视频上传与抽帧 | v1.0.0 | 方案 | `plans/75-2-视频上传与抽帧.md` | `POST /api/video/upload` ffmpeg 抽帧（single 7/full 8 帧，640px JPEG，imageio-ffmpeg 兜底） | ✅ 已完成 |
-| 75-3：MediaPipe 姿态推理 | v1.0.0 | 方案 | `plans/75-3-MediaPipe姿态推理.md` | `POST /api/pose/analyze` 33 关键点 + 肘/膝/躯干角测量（CPU 推理，模型随包） | 📋 待执行 |
+| 75-3：MediaPipe 姿态推理 | v1.0.0 | 方案 | `plans/75-3-MediaPipe姿态推理.md` | `POST /api/pose/analyze` 33 关键点 + 肘/膝/躯干角测量（CPU 推理，模型随包） | 🏁 已完成 |
+| 75-4：分析报告落库与历史查询 | v1.0.0 | 方案 | `plans/75-4-分析报告落库与历史查询.md` | `POST/GET/DELETE /api/analyses` 落库 + 历史列表/详情/删除，`video_url` 列迁移 | 🏁 已完成 |
 
 ## 文档类型说明
 
@@ -266,7 +268,8 @@ docs/
 | 75-B2-Admin同步AI网关功能 | Phase B2 AI 网关三件套（Admin 侧） | ✅ 已完成 | 2026-08-13 | 19 新增用例 + 全量 202 passed，ruff 通过，admin build 通过 |
 | 75-1-AI评分代理接口 | Phase B2 AI 网关三件套 | ✅ 已完成 | 2026-08-13 | 8 用例 + 全量 167 passed，ruff 通过 |
 | 75-2-视频上传与抽帧 | Phase B2 AI 网关三件套 | ✅ 已完成 | 2026-08-13 | 16 用例 + 全量 183 passed，ruff 通过 |
-| 75-3-MediaPipe姿态推理 | Phase B2 AI 网关三件套 | 📋 待执行 | - | - |
+| 75-3-MediaPipe姿态推理 | Phase B2 AI 网关三件套 | 🏁 已完成 | 2026-08-13 | 17 用例 + 全量 219 passed，ruff 通过 |
+| 75-4-分析报告落库与历史查询 | Phase B2 AI 网关三件套 | 🏁 已完成 | 2026-08-13 | 15 用例 + 全量 234 passed，ruff 通过 |
 
 ## 约定
 

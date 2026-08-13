@@ -206,6 +206,7 @@ class AnalysisCreate(BaseModel):
     report: AnalysisReportSchema | None = None
     thumb: str | None = None
     highlights: list[str] | None = None
+    video_url: str | None = None
 
 
 class AnalysisResponse(AnalysisCreate):
