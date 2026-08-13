@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.55.1] - 2026-08-13
+
+### Fixed
+
+- server 全局异常处理响应补充 `Access-Control-Allow-Origin` 头：未知异常由最外层 `ServerErrorMiddleware` 生成响应（绕过 `CORSMiddleware`），此前 500 响应缺失 CORS 头导致浏览器误报跨域拦截；现手动补头，便于前端看到真实错误信息。
+
 ## [1.55.0] - 2026-08-13
 
 ### Added
