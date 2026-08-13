@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.51.0] - 2026-08-13
+
+### Added
+
+- server AI 评分代理接口 `POST /api/ai/analyze`：OpenAI 兼容调用阿里云百炼（Key 存服务端，不进入小程序包），六维评分 prompt 与参考版 `analyzeSwing` 对齐，无 Key / 调用失败 / 解析失败自动返回本地降级报告（`build_local_report`，HTTP 200）。详见 `docs/plans/75-1-AI评分代理接口.md`
+- server 视频上传与抽帧接口 `POST /api/video/upload`：ffmpeg 抽帧（single 7 / full 8 帧，640px JPEG，`imageio-ffmpeg` 兜底），时长校验（single 15s / full 90s）、采样时间点与参考版 `CoachAnalyze.tsx` 对齐、封面帧提取；新增依赖 `imageio-ffmpeg`。详见 `docs/plans/75-2-视频上传与抽帧.md`
+
 ## [1.50.1] - 2026-08-13
 
 ### Fixed
