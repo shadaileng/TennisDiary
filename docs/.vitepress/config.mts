@@ -161,6 +161,17 @@ export default defineConfig({
             { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
           ],
         },
+        {
+          text: 'Phase B2（AI 网关三件套）',
+          collapsed: false,
+          items: [
+            { text: '75-B2 总纲：AI 网关三件套', link: '/plans/75-B2-AI网关三件套总纲' },
+            { text: '75-B2-Admin：Admin 同步 AI 网关功能', link: '/plans/75-B2-Admin同步AI网关功能' },
+            { text: '75-1：AI 评分代理接口', link: '/plans/75-1-AI评分代理接口' },
+            { text: '75-2：视频上传与抽帧', link: '/plans/75-2-视频上传与抽帧' },
+            { text: '75-3：MediaPipe 姿态推理', link: '/plans/75-3-MediaPipe姿态推理' },
+          ],
+        },
       ],
       '/guides/': [
         {
