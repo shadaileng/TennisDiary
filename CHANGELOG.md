@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.49.0] - 2026-08-13
+
+### Added
+
+- server 测试体系引入 `.env.test` 实现环境隔离：`config.py` 新增 `APP_ENV` 环境感知加载（测试环境加载 `.env.test`，`override=True`），`pytest-env` 在 pytest 运行注入 `APP_ENV=test`；测试数据统一落到 `server/data_test/`，不触碰真实 `data/`；`conftest.py` 新增 autouse `_isolate_data_dirs` 将 `DATA_DIR/UPLOAD_DIR/LOG_DIR` 隔离到临时目录、session 级 `_init_test_database` 预建测试库表，清理 `test_system.py` 7 处手工 `monkeypatch` 样板；新增 `.env.test.example`（提交）与 `test_config_env.py` 配置隔离测试，`.gitignore` 忽略 `data_test/` 与 `.env.test`。详见 `docs/plans/73-测试体系引入-env-test实现环境隔离.md`
+
 ## [1.48.0] - 2026-08-12
 
 ### Added

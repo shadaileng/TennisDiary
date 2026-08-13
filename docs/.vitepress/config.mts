@@ -120,7 +120,9 @@ export default defineConfig({
             { text: '59：小程序事件锚点与线上事件日志', link: '/plans/59-小程序事件锚点与线上事件日志' },
             { text: '59-v1.1：业务动作埋点与精确时间', link: '/plans/59-业务动作埋点与精确时间' },
             { text: '60：LineChart Canvas 修复', link: '/plans/60-LineChart-Canvas-修复' },
+            { text: '60-v2：LineChart Canvas to SVG 重构', link: '/plans/60-LineChart-Canvas-to-SVG' },
             { text: '61：miniapp 构建警告修复 — Sass 与循环依赖', link: '/plans/61-miniapp构建警告修复-Sass与循环依赖' },
+            { text: '69：miniapp 全局 Loading 遮罩', link: '/plans/69-miniapp全局Loading遮罩' },
           ],
         },
         {
@@ -128,6 +130,10 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '62：Admin 事件日志详情弹窗', link: '/plans/62-Admin事件日志详情弹窗' },
+            { text: '68：Admin 全局 Loading 与防重复提交', link: '/plans/68-Admin全局Loading与防重复提交' },
+            { text: '70：Admin 日记/装备/体重点击查看详情', link: '/plans/70-Admin-日记装备体重点击查看' },
+            { text: '71：Admin Cloudflare Workers 部署', link: '/plans/71-Admin-Cloudflare-Workers-部署' },
+            { text: '72：Admin 备份管理增强', link: '/plans/72-Admin-备份管理增强' },
           ],
         },
         {
@@ -137,6 +143,7 @@ export default defineConfig({
             { text: '63：Docker 与 HF Space（已归档）', link: '/plans/63-Server部署方案-Docker与HF-Space' },
             { text: '64：Oracle Cloud（待建 VM 启用）', link: '/plans/64-Server部署方案-Oracle-Cloud' },
             { text: '65：魔搭创空间（当前启用）', link: '/plans/65-Server部署方案-ModelScope-创空间' },
+            { text: '66：ModelScope 部署鉴权头兼容改造', link: '/plans/66-ModelScope部署鉴权头兼容改造' },
           ],
         },
         {
@@ -144,6 +151,13 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '67：Cloudflare Workers 代理 ModelScope', link: '/plans/67-Cloudflare-Workers-代理-ModelScope-方案' },
+          ],
+        },
+        {
+          text: '测试与工程优化',
+          collapsed: false,
+          items: [
+            { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
           ],
         },
       ],

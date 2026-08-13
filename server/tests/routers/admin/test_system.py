@@ -3,6 +3,7 @@
 import io
 import os
 import tarfile
+from pathlib import Path
 
 import pytest
 
@@ -67,12 +68,10 @@ def test_query_logs_with_params(auth_client, test_db):
     assert "total" in data
 
 
-def test_backup_database(auth_client, test_db, tmp_path, monkeypatch):
+def test_backup_database(auth_client, test_db):
     """测试数据目录整体备份接口（tar.gz）"""
-    # 用临时目录隔离 DATA_DIR，避免污染真实数据库
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 
@@ -104,16 +103,14 @@ def test_backup_database(auth_client, test_db, tmp_path, monkeypatch):
     )
 
 
-def test_restore_backup(auth_client, test_db, test_meta_db, tmp_path, monkeypatch):
+def test_restore_backup(auth_client, test_db, test_meta_db):
     """测试恢复接口：恢复前会无条件生成一份完整备份（pre_restore_*.tar.gz）
 
-    注意：restore 接口会 tar.extractall(settings.DATA_DIR) 覆盖真实数据库，
-    因此必须用 monkeypatch 将 DATA_DIR 隔离到 tmp_path，避免污染真实环境。
+    注意：restore 接口会 tar.extractall(settings.DATA_DIR) 覆盖数据库，
+    autouse _isolate_data_dirs 已将 DATA_DIR 隔离到 tmp_path，避免污染真实环境。
     """
-    # 用临时目录隔离 DATA_DIR，避免恢复覆盖真实数据库
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 
@@ -175,13 +172,10 @@ def test_restore_backup(auth_client, test_db, test_meta_db, tmp_path, monkeypatc
     assert item["restored_from_name"] == pre_record.name
 
 
-def test_restore_resets_previous_restored(
-    auth_client, test_db, test_meta_db, tmp_path, monkeypatch
-):
+def test_restore_resets_previous_restored(auth_client, test_db, test_meta_db):
     """恢复新备份时，旧的 restored 状态被重置，保证同时只有一个 restored"""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 
@@ -298,11 +292,10 @@ def test_list_backups_includes_types(auth_client, test_meta_db):
     assert "note" in by_name["upload_abc123.tar.gz"]
 
 
-def test_download_backup(auth_client, test_db, tmp_path, monkeypatch):
+def test_download_backup(auth_client, test_db):
     """测试下载备份文件接口"""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 
@@ -322,11 +315,10 @@ def test_download_backup(auth_client, test_db, tmp_path, monkeypatch):
     os.unlink(backup_path)
 
 
-def test_download_backup_traversal(auth_client, test_db, tmp_path, monkeypatch):
+def test_download_backup_traversal(auth_client, test_db):
     """测试下载接口路径穿越防护"""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 
@@ -334,11 +326,10 @@ def test_download_backup_traversal(auth_client, test_db, tmp_path, monkeypatch):
     assert response.status_code in (400, 404)
 
 
-def test_delete_backup(auth_client, test_db, test_meta_db, tmp_path, monkeypatch):
+def test_delete_backup(auth_client, test_db, test_meta_db):
     """测试删除备份记录（物理删文件 + 软删记录）接口"""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 
@@ -376,11 +367,10 @@ def test_delete_backup(auth_client, test_db, test_meta_db, tmp_path, monkeypatch
     assert response.status_code == 404
 
 
-def test_upload_backup(auth_client, test_meta_db, tmp_path, monkeypatch):
+def test_upload_backup(auth_client, test_meta_db):
     """测试上传备份文件接口（multipart）"""
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    # settings.DATA_DIR 已被 autouse fixture _isolate_data_dirs 隔离到 tmp_path
+    data_dir = Path(settings.DATA_DIR)
     backup_dir = data_dir / "backups"
     backup_dir.mkdir()
 

@@ -3,9 +3,19 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# 用绝对路径加载 server/.env，无论从哪个目录启动都能正确读取
-# config.py 位于 server/app/core/ 下，需向上三级到 server/
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+# 用绝对路径定位 server/ 目录（config.py 位于 server/app/core/，向上三级）
+SERVER_DIR = Path(__file__).resolve().parent.parent.parent
+
+# APP_ENV 必须在 load_dotenv 之前从 os.getenv 读取，
+# 否则会被 .env 文件里的 APP_ENV 覆盖，无法切换配置源
+APP_ENV = os.getenv("APP_ENV", "dev")
+
+# 测试环境加载 .env.test（override=True 覆盖已存在的环境变量，实现隔离）；
+# 开发/生产加载 .env
+if APP_ENV == "test":
+    load_dotenv(SERVER_DIR / ".env.test", override=True)
+else:
+    load_dotenv(SERVER_DIR / ".env")
 
 
 class Settings:

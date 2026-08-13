@@ -159,6 +159,8 @@ docs/
 | 64：Server 部署方案（Oracle Cloud） | v1.1.0 | 方案 | `plans/64-Server部署方案-Oracle-Cloud.md` | Oracle Cloud Always Free 免费 VM 部署（SSH + Docker Compose） | ✅ 已完成（待建 VM 启用） |
 | 65：Server 部署方案（魔搭创空间） | v1.1.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署（当前启用） | ✅ 已完成 |
 | 67：Cloudflare Workers 代理 ModelScope 方案 | v1.0.0 | 方案 | `plans/67-Cloudflare-Workers-代理-ModelScope-方案.md` | Worker 反向代理解决魔搭 CORS 预检 + `X-Auth-Token` 透传 | ✅ 已完成 |
+| 73：测试体系引入 `.env.test` 实现环境隔离 | v1.0.0 | 方案 | `plans/73-测试体系引入-env-test实现环境隔离.md` | 测试配置环境隔离（pytest-env + 环境感知加载 + `data_test/` 落盘隔离） | ✅ 已完成 |
+
 ## 文档类型说明
 
 | 类型 | 说明 | 生命周期 |
@@ -239,6 +241,7 @@ docs/
 | 64-Server部署方案-Oracle-Cloud | Server 部署 | ✅ 已完成（待建 VM 启用） | 2026-08-09 | 2026-08-09 |
 | 65-Server部署方案-ModelScope-创空间 | Server 部署 | ✅ 已完成（当前启用） | 2026-08-09 | 2026-08-09 |
 | 67-Cloudflare-Workers-代理-ModelScope-方案 | 前端跨域代理 | ✅ 已完成 | 2026-08-10 | 2026-08-10 |
+| 73-测试体系引入-env-test实现环境隔离 | 测试与工程优化 | ✅ 已完成 | 2026-08-13 | 2026-08-13 |
 
 ## 约定
 

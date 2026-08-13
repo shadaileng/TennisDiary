@@ -7,6 +7,51 @@ from app.core.auth import get_current_user
 from app.core.database import Base, get_db
 from app.main import app
 
+# ==================== 测试数据库初始化（session 级） ====================
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _init_test_database():
+    """确保测试环境数据库（settings.DATABASE_URL）表已创建。
+
+    pytest-env 注入 APP_ENV=test 后，config.py 加载 .env.test，
+    DATABASE_URL 指向 ./data_test/tennis_diary_test.db。应用 lifespan 会用
+    SessionLocal 对该库执行 init_default_roles，若表不存在会报 "no such table"。
+    此 fixture 在首个测试前建表，保证 lifespan 可正常执行，且数据落在 data_test/。
+    """
+    import app.models  # noqa: F401  # 确保所有模型注册到 Base.metadata
+    from app.core.database import engine
+
+    Base.metadata.create_all(bind=engine)
+    return engine
+
+
+# ==================== 目录隔离（autouse，全局生效） ====================
+
+
+@pytest.fixture(autouse=True)
+def _isolate_data_dirs(tmp_path, monkeypatch):
+    """将 DATA_DIR / UPLOAD_DIR / LOG_DIR 隔离到临时目录，杜绝污染真实 data_test/。
+
+    仅隔离 settings 的属性值，不会重建全局 engine（engine 由 dependency
+    override 注入 test_db 使用，业务路由读的是 settings.UPLOAD_DIR/DATA_DIR）。
+    """
+    from app.core.config import settings
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
+    monkeypatch.setattr(settings, "UPLOAD_DIR", str(data_dir / "uploads"))
+    monkeypatch.setattr(settings, "LOG_DIR", str(data_dir / "logs"))
+    return data_dir
+
+
+@pytest.fixture
+def data_dir(_isolate_data_dirs):
+    """提供已隔离的临时 DATA_DIR，供需要构造文件结构的测试使用"""
+    return _isolate_data_dirs
+
+
 # ==================== 测试数据库 ====================
 
 
