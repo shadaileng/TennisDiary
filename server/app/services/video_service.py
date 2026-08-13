@@ -140,11 +140,8 @@ def extract_frames(path: str, times: list[float], width: int = _FRAME_WIDTH) -> 
         if proc.returncode != 0 or not proc.stdout:
             stderr_text = proc.stderr.decode(errors="replace")[-300:]
             log.warning(
-                "抽帧失败",
-                time=t,
-                returncode=proc.returncode,
-                stderr=stderr_text,
-                stdout_len=len(proc.stdout),
+                f"抽帧失败 time={t:.3f} returncode={proc.returncode} "
+                f"stdout={len(proc.stdout)}B stderr={stderr_text}"
             )
             continue
         frames.append(proc.stdout)
