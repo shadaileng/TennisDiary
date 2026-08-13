@@ -95,9 +95,10 @@ def probe_duration(path: str) -> float:
 
 def build_sampling_times(mode: str, duration: float, hit_time: float | None) -> list[float]:
     """生成采样时间点（与参考版 CoachAnalyze.tsx 一致）"""
-    lo, hi = 0.01, max(0.01, duration - 0.01)
+    lo, hi = 0.01, max(0.01, duration - 0.1)
     if mode == "single":
         hit = hit_time if hit_time is not None else duration / 2
+        hit = min(max(lo, hit), hi)
         return [min(max(lo, hit + dt), hi) for dt in _SINGLE_OFFSETS]
     return [
         min(max(lo, duration * (i + 0.5) / _FULL_FRAME_COUNT), hi) for i in range(_FULL_FRAME_COUNT)
@@ -116,18 +117,21 @@ def extract_frames(path: str, times: list[float], width: int = _FRAME_WIDTH) -> 
     ffmpeg = find_ffmpeg()
     if not ffmpeg:
         raise FfmpegUnavailableError("ffmpeg 不可用")
+
     frames: list[bytes] = []
     for t in times:
         cmd = [
             ffmpeg,
-            "-ss",
-            f"{t:.3f}",
             "-i",
             path,
+            "-ss",
+            f"{t:.3f}",
             "-frames:v",
             "1",
             "-vf",
             f"scale={width}:-1",
+            "-strict",
+            "-1",
             "-q:v",
             str(_FRAME_QUALITY),
             "-f",

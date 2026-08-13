@@ -59,11 +59,21 @@ def upload_video(
         with open(abs_path, "wb") as out:
             while chunk := file.file.read(1024 * 1024):
                 out.write(chunk)
+            out.flush()
+            os.fsync(out.fileno())
     except Exception:
         os.makedirs(abs_dir, exist_ok=True)
         if os.path.isfile(abs_path):
             os.unlink(abs_path)
         raise
+
+    actual_size = os.path.getsize(abs_path)
+
+    if actual_size == 0:
+        os.unlink(abs_path)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
+        )
 
     try:
         result = video_service.process_video(abs_path, mode, hit_time)
