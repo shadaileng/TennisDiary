@@ -138,7 +138,14 @@ def extract_frames(path: str, times: list[float], width: int = _FRAME_WIDTH) -> 
         ]
         proc = subprocess.run(cmd, capture_output=True, timeout=30)
         if proc.returncode != 0 or not proc.stdout:
-            log.warning("抽帧失败", time=t, stderr=proc.stderr.decode(errors="replace")[:200])
+            stderr_text = proc.stderr.decode(errors="replace")[-300:]
+            log.warning(
+                "抽帧失败",
+                time=t,
+                returncode=proc.returncode,
+                stderr=stderr_text,
+                stdout_len=len(proc.stdout),
+            )
             continue
         frames.append(proc.stdout)
     return frames
