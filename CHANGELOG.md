@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.50.1] - 2026-08-13
+
+### Fixed
+
+- 修复 admin 健康检查界面版本号脱节：`/api/admin/system/health` 的 `version` 由硬编码 `1.0.0` 改为动态读取仓库根 `package.json`（`APP_VERSION`，带生产镜像兜底版本号），此后随 `npm version` bump 自动同步，不再需手动修改。
+
 ## [1.50.0] - 2026-08-13
 
 ### Added

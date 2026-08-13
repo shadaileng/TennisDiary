@@ -9,6 +9,7 @@ import pytest
 
 from app.core.config import settings
 from app.models.backup_record import BackupRecord
+from app.routers.admin.system import APP_VERSION
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +26,7 @@ def test_system_health(auth_client, test_db):
     assert response.status_code == 200
     data = response.json()["data"]
     assert data["status"] == "ok"
-    assert data["version"] == "1.0.0"
+    assert data["version"] == APP_VERSION
     assert "database" in data
     assert "disk_usage" in data
     assert "uptime" in data

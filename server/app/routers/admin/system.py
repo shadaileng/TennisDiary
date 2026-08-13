@@ -1,5 +1,6 @@
 """系统监控路由"""
 
+import json
 import os
 import shutil
 import tarfile
@@ -26,6 +27,22 @@ router = APIRouter(prefix="/api/admin/system", tags=["admin-system"])
 
 # 上传备份允许的扩展名
 _BACKUP_ALLOWED_EXT = {".tar.gz", ".db"}
+
+# 兜底版本号：生产镜像（Docker 仅打包 server/，不含根 package.json）时使用
+_FALLBACK_APP_VERSION = "1.50.0"
+
+
+def _load_app_version() -> str:
+    """应用版本号：优先读取仓库根 package.json（单一事实来源，随 npm version 自动同步）。"""
+    pkg = Path(__file__).resolve().parent.parent.parent.parent.parent / "package.json"
+    try:
+        version = json.loads(pkg.read_text(encoding="utf-8")).get("version")
+        return version or _FALLBACK_APP_VERSION
+    except (OSError, ValueError):
+        return _FALLBACK_APP_VERSION
+
+
+APP_VERSION = _load_app_version()
 
 
 def _format_uptime(seconds: float) -> str:
@@ -80,7 +97,7 @@ def system_health(
     return ApiResponse(
         data={
             "status": "ok",
-            "version": "1.0.0",
+            "version": APP_VERSION,
             "database": db_status,
             "disk_usage": disk_usage,
             "uptime": uptime,
