@@ -41,7 +41,7 @@
         <view v-if="!videoPath" class="upload-box press-btn" @tap="chooseVideo">
           <text class="upload-icon">🎥</text>
           <text class="upload-text">点击选择视频</text>
-          <text class="upload-sub">支持 mp4 / mov，单次挥拍最长 15 秒 · 综合分析最长 90 秒</text>
+          <text class="upload-sub">支持 mp4 / mov，单次挥拍最长 15 秒 · 综合分析最长 60 秒</text>
         </view>
         <view v-else class="video-box">
           <video
@@ -123,10 +123,16 @@ function setMode(m: Mode) {
 function chooseVideo() {
   uni.chooseVideo({
     sourceType: ["album", "camera"],
-    maxDuration: 90,
+    maxDuration: 60,
     success: (res) => {
       videoPath.value = res.tempFilePath;
       hitTime.value = 0;
+    },
+    fail: (err) => {
+      console.error("[chooseVideo] 失败", err);
+      if (err.errMsg && !err.errMsg.includes("cancel")) {
+        uni.showToast({ title: "选择视频失败，请检查权限设置", icon: "none" });
+      }
     },
   });
 }
