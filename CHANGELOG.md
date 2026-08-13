@@ -4,6 +4,15 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.52.0] - 2026-08-13
+
+### Added
+
+- admin 分析报告管理增强：详情接口 `GET /api/admin/analyses/{id}` 返回完整六维报告（`report` JSON 对象 + `thumb` 封面 + `highlights` 高光帧数组，非法 JSON 容错返回 `None`）；分析页列表新增「模式」（单次挥拍/综合分析）与「封面」缩略图列，详情弹窗渲染六维评分条/节奏观察/亮点/改进建议/封面与高光帧。详见 `docs/plans/75-B2-Admin同步AI网关功能.md`
+- admin AI 网关状态监控：健康检查页新增「AI 网关」卡片，`GET /api/admin/system/ai-status` 探测 AI Key（掩码 `sk-****abcd`，不暴露明文）/ ffmpeg（含 `imageio-ffmpeg` 兜底提示）/ MediaPipe / 姿态模型四项状态并汇总缺失项；`GET /api/admin/system/ai-connect` 由服务端代理 `{AI_BASE_URL}/models` 验证 Key 有效性（不耗 token），失败含状态码反馈
+- admin 静态文件服务：新增 `GET /api/admin/system/files/{path}`，`normpath` 路径防护（越界 404）+ 媒体类型映射，供 Admin 渲染 `thumb` / `highlights` 图片；相对路径走静态服务、`http(s)://` 绝对 URL 前端原样直出
+- server 新增 `POSE_MODEL_PATH` 配置（MediaPipe 姿态模型路径，默认 `server/models/pose_landmarker_lite.task`）
+
 ## [1.51.0] - 2026-08-13
 
 ### Added

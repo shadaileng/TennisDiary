@@ -45,12 +45,51 @@ export interface BackupList {
   total: number
 }
 
+export interface AiStatus {
+  ai: {
+    configured: boolean
+    model: string
+    base_url: string
+    key_masked: string
+  }
+  ffmpeg: {
+    available: boolean
+    version: string
+  }
+  mediapipe: {
+    available: boolean
+  }
+  pose_model: {
+    available: boolean
+    path: string
+  }
+  summary: {
+    ok: boolean
+    missing: string[]
+  }
+}
+
+export interface AiConnectResult {
+  ok: boolean
+  message?: string
+  status_code?: number
+  url?: string
+}
+
 export function getSystemStats(): Promise<SystemStats> {
   return request.get('/api/admin/system/stats')
 }
 
 export function getHealthStatus(): Promise<HealthStatus> {
   return request.get('/api/admin/system/health')
+}
+
+export function getAiStatus(): Promise<AiStatus> {
+  return request.get('/api/admin/system/ai-status')
+}
+
+export function testAiConnect(): Promise<AiConnectResult> {
+  return request.get('/api/admin/system/ai-connect')
 }
 
 export function getLogs(params: {

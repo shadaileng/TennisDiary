@@ -270,10 +270,18 @@ class AnalysisAdminResponse(BaseModel):
     score: float
     summary: str
     ntrp: str | None = None
+    thumb: str | None = None  # 封面帧路径（列表缩略图用，避免列表解析大 JSON）
     created_at: float
     user: dict | None = None
 
     model_config = {"from_attributes": True}
+
+
+class AnalysisDetailAdminResponse(AnalysisAdminResponse):
+    """分析报告详情（管理端，含完整六维报告）"""
+
+    report: dict | None = None  # 后端 json.loads(report) 后返回结构化对象
+    highlights: list[str] | None = None  # 高光帧路径数组
 
 
 class PostAdminResponse(BaseModel):

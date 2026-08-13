@@ -1,14 +1,18 @@
 """系统监控路由"""
 
+import importlib.util
 import json
+import mimetypes
 import os
 import shutil
+import subprocess
 import tarfile
 import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import text
@@ -19,6 +23,7 @@ from app.core.auth import get_current_admin
 from app.core.backup_meta import BACKUP_META_DB_NAME, get_backup_meta_db
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.logging import logger
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
 from app.schemas.common import ApiResponse
@@ -210,6 +215,154 @@ def query_logs(
             "has_more": pos > 0 or len(collected) >= limit,
         }
     )
+
+
+def _mask_api_key(key: str) -> str:
+    """AI Key 掩码：sk-****{末尾4位}，无 Key 返回空串"""
+    if not key:
+        return ""
+    if len(key) <= 4:
+        return "sk-****"
+    return f"sk-****{key[-4:]}"
+
+
+def _probe_ffmpeg() -> dict:
+    """探测 ffmpeg：优先系统二进制，回退 imageio-ffmpeg"""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        try:
+            import imageio_ffmpeg
+
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        except ImportError:
+            ffmpeg = None
+    if not ffmpeg:
+        return {"available": False, "version": ""}
+    try:
+        proc = subprocess.run([ffmpeg, "-version"], capture_output=True, timeout=15, check=False)
+        version = (proc.stdout or proc.stderr).decode(errors="replace").splitlines()
+        first = version[0] if version else ""
+        return {"available": True, "version": first}
+    except (OSError, subprocess.SubprocessError):
+        return {"available": True, "version": ""}
+
+
+def _probe_pose_model() -> dict:
+    """探测姿态模型文件是否存在"""
+    path = Path(settings.POSE_MODEL_PATH)
+    return {"available": path.is_file(), "path": str(path)}
+
+
+@router.get("/ai-status", response_model=ApiResponse[dict])
+def ai_gateway_status(admin: Admin = Depends(get_current_admin)):
+    """AI 网关三件套状态探测（AI Key 掩码 / ffmpeg / MediaPipe / 姿态模型）
+
+    Key 仅返回掩码，不暴露明文。
+    """
+    mediapipe = importlib.util.find_spec("mediapipe") is not None
+    ffmpeg = _probe_ffmpeg()
+    pose = _probe_pose_model()
+
+    missing = []
+    if not settings.AI_API_KEY:
+        missing.append("ai_key")
+    if not ffmpeg["available"]:
+        missing.append("ffmpeg")
+    if not mediapipe:
+        missing.append("mediapipe")
+    if not pose["available"]:
+        missing.append("pose_model")
+
+    return ApiResponse(
+        data={
+            "ai": {
+                "configured": bool(settings.AI_API_KEY),
+                "model": settings.AI_MODEL,
+                "base_url": settings.AI_BASE_URL,
+                "key_masked": _mask_api_key(settings.AI_API_KEY),
+            },
+            "ffmpeg": ffmpeg,
+            "mediapipe": {"available": mediapipe},
+            "pose_model": pose,
+            "summary": {"ok": len(missing) == 0, "missing": missing},
+        }
+    )
+
+
+@router.get("/ai-connect", response_model=ApiResponse[dict])
+async def ai_connect_test(admin: Admin = Depends(get_current_admin)):
+    """AI 连通性测试：服务端代理 GET {AI_BASE_URL}/models，验证 Key 有效性，不耗 token"""
+    if not settings.AI_API_KEY:
+        return ApiResponse(data={"ok": False, "message": "未配置 API Key，请先在服务端 .env 配置"})
+
+    base_url = settings.AI_BASE_URL.rstrip("/")
+    url = f"{base_url}/models"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {settings.AI_API_KEY}"})
+    except httpx.TimeoutException:
+        return ApiResponse(data={"ok": False, "message": "连接超时（30 秒）", "url": url})
+    except httpx.HTTPError as e:
+        return ApiResponse(data={"ok": False, "message": f"网络异常: {e!s}", "url": url})
+
+    if resp.status_code == 200:
+        return ApiResponse(
+            data={
+                "ok": True,
+                "status_code": resp.status_code,
+                "url": url,
+                "message": "AI 服务连接正常",
+            }
+        )
+    text = (resp.text or "")[:200]
+    return ApiResponse(
+        data={
+            "ok": False,
+            "status_code": resp.status_code,
+            "url": url,
+            "message": f"AI 服务返回 {resp.status_code}: {text}",
+        }
+    )
+
+
+# 静态文件服务允许的媒体类型（与用户端 files.py 一致，Admin 端内联一份）
+_ADMIN_MEDIA_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+}
+
+
+def _resolve_admin_file_path(filename: str) -> Path | None:
+    """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None"""
+    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+    candidate = os.path.normpath(os.path.join(upload_dir, filename))
+    if candidate != upload_dir and not candidate.startswith(upload_dir + os.sep):
+        return None
+    return Path(candidate)
+
+
+@router.get("/files/{filename:path}", response_class=FileResponse)
+def serve_admin_file(
+    filename: str,
+    admin: Admin = Depends(get_current_admin),
+):
+    """Admin 静态文件服务：供渲染 thumb / highlights 图片
+
+    路径穿越防护（normpath + 限定 UPLOAD_DIR 内），文件不存在返回 404。
+    """
+    path = _resolve_admin_file_path(filename)
+    if path is None:
+        logger.warning("Admin 静态文件路径穿越被拒", filename=filename)
+        raise HTTPException(status_code=404, detail="文件不存在")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    media_type = _ADMIN_MEDIA_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
+    return FileResponse(path, media_type=media_type or "application/octet-stream")
 
 
 def _pack_data_dir(backup_path: Path) -> None:

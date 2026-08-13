@@ -1,5 +1,7 @@
 """分析管理路由"""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -8,7 +10,7 @@ from app.core.database import get_db
 from app.models.admin import Admin
 from app.models.analysis import Analysis
 from app.models.user import User
-from app.schemas.admin import AnalysisAdminResponse
+from app.schemas.admin import AnalysisAdminResponse, AnalysisDetailAdminResponse
 from app.schemas.common import ApiResponse, PaginatedData
 
 router = APIRouter(prefix="/api/admin/analyses", tags=["admin-analyses"])
@@ -20,6 +22,16 @@ def _enrich_analysis(a: Analysis, db: Session) -> AnalysisAdminResponse:
     if user:
         resp.user = {"id": user.id, "nickname": user.nickname or ""}
     return resp
+
+
+def _parse_json_field(raw: str | None) -> dict | list | None:
+    """容错解析 JSON 字段：非法 JSON / 空值返回 None（兼容历史脏数据）"""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
 
 
 @router.get("", response_model=ApiResponse[PaginatedData[AnalysisAdminResponse]])
@@ -47,17 +59,26 @@ def list_analyses(
     )
 
 
-@router.get("/{analysis_id}", response_model=ApiResponse[AnalysisAdminResponse])
+@router.get("/{analysis_id}", response_model=ApiResponse[AnalysisDetailAdminResponse])
 def get_analysis(
     analysis_id: int,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """分析详情"""
+    """分析详情（含完整六维报告 / 封面 / 高光帧）"""
     analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
     if analysis is None:
         raise HTTPException(status_code=404, detail="分析报告不存在")
-    return ApiResponse(data=AnalysisAdminResponse.model_validate(analysis))
+
+    resp = _enrich_analysis(analysis, db)
+    report = _parse_json_field(analysis.report)
+    highlights = _parse_json_field(analysis.highlights)
+    detail = AnalysisDetailAdminResponse(
+        **resp.model_dump(),
+        report=report if isinstance(report, dict) else None,
+        highlights=highlights if isinstance(highlights, list) else None,
+    )
+    return ApiResponse(data=detail)
 
 
 @router.delete("/{analysis_id}", response_model=ApiResponse[None])

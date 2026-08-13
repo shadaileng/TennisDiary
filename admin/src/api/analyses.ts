@@ -1,14 +1,34 @@
 import request from './index'
 
+export interface DimensionScore {
+  name: string
+  score: number
+  comment: string
+}
+
+export interface AnalysisReport {
+  score: number
+  summary: string
+  ntrp?: string
+  dimensions: DimensionScore[]
+  rhythm: string
+  strengths: string[]
+  improvements: { issue: string; advice: string }[]
+}
+
 export interface Analysis {
   id: number
   user_id: number
   date: string
   kind: string
+  mode: string
   score: number | null
   summary: string
   ntrp: string | null
   created_at: string
+  report?: AnalysisReport | string | null
+  thumb?: string | null
+  highlights?: string[] | null
   user?: {
     id: number
     nickname: string
