@@ -1,6 +1,7 @@
 import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
 import { useAppStore } from "@/stores/app";
+import { useAuthStore } from "@/stores/auth";
 import { logError, logWarn } from "@/utils/eventLogger";
 
 /**
@@ -66,6 +67,7 @@ function getToken(): string {
 function clearAuth() {
   uni.removeStorageSync(TOKEN_KEY);
   uni.removeStorageSync(USER_KEY);
+  useAuthStore().logout();
 }
 
 /** 登录引导 toast 节流间隔（毫秒），避免多请求/重复触发刷屏 */

@@ -95,7 +95,8 @@ docs/
 │   ├── 75-3-MediaPipe姿态推理.md
 │   ├── 75-4-分析报告落库与历史查询.md
 │   ├── 75-5-Phase4-电子教练小程序页.md
-│   └── 75-6-Phase5-分享工坊.md
+│   ├── 75-6-Phase5-分享工坊.md
+│   └── 76-小程序401响应清除token内存态并引导登录.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -185,6 +186,7 @@ docs/
 | 75-4：分析报告落库与历史查询 | v1.0.0 | 方案 | `plans/75-4-分析报告落库与历史查询.md` | `POST/GET/DELETE /api/analyses` 落库 + 历史列表/详情/删除，`video_url` 列迁移 | 🏁 已完成 |
 | 75-5：Phase 4 电子教练小程序页 | v1.0.0 | 方案 | `plans/75-5-Phase4-电子教练小程序页.md` | 小程序三页（列表/AI 分析/报告）+ 上传/AI/姿态/落库数据层封装 | 🏁 已完成 |
 | 75-6：Phase 5 分享工坊 | v1.0.0 | 方案 | `plans/75-6-Phase5-分享工坊.md` | 三模板 Canvas 卡片生成 + 保存相册 + 文案复制 | 🏁 已完成 |
+| 76：小程序 401 响应清除 token 内存态并引导登录 | v1.0.0 | 方案 | `plans/76-小程序401响应清除token内存态并引导登录.md` | 修复 401 后 auth store 内存态未清空导致页面不切换游客引导 | ✅ 已完成 |
 
 ## 文档类型说明
 
@@ -276,6 +278,7 @@ docs/
 | 75-4-分析报告落库与历史查询 | Phase B2 AI 网关三件套 | 🏁 已完成 | 2026-08-13 | 15 用例 + 全量 234 passed，ruff 通过 |
 | 75-5-Phase4-电子教练小程序页 | Phase B2 AI 网关三件套 | 🏁 已完成 | 2026-08-13 | type-check + build:mp-weixin 通过，后端 234 passed |
 | 75-6-Phase5-分享工坊 | Phase B2 AI 网关三件套 | 🏁 已完成 | 2026-08-13 | type-check + build:mp-weixin 通过，后端 234 passed |
+| 76-小程序401响应清除token内存态并引导登录 | 小程序前端 | ✅ 已完成 | 2026-08-13 | build:mp-weixin 通过，循环分块警告（不影响功能） |
 
 ## 约定
 
