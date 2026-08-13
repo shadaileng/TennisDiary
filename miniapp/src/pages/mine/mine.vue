@@ -55,6 +55,11 @@
         <text class="menu-label">电子教练</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" @tap="goShare">
+        <text class="menu-icon">📤</text>
+        <text class="menu-label">分享工坊</text>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item">
         <text class="menu-icon">💰</text>
         <view class="menu-content">
@@ -138,6 +143,10 @@ function goStats() {
 
 function goCoach() {
   uni.navigateTo({ url: "/pages/coach/coach" });
+}
+
+function goShare() {
+  uni.navigateTo({ url: "/pages/share/share" });
 }
 
 function goEditProfile() {

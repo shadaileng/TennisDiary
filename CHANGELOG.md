@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.55.0] - 2026-08-13
+
+### Added
+
+- miniapp Phase 5 分享工坊：新增 `pages/share/share`（模板选择 + Canvas 2d 卡片预览 + 保存相册 + 文案复制/重新生成）；`utils/shareCanvas.ts` 提供 `drawShareCard`（月度战报 / 今日日记 / 技术评分三模板）与 `genCaption` 文案模板；「我的」页新增「分享工坊」入口。详见 `docs/plans/75-6-Phase5-分享工坊.md`
+
 ## [1.54.0] - 2026-08-13
 
 ### Added

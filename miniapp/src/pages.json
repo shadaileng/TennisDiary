@@ -59,6 +59,12 @@
       "style": {
         "navigationBarTitleText": "分析报告"
       }
+    },
+    {
+      "path": "pages/share/share",
+      "style": {
+        "navigationBarTitleText": "分享工坊"
+      }
     }
   ],
   "globalStyle": {

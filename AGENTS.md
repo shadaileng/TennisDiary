@@ -150,6 +150,7 @@ cd admin && pnpm build                 # 构建管理端
 | 75-3 | MediaPipe 姿态推理 `/api/pose/analyze`（33 关键点 + 肘/膝/躯干角，CPU 推理，模型缺失/无人检测降级） | ✅ |
 | 75-4 | 分析报告落库 + 历史查询（`POST/GET/DELETE /api/analyses`，`video_url` 列迁移） | ✅ |
 | 75-5 | Phase 4 电子教练小程序页（三页：列表/AI 分析/报告，上传/AI/姿态/落库数据层封装） | ✅ |
+| 75-6 | Phase 5 分享工坊（三模板 Canvas 卡片 + 保存相册 + 文案复制） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
