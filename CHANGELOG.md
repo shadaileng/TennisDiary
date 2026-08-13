@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.54.0] - 2026-08-13
+
+### Added
+
+- miniapp Phase 4 电子教练页：新增 `pages/coach/` 三页（coach 历史列表、analyze 三步分析流、report 完整报告），「我的」页新增「电子教练」入口，`pages.json` 注册。
+- miniapp 电子教练数据层：`uploadVideo`（uni.uploadFile 直传 + 抽帧，携带 `X-Auth-Token`）、`analyzeSwing`（AI 六维评分，120s 超时）、`analyzePose`（姿态推理，60s 超时）、`createAnalysis`/`getAnalyses`/`getAnalysis`/`deleteAnalysis`（报告落库与历史回看）；`types` 新增 `VideoUploadResult`/`PoseLandmark`/`PoseResult`，`Analysis`/`AnalysisCreate` 增加 `video_url`。详见 `docs/plans/75-5-Phase4-电子教练小程序页.md`
+
 ## [1.53.0] - 2026-08-13
 
 ### Added

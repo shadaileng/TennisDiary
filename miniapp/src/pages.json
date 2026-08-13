@@ -41,6 +41,24 @@
       "style": {
         "navigationBarTitleText": "编辑资料"
       }
+    },
+    {
+      "path": "pages/coach/coach",
+      "style": {
+        "navigationBarTitleText": "电子教练"
+      }
+    },
+    {
+      "path": "pages/coach/analyze",
+      "style": {
+        "navigationBarTitleText": "AI 分析"
+      }
+    },
+    {
+      "path": "pages/coach/report",
+      "style": {
+        "navigationBarTitleText": "分析报告"
+      }
     }
   ],
   "globalStyle": {

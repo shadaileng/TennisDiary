@@ -159,7 +159,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
-          ],
+],
         },
         {
           text: 'Phase B2（AI 网关三件套）',
@@ -171,6 +171,7 @@ export default defineConfig({
             { text: '75-2：视频上传与抽帧', link: '/plans/75-2-视频上传与抽帧' },
             { text: '75-3：MediaPipe 姿态推理', link: '/plans/75-3-MediaPipe姿态推理' },
             { text: '75-4：分析报告落库与历史查询', link: '/plans/75-4-分析报告落库与历史查询' },
+            { text: '75-5：Phase 4 电子教练小程序页', link: '/plans/75-5-Phase4-电子教练小程序页' },
           ],
         },
       ],

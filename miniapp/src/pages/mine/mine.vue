@@ -50,6 +50,11 @@
         <text class="menu-label">统计总览</text>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-item" @tap="goCoach">
+        <text class="menu-icon">🎾</text>
+        <text class="menu-label">电子教练</text>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-item">
         <text class="menu-icon">💰</text>
         <view class="menu-content">
@@ -129,6 +134,10 @@ async function loadStats() {
 
 function goStats() {
   uni.switchTab({ url: "/pages/stats/stats" });
+}
+
+function goCoach() {
+  uni.navigateTo({ url: "/pages/coach/coach" });
 }
 
 function goEditProfile() {

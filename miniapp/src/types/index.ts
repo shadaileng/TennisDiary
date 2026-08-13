@@ -193,6 +193,7 @@ export interface Analysis {
   report?: AnalysisReport
   thumb?: string // 封面帧路径（带骨架标注）
   highlights?: string[] // 高光帧路径
+  video_url?: string // 视频文件相对路径
   created_at: number // 时间戳（秒）
 }
 
@@ -207,6 +208,34 @@ export interface AnalysisCreate {
   report?: AnalysisReport
   thumb?: string
   highlights?: string[]
+  video_url?: string
+}
+
+/** 视频上传结果 — 后台 POST /api/video/upload data */
+export interface VideoUploadResult {
+  frames: string[] // 抽帧 base64 dataURL（AI 分析用）
+  frame_urls: string[] // 帧文件相对路径
+  duration: number // 秒
+  thumbnail: string // 封面帧 base64 dataURL
+  hit_time: number
+  mode: "single" | "full"
+  kind: string
+  video_url: string // 视频文件相对路径
+}
+
+/** 姿态关键点（BlazePose 33 项之一） */
+export interface PoseLandmark {
+  x: number
+  y: number
+  z: number
+  visibility: number
+}
+
+/** 姿态推理结果 — 后台 POST /api/pose/analyze data */
+export interface PoseResult {
+  frames: { landmarks: PoseLandmark[] }[]
+  metrics: { elbowAngle: number; kneeAngle: number; trunkLean: number } | null
+  detected: boolean
 }
 
 // ==================== 训练营打卡 ====================
