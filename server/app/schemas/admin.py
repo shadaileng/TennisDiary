@@ -145,6 +145,26 @@ class AdminListResponse(BaseModel):
 # ==================== 通用 ====================
 
 
+# ==================== 动态配置相关 ====================
+
+
+class ConfigUpdateRequest(BaseModel):
+    """设置配置覆盖值请求"""
+
+    value: str = ""
+
+
+class AiProviderRequest(BaseModel):
+    """AI 服务商新增/编辑请求"""
+
+    name: str
+    base_url: str
+    api_key: str = ""
+    models: list[str] = Field(min_length=1)
+    enabled: bool = True
+    sort_order: int = 0
+
+
 class MessageResponse(BaseModel):
     """通用消息响应"""
 

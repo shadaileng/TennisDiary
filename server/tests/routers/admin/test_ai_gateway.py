@@ -28,6 +28,7 @@ class TestAiStatus:
         assert data["ai"]["key_masked"] == ""
         assert data["ai"]["model"] == settings.AI_MODEL
         assert data["ai"]["base_url"] == settings.AI_BASE_URL
+        assert data["ai"]["provider"] == "custom"
 
     def test_ai_status_key_masked(self, auth_client, monkeypatch):
         """配置 Key → 仅返回掩码 sk-****{末尾4位}，不暴露明文"""
@@ -36,6 +37,7 @@ class TestAiStatus:
         assert data["ai"]["configured"] is True
         assert data["ai"]["key_masked"] == "sk-****wxyz"
         assert "abcdef1234567890" not in data["ai"]["key_masked"]
+        assert data["ai"]["provider"] == "custom"
 
     def test_ffmpeg_and_mediapipe_booleans(self, auth_client):
         """ffmpeg.available / mediapipe.available 均为布尔值"""
@@ -50,6 +52,61 @@ class TestAiStatus:
         data = auth_client.get("/api/admin/system/ai-status").json()["data"]
         assert data["pose_model"]["available"] is False
         assert "pose_model" in data["summary"]["missing"]
+
+    def test_ai_status_uses_db_override(self, auth_client, test_db, monkeypatch):
+        """DB 覆盖生效：ai-status 返回覆盖后的 model / base_url / key 掩码"""
+        from app.services import config_service
+
+        monkeypatch.setattr(settings, "AI_API_KEY", "sk-env-key")
+        monkeypatch.setattr(settings, "AI_BASE_URL", "https://default.example.com/v1")
+        monkeypatch.setattr(settings, "AI_MODEL", "qwen-vl-max")
+        try:
+            config_service.set_config_value(test_db, "ai.model", "qwen-vl-plus", admin_id=1)
+            config_service.set_config_value(
+                test_db, "ai.base_url", "https://custom.example.com/v1", admin_id=1
+            )
+            config_service.set_config_value(
+                test_db, "ai.api_key", "sk-db-override-9999", admin_id=1
+            )
+            data = auth_client.get("/api/admin/system/ai-status").json()["data"]
+            assert data["ai"]["configured"] is True
+            assert data["ai"]["model"] == "qwen-vl-plus"
+            assert data["ai"]["base_url"] == "https://custom.example.com/v1"
+            assert data["ai"]["key_masked"] == "sk-****9999"
+            assert data["ai"]["provider"] == "custom"
+        finally:
+            from app.models.system_config import SystemConfig
+
+            test_db.query(SystemConfig).delete()
+            test_db.commit()
+
+    def test_ai_status_provider_selected(self, auth_client, test_db):
+        """选中服务商 → ai-status 显示服务商名与引用值"""
+        from app.models.ai_provider import AiProvider
+        from app.services import config_service
+
+        provider = AiProvider(
+            name="p-status",
+            base_url="https://provider.example.com/v1",
+            api_key="sk-provider-status-7777",
+            models=["vision-pro", "vision-pro-plus"],
+            enabled=True,
+        )
+        test_db.add(provider)
+        test_db.commit()
+        try:
+            config_service.set_config_value(test_db, "ai.provider", "p-status", admin_id=1)
+            data = auth_client.get("/api/admin/system/ai-status").json()["data"]
+            assert data["ai"]["provider"] == "p-status"
+            assert data["ai"]["base_url"] == "https://provider.example.com/v1"
+            assert data["ai"]["model"] == "vision-pro"
+            assert data["ai"]["key_masked"] == "sk-****7777"
+        finally:
+            from app.models.system_config import SystemConfig
+
+            test_db.query(SystemConfig).delete()
+            test_db.query(AiProvider).delete()
+            test_db.commit()
 
 
 class TestAiConnect:

@@ -143,7 +143,7 @@ const health = reactive<HealthStatus>({
 })
 
 const ai = ref<AiStatus>({
-  ai: { configured: false, model: '', base_url: '', key_masked: '' },
+  ai: { configured: false, model: '', base_url: '', key_masked: '', provider: 'custom' },
   ffmpeg: { available: false, version: '' },
   mediapipe: { available: false },
   pose_model: { available: false, path: '' },

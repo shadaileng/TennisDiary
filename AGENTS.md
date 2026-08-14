@@ -151,6 +151,9 @@ cd admin && pnpm build                 # 构建管理端
 | 75-4 | 分析报告落库 + 历史查询（`POST/GET/DELETE /api/analyses`，`video_url` 列迁移） | ✅ |
 | 75-5 | Phase 4 电子教练小程序页（三页：列表/AI 分析/报告，上传/AI/姿态/落库数据层封装） | ✅ |
 | 75-6 | Phase 5 分享工坊（三模板 Canvas 卡片 + 保存相册 + 文案复制） | ✅ |
+| 78 | 动态配置系统与 Admin 配置页（配置注册表 7 分类 20 项 + system_configs 覆盖表 + AI 三件套在线配置 + 权限 system:config） | ✅ |
+| 79 | AI 服务商管理与配置直选（`ai_providers` 表手动维护 + `ai.provider` 下拉直选引用语义，模型可独立覆盖） | ✅ |
+| 80 | AI 服务商多模型支持（`models` JSON 列表，默认模型=首项；配置页服务商→模型二选下拉，`ai.model` 覆盖全局优先） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

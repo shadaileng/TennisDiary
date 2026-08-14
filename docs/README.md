@@ -96,8 +96,11 @@ docs/
 │   ├── 75-4-分析报告落库与历史查询.md
 │   ├── 75-5-Phase4-电子教练小程序页.md
 │   ├── 75-6-Phase5-分享工坊.md
-│   └── 76-小程序401响应清除token内存态并引导登录.md
-│   └── 77-小程序AI分析chooseVideo选视频失败修复.md
+│   ├── 76-小程序401响应清除token内存态并引导登录.md
+│   ├── 77-小程序AI分析chooseVideo选视频失败修复.md
+│   ├── 78-动态配置系统与Admin配置页.md
+│   ├── 79-AI服务商管理配置直选.md
+│   └── 80-AI服务商多模型与模型直选.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -189,6 +192,9 @@ docs/
 | 75-6：Phase 5 分享工坊 | v1.0.0 | 方案 | `plans/75-6-Phase5-分享工坊.md` | 三模板 Canvas 卡片生成 + 保存相册 + 文案复制 | 🏁 已完成 |
 | 76：小程序 401 响应清除 token 内存态并引导登录 | v1.0.0 | 方案 | `plans/76-小程序401响应清除token内存态并引导登录.md` | 修复 401 后 auth store 内存态未清空导致页面不切换游客引导 | ✅ 已完成 |
 | 77：小程序 AI 分析 chooseVideo 选视频失败修复 | v1.0.0 | 方案 | `plans/77-小程序AI分析chooseVideo选视频失败修复.md` | 修复 `uni.chooseVideo` `maxDuration` 超限导致文件选择器不弹出 | ✅ 已完成 |
+| 78：动态配置系统与 Admin 配置页 | v1.0.0 | 方案 | `plans/78-动态配置系统与Admin配置页.md` | 通用动态配置框架（注册表 + DB 覆盖表，env 兜底）+ Admin 系统配置页（分类展示，AI 可在线编辑） | ✅ 已完成 |
+| 79：AI 服务商管理 + 配置直选 | v1.0.0 | 方案 | `plans/79-AI服务商管理配置直选.md` | `ai_providers` 手动维护服务商列表 + `ai.provider` 下拉直选（引用语义），模型可独立覆盖 | ✅ 已完成 |
+| 80：AI 服务商多模型支持 | v1.0.0 | 方案 | `plans/80-AI服务商多模型与模型直选.md` | `models` JSON 列表（默认模型=首项）+ 服务商→模型二选下拉，`ai.model` 覆盖全局优先 | ✅ 已完成 |
 
 ## 文档类型说明
 
@@ -282,6 +288,9 @@ docs/
 | 75-6-Phase5-分享工坊 | Phase B2 AI 网关三件套 | 🏁 已完成 | 2026-08-13 | type-check + build:mp-weixin 通过，后端 234 passed |
 | 76-小程序401响应清除token内存态并引导登录 | 小程序前端 | ✅ 已完成 | 2026-08-13 | build:mp-weixin 通过，循环分块警告（不影响功能） |
 | 77-小程序AI分析chooseVideo选视频失败修复 | 小程序前端 | ✅ 已完成 | 2026-08-13 | chooseVideo maxDuration 90→60，fail 回调 + 文案同步 |
+| 78-动态配置系统与Admin配置页 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 258 passed + ruff 通过，admin pnpm build 通过 |
+| 79-AI服务商管理配置直选 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 280 passed + ruff 通过，admin pnpm build 通过，ai_providers 迁移 `7e375669cd0d` |
+| 80-AI服务商多模型与模型直选 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 282 passed + ruff 通过，admin pnpm build 通过，model→models 迁移 `9e8d74e6ab01` |
 
 ## 约定
 

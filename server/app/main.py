@@ -25,9 +25,11 @@ from app.routers import (
 )
 from app.routers import events as user_events
 from app.routers.admin import admins as admin_admins
+from app.routers.admin import ai_providers as admin_ai_providers
 from app.routers.admin import analyses as admin_analyses
 from app.routers.admin import auth as admin_auth
 from app.routers.admin import checkins as admin_checkins
+from app.routers.admin import config as admin_config
 from app.routers.admin import diaries as admin_diaries
 from app.routers.admin import events as admin_events
 from app.routers.admin import gears as admin_gears
@@ -157,6 +159,8 @@ app.include_router(admin_checkins.router)
 app.include_router(admin_analyses.router)
 app.include_router(admin_posts.router)
 app.include_router(admin_system.router)
+app.include_router(admin_config.router)
+app.include_router(admin_ai_providers.router)
 app.include_router(admin_events.router)
 
 # CORS 配置（开发阶段允许所有来源）

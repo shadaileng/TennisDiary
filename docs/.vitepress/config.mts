@@ -137,6 +137,9 @@ export default defineConfig({
             { text: '71：Admin Cloudflare Workers 部署', link: '/plans/71-Admin-Cloudflare-Workers-部署' },
             { text: '72：Admin 备份管理增强', link: '/plans/72-Admin-备份管理增强' },
             { text: '74：日志查看倒序分页优化', link: '/plans/74-日志查看倒序分页优化' },
+            { text: '78：动态配置系统与 Admin 配置页', link: '/plans/78-动态配置系统与Admin配置页' },
+            { text: '79：AI 服务商管理 + 配置直选', link: '/plans/79-AI服务商管理配置直选' },
+            { text: '80：AI 服务商多模型支持', link: '/plans/80-AI服务商多模型与模型直选' },
           ],
         },
         {

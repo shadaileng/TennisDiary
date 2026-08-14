@@ -51,6 +51,7 @@ export interface AiStatus {
     model: string
     base_url: string
     key_masked: string
+    provider: string
   }
   ffmpeg: {
     available: boolean

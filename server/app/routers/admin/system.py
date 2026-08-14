@@ -254,17 +254,23 @@ def _probe_pose_model() -> dict:
 
 
 @router.get("/ai-status", response_model=ApiResponse[dict])
-def ai_gateway_status(admin: Admin = Depends(get_current_admin)):
+def ai_gateway_status(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
     """AI 网关三件套状态探测（AI Key 掩码 / ffmpeg / MediaPipe / 姿态模型）
 
-    Key 仅返回掩码，不暴露明文。
+    返回生效配置（DB 覆盖 > env 默认）；Key 仅返回掩码，不暴露明文。
     """
+    from app.services.config_service import get_ai_config
+
+    ai_config = get_ai_config(db)
     mediapipe = importlib.util.find_spec("mediapipe") is not None
     ffmpeg = _probe_ffmpeg()
     pose = _probe_pose_model()
 
     missing = []
-    if not settings.AI_API_KEY:
+    if not ai_config.api_key:
         missing.append("ai_key")
     if not ffmpeg["available"]:
         missing.append("ffmpeg")
@@ -276,10 +282,11 @@ def ai_gateway_status(admin: Admin = Depends(get_current_admin)):
     return ApiResponse(
         data={
             "ai": {
-                "configured": bool(settings.AI_API_KEY),
-                "model": settings.AI_MODEL,
-                "base_url": settings.AI_BASE_URL,
-                "key_masked": _mask_api_key(settings.AI_API_KEY),
+                "configured": bool(ai_config.api_key),
+                "model": ai_config.model,
+                "base_url": ai_config.base_url,
+                "key_masked": _mask_api_key(ai_config.api_key),
+                "provider": ai_config.provider,
             },
             "ffmpeg": ffmpeg,
             "mediapipe": {"available": mediapipe},
@@ -290,16 +297,24 @@ def ai_gateway_status(admin: Admin = Depends(get_current_admin)):
 
 
 @router.get("/ai-connect", response_model=ApiResponse[dict])
-async def ai_connect_test(admin: Admin = Depends(get_current_admin)):
+async def ai_connect_test(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
     """AI 连通性测试：服务端代理 GET {AI_BASE_URL}/models，验证 Key 有效性，不耗 token"""
-    if not settings.AI_API_KEY:
-        return ApiResponse(data={"ok": False, "message": "未配置 API Key，请先在服务端 .env 配置"})
+    from app.services.config_service import get_ai_config
 
-    base_url = settings.AI_BASE_URL.rstrip("/")
+    ai_config = get_ai_config(db)
+    if not ai_config.api_key:
+        return ApiResponse(
+            data={"ok": False, "message": "未配置 API Key，请先在系统配置页或服务端 .env 配置"}
+        )
+
+    base_url = ai_config.base_url.rstrip("/")
     url = f"{base_url}/models"
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(url, headers={"Authorization": f"Bearer {settings.AI_API_KEY}"})
+            resp = await client.get(url, headers={"Authorization": f"Bearer {ai_config.api_key}"})
     except httpx.TimeoutException:
         return ApiResponse(data={"ok": False, "message": "连接超时（30 秒）", "url": url})
     except httpx.HTTPError as e:

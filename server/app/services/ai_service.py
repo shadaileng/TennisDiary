@@ -11,6 +11,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.services.config_service import AIConfig
 
 # 六维评分维度（与前端 / 参考版契约一致）
 DIMENSIONS = ["准备启动", "动力链", "击球时机", "随挥收拍", "拍面控制", "身体稳定"]
@@ -65,30 +66,36 @@ def _build_analyze_prompt(kind: str, mode: str) -> str:
     )
 
 
-async def chat_vision(images: list[str], prompt: str, max_tokens: int = 2000) -> str:
+async def chat_vision(
+    images: list[str],
+    prompt: str,
+    ai_config: AIConfig,
+    max_tokens: int = 2000,
+) -> str:
     """调用 OpenAI 兼容 chat/completions（阿里云百炼），images 为 dataURL
 
     - 120s 超时保护；
     - 无 Key 直接抛错（不发起网络请求）。
+    - ai_config 为生效配置（DB 覆盖 > env 默认），由路由层解析。
     """
-    if not settings.AI_API_KEY:
+    if not ai_config.api_key:
         raise ValueError("未配置 API Key")
     content: list[dict] = [{"type": "image_url", "image_url": {"url": url}} for url in images]
     content.append({"type": "text", "text": prompt})
     payload = {
-        "model": settings.AI_MODEL,
+        "model": ai_config.model,
         "max_tokens": max_tokens,
         "temperature": 0.3,
         "messages": [{"role": "user", "content": content}],
     }
-    base_url = settings.AI_BASE_URL.rstrip("/")
+    base_url = ai_config.base_url.rstrip("/")
     try:
         async with httpx.AsyncClient(timeout=AI_TIMEOUT_SECONDS) as client:
             resp = await client.post(
                 f"{base_url}/chat/completions",
                 headers={
                     "Content-Type": "application/json",
-                    "Authorization": f"Bearer {settings.AI_API_KEY}",
+                    "Authorization": f"Bearer {ai_config.api_key}",
                 },
                 json=payload,
             )
@@ -111,13 +118,25 @@ def extract_json(text: str) -> dict:
     return json.loads(match.group(0))
 
 
-async def analyze_swing(frames: list[str], kind: str, mode: str = "single") -> dict:
+async def analyze_swing(
+    frames: list[str],
+    kind: str,
+    mode: str = "single",
+    ai_config: AIConfig | None = None,
+) -> dict:
     """AI 动作分析：frames 为按时间顺序抽取的关键帧，返回六维报告
 
     无 Key / 调用失败 / 解析失败时抛异常，由路由层转本地降级。
+    ai_config 为生效配置（DB 覆盖 > env 默认），由路由层解析。
     """
+    if ai_config is None:
+        ai_config = AIConfig(
+            api_key=settings.AI_API_KEY,
+            base_url=settings.AI_BASE_URL,
+            model=settings.AI_MODEL,
+        )
     prompt = _build_analyze_prompt(kind, mode)
-    text = await chat_vision(frames, prompt, max_tokens=2500)
+    text = await chat_vision(frames, prompt, ai_config, max_tokens=2500)
     report = extract_json(text)
 
     # 兜底校验（与参考版 analyzeSwing 尾部一致）

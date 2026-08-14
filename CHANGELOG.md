@@ -4,6 +4,16 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.56.0] - 2026-08-14
+
+### Added
+
+- server 动态配置系统（78）：配置注册表 7 分类 20 项（`app/core/config_registry.py`）+ `system_configs` 覆盖表，生效值 = DB 覆盖 > env 默认；`GET/PUT/DELETE /api/admin/config`、`POST /api/admin/config/reset`，secret 仅掩码、非法值 400、等于默认值自动删行；AI 三件套（key/base_url/model）可在线编辑；迁移 `da938737d8cb`。详见 `docs/plans/78-动态配置系统与Admin配置页.md`
+- admin 系统配置页（78）：分类卡片展示 + 源徽标（默认/内置/自定义）+ 编辑/恢复默认/全部恢复默认；权限 `system:config`。
+- server AI 服务商管理（79）：`ai_providers` 表（name 唯一索引 + base_url + api_key + model + enabled）+ `ai.provider` select 配置项（options 动态 = 启用服务商 + custom）；`get_ai_config` 引用解析：选中服务商 → base_url/api_key 直读条目、model 覆盖 > 条目默认，条目禁用/删除自动回落 custom；被引用服务商删除 409、name 重复 400；ai-status 返回 `provider`。迁移 `7e375669cd0d`。详见 `docs/plans/79-AI服务商管理配置直选.md`
+- server AI 服务商多模型（80）：`model` → `models` JSON 列表（默认模型 = 首项），新增/编辑/列表均返回 `models` + `default_model`，空列表 400；迁移 `9e8d74e6ab01`（model → models 回填）。详见 `docs/plans/80-AI服务商多模型与模型直选.md`
+- admin 服务商管理 UI（79/80）：AI 卡片服务商下拉直选 + 生效配置展示（掩码 key/模型/Base URL）；「管理服务商」弹窗（增删改、api_key 留空保持不变、删除二次确认）；选中服务商后模型二选下拉（写 `ai.model` 覆盖 / 跟随服务商默认清除覆盖）；服务商表单模型列表编辑器（多行增删、首行默认、保存自动去空行）。
+
 ## [1.55.1] - 2026-08-13
 
 ### Fixed

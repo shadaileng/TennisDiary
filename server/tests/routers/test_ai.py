@@ -91,7 +91,7 @@ class TestAnalyze:
 
         monkeypatch.setattr(settings, "AI_API_KEY", "sk-test")
 
-        async def fake_analyze_swing(frames, kind, mode):
+        async def fake_analyze_swing(frames, kind, mode, ai_config):
             return self.FULL_REPORT
 
         monkeypatch.setattr(ai_router.ai_service, "analyze_swing", fake_analyze_swing)
@@ -100,6 +100,33 @@ class TestAnalyze:
         data = response.json()["data"]
         assert data["score"] == 76
         assert len(data["dimensions"]) == 6
+
+    def test_analyze_uses_db_override(self, auth_client, test_db, monkeypatch):
+        """DB 覆盖生效：analyze_swing 收到覆盖后的 model / base_url"""
+        from app.routers import ai as ai_router
+        from app.services import config_service
+
+        monkeypatch.setattr(settings, "AI_API_KEY", "sk-env-key")
+        monkeypatch.setattr(settings, "AI_BASE_URL", "https://default.example.com/v1")
+        config_service.set_config_value(test_db, "ai.model", "qwen-vl-plus", admin_id=1)
+        config_service.set_config_value(
+            test_db, "ai.base_url", "https://custom.example.com/v1", admin_id=1
+        )
+
+        captured = {}
+
+        async def fake_analyze_swing(frames, kind, mode, ai_config):
+            captured["model"] = ai_config.model
+            captured["base_url"] = ai_config.base_url
+            captured["api_key"] = ai_config.api_key
+            return self.FULL_REPORT
+
+        monkeypatch.setattr(ai_router.ai_service, "analyze_swing", fake_analyze_swing)
+        response = auth_client.post("/api/ai/analyze", json=self.VALID_PAYLOAD)
+        assert response.status_code == 200
+        assert captured["model"] == "qwen-vl-plus"
+        assert captured["base_url"] == "https://custom.example.com/v1"
+        assert captured["api_key"] == "sk-env-key"
 
     def test_analyze_without_key_degrade(self, auth_client, monkeypatch):
         """无 AI_API_KEY → 200 + score=0 降级报告（不发起网络请求）"""
@@ -114,7 +141,7 @@ class TestAnalyze:
         """AI 调用异常 → 200 + score=0 降级报告"""
         from app.routers import ai as ai_router
 
-        async def boom(frames, kind, mode):
+        async def boom(frames, kind, mode, ai_config):
             raise RuntimeError("ai call failed")
 
         monkeypatch.setattr(ai_router.ai_service, "analyze_swing", boom)
