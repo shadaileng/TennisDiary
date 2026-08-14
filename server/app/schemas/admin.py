@@ -165,6 +165,14 @@ class AiProviderRequest(BaseModel):
     sort_order: int = 0
 
 
+class ProviderModelsCheckRequest(BaseModel):
+    """模型可用性校验请求（表单值直传，无需先保存）"""
+
+    base_url: str = Field(min_length=1, description="服务商接口地址，如 https://api.example.com/v1")
+    api_key: str = ""
+    models: list[str] = Field(min_length=1, description="待校验的模型名列表")
+
+
 class MessageResponse(BaseModel):
     """通用消息响应"""
 

@@ -154,6 +154,7 @@ cd admin && pnpm build                 # 构建管理端
 | 78 | 动态配置系统与 Admin 配置页（配置注册表 7 分类 20 项 + system_configs 覆盖表 + AI 三件套在线配置 + 权限 system:config） | ✅ |
 | 79 | AI 服务商管理与配置直选（`ai_providers` 表手动维护 + `ai.provider` 下拉直选引用语义，模型可独立覆盖） | ✅ |
 | 80 | AI 服务商多模型支持（`models` JSON 列表，默认模型=首项；配置页服务商→模型二选下拉，`ai.model` 覆盖全局优先） | ✅ |
+| 81 | AI 模型可用性校验与调试脚本（`check-models` list/probe 两级端点 + Admin 校验按钮 + `server/scripts/debug-ai.py` 直连生效配置调试） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

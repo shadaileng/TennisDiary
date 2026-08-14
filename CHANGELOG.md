@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.57.0] - 2026-08-14
+
+### Added
+
+- server AI 模型可用性校验（81）：`POST /api/admin/config/providers/check-models`（权限 `system:config`），两级策略——list（`GET {base_url}/models` 拉可用模型比对）+ probe（不支持 /models 时逐模型 `max_tokens=1` 文本探测，模型名不存在秒回非 200）；解析兼容 `data[]`/`models[]`（id/name/字符串），15s 超时、401/403 鉴权失败、连接/超时镜像 ai-connect 语义；表单值直传无需先保存。详见 `docs/plans/81-AI模型可用性校验与调试脚本.md`
+- server 模型调试脚本（81）：`server/scripts/debug-ai.py` 直连生效配置（`get_ai_config` 同源），支持最小探测 / 任意文本对话 / `GET /models` 列表 / 完整六维分析（本地图片 → dataURL 生产同款链路）；`--model/--base-url/--api-key` CLI 覆盖优先；不吞错（非 200 打印真实响应），退出码 0/1。
+- admin 服务商表单模型校验（81）：模型列表编辑器每行 ✓ 绿 / ✗ 红徽标 +「校验模型」按钮（`useActionLock` 防重复提交）+ 结果区（list 可用模型列表 / probe 逐模型原因 / 失败 message）。
+
 ## [1.56.0] - 2026-08-14
 
 ### Added

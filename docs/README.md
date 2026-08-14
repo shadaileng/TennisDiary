@@ -100,7 +100,8 @@ docs/
 │   ├── 77-小程序AI分析chooseVideo选视频失败修复.md
 │   ├── 78-动态配置系统与Admin配置页.md
 │   ├── 79-AI服务商管理配置直选.md
-│   └── 80-AI服务商多模型与模型直选.md
+│   ├── 80-AI服务商多模型与模型直选.md
+│   └── 81-AI模型可用性校验与调试脚本.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -195,6 +196,7 @@ docs/
 | 78：动态配置系统与 Admin 配置页 | v1.0.0 | 方案 | `plans/78-动态配置系统与Admin配置页.md` | 通用动态配置框架（注册表 + DB 覆盖表，env 兜底）+ Admin 系统配置页（分类展示，AI 可在线编辑） | ✅ 已完成 |
 | 79：AI 服务商管理 + 配置直选 | v1.0.0 | 方案 | `plans/79-AI服务商管理配置直选.md` | `ai_providers` 手动维护服务商列表 + `ai.provider` 下拉直选（引用语义），模型可独立覆盖 | ✅ 已完成 |
 | 80：AI 服务商多模型支持 | v1.0.0 | 方案 | `plans/80-AI服务商多模型与模型直选.md` | `models` JSON 列表（默认模型=首项）+ 服务商→模型二选下拉，`ai.model` 覆盖全局优先 | ✅ 已完成 |
+| 81：AI 模型可用性校验与调试脚本 | v1.0.0 | 方案 | `plans/81-AI模型可用性校验与调试脚本.md` | `check-models` 端点（list/probe 两级）+ Admin 校验按钮 + `debug-ai.py` 调试脚本 | ✅ 已完成 |
 
 ## 文档类型说明
 
@@ -291,6 +293,7 @@ docs/
 | 78-动态配置系统与Admin配置页 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 258 passed + ruff 通过，admin pnpm build 通过 |
 | 79-AI服务商管理配置直选 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 280 passed + ruff 通过，admin pnpm build 通过，ai_providers 迁移 `7e375669cd0d` |
 | 80-AI服务商多模型与模型直选 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 282 passed + ruff 通过，admin pnpm build 通过，model→models 迁移 `9e8d74e6ab01` |
+| 81-AI模型可用性校验与调试脚本 | 后台管理端优化 | ✅ 已完成 | 2026-08-14 | 后端 295 passed + ruff 通过，admin pnpm build 通过，debug-ai.py 实测 Agnes 200 |
 
 ## 约定
 

@@ -140,6 +140,7 @@ export default defineConfig({
             { text: '78：动态配置系统与 Admin 配置页', link: '/plans/78-动态配置系统与Admin配置页' },
             { text: '79：AI 服务商管理 + 配置直选', link: '/plans/79-AI服务商管理配置直选' },
             { text: '80：AI 服务商多模型支持', link: '/plans/80-AI服务商多模型与模型直选' },
+            { text: '81：AI 模型可用性校验与调试脚本', link: '/plans/81-AI模型可用性校验与调试脚本' },
           ],
         },
         {
@@ -164,8 +165,7 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
-],
-],
+          ],
         },
         {
           text: 'Phase B2（AI 网关三件套）',

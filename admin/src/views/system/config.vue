@@ -333,6 +333,14 @@
                       :placeholder="idx === 0 ? '默认模型，如：qwen-vl-max' : '如：qwen-plus'"
                     />
                     <span v-if="idx === 0" class="text-xs px-1.5 py-0.5 bg-olive-100 text-olive-700 rounded shrink-0">默认</span>
+                    <span
+                      v-if="modelCheckOf(idx)"
+                      class="text-xs px-1.5 py-0.5 rounded shrink-0"
+                      :class="modelCheckOf(idx)!.ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
+                      :title="modelCheckOf(idx)!.message"
+                    >
+                      {{ modelCheckOf(idx)!.ok ? '✓ 可用' : '✗ 不可用' }}
+                    </span>
                     <button
                       type="button"
                       @click="removeModel(idx)"
@@ -341,15 +349,53 @@
                       删
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    @click="providerForm.models.push('')"
-                    class="w-full py-1.5 text-xs border border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-olive-400 hover:text-olive-600"
-                  >
-                    + 添加模型
-                  </button>
+                  <div class="flex gap-2">
+                    <button
+                      type="button"
+                      @click="providerForm.models.push('')"
+                      class="flex-1 py-1.5 text-xs border border-dashed border-gray-300 text-gray-500 rounded-lg hover:border-olive-400 hover:text-olive-600"
+                    >
+                      + 添加模型
+                    </button>
+                    <button
+                      type="button"
+                      @click="handleCheckModels"
+                      :disabled="modelCheckPending"
+                      class="px-3 py-1.5 text-xs bg-olive-600 text-white rounded-lg hover:bg-olive-700 disabled:opacity-50 shrink-0"
+                    >
+                      {{ modelCheckPending ? '校验中…' : '校验模型' }}
+                    </button>
+                  </div>
                 </div>
                 <p class="text-xs text-gray-400 mt-1">首行为默认模型；保存时自动去除空行</p>
+                <div
+                  v-if="checkResult && !checkResult.ok"
+                  class="mt-1.5 text-xs text-red-600"
+                >
+                  校验失败：{{ checkResult.message }}
+                </div>
+                <div
+                  v-if="checkResult && checkResult.ok && checkResult.strategy === 'list' && (checkResult.available || []).length"
+                  class="mt-1.5 text-xs text-gray-500"
+                >
+                  服务商可用模型（{{ checkResult.available!.length }} 个）：
+                  <span class="text-gray-400">{{ checkResult.available!.slice(0, 12).join('、') }}{{ (checkResult.available!.length > 12 ? ' …' : '') }}</span>
+                </div>
+                <div
+                  v-if="checkResult && checkResult.ok && checkResult.strategy === 'probe'"
+                  class="mt-1.5 text-xs text-gray-500"
+                >
+                  该接口不支持模型列表，已逐模型探测：
+                  <span
+                    v-for="r in checkResult.results"
+                    :key="r.model"
+                    class="mr-2"
+                    :class="r.ok ? 'text-green-600' : 'text-red-600'"
+                    :title="r.message"
+                  >
+                    {{ r.model }} {{ r.ok ? '✓' : '✗' }}
+                  </span>
+                </div>
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Base URL *</label>
@@ -401,9 +447,12 @@ import {
   addProvider,
   updateProvider,
   deleteProvider,
+  checkProviderModels,
   type ConfigItem,
   type ConfigList,
-  type AiProvider
+  type AiProvider,
+  type ProviderModelsCheck,
+  type ModelCheckResult
 } from '@/api/config'
 import { getAiStatus, testAiConnect, type AiStatus } from '@/api/system'
 
@@ -428,6 +477,8 @@ const { pending: resetPending, runWithLock: runReset } = useActionLock()
 const { pending: resetAllPending, runWithLock: runResetAll } = useActionLock()
 const { pending: providerPending, runWithLock: runProviderDelete } = useActionLock()
 const { pending: providerSavePending, runWithLock: runProviderSave } = useActionLock()
+const { pending: modelCheckPending, runWithLock: runModelCheck } = useActionLock()
+const checkResult = ref<ProviderModelsCheck | null>(null)
 
 const editing = ref<ConfigItem | null>(null)
 const editValue = ref('')
@@ -606,6 +657,7 @@ const closeProviderManager = () => {
 
 const openProviderForm = (provider?: AiProvider) => {
   showProviderForm.value = true
+  checkResult.value = null
   if (provider) {
     Object.assign(providerForm, {
       id: provider.id,
@@ -628,8 +680,46 @@ const removeModel = (idx: number) => {
   providerForm.models.splice(idx, 1)
 }
 
+const modelCheckOf = (idx: number): ModelCheckResult | null => {
+  if (!checkResult.value) return null
+  const name = providerForm.models[idx]?.trim()
+  if (!name) return null
+  if (checkResult.value.strategy === 'list') {
+    const available = checkResult.value.available || []
+    return { model: name, ok: available.includes(name), message: available.includes(name) ? '可用' : '不在服务商模型列表中' }
+  }
+  return checkResult.value.results.find(r => r.model === name) || null
+}
+
+const handleCheckModels = () =>
+  runModelCheck(async () => {
+    const models = providerForm.models.map(m => m.trim()).filter(m => m)
+    if (!providerForm.base_url.trim()) {
+      toast.warning('请先填写 Base URL')
+      return
+    }
+    if (models.length === 0) {
+      toast.warning('至少填写一个模型名')
+      return
+    }
+    checkResult.value = await checkProviderModels({
+      base_url: providerForm.base_url.trim(),
+      api_key: providerForm.api_key.trim(),
+      models
+    })
+    const missing = checkResult.value.results.filter(r => !r.ok)
+    if (checkResult.value.ok && missing.length === 0) {
+      toast.success('全部模型可用')
+    } else if (checkResult.value.ok) {
+      toast.warning(`${missing.length} 个模型不可用，请核对模型名`)
+    } else {
+      toast.error(checkResult.value.message || '校验失败')
+    }
+  })
+
 const cancelProviderForm = () => {
   showProviderForm.value = false
+  checkResult.value = null
 }
 
 const handleSaveProvider = () =>

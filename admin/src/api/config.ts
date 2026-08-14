@@ -98,3 +98,25 @@ export function updateProvider(id: number, payload: AiProviderPayload): Promise<
 export function deleteProvider(id: number): Promise<{ message: string }> {
   return request.delete(`/api/admin/config/providers/${id}`)
 }
+
+export interface ModelCheckResult {
+  model: string
+  ok: boolean
+  message: string
+}
+
+export interface ProviderModelsCheck {
+  ok: boolean
+  strategy: 'list' | 'probe'
+  available?: string[]
+  results: ModelCheckResult[]
+  message?: string
+}
+
+export function checkProviderModels(payload: {
+  base_url: string
+  api_key: string
+  models: string[]
+}): Promise<ProviderModelsCheck> {
+  return request.post('/api/admin/config/providers/check-models', payload)
+}
