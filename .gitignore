@@ -107,7 +107,7 @@ lerna-debug.log*
 # Crash dumps (进程崩溃 core 文件)
 # ========================
 /core
-/core.*
+core.*
 
 # ========================
 # Docker
