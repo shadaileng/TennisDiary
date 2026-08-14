@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.59.1] - 2026-08-15
+
+### Fixed
+
+- miniapp 视频上传（fix-2026-08-15）：`analyze.vue` 上传前用 `fs.access()` 检查临时文件是否存在，临时文件被系统回收时提示「视频文件已失效，请重新选择」而非 cryptic `uploadFile:fail file not found`（模拟器已知行为，真机无此问题）
+- server 骨架视频多帧（84）：`encode_skeleton_video` 改用 `-framerate` + `%04d` 通配符直接读图片序列，修复 ffmpeg concat demuxer 将静态 JPEG 视为无限长流导致输出仅 1 帧的 bug；骨架帧命名同步改为 4 位零填充 `{base}_sk{idx:04d}.jpg`；新增 `TestEncodeSkeletonVideo` 真实 ffmpeg 编码测试
+
 ## [1.59.0] - 2026-08-14
 
 ### Added

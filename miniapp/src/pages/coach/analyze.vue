@@ -150,6 +150,20 @@ async function startAnalysis() {
   if (analyzing.value || !videoPath.value) return;
   analyzing.value = true;
   try {
+    // 0. 检查视频文件是否存在（临时文件可能已被系统回收）
+    const fs = uni.getFileSystemManager();
+    const fileExists = await new Promise<boolean>((resolve) => {
+      fs.access({
+        path: videoPath.value,
+        success: () => resolve(true),
+        fail: () => resolve(false),
+      });
+    });
+    if (!fileExists) {
+      videoPath.value = "";
+      throw new Error("视频文件已失效，请重新选择");
+    }
+
     // 1. 上传 + 抽帧（75-2）
     progress.value = "上传视频并抽取关键帧…";
     const uploaded = await uploadVideo(videoPath.value, {

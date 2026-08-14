@@ -314,47 +314,43 @@ def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) 
     """用 ffmpeg 将骨架帧序列编码为 H.264 mp4（微信可播）；失败返回 False 不抛错
 
     帧数不足 2 / ffmpeg 不可用 → False；编码成功且产物存在 → True。
+
+    使用 -framerate + %04d 通配符直接读图片序列（而非 concat demuxer），
+    避免静态 JPEG 被 concat 视为"无限长"导致输出只有 1 帧的 bug。
     """
     ffmpeg = find_ffmpeg()
     if not ffmpeg or len(skeleton_paths) < 2:
         return False
-    list_path = os.path.join(os.path.dirname(out_path), f".{os.path.basename(out_path)}.concat.txt")
-    try:
-        with open(list_path, "w", encoding="utf-8") as f:
-            for p in skeleton_paths:
-                f.write(f"file '{os.path.abspath(p)}'\n")
-        cmd = [
-            ffmpeg,
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            list_path,
-            "-vf",
-            f"fps={max(1.0, min(30.0, fps))},scale=trunc(iw/2)*2:trunc(ih/2)*2",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            out_path,
-        ]
-        proc = subprocess.run(cmd, capture_output=True, timeout=120)
-        ok = proc.returncode == 0 and os.path.isfile(out_path)
-        if not ok:
-            log.warning("骨架视频编码失败", rc=proc.returncode, err=(proc.stderr or b"")[:300])
-        return ok
-    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-        log.warning("骨架视频编码异常", exc=str(exc)[:200])
-        return False
-    finally:
-        try:
-            os.unlink(list_path)
-        except OSError:
-            pass
+
+    # 骨架帧已按 {base}_sk{idx:04d}.jpg 命名，构建 %04d 通配符输入路径
+    first_frame = skeleton_paths[0]
+    frame_dir = os.path.dirname(first_frame)
+    frame_base = os.path.splitext(os.path.basename(first_frame))[0]  # e.g. "abc_sk0000"
+    pattern = os.path.join(frame_dir, f"{frame_base.rsplit('_sk', 1)[0]}_sk%04d.jpg")
+
+    effective_fps = max(1.0, min(30.0, fps))
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-framerate",
+        str(effective_fps),
+        "-i",
+        pattern,
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        out_path,
+    ]
+    proc = subprocess.run(cmd, capture_output=True, timeout=120)
+    ok = proc.returncode == 0 and os.path.isfile(out_path)
+    if not ok:
+        log.warning("骨架视频编码失败", rc=proc.returncode, err=(proc.stderr or b"")[:300])
+    return ok
 
 
 def analyze_frames(
@@ -390,7 +386,7 @@ def analyze_frames(
         video_dir, base = resolved
 
     sk_idx = 0
-    for i, frame in enumerate(frames):
+    for _i, frame in enumerate(frames):
         image_bytes = _decode_frame(frame)
         landmarks = detect_pose(image_bytes)
         if landmarks is None:
@@ -403,7 +399,7 @@ def analyze_frames(
             metrics_sk_idx = sk_idx
         if save_skeleton and video_dir is not None:
             sk_bytes = draw_skeleton(image_bytes, landmarks)
-            sk_path = os.path.join(video_dir, f"{base}_sk{i}.jpg")
+            sk_path = os.path.join(video_dir, f"{base}_sk{sk_idx:04d}.jpg")
             with open(sk_path, "wb") as out:
                 out.write(sk_bytes)
             skeleton_paths.append(sk_path)

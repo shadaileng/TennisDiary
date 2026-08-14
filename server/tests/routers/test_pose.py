@@ -250,13 +250,13 @@ class TestAnalyzeFramesSaveSkeleton:
             duration=10.0,
         )
         assert result["skeleton_frames"] == [
-            "videos/1/abc_sk0.jpg",
-            "videos/1/abc_sk1.jpg",
+            "videos/1/abc_sk0000.jpg",
+            "videos/1/abc_sk0001.jpg",
         ]
         assert result["skeleton_video_url"] == "videos/1/abc_skeleton.mp4"
-        assert result["skeleton_thumb"] == "videos/1/abc_sk0.jpg"
-        assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0.jpg").is_file()
-        assert (data_dir / "uploads" / "videos" / "1" / "abc_sk1.jpg").is_file()
+        assert result["skeleton_thumb"] == "videos/1/abc_sk0000.jpg"
+        assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0000.jpg").is_file()
+        assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0001.jpg").is_file()
 
     def test_save_skeleton_without_ffmpeg(self, monkeypatch, data_dir):
         """ffmpeg 不可用 → 仅保留骨架帧，skeleton_video_url 为 None"""
@@ -444,3 +444,85 @@ class TestPoseAnalyze:
         payload = {**self.VALID_PAYLOAD, "video_url": "../evil.mp4", "save_skeleton": True}
         response = auth_client.post("/api/pose/analyze", json=payload)
         assert response.status_code == 400
+
+
+# ==================== 服务层单测：encode_skeleton_video（真实 ffmpeg） ====================
+
+
+class TestEncodeSkeletonVideo:
+    """encode_skeleton_video 真实 ffmpeg 编码测试（需要系统 ffmpeg）"""
+
+    def _fake_jpeg(self, width=64, height=64) -> bytes:
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (width, height), (100, 100, 100)).save(buf, format="JPEG")
+        return buf.getvalue()
+
+    def test_produces_multi_frame_video(self, tmp_path, monkeypatch):
+        """多张骨架帧 → ffmpeg 编码出多帧 mp4（nb_frames >= 输入帧数）"""
+        import os
+        import subprocess
+
+        from app.services import pose_service as ps
+
+        # 检查 ffmpeg 是否可用
+        if ps.find_ffmpeg() is None:
+            pytest.skip("ffmpeg 未安装，跳过真实编码测试")
+
+        video_dir = tmp_path / "videos" / "1"
+        video_dir.mkdir(parents=True)
+        base = "test_vid"
+
+        # 写入 5 张骨架帧（4 位零填充命名）
+        skeleton_paths = []
+        for i in range(5):
+            sk_path = video_dir / f"{base}_sk{i:04d}.jpg"
+            sk_path.write_bytes(self._fake_jpeg())
+            skeleton_paths.append(str(sk_path))
+
+        out_path = str(video_dir / f"{base}_skeleton.mp4")
+        ok = ps.encode_skeleton_video(skeleton_paths, out_path, fps=5.0)
+
+        assert ok is True
+        assert os.path.isfile(out_path)
+
+        # 验证输出视频帧数 >= 5
+        probe2 = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", out_path],
+            capture_output=True,
+            text=True,
+        )
+        import json
+
+        streams = json.loads(probe2.stdout)["streams"][0]
+        nb_frames = int(streams["nb_frames"])
+        assert nb_frames >= 5, f"期望至少 5 帧，实际 {nb_frames} 帧"
+
+    def test_returns_false_when_only_one_frame(self, tmp_path, monkeypatch):
+        """单帧 → 不编码（帧数不足 2），返回 False"""
+        from app.services import pose_service as ps
+
+        video_dir = tmp_path / "videos" / "1"
+        video_dir.mkdir(parents=True)
+        sk_path = str(video_dir / "vid_sk0000.jpg")
+        import io
+
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGB", (64, 64), (100, 100, 100)).save(buf, format="JPEG")
+        open(sk_path, "wb").write(buf.getvalue())
+
+        ok = ps.encode_skeleton_video([sk_path], str(video_dir / "out.mp4"), fps=3.0)
+        assert ok is False
+
+    def test_returns_false_when_ffmpeg_missing(self, monkeypatch):
+        """ffmpeg 不可用 → False"""
+        from app.services import pose_service as ps
+
+        monkeypatch.setattr(ps, "find_ffmpeg", lambda: None)
+        ok = ps.encode_skeleton_video(["/tmp/a.jpg", "/tmp/b.jpg"], "/tmp/out.mp4", fps=3.0)
+        assert ok is False
