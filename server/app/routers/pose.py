@@ -19,15 +19,23 @@ class PoseAnalyzeRequest(BaseModel):
     """姿态推理请求：frames 为按时间顺序抽取的关键帧（base64/dataURL）"""
 
     frames: list[str] = Field(min_length=1, description="关键帧 base64/dataURL 数组")
+    video_url: str | None = Field(
+        default=None, description="源视频相对 UPLOAD_DIR 的路径；save_skeleton 时用于落盘骨架帧"
+    )
+    save_skeleton: bool = Field(
+        default=False, description="是否绘制骨架帧并落盘（skeleton_frames/video/thumb）"
+    )
+    duration: float | None = Field(default=None, description="视频时长（秒），骨架动画 fps 推算用")
 
 
 @router.post("/analyze", response_model=ApiResponse[dict])
 def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_user)):
     """MediaPipe 姿态推理：逐帧输出 33 关键点 + 首个可测帧的三角度测量
 
+    - save_skeleton=true 时绘制骨架帧落盘并尝试编码骨架动画 mp4（video_url 必须合法且存在）
     - 模型缺失 / mediapipe 未安装 → 503（提示清晰）
     - 无人检测 → 200 + detected=false + metrics=null（不报错，AI 侧走本地降级）
-    - 帧数据非法 → 400
+    - 帧数据非法 / video_url 越界 → 400
     """
     if not pose_service.is_available():
         log.warning("姿态推理服务不可用：mediapipe 或模型缺失")
@@ -37,7 +45,12 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
         )
 
     try:
-        result = pose_service.analyze_frames(req.frames)
+        result = pose_service.analyze_frames(
+            req.frames,
+            video_url=req.video_url,
+            save_skeleton=req.save_skeleton,
+            duration=req.duration,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
@@ -57,5 +70,6 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
         user_id=current_user.id,
         frames=len(result["frames"]),
         detected=result["detected"],
+        save_skeleton=req.save_skeleton,
     )
     return ApiResponse(data=result)

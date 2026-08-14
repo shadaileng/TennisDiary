@@ -34,6 +34,13 @@ class TestCreateAnalysis:
         "thumb": "videos/abc_f0.jpg",
         "highlights": ["videos/abc_f1.jpg"],
         "video_url": "videos/abc.mp4",
+        "pose": {
+            "detected": True,
+            "metrics": {"elbowAngle": 96.4, "kneeAngle": 147.5, "trunkLean": -4.4},
+            "skeleton_frames": ["videos/abc_sk0.jpg"],
+            "skeleton_video_url": "videos/abc_skeleton.mp4",
+            "skeleton_thumb": "videos/abc_sk0.jpg",
+        },
     }
 
     def test_create_success(self, auth_client):
@@ -46,6 +53,15 @@ class TestCreateAnalysis:
         assert data["ntrp"] == "3.5"
         assert data["video_url"] == "videos/abc.mp4"
         assert data["user_id"] == 1
+
+    def test_create_pose_roundtrip(self, auth_client):
+        """pose 字段 → 落库并在响应中结构化回读"""
+        response = auth_client.post("/api/analyses", json=self.VALID_PAYLOAD)
+        data = response.json()["data"]
+        assert data["pose"]["detected"] is True
+        assert data["pose"]["metrics"]["elbowAngle"] == 96.4
+        assert data["pose"]["skeleton_video_url"] == "videos/abc_skeleton.mp4"
+        assert data["pose"]["skeleton_thumb"] == "videos/abc_sk0.jpg"
 
     def test_create_report_full_dimensions(self, auth_client):
         """report 含完整六维 → dimensions 长度 6"""
@@ -157,7 +173,7 @@ class TestGetAnalysis:
         return auth_client.post("/api/analyses", json=payload).json()["data"]
 
     def test_get_detail(self, auth_client):
-        """详情 → 200 + report 结构化 JSON"""
+        """详情 → 200 + report 结构化 JSON + pose 透传"""
         created = self._create(auth_client)
         response = auth_client.get(f"/api/analyses/{created['id']}")
         assert response.status_code == 200
@@ -165,6 +181,7 @@ class TestGetAnalysis:
         assert data["report"]["score"] == 76
         assert data["report"]["rhythm"] == "节奏稳定"
         assert data["video_url"] == "videos/abc.mp4"
+        assert data["pose"] is None  # 未提交 pose 时为空
 
     def test_get_not_found(self, auth_client):
         """不存在 → 404"""

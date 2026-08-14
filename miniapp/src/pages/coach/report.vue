@@ -7,12 +7,13 @@
     <view v-else class="report-body">
       <!-- 封面 + 评分圆徽 -->
       <view class="cover-wrap">
-        <image v-if="analysis.thumb" :src="analysis.thumb" mode="aspectFill" class="cover-img" />
+        <image v-if="coverSrc" :src="coverSrc" mode="aspectFill" class="cover-img" />
         <view v-else class="cover-placeholder">🎾</view>
         <view v-if="(analysis.score || 0) > 0" class="score-badge">
           <text class="score-badge-value">{{ analysis.score }}</text>
           <text class="score-badge-label">SCORE</text>
         </view>
+        <text v-if="pose?.detected" class="skeleton-badge">🦴 骨架标注</text>
       </view>
 
       <!-- 摘要 -->
@@ -26,9 +27,10 @@
         <text v-if="analysis.ntrp" class="ntrp-note">NTRP 为 AI 基于本段视频的参考评估，仅供对照成长，非官方定级</text>
       </view>
 
-      <!-- 六维评分 -->
+      <!-- 六维评分：雷达图 + 逐项点评 -->
       <view v-if="report && report.dimensions && report.dimensions.length > 0" class="form-card">
         <text class="card-title">📐 分维度点评</text>
+        <RadarChart v-if="report.dimensions.length >= 3" :data="report.dimensions" class="radar-chart" />
         <view v-for="d in report.dimensions" :key="d.name" class="dim-item">
           <view class="dim-head">
             <text class="dim-name">{{ d.name }}</text>
@@ -39,6 +41,54 @@
           </view>
           <text class="dim-comment">{{ d.comment }}</text>
         </view>
+      </view>
+
+      <!-- 姿态测量 + 视频回看（Step 83） -->
+      <view v-if="pose?.detected || analysis.video_url" class="form-card">
+        <text class="card-title">🦴 姿态测量</text>
+        <view v-if="pose?.detected && pose.metrics" class="pose-metrics">
+          <view class="pose-metric">
+            <text class="pose-metric-value">{{ Math.round(pose.metrics.elbowAngle) }}°</text>
+            <text class="pose-metric-label">肘角</text>
+          </view>
+          <view class="pose-metric">
+            <text class="pose-metric-value">{{ Math.round(pose.metrics.kneeAngle) }}°</text>
+            <text class="pose-metric-label">膝角</text>
+          </view>
+          <view class="pose-metric">
+            <text class="pose-metric-value">{{ Math.round(pose.metrics.trunkLean) }}°</text>
+            <text class="pose-metric-label">躯干倾斜</text>
+          </view>
+        </view>
+        <text v-else class="pose-none">未检测到清晰的人体姿态，可查看原视频回放</text>
+
+        <view v-if="skeletonVideoSrc || originalVideoSrc" class="pose-video">
+          <view v-if="skeletonVideoSrc && originalVideoSrc" class="video-toggle">
+            <view
+              class="video-toggle-pill press-btn"
+              :class="activeVideo === 'original' ? 'video-toggle-pill--active' : ''"
+              @tap="activeVideo = 'original'"
+            >原视频</view>
+            <view
+              class="video-toggle-pill press-btn"
+              :class="activeVideo === 'skeleton' ? 'video-toggle-pill--active' : ''"
+              @tap="activeVideo = 'skeleton'"
+            >骨架视频</view>
+          </view>
+          <video
+            v-if="activeVideoSrc"
+            class="pose-video-el"
+            :src="activeVideoSrc"
+            controls
+          />
+          <text v-if="activeVideo === 'skeleton'" class="pose-video-note">骨架动画由采样帧拼接，帧率较慢，仅示意</text>
+        </view>
+
+        <scroll-view v-else-if="skeletonFrameSrcs.length > 0" scroll-x class="skeleton-frames">
+          <view v-for="(src, i) in skeletonFrameSrcs" :key="i" class="skeleton-frame">
+            <image :src="src" mode="aspectFill" class="skeleton-frame-img" />
+          </view>
+        </scroll-view>
       </view>
 
       <!-- 节奏与战术 -->
@@ -75,12 +125,32 @@
 import { computed, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
+import RadarChart from "@/components/RadarChart.vue";
 import { deleteAnalysis, getAnalysis } from "@/services/data";
 import type { Analysis } from "@/types";
-import { safeNavigateBack } from "@/utils";
+import { resolveUploadUrl, safeNavigateBack } from "@/utils";
 
 const analysis = ref<Analysis | null>(null);
 const report = computed(() => analysis.value?.report);
+const pose = computed(() => analysis.value?.pose);
+
+/** 封面：优先骨架标注帧（相对 media URL），兼容旧 base64 封面 */
+const coverSrc = computed(() => resolveUploadUrl(analysis.value?.thumb || ""));
+
+const activeVideo = ref<"original" | "skeleton">("original");
+
+const originalVideoSrc = computed(() => resolveUploadUrl(analysis.value?.video_url || ""));
+const skeletonVideoSrc = computed(() => resolveUploadUrl(pose.value?.skeleton_video_url || ""));
+const skeletonFrameSrcs = computed(() =>
+  (pose.value?.skeleton_frames || []).map(resolveUploadUrl),
+);
+
+/** 当前播放的视频地址：骨架模式时优先骨架动画，否则回退原视频 */
+const activeVideoSrc = computed(() => {
+  if (activeVideo.value === "skeleton" && skeletonVideoSrc.value) return skeletonVideoSrc.value;
+  if (activeVideo.value === "original" && originalVideoSrc.value) return originalVideoSrc.value;
+  return skeletonVideoSrc.value || originalVideoSrc.value;
+});
 
 /** 分数 → 进度条宽度（0-100 映射 0-100%） */
 function dimWidth(score: number): string {
@@ -195,6 +265,120 @@ function confirmRemove() {
   font-weight: 600;
   opacity: 0.7;
   color: $color-ink;
+}
+
+.skeleton-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: $color-ink;
+  background: rgba(200, 218, 43, 0.92);
+  border-radius: 9999px;
+  padding: 4px 10px;
+}
+
+// ========== 雷达图 ==========
+.radar-chart {
+  margin-bottom: $space-lg;
+}
+
+// ========== 姿态测量 ==========
+.pose-metrics {
+  display: flex;
+  gap: $space-sm;
+  margin-bottom: $space-lg;
+}
+
+.pose-metric {
+  flex: 1;
+  background-color: $color-paper;
+  border-radius: 16px;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pose-metric-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: $color-lime-dark;
+}
+
+.pose-metric-label {
+  margin-top: 2px;
+  font-size: 11px;
+  color: $color-olive-light;
+}
+
+.pose-none {
+  display: block;
+  font-size: 13px;
+  color: $color-olive-light;
+  margin-bottom: $space-md;
+}
+
+.pose-video {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.video-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: $space-sm;
+}
+
+.video-toggle-pill {
+  font-size: 12px;
+  color: $color-olive-light;
+  background-color: $color-paper;
+  border-radius: 9999px;
+  padding: 6px 14px;
+
+  &--active {
+    color: $color-ink;
+    background-color: $color-lime;
+    font-weight: 600;
+  }
+}
+
+.pose-video-el {
+  width: 100%;
+  border-radius: 12px;
+  background-color: $color-olive;
+}
+
+.pose-video-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: $color-olive-light;
+}
+
+.skeleton-frames {
+  white-space: nowrap;
+  width: 100%;
+}
+
+.skeleton-frame {
+  display: inline-block;
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-right: 8px;
+
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.skeleton-frame-img {
+  width: 100%;
+  height: 100%;
 }
 
 // ========== 摘要 ==========

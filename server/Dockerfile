@@ -55,6 +55,10 @@ COPY alembic/ ./alembic/
 COPY alembic.ini ./
 COPY scripts/ ./scripts/
 
+# 姿态推理模型（随镜像打包；构建前须存在 server/models/pose_landmarker_lite.task，
+# 可用 scripts/download-pose-model.sh 下载。按文件 COPY，缺失时构建失败 → fail-fast）
+COPY models/pose_landmarker_lite.task ./models/
+
 # 确保入口脚本可执行（git 索引中无执行位，COPY 后需显式添加）
 RUN chmod +x scripts/docker-entrypoint.sh
 

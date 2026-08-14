@@ -9,6 +9,7 @@ import base64
 import importlib.util
 import math
 import os
+import subprocess
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -17,6 +18,39 @@ log = get_logger("user")
 
 # 可见度阈值：低于此值认为关键点不可靠，跳过角度测量（与 pose.ts 一致）
 VISIBILITY_THRESHOLD = 0.4
+
+# 骨架绘制颜色（对齐 Web pose.ts LIME #C8DA2B / 白关节点）
+_SKELETON_COLOR = (200, 218, 43)
+_JOINT_COLOR = (255, 255, 255)
+
+# 骨架连线（Web pose.ts CONNECTIONS）
+_CONNECTIONS = [
+    [11, 12],
+    [11, 13],
+    [13, 15],
+    [15, 17],
+    [15, 19],
+    [15, 21],
+    [12, 14],
+    [14, 16],
+    [16, 18],
+    [16, 20],
+    [16, 22],
+    [11, 23],
+    [12, 24],
+    [23, 24],
+    [23, 25],
+    [25, 27],
+    [27, 29],
+    [27, 31],
+    [24, 26],
+    [26, 28],
+    [28, 30],
+    [28, 32],
+]
+
+# 绘制关节点（11..28）
+_JOINT_INDICES = list(range(11, 29))
 
 # 关键点索引（BlazePose 标准）
 _SHOULDER_L, _SHOULDER_R = 11, 12
@@ -65,10 +99,11 @@ def _get_landmarker():
         raise PoseUnavailableError("姿态模型缺失，请检查 POSE_MODEL_PATH")
     if not mediapipe_available():
         raise PoseUnavailableError("mediapipe 未安装")
+    from mediapipe.tasks import python as mp_python
     from mediapipe.tasks.python import vision
 
     options = vision.PoseLandmarkerOptions(
-        base_options=vision.BaseOptions(model_asset_path=model),
+        base_options=mp_python.BaseOptions(model_asset_path=model),
         running_mode=vision.RunningMode.IMAGE,
         num_poses=1,
     )
@@ -80,7 +115,7 @@ def _get_landmarker():
 def detect_pose(image_bytes: bytes) -> list[dict] | None:
     """对单张 JPEG 推理，返回 33 关键点列表（含 visibility）或 None（无人检测）"""
     landmarker = _get_landmarker()
-    from mediapipe.tasks.python.core.image import Image as MpImage
+    from mediapipe import Image as MpImage
 
     # Pillow 解码 JPEG → numpy array → MediaPipe Image（避免 bytes 直传的格式歧义）
     image = mp_image_from_bytes(image_bytes, MpImage)
@@ -104,12 +139,13 @@ def mp_image_from_bytes(image_bytes: bytes, mp_image_cls):
     """JPEG bytes → MediaPipe Image（Pillow 解码为 RGB ndarray）"""
     import io
 
+    import mediapipe as mp
     import numpy as np
     from PIL import Image
 
     pil_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     array = np.asarray(pil_img)
-    return mp_image_cls(image_format=mp_image_cls.ImageFormat.SRGB, data=array)
+    return mp_image_cls(image_format=mp.ImageFormat.SRGB, data=array)
 
 
 def _angle_at(a: dict, b: dict, c: dict) -> float:
@@ -175,17 +211,186 @@ def _decode_frame(frame: str) -> bytes:
         raise ValueError("帧数据不是有效的 base64") from exc
 
 
-def analyze_frames(frames: list[str]) -> dict:
-    """逐帧推理编排，返回 {frames, metrics, detected}
+def draw_skeleton(image_bytes: bytes, landmarks: list[dict]) -> bytes:
+    """在帧上叠加绘制 Pose 骨架（对齐 Web drawSkeleton），返回新 JPEG bytes
+
+    - 低可见度（< 0.4）连接线/关节点跳过绘制
+    - 髋部重心 + 十字准星标记
+    """
+    import io
+
+    from PIL import Image, ImageDraw
+
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception as exc:
+        raise ValueError("帧图像解码失败") from exc
+    w, h = img.size
+    draw = ImageDraw.Draw(img)
+
+    def visible(idx: int) -> bool:
+        if idx >= len(landmarks) or landmarks[idx] is None:
+            return False
+        return landmarks[idx].get("visibility", 0) >= VISIBILITY_THRESHOLD
+
+    def point(idx: int) -> tuple[float, float]:
+        lm = landmarks[idx]
+        return (lm["x"] * w, lm["y"] * h)
+
+    line_width = max(2, int(w / 320))
+    joint_radius = max(2.5, w / 260)
+
+    # 连接线
+    for a, b in _CONNECTIONS:
+        if not (visible(a) and visible(b)):
+            continue
+        draw.line([point(a), point(b)], fill=_SKELETON_COLOR, width=line_width, joint="curve")
+
+    # 关节点
+    for i in _JOINT_INDICES:
+        if not visible(i):
+            continue
+        px, py = point(i)
+        draw.ellipse(
+            [px - joint_radius, py - joint_radius, px + joint_radius, py + joint_radius],
+            fill=_JOINT_COLOR,
+        )
+
+    # 髋部重心标记
+    if visible(_HIP_L) and visible(_HIP_R):
+        lh, rh = point(_HIP_L), point(_HIP_R)
+        cx, cy = (lh[0] + rh[0]) / 2, (lh[1] + rh[1]) / 2
+        r = max(6, w / 90)
+        cross = max(1, int(w / 500))
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=_JOINT_COLOR, width=cross)
+        draw.ellipse([cx - r / 2.4, cy - r / 2.4, cx + r / 2.4, cy + r / 2.4], fill=_SKELETON_COLOR)
+        draw.line([cx - r * 1.6, cy, cx + r * 1.6, cy], fill=_JOINT_COLOR, width=cross)
+        draw.line([cx, cy - r * 1.6, cx, cy + r * 1.6], fill=_JOINT_COLOR, width=cross)
+
+    out = io.BytesIO()
+    img.save(out, format="JPEG", quality=85)
+    return out.getvalue()
+
+
+def _resolve_video_dir(video_url: str) -> tuple[str, str] | None:
+    """校验并解析 video_url（相对 UPLOAD_DIR）→ (视频所在目录绝对路径, 文件名 base)
+
+    路径穿越 / 文件不存在 / 非 UPLOAD_DIR 内 → 返回 None（调用方抛 ValueError）。
+    """
+    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+    candidate = os.path.normpath(os.path.join(upload_dir, video_url))
+    if candidate == upload_dir or not candidate.startswith(upload_dir + os.sep):
+        return None
+    if not os.path.isfile(candidate):
+        return None
+    base = os.path.splitext(os.path.basename(candidate))[0]
+    return os.path.dirname(candidate), base
+
+
+def _rel_url(abs_path: str) -> str:
+    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）"""
+    return os.path.relpath(abs_path, settings.UPLOAD_DIR).replace(os.sep, "/")
+
+
+def find_ffmpeg() -> str | None:
+    """定位 ffmpeg 可执行文件：系统 PATH → imageio-ffmpeg 自带二进制"""
+    from shutil import which
+
+    system = which("ffmpeg")
+    if system:
+        return system
+    try:
+        import imageio_ffmpeg
+
+        bundled = imageio_ffmpeg.get_ffmpeg_exe()
+        if bundled and os.path.isfile(bundled):
+            return bundled
+    except (ImportError, OSError):
+        pass
+    return None
+
+
+def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) -> bool:
+    """用 ffmpeg 将骨架帧序列编码为 H.264 mp4（微信可播）；失败返回 False 不抛错
+
+    帧数不足 2 / ffmpeg 不可用 → False；编码成功且产物存在 → True。
+    """
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg or len(skeleton_paths) < 2:
+        return False
+    list_path = os.path.join(os.path.dirname(out_path), f".{os.path.basename(out_path)}.concat.txt")
+    try:
+        with open(list_path, "w", encoding="utf-8") as f:
+            for p in skeleton_paths:
+                f.write(f"file '{os.path.abspath(p)}'\n")
+        cmd = [
+            ffmpeg,
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            list_path,
+            "-vf",
+            f"fps={max(1.0, min(30.0, fps))},scale=trunc(iw/2)*2:trunc(ih/2)*2",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            out_path,
+        ]
+        proc = subprocess.run(cmd, capture_output=True, timeout=120)
+        ok = proc.returncode == 0 and os.path.isfile(out_path)
+        if not ok:
+            log.warning("骨架视频编码失败", rc=proc.returncode, err=(proc.stderr or b"")[:300])
+        return ok
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        log.warning("骨架视频编码异常", exc=str(exc)[:200])
+        return False
+    finally:
+        try:
+            os.unlink(list_path)
+        except OSError:
+            pass
+
+
+def analyze_frames(
+    frames: list[str],
+    video_url: str | None = None,
+    save_skeleton: bool = False,
+    duration: float | None = None,
+) -> dict:
+    """逐帧推理编排，返回 {frames, metrics, detected, skeleton_*}
 
     - frames: 每帧 {landmarks: [...]}（无人检测帧 landmarks 为空数组）
     - metrics: 取首个可测帧的 {elbowAngle, kneeAngle, trunkLean}，无可测帧为 None
     - detected: 是否至少有一帧检测到人
+    - skeleton_frames: 骨架帧相对 URL 数组（仅 save_skeleton + video_url 时）
+    - skeleton_video_url: 骨架关键帧动画 mp4 相对 URL（ffmpeg 可用时）
+    - skeleton_thumb: 封面骨架帧相对 URL（取首次可测帧，否则第一帧）
     """
     results: list[dict] = []
     metrics = None
     detected = False
-    for frame in frames:
+    metrics_sk_idx: int | None = None
+    skeleton_paths: list[str] = []
+    skeleton_rel: list[str] = []
+    skeleton_thumb = None
+    skeleton_video_url = None
+
+    video_dir = None
+    base = None
+    if save_skeleton and video_url:
+        resolved = _resolve_video_dir(video_url)
+        if resolved is None:
+            raise ValueError("video_url 非法或不存在")
+        video_dir, base = resolved
+
+    sk_idx = 0
+    for i, frame in enumerate(frames):
         image_bytes = _decode_frame(frame)
         landmarks = detect_pose(image_bytes)
         if landmarks is None:
@@ -195,4 +400,33 @@ def analyze_frames(frames: list[str]) -> dict:
         results.append({"landmarks": landmarks})
         if metrics is None:
             metrics = measure_angles(landmarks)
-    return {"frames": results, "metrics": metrics, "detected": detected}
+            metrics_sk_idx = sk_idx
+        if save_skeleton and video_dir is not None:
+            sk_bytes = draw_skeleton(image_bytes, landmarks)
+            sk_path = os.path.join(video_dir, f"{base}_sk{i}.jpg")
+            with open(sk_path, "wb") as out:
+                out.write(sk_bytes)
+            skeleton_paths.append(sk_path)
+            skeleton_rel.append(_rel_url(sk_path))
+            sk_idx += 1
+
+    if skeleton_rel:
+        if metrics_sk_idx is not None and metrics_sk_idx < len(skeleton_rel):
+            skeleton_thumb = skeleton_rel[metrics_sk_idx]
+        else:
+            skeleton_thumb = skeleton_rel[0]
+    if skeleton_paths and video_dir is not None:
+        fps = (len(skeleton_paths) / duration) if duration else 2.0
+        out_name = f"{base}_skeleton.mp4"
+        out_path = os.path.join(video_dir, out_name)
+        if encode_skeleton_video(skeleton_paths, out_path, fps) and os.path.isfile(out_path):
+            skeleton_video_url = _rel_url(out_path)
+
+    return {
+        "frames": results,
+        "metrics": metrics,
+        "detected": detected,
+        "skeleton_frames": skeleton_rel,
+        "skeleton_video_url": skeleton_video_url,
+        "skeleton_thumb": skeleton_thumb,
+    }

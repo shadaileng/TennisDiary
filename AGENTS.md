@@ -155,6 +155,8 @@ cd admin && pnpm build                 # 构建管理端
 | 79 | AI 服务商管理与配置直选（`ai_providers` 表手动维护 + `ai.provider` 下拉直选引用语义，模型可独立覆盖） | ✅ |
 | 80 | AI 服务商多模型支持（`models` JSON 列表，默认模型=首项；配置页服务商→模型二选下拉，`ai.model` 覆盖全局优先） | ✅ |
 | 81 | AI 模型可用性校验与调试脚本（`check-models` list/probe 两级端点 + Admin 校验按钮 + `server/scripts/debug-ai.py` 直连生效配置调试） | ✅ |
+| 82 | 姿态模型获取与随包打包（`download-pose-model.sh` sha256 幂等下载 + 双 Dockerfile 按文件 COPY 随包 + 魔搭/OCI 部署自动下载；修复 mediapipe 1.0 API 路径 `python.BaseOptions`/`mp.Image`） | ✅ |
+| 83 | 姿态可视化与六边形雷达图（每次分析常驻姿态并行推理 + 骨架封面/骨架视频 + 六边形雷达图 + 姿态测量卡 + 用户端媒体服务 `/api/media/{path}?token=` + Admin 姿态详情） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

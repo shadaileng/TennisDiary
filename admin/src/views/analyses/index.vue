@@ -138,6 +138,49 @@
           </ul>
         </div>
 
+        <!-- 姿态测量（Step 83） -->
+        <div v-if="pose?.detected">
+          <h3 class="text-sm font-semibold text-gray-800 mb-2">姿态测量</h3>
+          <div v-if="pose.metrics" class="grid grid-cols-3 gap-2 mb-3">
+            <div class="bg-gray-50 rounded-lg p-2 text-center">
+              <div class="text-lg font-bold text-olive-600">{{ Math.round(pose.metrics.elbowAngle) }}°</div>
+              <div class="text-xs text-gray-500">肘角</div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-2 text-center">
+              <div class="text-lg font-bold text-olive-600">{{ Math.round(pose.metrics.kneeAngle) }}°</div>
+              <div class="text-xs text-gray-500">膝角</div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-2 text-center">
+              <div class="text-lg font-bold text-olive-600">{{ Math.round(pose.metrics.trunkLean) }}°</div>
+              <div class="text-xs text-gray-500">躯干倾斜</div>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <img
+              v-if="fileUrl(pose.skeleton_thumb)"
+              :src="fileUrl(pose.skeleton_thumb)"
+              class="h-24 w-auto object-contain rounded border border-gray-200"
+              alt="骨架封面"
+            />
+            <img
+              v-for="(f, i) in pose.skeleton_frames || []"
+              :key="i"
+              :src="fileUrl(f)"
+              class="h-24 w-32 object-cover rounded border border-gray-200"
+              :alt="`骨架帧${i + 1}`"
+            />
+          </div>
+          <a
+            v-if="fileUrl(pose.skeleton_video_url)"
+            :href="fileUrl(pose.skeleton_video_url)"
+            target="_blank"
+            rel="noopener"
+            class="inline-block mt-2 text-sm text-olive-600 hover:underline"
+          >
+            打开骨架视频 ↗
+          </a>
+        </div>
+
         <!-- 封面 / 高光帧 -->
         <div v-if="fileUrl(detail.thumb) || detail.highlights?.length">
           <h3 class="text-sm font-semibold text-gray-800 mb-2">画面</h3>
@@ -200,6 +243,8 @@ const report = computed<AnalysisReport | null>(() => {
   }
   return r as AnalysisReport
 })
+
+const pose = computed(() => detail.value?.pose ?? null)
 
 // 图片路径兼容：相对路径走静态文件服务；http(s):// 绝对 URL 原样返回
 const fileUrl = (p?: string | null): string => {

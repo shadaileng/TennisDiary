@@ -4,6 +4,28 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.59.0] - 2026-08-14
+
+### Added
+
+- server 姿态可视化与六边形雷达图（83）：`Analysis.pose` 落库（Alembic 迁移 `c1d2e3f4a5b6`）；`pose_service.py` 新增 `draw_skeleton` / `encode_skeleton_video`（concat + fps + 偶数尺寸 scale，防 x264 奇高报错）/ `analyze_frames` 扩展骨架字段；`POST /api/pose/analyze` 请求体加 `video_url` / `save_skeleton` / `duration`；新建 `app/routers/media.py` 用户端媒体服务（归属校验 + `?token=` 回退鉴权）；`main.py` 注册 media 路由。小程序 `RadarChart.vue` 六边形雷达图（canvas 2d，移植 Web `Charts.tsx:137`）；`analyze.vue` 改为 AI 与姿态并行（`Promise.allSettled`），每次分析都跑姿态并落库；`report.vue` 雷达卡 + 姿态测量卡 + 骨架封面优先 + 原视频/骨架视频切换；`coach.vue` 列表骨架徽标。Admin 详情弹窗新增姿态三角度 + 骨架缩略图/视频。
+- tests 新增：`test_pose.py`（draw_skeleton/save_skeleton/video_url 越界）、`test_media.py`（归属/越界/mp4 content-type/query token 鉴权）。
+
+### Fixed
+
+- server 骨架视频编码（83）：x264/yuv420p 对奇数宽高直接报错（实测 `360x269` 返回 rc 187 空输出）；`encode_skeleton_video` 追加 `-vf fps=N,scale=trunc(iw/2)*2:trunc(ih/2)*2` 确保偶数尺寸。
+
+## [1.58.0] - 2026-08-14
+
+### Added
+
+- server 姿态模型下载与随包打包（82）：`server/scripts/download-pose-model.sh` 幂等下载 `pose_landmarker_lite.task`（官方 Google 源，`POSE_MODEL_URL` 可覆盖镜像，sha256 固化 `59929e1d…d574a` + 临时文件 + 大小校验）；双 Dockerfile 按文件 `COPY models/pose_landmarker_lite.task` 随镜像打包（缺失时构建 fail-fast）；`deploy-modelscope.sh` 打包前自动下载 + `FILES_TO_COPY` 加 `models`、`deploy-oci.sh` rsync 前自动下载；`server/models/` 仅 `.gitkeep` 纳入版本管理。详见 `docs/plans/82-姿态模型获取与随包打包.md`
+- server MediaPipe 兼容性测试（82）：`TestMediapipeCompat` 断言 mediapipe 1.0 API 路径存在（`python.BaseOptions` / `mp.Image`），防未来版本漂移。
+
+### Fixed
+
+- server 姿态推理真实链路 API 路径（82）：mediapipe 升级 1.0 后 `vision.BaseOptions` / `mediapipe.tasks.python.core.image.Image` / `ImageFormat.SRGB` 路径变更，`pose_service.py` 改用 `python.BaseOptions`、`mediapipe.Image`、`mp.ImageFormat.SRGB`，真实推理端到端返回 33 关键点。
+
 ## [1.57.0] - 2026-08-14
 
 ### Added

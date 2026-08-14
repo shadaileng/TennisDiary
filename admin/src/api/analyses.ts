@@ -16,6 +16,14 @@ export interface AnalysisReport {
   improvements: { issue: string; advice: string }[]
 }
 
+export interface AnalysisPose {
+  detected: boolean
+  metrics?: { elbowAngle: number; kneeAngle: number; trunkLean: number } | null
+  skeleton_frames?: string[] | null
+  skeleton_video_url?: string | null
+  skeleton_thumb?: string | null
+}
+
 export interface Analysis {
   id: number
   user_id: number
@@ -29,6 +37,8 @@ export interface Analysis {
   report?: AnalysisReport | string | null
   thumb?: string | null
   highlights?: string[] | null
+  video_url?: string | null
+  pose?: AnalysisPose | null
   user?: {
     id: number
     nickname: string

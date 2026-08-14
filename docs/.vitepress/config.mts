@@ -179,6 +179,8 @@ export default defineConfig({
             { text: '75-4：分析报告落库与历史查询', link: '/plans/75-4-分析报告落库与历史查询' },
             { text: '75-5：Phase 4 电子教练小程序页', link: '/plans/75-5-Phase4-电子教练小程序页' },
             { text: '75-6：Phase 5 分享工坊', link: '/plans/75-6-Phase5-分享工坊' },
+            { text: '82：姿态模型获取与随包打包', link: '/plans/82-姿态模型获取与随包打包' },
+            { text: '83：姿态可视化与六边形雷达图', link: '/plans/83-姿态可视化与六边形雷达图' },
           ],
         },
       ],

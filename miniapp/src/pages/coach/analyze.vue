@@ -89,7 +89,7 @@ import {
   createAnalysis,
   uploadVideo,
 } from "@/services/data";
-import type { AnalysisKind } from "@/types";
+import type { AnalysisKind, AnalysisPose, AnalysisReport } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 
 type Mode = "single" | "full";
@@ -158,29 +158,37 @@ async function startAnalysis() {
       hit_time: mode.value === "single" && hitTime.value > 0 ? String(hitTime.value) : "",
     });
 
-    // 2. AI 六维评分（75-1，后端 Key 服务端 + 失败降级）
-    progress.value = "AI 教练正在分析（约 15-90 秒）…";
-    const report = await analyzeSwing(uploaded.frames, kind.value, mode.value);
+    // 2. AI 六维评分 与 姿态测量 并行执行（Step 83：每次分析都跑姿态，含骨架绘制）
+    progress.value = "AI 教练正在分析动作与姿态（约 15-90 秒）…";
+    const [aiResult, poseResult] = await Promise.allSettled([
+      analyzeSwing(uploaded.frames, kind.value, mode.value),
+      analyzePose(uploaded.frames, {
+        videoUrl: uploaded.video_url,
+        saveSkeleton: true,
+        duration: uploaded.duration,
+      }),
+    ]);
 
-    // 3. 本地降级（score=0）时附加姿态测量（75-3）
-    let poseMetrics: { elbowAngle: number; kneeAngle: number; trunkLean: number } | null = null;
-    if ((report.score || 0) === 0) {
-      try {
-        progress.value = "生成本地姿态测量…";
-        const pose = await analyzePose(uploaded.frames);
-        poseMetrics = pose.metrics;
-      } catch {
-        /* 姿态推理失败忽略，降级报告已足够 */
-      }
-    }
+    const report =
+      aiResult.status === "fulfilled" ? aiResult.value : ({} as AnalysisReport);
+    const pose: AnalysisPose | null =
+      poseResult.status === "fulfilled" && poseResult.value.detected
+        ? {
+            detected: true,
+            metrics: poseResult.value.metrics ?? undefined,
+            skeleton_frames: poseResult.value.skeleton_frames,
+            skeleton_video_url: poseResult.value.skeleton_video_url,
+            skeleton_thumb: poseResult.value.skeleton_thumb,
+          }
+        : null;
 
-    // 本地降级时把姿态测量追加进摘要，提升报告可读性
+    // 姿态测量追加进摘要，提升列表/报告可读性
     const enrichedReport = { ...report };
-    if (poseMetrics) {
-      enrichedReport.summary = `${report.summary || ""} 本地姿态：肘角 ${Math.round(poseMetrics.elbowAngle)}° · 膝角 ${Math.round(poseMetrics.kneeAngle)}° · 躯干倾斜 ${Math.round(poseMetrics.trunkLean)}°`;
+    if (pose?.metrics) {
+      enrichedReport.summary = `${report.summary || ""} 姿态：肘角 ${Math.round(pose.metrics.elbowAngle)}° · 膝角 ${Math.round(pose.metrics.kneeAngle)}° · 躯干倾斜 ${Math.round(pose.metrics.trunkLean)}°`;
     }
 
-    // 4. 落库（75-4）
+    // 3. 落库（75-4，封面优先用骨架标注帧）
     const analysis = await createAnalysis({
       date: todayStr(),
       kind: kind.value,
@@ -189,8 +197,9 @@ async function startAnalysis() {
       summary: enrichedReport.summary,
       ntrp: enrichedReport.ntrp,
       report: enrichedReport,
-      thumb: uploaded.thumbnail,
+      thumb: pose?.skeleton_thumb || uploaded.thumbnail,
       video_url: uploaded.video_url,
+      pose: pose ?? undefined,
     });
 
     uni.redirectTo({ url: `/pages/coach/report?id=${analysis.id}` });

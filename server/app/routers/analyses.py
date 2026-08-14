@@ -31,9 +31,10 @@ def _parse_json_field(raw: str | None) -> dict | list | None:
 
 
 def analysis_to_response(analysis: Analysis) -> AnalysisResponse:
-    """将 ORM Analysis 转换为 AnalysisResponse，report/highlights 转结构化 JSON"""
+    """将 ORM Analysis 转换为 AnalysisResponse，report/highlights/pose 转结构化 JSON"""
     report = _parse_json_field(analysis.report)
     highlights = _parse_json_field(analysis.highlights)
+    pose = _parse_json_field(analysis.pose)
     return AnalysisResponse(
         id=analysis.id,
         user_id=analysis.user_id,
@@ -47,6 +48,7 @@ def analysis_to_response(analysis: Analysis) -> AnalysisResponse:
         thumb=analysis.thumb,
         highlights=highlights if isinstance(highlights, list) else None,
         video_url=analysis.video_url,
+        pose=pose if isinstance(pose, dict) else None,
         created_at=analysis.created_at,
     )
 
@@ -80,6 +82,7 @@ def create_analysis(
         thumb=body.thumb,
         highlights=json.dumps(body.highlights, ensure_ascii=False) if body.highlights else None,
         video_url=body.video_url,
+        pose=json.dumps(body.pose, ensure_ascii=False) if body.pose else None,
         created_at=time.time(),
     )
     db.add(analysis)

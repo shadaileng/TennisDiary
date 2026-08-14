@@ -183,9 +183,25 @@ export function analyzeSwing(
   return post<AnalysisReport>("/ai/analyze", { frames, kind, mode }, { timeout: 120000 });
 }
 
-/** 姿态推理（33 关键点 + 角度测量，60s 超时） */
-export function analyzePose(frames: string[]): Promise<PoseResult> {
-  return post<PoseResult>("/pose/analyze", { frames }, { timeout: 60000 });
+/** 姿态推理（33 关键点 + 角度测量 + 可选骨架落盘，60s 超时） */
+export function analyzePose(
+  frames: string[],
+  options?: {
+    videoUrl?: string
+    saveSkeleton?: boolean
+    duration?: number
+  },
+): Promise<PoseResult> {
+  return post<PoseResult>(
+    "/pose/analyze",
+    {
+      frames,
+      video_url: options?.videoUrl,
+      save_skeleton: options?.saveSkeleton ?? false,
+      duration: options?.duration,
+    },
+    { timeout: 60000 },
+  );
 }
 
 /** 落库分析报告（AI 分析成功后调用，供历史回看） */

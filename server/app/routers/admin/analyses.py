@@ -73,10 +73,13 @@ def get_analysis(
     resp = _enrich_analysis(analysis, db)
     report = _parse_json_field(analysis.report)
     highlights = _parse_json_field(analysis.highlights)
+    pose = _parse_json_field(analysis.pose)
     detail = AnalysisDetailAdminResponse(
         **resp.model_dump(),
         report=report if isinstance(report, dict) else None,
         highlights=highlights if isinstance(highlights, list) else None,
+        video_url=analysis.video_url,
+        pose=pose if isinstance(pose, dict) else None,
     )
     return ApiResponse(data=detail)
 

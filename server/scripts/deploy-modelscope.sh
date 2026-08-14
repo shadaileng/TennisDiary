@@ -146,6 +146,13 @@ fi
 log_info "打包 server/ 到临时目录: $TMP_DIR"
 MS_DIR="$SERVER_DIR/modelscope"
 
+# 姿态模型缺失时自动下载（本地仓库 gitignore 不含模型，须在此补齐；
+# GitHub runner 可访问官方源，国内手动部署可用 POSE_MODEL_URL 覆盖镜像源）
+if [ ! -f "$SERVER_DIR/models/pose_landmarker_lite.task" ]; then
+  log_info "姿态模型缺失，自动下载..."
+  bash "$SERVER_DIR/scripts/download-pose-model.sh" || fail "姿态模型下载失败"
+fi
+
 # Dockerfile（优先使用魔搭专用版 modelscope/Dockerfile，含阿里云源加速；否则回退根目录通用版）
 if [ -f "$MS_DIR/Dockerfile" ]; then
   cp "$MS_DIR/Dockerfile" "$TMP_DIR/Dockerfile"
@@ -164,8 +171,8 @@ fi
 # .dockerignore
 [ -f "$SERVER_DIR/.dockerignore" ] && cp "$SERVER_DIR/.dockerignore" "$TMP_DIR/.dockerignore"
 
-# 核心代码文件
-FILES_TO_COPY=("pyproject.toml" "uv.lock" "alembic.ini" "app" "alembic" "scripts")
+# 核心代码文件（models 为姿态模型，随部署目录推送进创空间仓库）
+FILES_TO_COPY=("pyproject.toml" "uv.lock" "alembic.ini" "app" "alembic" "scripts" "models")
 for item in "${FILES_TO_COPY[@]}"; do
   src="$SERVER_DIR/$item"
   if [ -e "$src" ]; then

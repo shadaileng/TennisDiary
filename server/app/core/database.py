@@ -15,6 +15,8 @@ if db_dir:
 connect_args = {}
 if "sqlite" in settings.DATABASE_URL:
     connect_args["check_same_thread"] = False
+    connect_args["timeout"] = 30.0
+    connect_args["isolation_level"] = None  # 手动管理事务，避免 implicit transaction 冲突
 
 engine = create_engine(
     settings.DATABASE_URL,

@@ -17,6 +17,7 @@ from app.routers import (
     diaries,
     files,
     gears,
+    media,
     pose,
     stats,
     upload,
@@ -144,6 +145,7 @@ app.include_router(weights.router)
 app.include_router(checkin.router)
 app.include_router(stats.router)
 app.include_router(files.router)
+app.include_router(media.router)
 app.include_router(upload.router)
 app.include_router(user_events.router)
 

@@ -310,6 +310,8 @@ class AnalysisDetailAdminResponse(AnalysisAdminResponse):
 
     report: dict | None = None  # 后端 json.loads(report) 后返回结构化对象
     highlights: list[str] | None = None  # 高光帧路径数组
+    video_url: str | None = None  # 视频文件相对路径
+    pose: dict | None = None  # 姿态分析结果（三角度/骨架帧/骨架视频）
 
 
 class PostAdminResponse(BaseModel):

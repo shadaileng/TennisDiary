@@ -26,8 +26,9 @@
         @tap="goReport(a.id)"
       >
         <view class="history-thumb">
-          <image v-if="a.thumb" :src="a.thumb" mode="aspectFill" class="history-thumb-img" />
+          <image v-if="a.thumb" :src="resolveUploadUrl(a.thumb)" mode="aspectFill" class="history-thumb-img" />
           <text v-else class="history-thumb-placeholder">🎾</text>
+          <text v-if="a.pose?.detected" class="thumb-badge">🦴</text>
         </view>
         <view class="history-info">
           <view class="history-tags">
@@ -55,6 +56,7 @@ import { onShow } from "@dcloudio/uni-app";
 import Empty from "@/components/Empty.vue";
 import { getAnalyses } from "@/services/data";
 import type { Analysis } from "@/types";
+import { resolveUploadUrl } from "@/utils";
 
 const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
 
@@ -202,6 +204,7 @@ function goReport(id: number) {
 }
 
 .history-thumb {
+  position: relative;
   width: 64px;
   height: 64px;
   border-radius: 16px;
@@ -220,6 +223,21 @@ function goReport(id: number) {
 
 .history-thumb-placeholder {
   font-size: 26px;
+}
+
+.thumb-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  font-size: 12px;
+  background: $color-lime;
+  border: 2px solid $color-white;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .history-info {

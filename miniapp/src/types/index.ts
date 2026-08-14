@@ -191,9 +191,10 @@ export interface Analysis {
   summary: string
   ntrp?: string // 最近一次 AI 评估的参考 NTRP
   report?: AnalysisReport
-  thumb?: string // 封面帧路径（带骨架标注）
+  thumb?: string // 封面帧路径（姿态落库后为带骨架标注的封面）
   highlights?: string[] // 高光帧路径
   video_url?: string // 视频文件相对路径
+  pose?: AnalysisPose // 姿态分析结果（Step 83）
   created_at: number // 时间戳（秒）
 }
 
@@ -209,6 +210,7 @@ export interface AnalysisCreate {
   thumb?: string
   highlights?: string[]
   video_url?: string
+  pose?: AnalysisPose
 }
 
 /** 视频上传结果 — 后台 POST /api/video/upload data */
@@ -231,11 +233,33 @@ export interface PoseLandmark {
   visibility: number
 }
 
-/** 姿态推理结果 — 后台 POST /api/pose/analyze data */
+/** 姿态测量（肘/膝/躯干角，取可见度更高一侧） */
+export interface PoseMetrics {
+  elbowAngle: number
+  kneeAngle: number
+  trunkLean: number
+}
+
+/** 姿态分析结果 — 后台 POST /api/pose/analyze data */
 export interface PoseResult {
   frames: { landmarks: PoseLandmark[] }[]
-  metrics: { elbowAngle: number; kneeAngle: number; trunkLean: number } | null
+  metrics: PoseMetrics | null
   detected: boolean
+  /** 骨架帧相对 URL（save_skeleton 时返回） */
+  skeleton_frames?: string[]
+  /** 骨架关键帧动画 mp4 相对 URL（ffmpeg 可用时返回） */
+  skeleton_video_url?: string
+  /** 封面骨架帧相对 URL */
+  skeleton_thumb?: string
+}
+
+/** 已落库分析的姿态结果（后台 AnalysisResponse.pose） */
+export interface AnalysisPose {
+  detected: boolean
+  metrics?: PoseMetrics
+  skeleton_frames?: string[]
+  skeleton_video_url?: string
+  skeleton_thumb?: string
 }
 
 // ==================== 训练营打卡 ====================
