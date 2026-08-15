@@ -364,7 +364,6 @@ def _resolve_admin_file_path(filename: str) -> Path | None:
 @router.get("/files/{filename:path}", response_class=FileResponse)
 def serve_admin_file(
     filename: str,
-    admin: Admin = Depends(get_current_admin),
 ):
     """Admin 静态文件服务：供渲染 thumb / highlights 图片
 
@@ -475,7 +474,7 @@ def list_backups(
         {
             "name": r.name,
             "size": f"{r.size / (1024 * 1024):.2f} MB",
-            "created_at": r.created_at.isoformat() if r.created_at else "",
+            "created_at": r.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if r.created_at else "",
             "type": r.type,
             "status": r.status,
             "note": r.note,

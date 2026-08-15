@@ -127,7 +127,11 @@ def _build_item(db: Session, key: str) -> dict[str, Any]:
         "default_value": mask_secret(default) if is_secret else default,
         "source": source,
         "options": _item_options(db, item),
-        "updated_at": row.updated_at.isoformat() if row is not None and row.updated_at else None,
+        "updated_at": (
+            row.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if row is not None and row.updated_at
+            else None
+        ),
         "updated_by": row.updated_by if row is not None else None,
     }
 

@@ -21,7 +21,11 @@ def _build_provider_item(provider: AiProvider, is_selected: bool = False) -> dic
         "enabled": bool(provider.enabled),
         "sort_order": provider.sort_order,
         "is_selected": is_selected,
-        "updated_at": provider.updated_at.isoformat() if provider.updated_at else None,
+        "updated_at": (
+            provider.updated_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if provider.updated_at
+            else None
+        ),
     }
 
 

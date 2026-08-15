@@ -228,12 +228,12 @@ class TestAdminStaticFiles:
         response = auth_client.get("/api/admin/system/files/../../secret.txt")
         assert response.status_code == 404
 
-    def test_serve_file_requires_auth(self, client, data_dir):
-        """未登录 → 401/403"""
+    def test_serve_file_no_auth_required(self, client, data_dir):
+        """无需认证即可访问静态文件（浏览器 <img> 无法携带自定义头部）"""
         upload_dir = Path(settings.UPLOAD_DIR)
         upload_dir.mkdir(parents=True, exist_ok=True)
         target = upload_dir / "cover.jpg"
         target.write_bytes(b"jpg")
-        client.headers.pop("X-Auth-Token", None)  # auth_client 已给共享 client 注入 token，先清除
+        client.headers.pop("X-Auth-Token", None)
         response = client.get("/api/admin/system/files/cover.jpg")
-        assert response.status_code in (401, 403)
+        assert response.status_code == 200

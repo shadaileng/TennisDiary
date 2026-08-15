@@ -263,6 +263,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { getEventLogs, type EventLog } from '@/api/events'
 import { getUser, type User } from '@/api/users'
 import Pagination from '@/components/common/Pagination.vue'
+import { formatTs } from '@/utils/date'
 
 const events = ref<EventLog[]>([])
 const total = ref(0)
@@ -289,17 +290,14 @@ const levelClass = (level: string): string => {
   return map[level] || 'bg-gray-100 text-gray-800'
 }
 
-/** client_time 是毫秒时间戳，直接使用 */
+/** client_time 是毫秒时间戳 */
 const formatClientTime = (ts: number | null): string => {
   if (!ts) return '--'
-  return new Date(ts).toLocaleString('zh-CN')
+  return new Date(ts).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
 }
 
 /** created_at 是秒级时间戳 */
-const formatServerTime = (ts: number): string => {
-  if (!ts) return '--'
-  return new Date(ts * 1000).toLocaleString('zh-CN')
-}
+const formatServerTime = (ts: number): string => formatTs(ts)
 
 const getUserInfo = async (userId: number) => {
   if (userCache.value[userId]) return userCache.value[userId]

@@ -141,6 +141,8 @@ export default defineConfig({
             { text: '79：AI 服务商管理 + 配置直选', link: '/plans/79-AI服务商管理配置直选' },
             { text: '80：AI 服务商多模型支持', link: '/plans/80-AI服务商多模型与模型直选' },
             { text: '81：AI 模型可用性校验与调试脚本', link: '/plans/81-AI模型可用性校验与调试脚本' },
+            { text: '86：Admin 静态文件端点移除认证', link: '/plans/86-Admin静态文件端点移除认证' },
+            { text: '87：Admin 时间显示统一东八区', link: '/plans/87-Admin时间显示统一东八区' },
           ],
         },
         {

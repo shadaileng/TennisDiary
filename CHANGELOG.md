@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.0] - 2026-08-15
+
+### Added
+
+- admin 静态文件端点移除认证（86）：`/api/admin/system/files/{filename}` 移除 `Depends(get_current_admin)`，解决 `<img>` 浏览器原生请求无法携带 `X-Auth-Token` 导致 401 问题，安全性由文件名不可猜测保证（UUID + 业务前缀）。详见 `docs/plans/86-Admin静态文件端点移除认证.md`
+- admin 时间显示统一东八区（87）：新增 `admin/src/utils/date.ts` 共享工具（`formatTs`/`formatIso`/`formatDate` 三个函数，`timeZone: 'Asia/Shanghai'`），8 个视图（admins/analyses/diaries/gears/system/backups/system/event-logs/users/weights）统一导入替代原生 `toLocaleString`；后端备份列表 `created_at` 时间格式添加 `Z` 后缀保证 ISO 8601 合规。详见 `docs/plans/87-Admin时间显示统一东八区.md`
+
 ## [1.60.0] - 2026-08-15
 
 ### Added

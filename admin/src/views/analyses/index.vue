@@ -211,6 +211,7 @@ import { getAnalyses, getAnalysis, deleteAnalysis, type Analysis, type AnalysisR
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Modal from '@/components/common/Modal.vue'
+import { formatDate } from '@/utils/date'
 
 const columns = [
   { key: 'id', title: 'ID' },
@@ -253,10 +254,7 @@ const fileUrl = (p?: string | null): string => {
   return `/api/admin/system/files/${p}`
 }
 
-const formatDate = (date: string) => {
-  if (!date) return '--'
-  return new Date(date).toLocaleDateString('zh-CN')
-}
+
 
 const modeLabel = (mode: string) => (mode === 'single' ? '单次挥拍' : mode === 'full' ? '综合分析' : mode || '--')
 
