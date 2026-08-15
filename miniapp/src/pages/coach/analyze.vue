@@ -180,6 +180,7 @@ async function startAnalysis() {
         videoUrl: uploaded.video_url,
         saveSkeleton: true,
         duration: uploaded.duration,
+        frameRate: uploaded.frame_rate,
       }),
     ]);
 

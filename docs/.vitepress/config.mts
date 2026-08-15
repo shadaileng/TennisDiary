@@ -165,6 +165,8 @@ export default defineConfig({
           collapsed: false,
           items: [
             { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
+            { text: '84：骨架视频多帧修复', link: '/plans/84-骨架视频多帧修复' },
+            { text: '85：骨骼视频帧率自适应绘制', link: '/plans/85-骨骼视频帧率自适应绘制' },
           ],
         },
         {

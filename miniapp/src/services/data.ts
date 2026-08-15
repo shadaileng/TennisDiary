@@ -190,6 +190,7 @@ export function analyzePose(
     videoUrl?: string
     saveSkeleton?: boolean
     duration?: number
+    frameRate?: number
   },
 ): Promise<PoseResult> {
   return post<PoseResult>(
@@ -199,6 +200,7 @@ export function analyzePose(
       video_url: options?.videoUrl,
       save_skeleton: options?.saveSkeleton ?? false,
       duration: options?.duration,
+      frame_rate: options?.frameRate,
     },
     { timeout: 60000 },
   );

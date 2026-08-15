@@ -141,17 +141,25 @@ class TestProcessVideoLimits:
         with pytest.raises(FfmpegUnavailableError):
             video_service.process_video("/tmp/v.mp4", "single", 1.0)
 
-    def test_process_success(self, monkeypatch):
+    def test_process_success(self, monkeypatch, tmp_path):
         """正常流程 → 返回帧 + duration + thumbnail"""
+        video_dir = tmp_path / "videos" / "1"
+        video_dir.mkdir(parents=True)
+        video_path = video_dir / "test.mp4"
+        video_path.write_bytes(b"fake-video")
+
         monkeypatch.setattr(video_service, "probe_duration", lambda p: 8.0)
+        monkeypatch.setattr(video_service, "probe_frame_rate", lambda p: 30.0)
         monkeypatch.setattr(video_service, "find_ffmpeg", lambda: "/usr/bin/ffmpeg")
         monkeypatch.setattr(
             video_service,
             "extract_frames",
             lambda path, times, **kw: [b"\xff\xd8f" + bytes([i]) for i in range(len(times))],
         )
-        result = video_service.process_video("/tmp/v.mp4", "single", 2.0)
+        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        result = video_service.process_video(str(video_path), "single", 2.0)
         assert result["duration"] == 8.0
+        assert result["frame_rate"] == 30.0
         assert len(result["frames"]) == 7  # single 采样 7 帧
         assert result["thumbnail"].startswith("data:image/jpeg;base64,")  # 封面帧转 dataURL
         assert result["hit_time"] == 2.0

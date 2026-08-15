@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.60.0] - 2026-08-15
+
+### Added
+
+- server 骨骼视频帧率自适应绘制（85）：`video_service.py` 新增 `probe_frame_rate` 函数获取视频帧率（ffprobe 优先，分数格式解析，回退 30fps）；`process_video` 返回 `frame_rate` 字段；`pose.py` `PoseAnalyzeRequest` 新增 `frame_rate` 参数；`pose_service.py` `analyze_frames` 使用 `帧数/时长` 计算骨骼视频帧率，确保播放时长与原视频一致。小程序 `VideoUploadResult` 新增 `frame_rate` 字段，`analyzePose` 新增 `frameRate` 参数，`analyze.vue` 传递帧率参数。详见 `docs/plans/85-骨骼视频帧率自适应绘制.md`
+
 ## [1.59.1] - 2026-08-15
 
 ### Fixed

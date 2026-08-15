@@ -93,6 +93,43 @@ def probe_duration(path: str) -> float:
     raise FfmpegUnavailableError("ffmpeg 不可用")
 
 
+def probe_frame_rate(path: str) -> float:
+    """探测视频帧率：优先 ffprobe，回退默认 30fps
+
+    返回浮点数帧率（如 29.97, 30.0, 60.0）
+    """
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe:
+        proc = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=r_frame_rate,avg_frame_rate",
+                "-of",
+                "default=nw=1:nk=1",
+                path,
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+        if proc.returncode == 0:
+            frame_rate_str = proc.stdout.decode().strip()
+            if frame_rate_str:
+                try:
+                    # 处理分数格式如 "30000/1001"
+                    if "/" in frame_rate_str:
+                        num, den = frame_rate_str.split("/")
+                        return float(num) / float(den)
+                    return float(frame_rate_str)
+                except (ValueError, ZeroDivisionError):
+                    pass
+    return 30.0  # 默认帧率
+
+
 def build_sampling_times(mode: str, duration: float, hit_time: float | None) -> list[float]:
     """生成采样时间点（与参考版 CoachAnalyze.tsx 一致）"""
     lo, hi = 0.01, max(0.01, duration - 0.1)
@@ -155,6 +192,7 @@ def extract_frames(path: str, times: list[float], width: int = _FRAME_WIDTH) -> 
 def process_video(path: str, mode: str, hit_time: float | None) -> dict:
     """编排：探测 → 校验时长 → 采样 → 抽帧 → 封面，返回抽帧结果 dict"""
     duration = probe_duration(path)
+    frame_rate = probe_frame_rate(path)
     limit = _MAX_DURATION.get(mode, _MAX_DURATION["single"])
     if duration > limit:
         raise VideoTooLongError(
@@ -187,6 +225,7 @@ def process_video(path: str, mode: str, hit_time: float | None) -> dict:
         "frames": [_to_data_url(f) for f in frames],
         "frame_urls": frame_urls,
         "duration": duration,
+        "frame_rate": frame_rate,
         "thumbnail": _to_data_url(thumbnail),
         "hit_time": hit,
         "mode": mode,

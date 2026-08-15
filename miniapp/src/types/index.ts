@@ -218,6 +218,7 @@ export interface VideoUploadResult {
   frames: string[] // 抽帧 base64 dataURL（AI 分析用）
   frame_urls: string[] // 帧文件相对路径
   duration: number // 秒
+  frame_rate?: number // 视频帧率（fps）
   thumbnail: string // 封面帧 base64 dataURL
   hit_time: number
   mode: "single" | "full"

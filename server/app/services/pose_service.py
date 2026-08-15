@@ -358,6 +358,7 @@ def analyze_frames(
     video_url: str | None = None,
     save_skeleton: bool = False,
     duration: float | None = None,
+    frame_rate: float | None = None,
 ) -> dict:
     """逐帧推理编排，返回 {frames, metrics, detected, skeleton_*}
 
@@ -412,10 +413,12 @@ def analyze_frames(
         else:
             skeleton_thumb = skeleton_rel[0]
     if skeleton_paths and video_dir is not None:
-        fps = (len(skeleton_paths) / duration) if duration else 2.0
+        # 骨骼视频帧率 = 帧数/时长，确保播放时长与原视频一致
+        effective_fps = (len(skeleton_paths) / duration) if duration else 2.0
         out_name = f"{base}_skeleton.mp4"
         out_path = os.path.join(video_dir, out_name)
-        if encode_skeleton_video(skeleton_paths, out_path, fps) and os.path.isfile(out_path):
+        encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
+        if encoded and os.path.isfile(out_path):
             skeleton_video_url = _rel_url(out_path)
 
     return {

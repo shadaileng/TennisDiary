@@ -26,6 +26,7 @@ class PoseAnalyzeRequest(BaseModel):
         default=False, description="是否绘制骨架帧并落盘（skeleton_frames/video/thumb）"
     )
     duration: float | None = Field(default=None, description="视频时长（秒），骨架动画 fps 推算用")
+    frame_rate: float | None = Field(default=None, description="视频帧率（fps），用于骨架动画编码")
 
 
 @router.post("/analyze", response_model=ApiResponse[dict])
@@ -50,6 +51,7 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
             video_url=req.video_url,
             save_skeleton=req.save_skeleton,
             duration=req.duration,
+            frame_rate=req.frame_rate,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
