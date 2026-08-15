@@ -24,7 +24,7 @@
           <text class="tag-mode">{{ analysis.mode === "single" ? "单次挥拍分析" : "综合分析" }} · {{ analysis.date }}</text>
         </view>
         <text class="summary-text">{{ analysis.summary }}</text>
-        <text v-if="analysis.ntrp" class="ntrp-note">NTRP 为 AI 基于本段视频的参考评估，仅供对照成长，非官方定级</text>
+        <text v-if="analysis.ntrp" class="ntrp-note">NTRP 为基于本段视频的参考评估，仅供对照成长，非官方定级</text>
       </view>
 
       <!-- 六维评分：雷达图 + 逐项点评 -->

@@ -261,14 +261,14 @@ export function drawShareCard(
   } else {
     // 技术评分
     if (!latestAnalysis?.report) {
-      header(ctx, "技术评分", "AI 教练分析");
+      header(ctx, "技术评分", "教练分析");
       emptyCard(ctx, "还没有分析报告，先去做一次分析吧～");
     } else {
       const r = latestAnalysis.report;
       header(
         ctx,
         `${latestAnalysis.kind}技术评分`,
-        `AI 教练分析 · ${latestAnalysis.date}`,
+        `教练分析 · ${latestAnalysis.date}`,
       );
       white(ctx, 70, 480, 940, 700);
       // 大评分球
@@ -326,5 +326,5 @@ export function genCaption(tpl: ShareTemplate, data: ShareData): string {
     (a, b) => Number(b.score || 0) - Number(a.score || 0),
   )[0];
   const issue = latestAnalysis.report.improvements?.[0]?.issue;
-  return `🤖 AI 教练给我的${latestAnalysis.kind}打了 ${latestAnalysis.score || "—"} 分！\n\n${latestAnalysis.summary || ""}\n最强项：${best?.name || "—"}（${best?.score || 0}分）💪\n${issue ? `下一步改进：${issue}` : ""}\n\n#网球 #AI教练 #网球技术 #网球日记`;
+  return `🤖 教练给我的${latestAnalysis.kind}打了 ${latestAnalysis.score || "—"} 分！\n\n${latestAnalysis.summary || ""}\n最强项：${best?.name || "—"}（${best?.score || 0}分）💪\n${issue ? `下一步改进：${issue}` : ""}\n\n#网球 #教练 #网球技术 #网球日记`;
 }

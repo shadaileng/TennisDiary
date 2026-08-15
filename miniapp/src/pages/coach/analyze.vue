@@ -27,7 +27,7 @@
         <text class="form-hint">
           {{ mode === "single"
             ? "上传包含一次完整挥拍的视频，播放到「击球瞬间」暂停，再点开始分析"
-            : "上传 15-60 秒的训练/对拉片段，AI 将综合分析动作、节奏与战术" }}
+            : "上传 15-60 秒的训练/对拉片段，将综合分析动作、节奏与战术" }}
         </text>
       </view>
 
@@ -173,7 +173,7 @@ async function startAnalysis() {
     });
 
     // 2. AI 六维评分 与 姿态测量 并行执行（Step 83：每次分析都跑姿态，含骨架绘制）
-    progress.value = "AI 教练正在分析动作与姿态（约 15-90 秒）…";
+    progress.value = "教练正在分析动作与姿态（约 15-90 秒）…";
     const [aiResult, poseResult] = await Promise.allSettled([
       analyzeSwing(uploaded.frames, kind.value, mode.value),
       analyzePose(uploaded.frames, {

@@ -2,8 +2,8 @@
   <view class="coach-page">
     <!-- hero 卡（深橄榄渐变 + 青柠光斑） -->
     <view class="hero-card">
-      <text class="hero-badge">🎾 7×24H · AI 专属私教</text>
-      <text class="hero-title">上传视频，让 AI 教练帮你复盘</text>
+      <text class="hero-badge">🎾 7×24H · 专属私教</text>
+      <text class="hero-title">上传视频，让教练帮你复盘</text>
       <view class="hero-features">
         <text v-for="f in FEATURES" :key="f" class="hero-feature">{{ f }}</text>
       </view>

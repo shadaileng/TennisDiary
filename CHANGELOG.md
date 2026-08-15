@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.1] - 2026-08-15
+
+### Fixed
+
+- miniapp 去掉用户可见的"AI"字眼：教练主页英雄卡片、分析页进度提示与表单说明、报告页 NTRP 注释、分享卡片标题与文案、页面导航标题，统一改为中性表述（"专属私教"、"教练分析"等）
+
 ## [1.61.0] - 2026-08-15
 
 ### Added

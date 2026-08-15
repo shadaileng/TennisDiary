@@ -51,7 +51,7 @@
     {
       "path": "pages/coach/analyze",
       "style": {
-        "navigationBarTitleText": "AI 分析"
+        "navigationBarTitleText": "分析"
       }
     },
     {
