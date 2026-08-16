@@ -34,7 +34,10 @@
     "build:quickapp-webview": "uni build -p quickapp-webview",
     "build:quickapp-webview-huawei": "uni build -p quickapp-webview-huawei",
     "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "test": "playwright test",
+    "test:share-canvas": "playwright test --project=share-canvas",
+    "test:update-snapshots": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-5010520260709002",
@@ -63,6 +66,8 @@
     "@dcloudio/uni-cli-shared": "3.0.0-5010520260709002",
     "@dcloudio/uni-stacktracey": "3.0.0-5010520260709002",
     "@dcloudio/vite-plugin-uni": "3.0.0-5010520260709002",
+    "@napi-rs/canvas": "^0.1.53",
+    "@playwright/test": "^1.50.0",
     "@types/node": "^26.1.2",
     "@vue/runtime-core": "^3.4.21",
     "@vue/tsconfig": "^0.1.3",

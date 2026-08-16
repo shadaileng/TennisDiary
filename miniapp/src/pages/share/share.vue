@@ -51,7 +51,13 @@ import { onShow } from "@dcloudio/uni-app";
 import Seg from "@/components/Seg.vue";
 import { getAnalyses, getDiaries } from "@/services/data";
 import type { Analysis, Diary } from "@/types";
-import { drawShareCard, genCaption, SHARE_TEMPLATES } from "@/utils/shareCanvas";
+import {
+  drawShareCard,
+  genCaption,
+  measureShareCardHeight,
+  SHARE_TEMPLATES,
+  buildContext,
+} from "@/utils/shareCanvas";
 import type { ShareTemplate } from "@/utils/shareCanvas";
 import { INTENSITY, MOOD } from "@/utils";
 
@@ -75,7 +81,8 @@ onShow(async () => {
     const [ds, as] = await loadData();
     diaries.value = ds;
     analysis.value = as.items?.[0];
-    caption.value = genCaption(tpl.value, { diaries: ds, analysis: as.items?.[0] });
+    const pipe = buildContext(tpl.value, { diaries: ds, analysis: as.items?.[0] }, MOOD as never, INTENSITY as never);
+    caption.value = genCaption(pipe);
     await nextTick();
     draw();
   } catch {
@@ -94,13 +101,17 @@ function draw() {
         | { width: number; height: number; getContext: (t: string) => CanvasRenderingContext2D }
         | undefined;
       if (!node) return;
-      const ctx = node.getContext("2d");
-      ctx.scale(dpr, dpr);
-      const h = drawShareCard(ctx, tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
+
+      const data = { diaries: diaries.value, analysis: analysis.value };
+      const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never);
+
       node.width = W * dpr;
       node.height = h * dpr;
+
+      const ctx = node.getContext("2d");
       ctx.scale(dpr, dpr);
-      drawShareCard(ctx, tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
+      drawShareCard(ctx, tpl.value, data, MOOD as never, INTENSITY as never);
+
       const opts = {
         canvas: node as never,
         success: (r: { tempFilePath: string }) => {
@@ -115,7 +126,8 @@ function draw() {
 }
 
 watch(tpl, async (val) => {
-  caption.value = genCaption(val, { diaries: diaries.value, analysis: analysis.value });
+  const pipe = buildContext(val, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
+  caption.value = genCaption(pipe);
   await nextTick();
   draw();
 });
@@ -125,7 +137,8 @@ function onCaptionInput(e: any) {
 }
 
 function regenerate() {
-  caption.value = genCaption(tpl.value, { diaries: diaries.value, analysis: analysis.value });
+  const pipe = buildContext(tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
+  caption.value = genCaption(pipe);
   uni.showToast({ title: "已重新生成", icon: "none" });
 }
 
