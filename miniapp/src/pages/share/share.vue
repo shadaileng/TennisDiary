@@ -58,7 +58,7 @@ import { INTENSITY, MOOD } from "@/utils";
 
 const instance = getCurrentInstance();
 const W = 1080;
-const H = 1350;
+const H = 1500;
 const canvasH = 300;
 const dpr = uni.getSystemInfoSync().pixelRatio || 2;
 

@@ -1,7 +1,7 @@
 import type { Analysis, Diary } from "@/types";
 
 const W = 1080;
-const H = 1350;
+const H = 1500;
 const LIME = "#C8DA2B";
 const OLIVE = "#242B1F";
 const PAPER = "#F2F2EF";
@@ -348,18 +348,18 @@ export function drawShareCard(
       const dims = (r.dimensions || []).slice(0, 6);
 
       if (dims.length >= 3) {
-        // 布局参数（画布 1350px，footer 在 1270，内容需在1250内）
-        const cardTop = 430;
+        // 布局参数（画布 1500px，footer 在 H-80=1420）
+        const cardTop = 470;
         const radarCx = W / 2;
-        const radarCy = 540;
-        const radarR = 75;
-        const dimListTop = 655;
-        const dimItemH = 85;
+        const radarCy = 600;
+        const radarR = 90;
+        const dimListTop = 740;
+        const dimItemH = 100;
 
         // 1. 计算维度列表高度
         const dimListH = dims.length * dimItemH;
-        const summaryH = r.summary ? 36 : 0;
-        const contentBottom = dimListTop + dimListH + summaryH + 16;
+        const summaryH = r.summary ? 50 : 0;
+        const contentBottom = dimListTop + dimListH + summaryH + 20;
 
         // 2. 绘制白色卡片
         white(ctx, 70, cardTop, 940, contentBottom - cardTop);
@@ -371,34 +371,34 @@ export function drawShareCard(
         let sy = dimListTop;
         for (const d of dims) {
           // 维度名称 + 分数
-          ctx.font = font(600, 26);
+          ctx.font = font(600, 28);
           ctx.fillStyle = INK;
           ctx.textAlign = "left";
           ctx.fillText(d.name, 120, sy);
 
-          ctx.font = font(700, 28);
+          ctx.font = font(700, 30);
           ctx.fillStyle = LIME;
           ctx.textAlign = "right";
           ctx.fillText(String(d.score ?? 0), 940, sy);
 
           // 进度条
           ctx.fillStyle = "#E8E8E4";
-          rr(ctx, 120, sy + 10, 800, 8, 4);
+          rr(ctx, 120, sy + 12, 800, 10, 5);
           ctx.fill();
           ctx.fillStyle = LIME;
-          rr(ctx, 120, sy + 10, 800 * Math.min(1, Number(d.score || 0) / 100), 8, 4);
+          rr(ctx, 120, sy + 12, 800 * Math.min(1, Number(d.score || 0) / 100), 10, 5);
           ctx.fill();
 
           // 点评文字
           if (d.comment) {
-            ctx.font = font(400, 20);
+            ctx.font = font(400, 24);
             ctx.fillStyle = "#7A8272";
             ctx.textAlign = "left";
             const commentLines = wrap(ctx, d.comment, 860);
-            let cy = sy + 34;
+            let cy = sy + 40;
             for (const line of commentLines.slice(0, 2)) {
               ctx.fillText(line, 120, cy);
-              cy += 26;
+              cy += 30;
             }
             sy += dimItemH;
           } else {
@@ -408,14 +408,14 @@ export function drawShareCard(
 
         // 5. 总结文字（卡片内底部）
         if (r.summary) {
-          ctx.font = font(500, 22);
+          ctx.font = font(500, 26);
           ctx.fillStyle = "#7A8272";
           ctx.textAlign = "center";
           const lines = wrap(ctx, r.summary, 860);
-          let sy = dimListTop + dimListH + 20;
+          let sy = dimListTop + dimListH + 24;
           for (const line of lines.slice(0, 1)) {
             ctx.fillText(line, W / 2, sy);
-            sy += 32;
+            sy += 36;
           }
         }
       } else {
