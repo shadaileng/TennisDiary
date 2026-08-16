@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.8] - 2026-08-16
+
+### Fixed
+
+- miniapp 三张分享图片footer整体下移（height 100→120, bottomMargin 100→60）
+
 ## [1.61.7] - 2026-08-16
 
 ### Fixed

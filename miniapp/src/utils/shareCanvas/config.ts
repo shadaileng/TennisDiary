@@ -32,7 +32,7 @@ export interface IntensityItem {
 export const PIPELINE_CONFIG = {
   canvas: { width: W },
   headerHeight: 420,
-  footer: { height: 100, padding: 80, bottomMargin: 100 },
+  footer: { height: 120, padding: 80, bottomMargin: 60 },
   content: { top: 460 as number, padding: 70, cardWidth: 940 },
   card: { radius: 40 },
   monthlyStats: {

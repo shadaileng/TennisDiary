@@ -162,6 +162,8 @@ cd admin && pnpm build                 # 构建管理端
 | 87 | Admin 时间显示统一东八区（后端 isoformat 加 `Z` 后缀 + 前端共享 `utils/date.ts`，`timeZone: 'Asia/Shanghai'`，8 个视图统一导入） | ✅ |
 | 89 | 分享工坊条件管线模式重构（DrawPipeline → DrawStage → DrawStep 模式 + Playwright 回归测试 8 用例） | ✅ |
 | 90 | 小程序 UI 布局视觉回归测试（RadarChart/LineChart 8 用例 + playwright-visual-regression skill 集成） | ✅ |
+| 91 | 分享工坊技术评分三区域分离（雷达图/进度条/总结 + 白色卡片包裹 + Playwright 4 用例） | ✅ |
+| 92 | 分享工坊视觉优化（雷达图标注偏移+动态对齐 + 进度条文字间距 + footer下移） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

@@ -114,7 +114,7 @@ export function header(ctx: CanvasRenderingContext2D, title: string, sub: string
 export function footer(ctx: CanvasRenderingContext2D, h: number) {
   ctx.fillStyle = GRAY;
   ctx.font = font(500, 30);
-  ctx.fillText("用 Tennis Diary 记录我的网球成长 🎾", 70, h - 80);
+  ctx.fillText("用 Tennis Diary 记录我的网球成长 🎾", 70, h - 50);
 }
 
 export function emptyCard(ctx: CanvasRenderingContext2D, text: string) {
