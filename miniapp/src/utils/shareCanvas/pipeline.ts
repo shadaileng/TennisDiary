@@ -25,8 +25,12 @@ export class DrawPipeline {
     let y = pipe.config.content.top;
     for (const stage of this.stages) {
       for (const step of stage.steps) {
-        if (step.condition(pipe) && step.measure) {
-          y = step.measure(y, pipe);
+        if (step.condition(pipe)) {
+          if (step.measure) {
+            y = step.measure(y, pipe);
+          }
+          // 如果没有 measure，使用 execute 的返回值逻辑（但不实际绘制）
+          break; // 每个 stage 只执行第一个匹配的 step
         }
       }
     }
@@ -44,6 +48,7 @@ export class DrawPipeline {
       for (const step of stage.steps) {
         if (step.condition(pipe)) {
           y = step.execute(ctx, pipe, y);
+          break; // 每个 stage 只执行第一个匹配的 step
         }
       }
     }

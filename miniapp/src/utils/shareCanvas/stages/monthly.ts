@@ -16,8 +16,8 @@ export const monthlyStage: DrawStage = {
       name: "stats-cards",
       condition: (pipe) => pipe.tpl === "月度战报",
       measure: (_y, _pipe) => {
-        // 月度战报：两行卡片，每行高300，间距380
-        // topY=480, 第一行到 480+300=780, 第二行从 480+380=860 到 860+300=1160
+        // 月度战报：两行卡片，每行高320，间距360
+        // topY=480, 第一行到 480+320=800, 第二行从 480+360=840 到 840+320=1160
         return 1160;
       },
       execute: (_ctx, pipe, y) => {

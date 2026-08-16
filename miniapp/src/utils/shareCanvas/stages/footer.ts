@@ -7,11 +7,12 @@ export const footerStage: DrawStage = {
     {
       name: "footer",
       condition: () => true,
-      measure: (y, pipe) => y + pipe.config.footer.height,
-      execute: (_ctx, pipe, _y) => {
-        const H = _y + pipe.config.footer.height;
+      // measure 不需要，因为 pipeline.measureHeight 会自动添加 footer.height
+      execute: (_ctx, pipe, y) => {
+        // footer 绘制在画布底部区域
+        const H = y + pipe.config.footer.height;
         drawFooter(_ctx, H);
-        return _y;
+        return y;
       },
     },
   ],

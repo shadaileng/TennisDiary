@@ -20,8 +20,8 @@ export const todayDiaryStage: DrawStage = {
       name: "diary-content",
       condition: (pipe) => pipe.tpl === "今日日记" && !!pipe.latestDiary,
       measure: (_y, _pipe) => {
-        // 今日日记：复盘卡片从 y=840 开始，高度 380，到 1220
-        return 1220;
+        // 今日日记：复盘卡片从 y=800 开始，高度 400，到 1200
+        return 1200;
       },
       execute: (_ctx, pipe, y) => {
         const d = pipe.latestDiary!;
@@ -72,7 +72,7 @@ export const todayDiaryStage: DrawStage = {
         }
         _ctx.fillText(line, cfg.reviewCard.x + 50, ty);
 
-        return 1220;
+        return 1200;
       },
     },
   ],
