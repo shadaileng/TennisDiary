@@ -10,6 +10,7 @@ export default defineConfig({
   expect: {
     toHaveScreenshot: {
       maxDiffPixelRatio: 0.01,
+      threshold: 0.2,
     },
   },
   use: {
@@ -23,6 +24,10 @@ export default defineConfig({
     {
       name: "share-canvas",
       testDir: "./tests/share-canvas",
+    },
+    {
+      name: "components",
+      testDir: "./tests/components",
     },
   ],
 });

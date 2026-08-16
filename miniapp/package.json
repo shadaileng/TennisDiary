@@ -1,6 +1,6 @@
 {
   "name": "uni-preset-vue",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "scripts": {
     "dev:custom": "uni -p",
     "dev:h5": "uni",
@@ -37,6 +37,7 @@
     "type-check": "vue-tsc --noEmit",
     "test": "playwright test",
     "test:share-canvas": "playwright test --project=share-canvas",
+    "test:components": "playwright test --project=components",
     "test:update-snapshots": "playwright test --update-snapshots"
   },
   "dependencies": {

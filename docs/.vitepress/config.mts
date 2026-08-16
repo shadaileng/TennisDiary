@@ -127,6 +127,7 @@ export default defineConfig({
             { text: '77：小程序 AI 分析 chooseVideo 选视频失败修复', link: '/plans/77-小程序AI分析chooseVideo选视频失败修复' },
             { text: '88：分享工坊技术评分卡片六边形维度点评', link: '/plans/88-分享工坊技术评分卡片六边形维度点评' },
             { text: '89：分享工坊条件管线模式重构', link: '/plans/89-分享工坊条件管线模式重构' },
+            { text: '90：小程序 UI 布局视觉回归测试', link: '/plans/90-小程序UI布局视觉回归测试' },
           ],
         },
         {
