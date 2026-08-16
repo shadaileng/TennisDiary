@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.4] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分卡片布局优化：整体下移，白色卡片包裹雷达图和进度条区域，总结文本显示在卡片下方；修复summaryStage条件判断（检查analysis.summary而非report.summary）
+
 ## [1.61.3] - 2026-08-16
 
 ### Fixed

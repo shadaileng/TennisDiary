@@ -21,14 +21,23 @@ const radarStage: DrawStage = {
       },
       measure: (_y, pipe) => {
         const cfg = pipe.config.techScore;
-        return cfg.cardTop + cfg.radarZone.height;
+        const r = pipe.latestAnalysis!.report!;
+        const dims = (r.dimensions || []).slice(0, 6);
+        const dimListH = dims.length * cfg.progressZone.itemHeight;
+        const summaryH = r.summary ? cfg.summaryZone.height + 40 : 0;
+        const totalH = cfg.radarZone.height + dimListH + summaryH + 40;
+        return cfg.cardTop + totalH;
       },
       execute: (_ctx, pipe, _y) => {
         const r = pipe.latestAnalysis!.report!;
         const dims = (r.dimensions || []).slice(0, 6);
         const cfg = pipe.config.techScore;
 
-        white(_ctx, 70, cfg.cardTop, 940, cfg.radarZone.height);
+        const dimListH = dims.length * cfg.progressZone.itemHeight;
+        const summaryH = r.summary ? cfg.summaryZone.height + 40 : 0;
+        const totalH = cfg.radarZone.height + dimListH + summaryH + 40;
+
+        white(_ctx, 70, cfg.cardTop, 940, totalH);
 
         drawRadar(_ctx, cfg.radar.cx, cfg.radar.cy, cfg.radar.radius, dims);
 
@@ -79,8 +88,7 @@ const progressStage: DrawStage = {
         const r = pipe.latestAnalysis!.report!;
         const dims = (r.dimensions || []).slice(0, 6);
         const cfg = pipe.config.techScore;
-        const dimListH = dims.length * cfg.progressZone.itemHeight;
-        return cfg.progressZone.top + dimListH;
+        return cfg.progressZone.top + dims.length * cfg.progressZone.itemHeight;
       },
       execute: (_ctx, pipe, _y) => {
         const r = pipe.latestAnalysis!.report!;
@@ -134,29 +142,21 @@ const summaryStage: DrawStage = {
       name: "summary-text",
       condition: (pipe) => {
         if (pipe.tpl !== "技术评分" || !pipe.latestAnalysis?.report) return false;
-        const r = pipe.latestAnalysis!.report!;
-        return !!r.summary;
+        return !!pipe.latestAnalysis!.summary;
       },
-      measure: (_y, pipe) => {
-        const r = pipe.latestAnalysis!.report!;
-        const dims = (r.dimensions || []).slice(0, 6);
+      measure: (y, pipe) => {
         const cfg = pipe.config.techScore;
-        const dimListH = dims.length * cfg.progressZone.itemHeight;
-        const summaryTop = cfg.progressZone.top + dimListH + 80;
-        return summaryTop + cfg.summaryZone.height;
+        return y + cfg.summaryZone.height + 40;
       },
-      execute: (_ctx, pipe, _y) => {
-        const r = pipe.latestAnalysis!.report!;
-        const dims = (r.dimensions || []).slice(0, 6);
+      execute: (_ctx, pipe, y) => {
         const cfg = pipe.config.techScore;
 
-        const dimListH = dims.length * cfg.progressZone.itemHeight;
-        const summaryTop = cfg.progressZone.top + dimListH + 80;
+        const summaryTop = y + 40;
 
         _ctx.font = font(500, 28);
         _ctx.fillStyle = "#7A8272";
         _ctx.textAlign = "center";
-        const lines = wrap(_ctx, r.summary!, 860);
+        const lines = wrap(_ctx, pipe.latestAnalysis!.summary!, 860);
         let summaryY = summaryTop;
         for (const line of lines.slice(0, 2)) {
           _ctx.fillText(line, pipe.config.canvas.width / 2, summaryY);
