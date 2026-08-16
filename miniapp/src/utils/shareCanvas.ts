@@ -7,6 +7,7 @@ const OLIVE = "#242B1F";
 const PAPER = "#F2F2EF";
 const INK = "#171B14";
 const GRAY = "#9AA096";
+const GRID = "#E7E9DF";
 const FONT = "sans-serif";
 
 export type ShareTemplate = "月度战报" | "今日日记" | "技术评分";
@@ -31,6 +32,79 @@ interface IntensityItem {
 
 function font(weight: number, size: number): string {
   return `${weight} ${size}px ${FONT}`;
+}
+
+/** 绘制六边形雷达图（Canvas 2d，与 RadarChart.vue 配色一致） */
+function drawRadar(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  R: number,
+  data: { name: string; score: number }[],
+) {
+  const n = data.length;
+  if (n < 3) return;
+
+  const angle = (i: number) => -Math.PI / 2 + (2 * Math.PI * i) / n;
+  const pt = (i: number, r: number) => ({
+    x: cx + r * Math.cos(angle(i)),
+    y: cy + r * Math.sin(angle(i)),
+  });
+
+  // 三档网格环（0.33 / 0.66 / 1）
+  ctx.lineWidth = 1;
+  for (const ratio of [0.33, 0.66, 1]) {
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const p = pt(i, R * ratio);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = GRID;
+    ctx.stroke();
+  }
+
+  // 辐射线
+  for (let i = 0; i < n; i++) {
+    const p = pt(i, R);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(p.x, p.y);
+    ctx.strokeStyle = GRID;
+    ctx.stroke();
+  }
+
+  // 分值多边形
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    const v = Math.min(Number(data[i].score) || 0, 100) / 100;
+    const p = pt(i, R * v);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = LIME;
+  ctx.globalAlpha = 0.35;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = LIME;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+
+  // 顶点标签：名称 + 分值
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < n; i++) {
+    const lp = pt(i, R + 18);
+    ctx.font = font(500, 26);
+    ctx.fillStyle = GRAY;
+    ctx.fillText(String(data[i].name), lp.x, lp.y - 8);
+    ctx.font = font(700, 28);
+    ctx.fillStyle = INK;
+    ctx.fillText(String(Math.round(Number(data[i].score) || 0)), lp.x, lp.y + 10);
+  }
 }
 
 /** 圆角矩形路径（Canvas 2d 无 roundRect 时兜底） */
@@ -270,34 +344,82 @@ export function drawShareCard(
         `${latestAnalysis.kind}技术评分`,
         `教练分析 · ${latestAnalysis.date}`,
       );
-      white(ctx, 70, 480, 940, 700);
-      // 大评分球
-      ctx.fillStyle = LIME;
-      ctx.beginPath();
-      ctx.arc(270, 700, 130, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = INK;
-      ctx.font = font(800, 110);
-      ctx.textAlign = "center";
-      ctx.fillText(String(latestAnalysis.score || "—"), 270, 740);
-      ctx.textAlign = "left";
-      // 六维进度条
-      let sy = 620;
+
       const dims = (r.dimensions || []).slice(0, 6);
-      for (const d of dims) {
-        ctx.font = font(500, 34);
-        ctx.fillStyle = INK;
-        ctx.fillText(d.name, 480, sy);
-        ctx.fillStyle = "#E8E8E4";
-        rr(ctx, 480, sy + 16, 420, 14, 7);
-        ctx.fill();
+
+      if (dims.length >= 3) {
+        // 有足够维度数据：显示雷达图 + 维度点评列表
+        white(ctx, 70, 480, 940, 780);
+
+        // 绘制雷达图（居中）
+        const radarCx = W / 2;
+        const radarCy = 630;
+        const radarR = 110;
+        drawRadar(ctx, radarCx, radarCy, radarR, dims);
+
+        // 维度点评列表
+        let sy = 780;
+        for (const d of dims) {
+          // 维度名称 + 分数
+          ctx.font = font(600, 30);
+          ctx.fillStyle = INK;
+          ctx.textAlign = "left";
+          ctx.fillText(d.name, 120, sy);
+
+          ctx.font = font(700, 32);
+          ctx.fillStyle = LIME;
+          ctx.textAlign = "right";
+          ctx.fillText(String(d.score ?? 0), 940, sy);
+
+          // 进度条
+          ctx.fillStyle = "#E8E8E4";
+          rr(ctx, 120, sy + 14, 800, 12, 6);
+          ctx.fill();
+          ctx.fillStyle = LIME;
+          rr(ctx, 120, sy + 14, 800 * Math.min(1, Number(d.score || 0) / 100), 12, 6);
+          ctx.fill();
+
+          // 点评文字（如果有）
+          if (d.comment) {
+            ctx.font = font(400, 24);
+            ctx.fillStyle = "#7A8272";
+            ctx.textAlign = "left";
+            const commentLines = wrap(ctx, d.comment, 860);
+            let cy = sy + 44;
+            for (const line of commentLines.slice(0, 2)) {
+              ctx.fillText(line, 120, cy);
+              cy += 32;
+            }
+            sy = cy + 16;
+          } else {
+            sy += 60;
+          }
+        }
+      } else {
+        // 维度数据不足：显示大评分球
+        white(ctx, 70, 480, 940, 580);
         ctx.fillStyle = LIME;
-        rr(ctx, 480, sy + 16, 420 * Math.min(1, Number(d.score || 0) / 100), 14, 7);
+        ctx.beginPath();
+        ctx.arc(W / 2, 700, 130, 0, Math.PI * 2);
         ctx.fill();
+        ctx.fillStyle = INK;
+        ctx.font = font(800, 110);
+        ctx.textAlign = "center";
+        ctx.fillText(String(latestAnalysis.score || "—"), W / 2, 740);
+        ctx.textAlign = "left";
+      }
+
+      // 底部：总结文字
+      if (r.summary) {
+        ctx.font = font(500, 26);
         ctx.fillStyle = "#7A8272";
-        ctx.font = font(700, 32);
-        ctx.fillText(String(d.score ?? 0), 920, sy + 5);
-        sy += 96;
+        ctx.textAlign = "center";
+        const lines = wrap(ctx, r.summary, 860);
+        let sy = 1290;
+        for (const line of lines.slice(0, 1)) {
+          ctx.fillText(line, W / 2, sy);
+          sy += 36;
+        }
       }
     }
   }

@@ -125,6 +125,7 @@ export default defineConfig({
             { text: '69：miniapp 全局 Loading 遮罩', link: '/plans/69-miniapp全局Loading遮罩' },
             { text: '76：小程序 401 响应清除 token 内存态并引导登录', link: '/plans/76-小程序401响应清除token内存态并引导登录' },
             { text: '77：小程序 AI 分析 chooseVideo 选视频失败修复', link: '/plans/77-小程序AI分析chooseVideo选视频失败修复' },
+            { text: '88：分享工坊技术评分卡片六边形维度点评', link: '/plans/88-分享工坊技术评分卡片六边形维度点评' },
           ],
         },
         {
