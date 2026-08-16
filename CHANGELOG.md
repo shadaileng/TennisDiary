@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.2] - 2026-08-16
+
+### Changed
+
+- miniapp 分享工坊技术评分三区域分离：将技术评分图片内容区从上到下分为雷达图、进度条、总结三个独立区域，每个区域逐步完善；新增4个Playwright回归测试用例覆盖三个区域
+
 ## [1.61.1] - 2026-08-15
 
 ### Fixed

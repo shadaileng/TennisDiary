@@ -1,11 +1,11 @@
 import { white, emptyCard, drawRadar, font, rr, wrap, GRAY, INK, LIME } from "../primitives";
 import type { DrawStage } from "../pipeline";
 
-export const techScoreStage: DrawStage = {
-  name: "techScore",
+const radarStage: DrawStage = {
+  name: "techScore-radar",
   steps: [
     {
-      name: "empty-state",
+      name: "radar-empty",
       condition: (pipe) => pipe.tpl === "技术评分" && !pipe.latestAnalysis?.report,
       execute: (_ctx, _pipe, y) => {
         emptyCard(_ctx, "还没有分析报告，先去做一次分析吧～");
@@ -13,33 +13,81 @@ export const techScoreStage: DrawStage = {
       },
     },
     {
-      name: "radar-with-dims",
+      name: "radar-hexagon",
       condition: (pipe) => {
         if (pipe.tpl !== "技术评分" || !pipe.latestAnalysis?.report) return false;
         const dims = (pipe.latestAnalysis.report.dimensions || []).slice(0, 6);
         return dims.length >= 3;
       },
-      measure: (y, pipe) => {
-        const r = pipe.latestAnalysis!.report!;
-        const dims = (r.dimensions || []).slice(0, 6);
-        const dimListH = dims.length * pipe.config.techScore.dimItemHeight;
-        const summaryH = r.summary ? 50 : 0;
-        return pipe.config.techScore.dimListTop + dimListH + summaryH + 30;
+      measure: (_y, pipe) => {
+        const cfg = pipe.config.techScore;
+        return cfg.cardTop + cfg.radarZone.height;
       },
-      execute: (_ctx, pipe, y) => {
+      execute: (_ctx, pipe, _y) => {
         const r = pipe.latestAnalysis!.report!;
         const dims = (r.dimensions || []).slice(0, 6);
         const cfg = pipe.config.techScore;
 
-        const dimListH = dims.length * cfg.dimItemHeight;
-        const summaryH = r.summary ? 50 : 0;
-        const cardBottom = cfg.dimListTop + dimListH + summaryH + 30;
-
-        white(_ctx, 70, cfg.cardTop, 940, cardBottom - cfg.cardTop);
+        white(_ctx, 70, cfg.cardTop, 940, cfg.radarZone.height);
 
         drawRadar(_ctx, cfg.radar.cx, cfg.radar.cy, cfg.radar.radius, dims);
 
-        let sy = cfg.dimListTop;
+        return cfg.cardTop + cfg.radarZone.height;
+      },
+    },
+    {
+      name: "score-ball-fallback",
+      condition: (pipe) => {
+        if (pipe.tpl !== "技术评分" || !pipe.latestAnalysis?.report) return false;
+        const dims = (pipe.latestAnalysis.report.dimensions || []).slice(0, 6);
+        return dims.length < 3;
+      },
+      execute: (_ctx, pipe, y) => {
+        const a = pipe.latestAnalysis!;
+        const cfg = pipe.config.techScore;
+
+        white(_ctx, cfg.scoreBallCard.x, cfg.scoreBallCard.y, cfg.scoreBallCard.w, cfg.scoreBallCard.h);
+
+        _ctx.fillStyle = LIME;
+        _ctx.beginPath();
+        _ctx.arc(cfg.radar.cx, cfg.scoreBall.cy, cfg.scoreBall.radius, 0, Math.PI * 2);
+        _ctx.fill();
+
+        _ctx.fillStyle = INK;
+        _ctx.font = font(800, cfg.scoreBall.fontSize);
+        _ctx.textAlign = "center";
+        _ctx.fillText(String(a.score || "—"), cfg.radar.cx, cfg.scoreBall.cy + 40);
+        _ctx.textAlign = "left";
+
+        return y;
+      },
+    },
+  ],
+};
+
+const progressStage: DrawStage = {
+  name: "techScore-progress",
+  steps: [
+    {
+      name: "progress-bars",
+      condition: (pipe) => {
+        if (pipe.tpl !== "技术评分" || !pipe.latestAnalysis?.report) return false;
+        const dims = (pipe.latestAnalysis.report.dimensions || []).slice(0, 6);
+        return dims.length >= 3;
+      },
+      measure: (_y, pipe) => {
+        const r = pipe.latestAnalysis!.report!;
+        const dims = (r.dimensions || []).slice(0, 6);
+        const cfg = pipe.config.techScore;
+        const dimListH = dims.length * cfg.progressZone.itemHeight;
+        return cfg.progressZone.top + dimListH;
+      },
+      execute: (_ctx, pipe, _y) => {
+        const r = pipe.latestAnalysis!.report!;
+        const dims = (r.dimensions || []).slice(0, 6);
+        const cfg = pipe.config.techScore;
+
+        let sy = cfg.progressZone.top;
         for (const d of dims) {
           _ctx.font = font(600, 28);
           _ctx.fillStyle = INK;
@@ -70,51 +118,56 @@ export const techScoreStage: DrawStage = {
               cy += cfg.commentLineHeight;
             }
           }
-          sy += cfg.dimItemHeight;
+          sy += cfg.progressZone.itemHeight;
         }
 
-        if (r.summary) {
-          _ctx.font = font(500, 26);
-          _ctx.fillStyle = "#7A8272";
-          _ctx.textAlign = "center";
-          const lines = wrap(_ctx, r.summary, 860);
-          let summaryY = cfg.dimListTop + dimListH + 24;
-          for (const line of lines.slice(0, 1)) {
-            _ctx.fillText(line, pipe.config.canvas.width / 2, summaryY);
-            summaryY += cfg.summaryLineHeight;
-          }
-        }
-
-        _ctx.textAlign = "left";
-        return cardBottom;
-      },
-    },
-    {
-      name: "score-ball",
-      condition: (pipe) => {
-        if (pipe.tpl !== "技术评分" || !pipe.latestAnalysis?.report) return false;
-        const dims = (pipe.latestAnalysis.report.dimensions || []).slice(0, 6);
-        return dims.length < 3;
-      },
-      execute: (_ctx, pipe, y) => {
-        const a = pipe.latestAnalysis!;
-        const cfg = pipe.config.techScore;
-
-        white(_ctx, cfg.scoreBallCard.x, cfg.scoreBallCard.y, cfg.scoreBallCard.w, cfg.scoreBallCard.h);
-
-        _ctx.fillStyle = LIME;
-        _ctx.beginPath();
-        _ctx.arc(cfg.radar.cx, cfg.scoreBall.cy, cfg.scoreBall.radius, 0, Math.PI * 2);
-        _ctx.fill();
-
-        _ctx.fillStyle = INK;
-        _ctx.font = font(800, cfg.scoreBall.fontSize);
-        _ctx.textAlign = "center";
-        _ctx.fillText(String(a.score || "—"), cfg.radar.cx, cfg.scoreBall.cy + 40);
-        _ctx.textAlign = "left";
-
-        return y;
+        return sy;
       },
     },
   ],
 };
+
+const summaryStage: DrawStage = {
+  name: "techScore-summary",
+  steps: [
+    {
+      name: "summary-text",
+      condition: (pipe) => {
+        if (pipe.tpl !== "技术评分" || !pipe.latestAnalysis?.report) return false;
+        const r = pipe.latestAnalysis!.report!;
+        return !!r.summary;
+      },
+      measure: (_y, pipe) => {
+        const r = pipe.latestAnalysis!.report!;
+        const dims = (r.dimensions || []).slice(0, 6);
+        const cfg = pipe.config.techScore;
+        const dimListH = dims.length * cfg.progressZone.itemHeight;
+        const summaryTop = cfg.progressZone.top + dimListH + 80;
+        return summaryTop + cfg.summaryZone.height;
+      },
+      execute: (_ctx, pipe, _y) => {
+        const r = pipe.latestAnalysis!.report!;
+        const dims = (r.dimensions || []).slice(0, 6);
+        const cfg = pipe.config.techScore;
+
+        const dimListH = dims.length * cfg.progressZone.itemHeight;
+        const summaryTop = cfg.progressZone.top + dimListH + 80;
+
+        _ctx.font = font(500, 28);
+        _ctx.fillStyle = "#7A8272";
+        _ctx.textAlign = "center";
+        const lines = wrap(_ctx, r.summary!, 860);
+        let summaryY = summaryTop;
+        for (const line of lines.slice(0, 2)) {
+          _ctx.fillText(line, pipe.config.canvas.width / 2, summaryY);
+          summaryY += cfg.summaryZone.lineHeight;
+        }
+        _ctx.textAlign = "left";
+
+        return summaryTop + cfg.summaryZone.height;
+      },
+    },
+  ],
+};
+
+export { radarStage, progressStage, summaryStage };

@@ -8,7 +8,7 @@ export { headerStage } from "./stages/header";
 export { footerStage } from "./stages/footer";
 export { monthlyStage } from "./stages/monthly";
 export { todayDiaryStage } from "./stages/todayDiary";
-export { techScoreStage } from "./stages/techScore";
+export { radarStage, progressStage, summaryStage } from "./stages/techScore";
 export { genCaption } from "./caption";
 
 import { DrawPipeline } from "./pipeline";
@@ -16,7 +16,7 @@ import { headerStage } from "./stages/header";
 import { footerStage } from "./stages/footer";
 import { monthlyStage } from "./stages/monthly";
 import { todayDiaryStage } from "./stages/todayDiary";
-import { techScoreStage } from "./stages/techScore";
+import { radarStage, progressStage, summaryStage } from "./stages/techScore";
 import { buildContext } from "./context";
 import type { ShareTemplate, ShareData, MoodItem, IntensityItem } from "./config";
 
@@ -25,7 +25,9 @@ export function createPipeline(): DrawPipeline {
     .addStage(headerStage)
     .addStage(monthlyStage)
     .addStage(todayDiaryStage)
-    .addStage(techScoreStage)
+    .addStage(radarStage)
+    .addStage(progressStage)
+    .addStage(summaryStage)
     .addStage(footerStage);
 }
 

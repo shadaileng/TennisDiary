@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   renderShareCard,
+  renderTechScoreZone,
   createMonthlyData,
   createTodayDiaryData,
   createTechScoreData,
@@ -67,6 +68,34 @@ test.describe("Share Canvas Layout Regression", () => {
     const data = createTechScoreData(6);
     const { height } = await renderShareCard("技术评分", data);
     expect(height).toBeGreaterThan(800);
-    expect(height).toBeLessThan(2000);
+    expect(height).toBeLessThan(3000);
+  });
+
+  test("技术评分 - 雷达图区域", async ({ page }) => {
+    const { image } = await renderTechScoreZone("radar", createTechScoreData(6));
+    await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("tech-score-radar-zone.png", SCREENSHOT_OPTIONS);
+  });
+
+  test("技术评分 - 进度条区域", async ({ page }) => {
+    const { image } = await renderTechScoreZone("progress", createTechScoreData(6));
+    await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("tech-score-progress-zone.png", SCREENSHOT_OPTIONS);
+  });
+
+  test("技术评分 - 总结区域", async ({ page }) => {
+    const { image } = await renderTechScoreZone("summary", createTechScoreData(6));
+    await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("tech-score-summary-zone.png", SCREENSHOT_OPTIONS);
+  });
+
+  test("技术评分 - 三区域完整渲染", async ({ page }) => {
+    const { image } = await renderShareCard("技术评分", createTechScoreData(6));
+    await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("tech-score-full.png", SCREENSHOT_OPTIONS);
   });
 });

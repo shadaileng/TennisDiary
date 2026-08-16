@@ -5,7 +5,7 @@ import { headerStage } from "../../src/utils/shareCanvas/stages/header";
 import { footerStage } from "../../src/utils/shareCanvas/stages/footer";
 import { monthlyStage } from "../../src/utils/shareCanvas/stages/monthly";
 import { todayDiaryStage } from "../../src/utils/shareCanvas/stages/todayDiary";
-import { techScoreStage } from "../../src/utils/shareCanvas/stages/techScore";
+import { radarStage, progressStage, summaryStage } from "../../src/utils/shareCanvas/stages/techScore";
 import type { ShareTemplate, ShareData, MoodItem, IntensityItem } from "../../src/utils/shareCanvas/config";
 
 const W = 1080;
@@ -29,7 +29,9 @@ function createTestPipeline(): DrawPipeline {
     .addStage(headerStage)
     .addStage(monthlyStage)
     .addStage(todayDiaryStage)
-    .addStage(techScoreStage)
+    .addStage(radarStage)
+    .addStage(progressStage)
+    .addStage(summaryStage)
     .addStage(footerStage);
 }
 
@@ -129,4 +131,32 @@ export function createTechScoreData(dimCount: number): ShareData {
 
 export function createEmptyData(): ShareData {
   return { diaries: [] };
+}
+
+export async function renderTechScoreZone(
+  zone: "radar" | "progress" | "summary",
+  data: ShareData,
+): Promise<{ image: Buffer; height: number }> {
+  const pipe = buildContext("技术评分", data, DEFAULT_MOOD, DEFAULT_INTENSITY);
+  const pipeline = new DrawPipeline().addStage(headerStage);
+
+  if (zone === "radar") {
+    pipeline.addStage(radarStage);
+  } else if (zone === "progress") {
+    pipeline.addStage(progressStage);
+  } else {
+    pipeline.addStage(summaryStage);
+  }
+
+  pipeline.addStage(footerStage);
+  const height = pipeline.measureHeight(pipe);
+
+  const canvas = createCanvas(W, height);
+  const ctx = canvas.getContext("2d");
+  pipeline.execute(ctx, pipe);
+
+  return {
+    image: canvas.toBuffer("image/png"),
+    height,
+  };
 }
