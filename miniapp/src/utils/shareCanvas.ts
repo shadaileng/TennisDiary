@@ -348,16 +348,30 @@ export function drawShareCard(
       const dims = (r.dimensions || []).slice(0, 6);
 
       if (dims.length >= 3) {
-        // 有足够维度数据：显示雷达图 + 维度点评列表
-        white(ctx, 70, 480, 940, 780);
+        // 1. 先计算维度点评列表的实际高度
+        let contentBottom = 780; // 雷达图下方起始位置
+        for (const d of dims) {
+          contentBottom += 44; // 名称 + 进度条高度
+          if (d.comment) {
+            const commentLines = wrap(ctx, d.comment, 860);
+            const lineCount = Math.min(commentLines.length, 2);
+            contentBottom += lineCount * 32 + 16;
+          } else {
+            contentBottom += 16;
+          }
+        }
+        contentBottom += 20; // 底部 padding
 
-        // 绘制雷达图（居中）
+        // 2. 绘制自适应高度的白色卡片
+        white(ctx, 70, 480, 940, contentBottom - 480);
+
+        // 3. 绘制雷达图（居中）
         const radarCx = W / 2;
         const radarCy = 630;
         const radarR = 110;
         drawRadar(ctx, radarCx, radarCy, radarR, dims);
 
-        // 维度点评列表
+        // 4. 绘制维度点评列表
         let sy = 780;
         for (const d of dims) {
           // 维度名称 + 分数
@@ -395,6 +409,19 @@ export function drawShareCard(
             sy += 60;
           }
         }
+
+        // 5. 底部：总结文字（紧随卡片下方）
+        if (r.summary) {
+          ctx.font = font(500, 26);
+          ctx.fillStyle = "#7A8272";
+          ctx.textAlign = "center";
+          const lines = wrap(ctx, r.summary, 860);
+          let sy = contentBottom + 40;
+          for (const line of lines.slice(0, 1)) {
+            ctx.fillText(line, W / 2, sy);
+            sy += 36;
+          }
+        }
       } else {
         // 维度数据不足：显示大评分球
         white(ctx, 70, 480, 940, 580);
@@ -407,19 +434,6 @@ export function drawShareCard(
         ctx.textAlign = "center";
         ctx.fillText(String(latestAnalysis.score || "—"), W / 2, 740);
         ctx.textAlign = "left";
-      }
-
-      // 底部：总结文字
-      if (r.summary) {
-        ctx.font = font(500, 26);
-        ctx.fillStyle = "#7A8272";
-        ctx.textAlign = "center";
-        const lines = wrap(ctx, r.summary, 860);
-        let sy = 1290;
-        for (const line of lines.slice(0, 1)) {
-          ctx.fillText(line, W / 2, sy);
-          sy += 36;
-        }
       }
     }
   }
