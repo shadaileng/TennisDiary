@@ -7,7 +7,7 @@ export const PAPER = "#F2F2EF";
 export const INK = "#171B14";
 export const GRAY = "#9AA096";
 export const GRID = "#E7E9DF";
-export const FONT = "sans-serif";
+export const FONT = "Microsoft YaHei, PingFang SC, sans-serif";
 
 export type ShareTemplate = "月度战报" | "今日日记" | "技术评分";
 export const SHARE_TEMPLATES: readonly ShareTemplate[] = ["月度战报", "今日日记", "技术评分"] as const;
@@ -41,22 +41,22 @@ export const PIPELINE_CONFIG = {
     leftX: 70,
     rightX: 560,
     topY: 480,
-    gap: 340,
+    gap: 380,
     labelY: 570,
     valueY: 660,
     emojiY: 760,
   },
   todayDiary: {
     cardTop: 480,
-    intensityCard: { x: 70, y: 480, w: 450, h: 280 },
-    moodCard: { x: 560, y: 480, w: 450, h: 280 },
-    reviewCard: { x: 70, y: 800, w: 940, h: 380 },
+    intensityCard: { x: 70, y: 480, w: 450, h: 300 },
+    moodCard: { x: 560, y: 480, w: 450, h: 300 },
+    reviewCard: { x: 70, y: 840, w: 940, h: 380 },
     labelY: 570,
-    emojiY: 680,
-    labelValueY: 665,
-    reviewTitleY: 880,
-    reviewTextStartY: 950,
-    reviewMaxY: 1120,
+    emojiY: 700,
+    labelValueY: 685,
+    reviewTitleY: 920,
+    reviewTextStartY: 990,
+    reviewMaxY: 1160,
     reviewTextWidth: 820,
     lineHeight: 58,
   },

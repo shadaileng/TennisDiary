@@ -7,14 +7,22 @@ export const todayDiaryStage: DrawStage = {
     {
       name: "empty-state",
       condition: (pipe) => pipe.tpl === "今日日记" && !pipe.latestDiary,
+      measure: (_y, _pipe) => {
+        // 空状态：emptyCard 高度 700，从 y=480 到 1180
+        return 1180;
+      },
       execute: (_ctx, _pipe, y) => {
         emptyCard(_ctx, "还没有日记，先记一篇吧～");
-        return y;
+        return 1180;
       },
     },
     {
       name: "diary-content",
       condition: (pipe) => pipe.tpl === "今日日记" && !!pipe.latestDiary,
+      measure: (_y, _pipe) => {
+        // 今日日记：复盘卡片从 y=840 开始，高度 380，到 1220
+        return 1220;
+      },
       execute: (_ctx, pipe, y) => {
         const d = pipe.latestDiary!;
         const cfg = pipe.config.todayDiary;
@@ -64,7 +72,7 @@ export const todayDiaryStage: DrawStage = {
         }
         _ctx.fillText(line, cfg.reviewCard.x + 50, ty);
 
-        return y;
+        return 1220;
       },
     },
   ],

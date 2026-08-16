@@ -15,6 +15,11 @@ export const monthlyStage: DrawStage = {
     {
       name: "stats-cards",
       condition: (pipe) => pipe.tpl === "月度战报",
+      measure: (_y, _pipe) => {
+        // 月度战报：两行卡片，每行高300，间距380
+        // topY=480, 第一行到 480+300=780, 第二行从 480+380=860 到 860+300=1160
+        return 1160;
+      },
       execute: (_ctx, pipe, y) => {
         const { monthDiaries, MOOD } = pipe;
         const cfg = pipe.config.monthlyStats;
@@ -43,7 +48,7 @@ export const monthlyStage: DrawStage = {
         _ctx.font = "90px sans-serif";
         _ctx.fillText(moodEmoji, cfg.rightX + 50, cfg.emojiY + cfg.gap);
 
-        return y;
+        return 1160;
       },
     },
   ],
