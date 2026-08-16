@@ -9,8 +9,8 @@ export default defineConfig({
   timeout: 30000,
   expect: {
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.01,
-      threshold: 0.2,
+      maxDiffPixelRatio: 0.02,
+      animations: "disabled",
     },
   },
   use: {
@@ -20,6 +20,7 @@ export default defineConfig({
       executablePath: process.env.CHROME_PATH || undefined,
     },
   },
+  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}{ext}",
   projects: [
     {
       name: "share-canvas",

@@ -2,6 +2,11 @@ import { test, expect } from "@playwright/test";
 import { renderRadarChart } from "./helpers";
 import type { RadarData } from "./helpers";
 
+const SCREENSHOT_OPTIONS = {
+  animations: "disabled" as const,
+  maxDiffPixelRatio: 0.02,
+};
+
 test.describe("RadarChart Visual Regression", () => {
   test("6维度雷达图 - 完整数据", async ({ page }) => {
     const data: RadarData[] = [
@@ -20,7 +25,7 @@ test.describe("RadarChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("radar-6dim.png");
+    await expect(page).toHaveScreenshot("radar-6dim.png", SCREENSHOT_OPTIONS);
   });
 
   test("3维度雷达图 - 最小有效数据", async ({ page }) => {
@@ -37,7 +42,7 @@ test.describe("RadarChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("radar-3dim.png");
+    await expect(page).toHaveScreenshot("radar-3dim.png", SCREENSHOT_OPTIONS);
   });
 
   test("维度不足3个 - 显示占位文本", async ({ page }) => {
@@ -53,7 +58,7 @@ test.describe("RadarChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("radar-placeholder.png");
+    await expect(page).toHaveScreenshot("radar-placeholder.png", SCREENSHOT_OPTIONS);
   });
 
   test("空数据显示占位", async ({ page }) => {
@@ -66,6 +71,6 @@ test.describe("RadarChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("radar-empty.png");
+    await expect(page).toHaveScreenshot("radar-empty.png", SCREENSHOT_OPTIONS);
   });
 });

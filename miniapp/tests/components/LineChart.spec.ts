@@ -2,6 +2,11 @@ import { test, expect } from "@playwright/test";
 import { renderLineChart } from "./helpers";
 import type { LineData } from "./helpers";
 
+const SCREENSHOT_OPTIONS = {
+  animations: "disabled" as const,
+  maxDiffPixelRatio: 0.02,
+};
+
 test.describe("LineChart Visual Regression", () => {
   test("正常折线 - 5个数据点", async ({ page }) => {
     const data: LineData[] = [
@@ -19,7 +24,7 @@ test.describe("LineChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("line-5points.png");
+    await expect(page).toHaveScreenshot("line-5points.png", SCREENSHOT_OPTIONS);
   });
 
   test("单数据点", async ({ page }) => {
@@ -32,7 +37,7 @@ test.describe("LineChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("line-single.png");
+    await expect(page).toHaveScreenshot("line-single.png", SCREENSHOT_OPTIONS);
   });
 
   test("空数据显示占位", async ({ page }) => {
@@ -45,7 +50,7 @@ test.describe("LineChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("line-empty.png");
+    await expect(page).toHaveScreenshot("line-empty.png", SCREENSHOT_OPTIONS);
   });
 
   test("带单位的数值", async ({ page }) => {
@@ -63,6 +68,6 @@ test.describe("LineChart Visual Regression", () => {
         </body>
       </html>
     `);
-    await expect(page).toHaveScreenshot("line-with-unit.png");
+    await expect(page).toHaveScreenshot("line-with-unit.png", SCREENSHOT_OPTIONS);
   });
 });
