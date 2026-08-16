@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.3] - 2026-08-16
+
+### Fixed
+
+- miniapp 雷达图文字标注优化：标注偏移量从110减小到65更贴近顶点，上下顶点动态居中对齐、左右顶点左右对齐，radarZone高度从420增加到540防止底部标注超出卡片
+
 ## [1.61.2] - 2026-08-16
 
 ### Changed

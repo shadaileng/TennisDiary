@@ -63,7 +63,7 @@ export const PIPELINE_CONFIG = {
   techScore: {
     cardTop: 470,
     radar: { cx: W / 2, cy: 680, radius: 120 },
-    radarZone: { top: 470, height: 420 },
+    radarZone: { top: 470, height: 540 },
     progressZone: { top: 920, itemHeight: 200 },
     summaryZone: { top: 2100, height: 200, lineHeight: 48 },
     dimNameX: 120,

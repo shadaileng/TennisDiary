@@ -190,16 +190,31 @@ export function drawRadar(
   ctx.lineJoin = "round";
   ctx.stroke();
 
-  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   for (let i = 0; i < n; i++) {
-    const lp = pt(i, R + 18);
-    ctx.font = font(500, 26);
-    ctx.fillStyle = GRAY;
-    ctx.fillText(String(data[i].name), lp.x, lp.y - 8);
-    ctx.font = font(700, 28);
-    ctx.fillStyle = INK;
-    ctx.fillText(String(Math.round(Number(data[i].score) || 0)), lp.x, lp.y + 10);
+    const a = angle(i);
+    const cosA = Math.cos(a);
+    const sinA = Math.sin(a);
+    const lp = pt(i, R + 65);
+
+    if (Math.abs(sinA) > 0.8) {
+      ctx.textAlign = "center";
+      const yOffset = sinA < 0 ? -20 : 20;
+      ctx.font = font(500, 28);
+      ctx.fillStyle = GRAY;
+      ctx.fillText(String(data[i].name), lp.x, lp.y + yOffset - 16);
+      ctx.font = font(700, 30);
+      ctx.fillStyle = INK;
+      ctx.fillText(String(Math.round(Number(data[i].score) || 0)), lp.x, lp.y + yOffset + 18);
+    } else {
+      ctx.textAlign = cosA > 0 ? "left" : "right";
+      ctx.font = font(500, 28);
+      ctx.fillStyle = GRAY;
+      ctx.fillText(String(data[i].name), lp.x, lp.y - 16);
+      ctx.font = font(700, 30);
+      ctx.fillStyle = INK;
+      ctx.fillText(String(Math.round(Number(data[i].score) || 0)), lp.x, lp.y + 18);
+    }
   }
 }
 
