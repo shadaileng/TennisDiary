@@ -348,17 +348,17 @@ export function drawShareCard(
       const dims = (r.dimensions || []).slice(0, 6);
 
       if (dims.length >= 3) {
-        // 布局参数（画布 1350px，footer 在 1270）
-        const cardTop = 440;
+        // 布局参数（画布 1350px，footer 在 1270，内容需在1250内）
+        const cardTop = 430;
         const radarCx = W / 2;
-        const radarCy = 555;
-        const radarR = 80;
-        const dimListTop = 680;
-        const dimItemH = 90;
+        const radarCy = 540;
+        const radarR = 75;
+        const dimListTop = 655;
+        const dimItemH = 85;
 
         // 1. 计算维度列表高度
         const dimListH = dims.length * dimItemH;
-        const summaryH = r.summary ? 40 : 0;
+        const summaryH = r.summary ? 36 : 0;
         const contentBottom = dimListTop + dimListH + summaryH + 16;
 
         // 2. 绘制白色卡片
