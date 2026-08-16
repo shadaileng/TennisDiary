@@ -160,6 +160,8 @@ cd admin && pnpm build                 # 构建管理端
 | 85 | 骨骼视频帧率自适应绘制（`probe_frame_rate` 获取视频帧率 + `analyze_frames` 使用 `帧数/时长` 计算骨骼视频帧率，确保播放时长与原视频一致） | ✅ |
 | 86 | Admin 静态文件端点移除认证（`/api/admin/system/files/` 无需 `X-Auth-Token`，解决 `<img>` 浏览器原生请求 401 问题） | ✅ |
 | 87 | Admin 时间显示统一东八区（后端 isoformat 加 `Z` 后缀 + 前端共享 `utils/date.ts`，`timeZone: 'Asia/Shanghai'`，8 个视图统一导入） | ✅ |
+| 89 | 分享工坊条件管线模式重构（DrawPipeline → DrawStage → DrawStep 模式 + Playwright 回归测试 8 用例） | ✅ |
+| 90 | 小程序 UI 布局视觉回归测试（RadarChart/LineChart 8 用例 + playwright-visual-regression skill 集成） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
