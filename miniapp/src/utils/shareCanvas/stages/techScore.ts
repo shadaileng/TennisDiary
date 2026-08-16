@@ -108,11 +108,11 @@ const progressStage: DrawStage = {
           _ctx.fillText(String(d.score ?? 0), cfg.dimScoreX, sy);
 
           _ctx.fillStyle = "#E8E8E4";
-          rr(_ctx, cfg.barX, sy + 12, cfg.barWidth, cfg.barHeight, cfg.barRadius);
+          rr(_ctx, cfg.barX, sy + cfg.barTopOffset, cfg.barWidth, cfg.barHeight, cfg.barRadius);
           _ctx.fill();
 
           _ctx.fillStyle = LIME;
-          rr(_ctx, cfg.barX, sy + 12, cfg.barWidth * Math.min(1, Number(d.score || 0) / 100), cfg.barHeight, cfg.barRadius);
+          rr(_ctx, cfg.barX, sy + cfg.barTopOffset, cfg.barWidth * Math.min(1, Number(d.score || 0) / 100), cfg.barHeight, cfg.barRadius);
           _ctx.fill();
 
           if (d.comment) {

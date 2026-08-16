@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.6] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分进度条文字间距优化：标题与进度条间距（barTopOffset 12→35），进度条与评论间距（commentStartOffset 68→80）
+
 ## [1.61.5] - 2026-08-16
 
 ### Fixed
