@@ -11,6 +11,9 @@ export default defineConfig({
   use: {
     headless: true,
     viewport: { width: 1080, height: 1920 },
+    launchOptions: {
+      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    },
   },
   projects: [
     {

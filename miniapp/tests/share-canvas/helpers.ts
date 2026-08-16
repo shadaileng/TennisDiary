@@ -95,10 +95,11 @@ export function createTodayDiaryData(notes?: string): ShareData {
 }
 
 export function createTechScoreData(dimCount: number): ShareData {
+  const names = ["正手", "反手", "发球", "截步", "移动", "战术"];
   const dimensions = Array.from({ length: dimCount }, (_, i) => ({
-    name: ["正手", "反手", "发球", "截步", "移动", "战术"][i] || `维度${i + 1}`,
+    name: names[i] || `维度${i + 1}`,
     score: 60 + Math.floor(Math.random() * 40),
-    comment: `${["正手", "反手", "发球", "截步", "移动", "战术"][i] || `维度${i + 1`}点评内容`,
+    comment: (names[i] || `维度${i + 1}`) + "点评内容",
   }));
 
   return {
