@@ -1,4 +1,8 @@
 import { defineConfig } from "@playwright/test";
+import { resolve } from "path";
+import { config } from "dotenv";
+
+config({ path: resolve(__dirname, ".env.test") });
 
 export default defineConfig({
   testDir: "./tests",
@@ -12,7 +16,7 @@ export default defineConfig({
     headless: true,
     viewport: { width: 1080, height: 1920 },
     launchOptions: {
-      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      executablePath: process.env.CHROME_PATH || undefined,
     },
   },
   projects: [
