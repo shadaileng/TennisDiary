@@ -1,7 +1,7 @@
 import type { Analysis, Diary } from "@/types";
 
 const W = 1080;
-const H = 1350;
+const H = 1500;
 const LIME = "#C8DA2B";
 const OLIVE = "#242B1F";
 const PAPER = "#F2F2EF";
@@ -348,18 +348,18 @@ export function drawShareCard(
       const dims = (r.dimensions || []).slice(0, 6);
 
       if (dims.length >= 3) {
-        // 布局参数
-        const cardTop = 470;
+        // 布局参数（画布 1500px，footer 在 1420）
+        const cardTop = 480;
         const radarCx = W / 2;
-        const radarCy = 600;
+        const radarCy = 610;
         const radarR = 90;
-        const dimListTop = 730;
+        const dimListTop = 750;
         const dimItemH = 100; // 每个维度项高度
 
         // 1. 计算维度列表高度
         const dimListH = dims.length * dimItemH;
-        const summaryH = r.summary ? 60 : 0; // 总结文字高度
-        const contentBottom = dimListTop + dimListH + summaryH + 24;
+        const summaryH = r.summary ? 50 : 0;
+        const contentBottom = dimListTop + dimListH + summaryH + 20;
 
         // 2. 绘制白色卡片（包含所有内容）
         white(ctx, 70, cardTop, 940, contentBottom - cardTop);
