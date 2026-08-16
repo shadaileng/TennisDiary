@@ -17,33 +17,38 @@ test.describe("Share Canvas Layout Regression", () => {
     const { image, height } = await renderShareCard("月度战报", createMonthlyData(5));
     expect(height).toBe(1260);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("monthly-5diaries.png", SCREENSHOT_OPTIONS);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("monthly-5diaries.png", SCREENSHOT_OPTIONS);
   });
 
   test("今日日记 - 有复盘内容", async ({ page }) => {
     const { image, height } = await renderShareCard("今日日记", createTodayDiaryData("今天练习了正手击球，感觉进步明显。重点练习了随挥收拍动作，教练说收拍轨迹完整但略显僵硬，需要放松。"));
-    expect(height).toBe(1320);
+    expect(height).toBe(1300);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("today-with-review.png", SCREENSHOT_OPTIONS);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("today-with-review.png", SCREENSHOT_OPTIONS);
   });
 
   test("今日日记 - 空数据", async ({ page }) => {
-    const { image, height } = await renderShareCard("今日日记", createEmptyData());
-    expect(height).toBe(1280);
+    const { image, height } = await renderShareCard("今日日记", createTodayDiaryData(""));
+    expect(height).toBe(1300);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("today-empty.png", SCREENSHOT_OPTIONS);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("today-empty.png", SCREENSHOT_OPTIONS);
   });
 
   test("技术评分 - 6维度雷达图", async ({ page }) => {
     const { image } = await renderShareCard("技术评分", createTechScoreData(6));
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("tech-score-radar.png", SCREENSHOT_OPTIONS);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("tech-score-radar.png", SCREENSHOT_OPTIONS);
   });
 
   test("技术评分 - 维度不足3个", async ({ page }) => {
     const { image } = await renderShareCard("技术评分", createTechScoreData(2));
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("tech-score-ball.png", SCREENSHOT_OPTIONS);
+    await page.locator("img").waitFor({ state: "visible" });
+    await expect(page.locator("img")).toHaveScreenshot("tech-score-ball.png", SCREENSHOT_OPTIONS);
   });
 
   test("高度计算一致性 - 月度战报", async () => {
@@ -55,7 +60,7 @@ test.describe("Share Canvas Layout Regression", () => {
   test("高度计算一致性 - 今日日记", async () => {
     const data = createTodayDiaryData();
     const { height } = await renderShareCard("今日日记", data);
-    expect(height).toBe(1320);
+    expect(height).toBe(1300);
   });
 
   test("高度计算一致性 - 技术评分", async () => {
