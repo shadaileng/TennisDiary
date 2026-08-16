@@ -348,78 +348,76 @@ export function drawShareCard(
       const dims = (r.dimensions || []).slice(0, 6);
 
       if (dims.length >= 3) {
-        // 1. 先计算维度点评列表的实际高度
-        let contentBottom = 780; // 雷达图下方起始位置
+        // 紧凑布局参数（确保总高度 ≤ 1350）
+        const cardTop = 460;
+        const radarCx = W / 2;
+        const radarCy = 580;
+        const radarR = 85;
+        const dimListTop = 700;
+        const dimItemH = 92; // 名称+进度条 36 + 点评2行 28*2+12=68 → 实际约92
+
+        // 1. 计算实际内容高度
+        let contentBottom = dimListTop;
         for (const d of dims) {
-          contentBottom += 44; // 名称 + 进度条高度
-          if (d.comment) {
-            const commentLines = wrap(ctx, d.comment, 860);
-            const lineCount = Math.min(commentLines.length, 2);
-            contentBottom += lineCount * 32 + 16;
-          } else {
-            contentBottom += 16;
-          }
+          contentBottom += dimItemH;
         }
-        contentBottom += 20; // 底部 padding
+        contentBottom += 16; // 底部 padding
 
         // 2. 绘制自适应高度的白色卡片
-        white(ctx, 70, 480, 940, contentBottom - 480);
+        white(ctx, 70, cardTop, 940, contentBottom - cardTop);
 
-        // 3. 绘制雷达图（居中）
-        const radarCx = W / 2;
-        const radarCy = 630;
-        const radarR = 110;
+        // 3. 绘制雷达图（紧凑）
         drawRadar(ctx, radarCx, radarCy, radarR, dims);
 
-        // 4. 绘制维度点评列表
-        let sy = 780;
+        // 4. 绘制维度点评列表（紧凑）
+        let sy = dimListTop;
         for (const d of dims) {
           // 维度名称 + 分数
-          ctx.font = font(600, 30);
+          ctx.font = font(600, 28);
           ctx.fillStyle = INK;
           ctx.textAlign = "left";
           ctx.fillText(d.name, 120, sy);
 
-          ctx.font = font(700, 32);
+          ctx.font = font(700, 30);
           ctx.fillStyle = LIME;
           ctx.textAlign = "right";
           ctx.fillText(String(d.score ?? 0), 940, sy);
 
           // 进度条
           ctx.fillStyle = "#E8E8E4";
-          rr(ctx, 120, sy + 14, 800, 12, 6);
+          rr(ctx, 120, sy + 12, 800, 10, 5);
           ctx.fill();
           ctx.fillStyle = LIME;
-          rr(ctx, 120, sy + 14, 800 * Math.min(1, Number(d.score || 0) / 100), 12, 6);
+          rr(ctx, 120, sy + 12, 800 * Math.min(1, Number(d.score || 0) / 100), 10, 5);
           ctx.fill();
 
           // 点评文字（如果有）
           if (d.comment) {
-            ctx.font = font(400, 24);
+            ctx.font = font(400, 22);
             ctx.fillStyle = "#7A8272";
             ctx.textAlign = "left";
             const commentLines = wrap(ctx, d.comment, 860);
-            let cy = sy + 44;
+            let cy = sy + 38;
             for (const line of commentLines.slice(0, 2)) {
               ctx.fillText(line, 120, cy);
-              cy += 32;
+              cy += 28;
             }
-            sy = cy + 16;
+            sy = cy + 10;
           } else {
-            sy += 60;
+            sy += 48;
           }
         }
 
         // 5. 底部：总结文字（紧随卡片下方）
         if (r.summary) {
-          ctx.font = font(500, 26);
+          ctx.font = font(500, 24);
           ctx.fillStyle = "#7A8272";
           ctx.textAlign = "center";
           const lines = wrap(ctx, r.summary, 860);
-          let sy = contentBottom + 40;
+          let sy = contentBottom + 30;
           for (const line of lines.slice(0, 1)) {
             ctx.fillText(line, W / 2, sy);
-            sy += 36;
+            sy += 32;
           }
         }
       } else {
