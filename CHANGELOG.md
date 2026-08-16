@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.7] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分进度条行间距缩小（itemHeight 260→220），更紧凑的视觉效果
+
 ## [1.61.6] - 2026-08-16
 
 ### Fixed
