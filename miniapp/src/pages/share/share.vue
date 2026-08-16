@@ -20,7 +20,6 @@
           id="shareCanvas"
           type="2d"
           class="share-canvas"
-          :style="{ height: `${canvasH}px` }"
         />
         <image v-if="cardURL" :src="cardURL" mode="widthFix" class="card-img" />
         <text v-else class="canvas-placeholder">绘制中…</text>
@@ -58,8 +57,6 @@ import { INTENSITY, MOOD } from "@/utils";
 
 const instance = getCurrentInstance();
 const W = 1080;
-const H = 1500;
-const canvasH = 300;
 const dpr = uni.getSystemInfoSync().pixelRatio || 2;
 
 const tpl = ref<ShareTemplate>("月度战报");
@@ -97,9 +94,11 @@ function draw() {
         | { width: number; height: number; getContext: (t: string) => CanvasRenderingContext2D }
         | undefined;
       if (!node) return;
-      node.width = W * dpr;
-      node.height = H * dpr;
       const ctx = node.getContext("2d");
+      ctx.scale(dpr, dpr);
+      const h = drawShareCard(ctx, tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
+      node.width = W * dpr;
+      node.height = h * dpr;
       ctx.scale(dpr, dpr);
       drawShareCard(ctx, tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
       const opts = {

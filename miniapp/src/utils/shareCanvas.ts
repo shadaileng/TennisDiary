@@ -1,7 +1,6 @@
 import type { Analysis, Diary } from "@/types";
 
 const W = 1080;
-const H = 1500;
 const LIME = "#C8DA2B";
 const OLIVE = "#242B1F";
 const PAPER = "#F2F2EF";
@@ -222,10 +221,10 @@ function header(ctx: CanvasRenderingContext2D, title: string, sub: string) {
 }
 
 /** 底部品牌标语 */
-function footer(ctx: CanvasRenderingContext2D) {
+function footer(ctx: CanvasRenderingContext2D, h: number) {
   ctx.fillStyle = GRAY;
   ctx.font = font(500, 30);
-  ctx.fillText("用 Tennis Diary 记录我的网球成长 🎾", 70, H - 80);
+  ctx.fillText("用 Tennis Diary 记录我的网球成长 🎾", 70, h - 80);
 }
 
 function emptyCard(ctx: CanvasRenderingContext2D, text: string) {
@@ -238,8 +237,9 @@ function emptyCard(ctx: CanvasRenderingContext2D, text: string) {
 }
 
 /**
- * 绘制分享卡片到 Canvas 2d 上下文（1080×1350 逻辑尺寸）。
- * 调用方需自行 scale(dpr)。
+ * 绘制分享卡片到 Canvas 2d 上下文。
+ * 调用方需自行 scale(dpr) 并设置 canvas 尺寸。
+ * 返回实际画布高度。
  */
 export function drawShareCard(
   ctx: CanvasRenderingContext2D,
@@ -247,14 +247,46 @@ export function drawShareCard(
   data: ShareData,
   MOOD: readonly MoodItem[],
   INTENSITY: readonly IntensityItem[],
-) {
-  ctx.fillStyle = PAPER;
-  ctx.fillRect(0, 0, W, H);
-
+): number {
   const thisMonth = monthKey(todayStr());
   const monthDiaries = data.diaries.filter((d) => monthKey(d.date) === thisMonth);
   const latestDiary = data.diaries[0];
   const latestAnalysis = data.analysis;
+
+  // 固定参数
+  const headerH = 420;
+  const footerPad = 100; // footer 区域高度
+  const minContentTop = 460;
+
+  // 计算内容高度和绘制
+  let contentBottom = minContentTop;
+
+  if (tpl === "月度战报") {
+    contentBottom = 1120; // 固定布局：4个卡片
+  } else if (tpl === "今日日记") {
+    contentBottom = latestDiary ? 1200 : 1180;
+  } else {
+    // 技术评分
+    if (!latestAnalysis?.report) {
+      contentBottom = 1180;
+    } else {
+      const r = latestAnalysis.report;
+      const dims = (r.dimensions || []).slice(0, 6);
+      if (dims.length >= 3) {
+        const dimListH = dims.length * 100;
+        const summaryH = r.summary ? 50 : 0;
+        contentBottom = 740 + dimListH + summaryH + 30;
+      } else {
+        contentBottom = 1070;
+      }
+    }
+  }
+
+  const H = contentBottom + footerPad;
+
+  // 绘制背景
+  ctx.fillStyle = PAPER;
+  ctx.fillRect(0, 0, W, H);
 
   if (tpl === "月度战报") {
     header(
@@ -348,7 +380,7 @@ export function drawShareCard(
       const dims = (r.dimensions || []).slice(0, 6);
 
       if (dims.length >= 3) {
-        // 布局参数（画布 1500px，footer 在 H-80=1420）
+        // 布局参数
         const cardTop = 470;
         const radarCx = W / 2;
         const radarCy = 600;
@@ -359,10 +391,10 @@ export function drawShareCard(
         // 1. 计算维度列表高度
         const dimListH = dims.length * dimItemH;
         const summaryH = r.summary ? 50 : 0;
-        const contentBottom = dimListTop + dimListH + summaryH + 20;
+        const cardBottom = dimListTop + dimListH + summaryH + 30;
 
         // 2. 绘制白色卡片
-        white(ctx, 70, cardTop, 940, contentBottom - cardTop);
+        white(ctx, 70, cardTop, 940, cardBottom - cardTop);
 
         // 3. 绘制雷达图
         drawRadar(ctx, radarCx, radarCy, radarR, dims);
@@ -434,7 +466,10 @@ export function drawShareCard(
     }
   }
 
-  footer(ctx);
+  // 绘制 footer
+  footer(ctx, H);
+
+  return H;
 }
 
 /** 分享文案生成（本地模板，可编辑） */
