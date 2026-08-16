@@ -7,25 +7,24 @@ import {
   createEmptyData,
 } from "./helpers";
 
-// Skill 推荐：屏蔽动态内容（emoji 在测试环境显示为方块）
 const SCREENSHOT_OPTIONS = {
   animations: "disabled" as const,
   maxDiffPixelRatio: 0.02,
 };
 
 test.describe("Share Canvas Layout Regression", () => {
-  test("月度战报 - 完整数据", async ({ page }) => {
+  test("月度战报 - 5次训练", async ({ page }) => {
     const { image, height } = await renderShareCard("月度战报", createMonthlyData(5));
     expect(height).toBe(1260);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("monthly-full.png", SCREENSHOT_OPTIONS);
+    await expect(page).toHaveScreenshot("monthly-5diaries.png", SCREENSHOT_OPTIONS);
   });
 
   test("今日日记 - 有复盘内容", async ({ page }) => {
-    const { image, height } = await renderShareCard("今日日记", createTodayDiaryData("今天练习了正手击球，感觉进步明显。"));
+    const { image, height } = await renderShareCard("今日日记", createTodayDiaryData("今天练习了正手击球，感觉进步明显。重点练习了随挥收拍动作，教练说收拍轨迹完整但略显僵硬，需要放松。"));
     expect(height).toBe(1320);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
-    await expect(page).toHaveScreenshot("today-with-notes.png", SCREENSHOT_OPTIONS);
+    await expect(page).toHaveScreenshot("today-with-review.png", SCREENSHOT_OPTIONS);
   });
 
   test("今日日记 - 空数据", async ({ page }) => {

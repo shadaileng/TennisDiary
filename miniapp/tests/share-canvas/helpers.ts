@@ -62,11 +62,11 @@ export function createMonthlyData(count: number): ShareData {
     date: `${year}-${pad(month)}-${pad(Math.min(i + 1, 28))}`,
     time: "10:00",
     type: "网球训练",
-    duration: 60 + Math.floor(Math.random() * 60),
-    mood: 3 + Math.floor(Math.random() * 3),
-    intensity: 1 + Math.floor(Math.random() * 3),
-    notes: `第${i + 1}次训练笔记`,
-    costs: [{ amount: 50 + Math.floor(Math.random() * 100) }],
+    duration: 60 + i * 15,
+    mood: 3 + (i % 3),
+    intensity: 1 + (i % 3),
+    notes: `第${i + 1}次训练笔记：练习了${["正手", "反手", "发球", "截击", "移动"][i % 5]}技术`,
+    costs: [{ amount: 50 + i * 20 }],
   }));
 
   return { diaries };
@@ -95,24 +95,33 @@ export function createTodayDiaryData(notes?: string): ShareData {
 }
 
 export function createTechScoreData(dimCount: number): ShareData {
-  const names = ["正手", "反手", "发球", "截步", "移动", "战术"];
+  const names = ["准备启动", "动力链", "击球时机", "随挥收拍", "拍面控制", "身体稳定"];
+  const comments = [
+    "脚步移动略显迟缓，启动时重心转换不够迅速。",
+    "转髋带动挥拍流畅，但肩部扭转幅度可进一步加大。",
+    "击球点靠前，时间掌握准确，触球瞬间果断。",
+    "收拍轨迹完整但略显僵硬，未能充分随身体惯性放松。",
+    "拍面在击球瞬间稳定，无多余晃动，方向感较好。",
+    "核心收紧程度不错，但在随挥结束阶段重心略微后仰。",
+  ];
+  const scores = [68, 75, 78, 70, 74, 72];
   const dimensions = Array.from({ length: dimCount }, (_, i) => ({
     name: names[i] || `维度${i + 1}`,
-    score: 60 + Math.floor(Math.random() * 40),
-    comment: (names[i] || `维度${i + 1}`) + "点评内容",
+    score: scores[i] || 70,
+    comment: comments[i] || `${names[i] || `维度${i + 1}`}点评内容`,
   }));
 
   return {
     diaries: [],
     analysis: {
       id: 1,
-      kind: "技术",
+      kind: "正手",
       date: "2026-08-16",
       score: 78,
-      summary: "整体表现不错，各维度均衡发展。",
+      summary: "正手动作定型良好，动力链完整；需优化脚步启动与随挥放松。",
       report: {
         dimensions,
-        improvements: [{ issue: "需要加强反手稳定性" }],
+        improvements: [{ issue: "需要加强脚步启动速度" }],
       },
     } as any,
   };
