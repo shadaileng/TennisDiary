@@ -209,7 +209,11 @@ function saveImage() {
       if (saveTimedOut) return
       clearTimeout(saveTimeout)
       const errMsg = err.errMsg || ""
-      if (errMsg.includes("auth") || errMsg.includes("denied")) {
+      const errno = err.errno
+      if (errno === 112 || /privacy|隐私/.test(errMsg)) {
+        logError("保存图片隐私协议未授权", { trace_id: traceId, error: errMsg, errno, template: tpl.value }, "share_image_privacy", undefined, traceId);
+        promptPrivacyAuthorize();
+      } else if (errMsg.includes("auth") || errMsg.includes("denied")) {
         logError("保存图片权限被拒绝", { trace_id: traceId, error: errMsg, template: tpl.value }, "share_image_denied", undefined, traceId);
         uni.showModal({
           title: "需要相册权限",
@@ -225,6 +229,18 @@ function saveImage() {
         uni.showToast({ title: "保存失败，请重试", icon: "none" });
       }
       saving.value = false
+    },
+  });
+}
+
+/** 隐私协议未授权引导：拉起官方隐私弹窗，被拒则提示去设置 */
+function promptPrivacyAuthorize() {
+  uni.showModal({
+    title: "需要授权保存图片",
+    content: "请在设置中允许「保存到相册」后重试",
+    confirmText: "去设置",
+    success: (m) => {
+      if (m.confirm) uni.openSetting();
     },
   });
 }
