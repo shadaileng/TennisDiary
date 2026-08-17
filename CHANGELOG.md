@@ -4,11 +4,11 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [1.61.8] - 2026-08-16
+## [1.61.8] - 2026-08-17
 
 ### Fixed
 
-- miniapp 三张分享图片footer整体下移（height 100→120, bottomMargin 100→60）
+- miniapp 通用化隐私/权限错误处理（对齐 tarot 方案）：新增 `privacy.ts` 工具，移除 errno 112 特殊分支和硬编码权限名称引导；运行期权限拒绝 → openSetting，隐私声明问题 → 通用提示；eventLogger 上报失败时 console.warn
 
 ## [1.61.7] - 2026-08-16
 

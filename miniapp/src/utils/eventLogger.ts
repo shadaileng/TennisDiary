@@ -143,7 +143,8 @@ function flushOne(payload: EventLogPayload): void {
     success() {
       // 静默成功
     },
-    fail() {
+    fail(err) {
+      console.warn("[eventLogger] 事件上报失败，已缓存待重试", payload.action || payload.type, err);
       appendToPending(payload);
     },
   });

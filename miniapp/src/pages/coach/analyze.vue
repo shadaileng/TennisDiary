@@ -92,6 +92,7 @@ import {
 import type { AnalysisKind, AnalysisPose, AnalysisReport } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { isUserCancel, isRuntimePermissionDenied } from "@/utils/privacy";
 
 type Mode = "single" | "full";
 
@@ -134,14 +135,14 @@ function chooseVideo() {
     },
     fail: (err) => {
       console.error("[chooseVideo] 失败", err);
-      if (err.errMsg?.includes("cancel")) {
+      if (isUserCancel(err)) {
         logInfo("用户取消选择视频", { trace_id: traceId }, "choose_video_cancel", traceId);
-      } else if (err.errMsg?.includes("auth") || err.errMsg?.includes("denied")) {
+      } else if (isRuntimePermissionDenied(err)) {
         logError("选择视频权限被拒绝", { trace_id: traceId, error: err.errMsg }, "choose_video_denied", undefined, traceId);
-        uni.showToast({ title: "选择视频失败，请检查相册/相机权限", icon: "none" });
+        uni.showToast({ title: "需要授权使用相册/相机功能", icon: "none" });
       } else {
         logError("选择视频失败", { trace_id: traceId, error: err.errMsg }, "choose_video_failed", undefined, traceId);
-        uni.showToast({ title: "选择视频失败，请检查权限设置", icon: "none" });
+        uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
       }
     },
   });
