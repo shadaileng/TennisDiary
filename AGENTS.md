@@ -157,9 +157,11 @@ cd admin && pnpm build                 # 构建管理端
 | 81 | AI 模型可用性校验与调试脚本（`check-models` list/probe 两级端点 + Admin 校验按钮 + `server/scripts/debug-ai.py` 直连生效配置调试） | ✅ |
 | 82 | 姿态模型获取与随包打包（`download-pose-model.sh` sha256 幂等下载 + 双 Dockerfile 按文件 COPY 随包 + 魔搭/OCI 部署自动下载；修复 mediapipe 1.0 API 路径 `python.BaseOptions`/`mp.Image`） | ✅ |
 | 83 | 姿态可视化与六边形雷达图（每次分析常驻姿态并行推理 + 骨架封面/骨架视频 + 六边形雷达图 + 姿态测量卡 + 用户端媒体服务 `/api/media/{path}?token=` + Admin 姿态详情） | ✅ |
+| 84 | 骨架视频多帧修复（修复骨架视频帧数不足，多帧正确编码） | ✅ |
 | 85 | 骨骼视频帧率自适应绘制（`probe_frame_rate` 获取视频帧率 + `analyze_frames` 使用 `帧数/时长` 计算骨骼视频帧率，确保播放时长与原视频一致） | ✅ |
 | 86 | Admin 静态文件端点移除认证（`/api/admin/system/files/` 无需 `X-Auth-Token`，解决 `<img>` 浏览器原生请求 401 问题） | ✅ |
 | 87 | Admin 时间显示统一东八区（后端 isoformat 加 `Z` 后缀 + 前端共享 `utils/date.ts`，`timeZone: 'Asia/Shanghai'`，8 个视图统一导入） | ✅ |
+| 88 | 分享工坊技术评分卡片六边形维度点评（`drawRadar` + 维度点评列表 + 大球降级） | ✅ |
 | 89 | 分享工坊条件管线模式重构（DrawPipeline → DrawStage → DrawStep 模式 + Playwright 回归测试 8 用例） | ✅ |
 | 90 | 小程序 UI 布局视觉回归测试（RadarChart/LineChart 8 用例 + playwright-visual-regression skill 集成） | ✅ |
 | 91 | 分享工坊技术评分三区域分离（雷达图/进度条/总结 + 白色卡片包裹 + Playwright 4 用例） | ✅ |
