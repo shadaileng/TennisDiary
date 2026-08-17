@@ -206,8 +206,9 @@ function saveImage() {
     fail: (err) => {
       if (saveTimedOut) return
       clearTimeout(saveTimeout)
-      if (err.errMsg?.includes("auth") || err.errMsg?.includes("denied")) {
-        logError("保存图片权限被拒绝", { trace_id: traceId, error: err.errMsg, template: tpl.value }, "share_image_denied", undefined, traceId);
+      const errMsg = err.errMsg || ""
+      if (errMsg.includes("auth") || errMsg.includes("denied")) {
+        logError("保存图片权限被拒绝", { trace_id: traceId, error: errMsg, template: tpl.value }, "share_image_denied", undefined, traceId);
         uni.showModal({
           title: "需要相册权限",
           content: "请在设置中允许保存图片到相册",
@@ -218,7 +219,7 @@ function saveImage() {
         });
       } else {
         console.error('[share] saveImage fail:', err)
-        logError("保存图片失败", { trace_id: traceId, error: err.errMsg, template: tpl.value }, "share_image_failed", undefined, traceId);
+        logError("保存图片失败", { trace_id: traceId, error: errMsg, template: tpl.value }, "share_image_failed", undefined, traceId);
         uni.showToast({ title: "保存失败，请重试", icon: "none" });
       }
       saving.value = false

@@ -122,16 +122,25 @@ function setMode(m: Mode) {
 }
 
 function chooseVideo() {
+  const traceId = createTraceId();
+  logInfo("选择视频", { trace_id: traceId }, "choose_video", traceId);
   uni.chooseVideo({
     sourceType: ["album", "camera"],
     maxDuration: 60,
     success: (res) => {
       videoPath.value = res.tempFilePath;
       hitTime.value = 0;
+      logInfo("视频选择成功", { trace_id: traceId, duration: res.duration }, "choose_video_success", traceId);
     },
     fail: (err) => {
       console.error("[chooseVideo] 失败", err);
-      if (err.errMsg && !err.errMsg.includes("cancel")) {
+      if (err.errMsg?.includes("cancel")) {
+        logInfo("用户取消选择视频", { trace_id: traceId }, "choose_video_cancel", traceId);
+      } else if (err.errMsg?.includes("auth") || err.errMsg?.includes("denied")) {
+        logError("选择视频权限被拒绝", { trace_id: traceId, error: err.errMsg }, "choose_video_denied", undefined, traceId);
+        uni.showToast({ title: "选择视频失败，请检查相册/相机权限", icon: "none" });
+      } else {
+        logError("选择视频失败", { trace_id: traceId, error: err.errMsg }, "choose_video_failed", undefined, traceId);
         uni.showToast({ title: "选择视频失败，请检查权限设置", icon: "none" });
       }
     },
