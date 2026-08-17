@@ -145,6 +145,34 @@ class AdminListResponse(BaseModel):
 # ==================== 通用 ====================
 
 
+# ==================== 动态配置相关 ====================
+
+
+class ConfigUpdateRequest(BaseModel):
+    """设置配置覆盖值请求"""
+
+    value: str = ""
+
+
+class AiProviderRequest(BaseModel):
+    """AI 服务商新增/编辑请求"""
+
+    name: str
+    base_url: str
+    api_key: str = ""
+    models: list[str] = Field(min_length=1)
+    enabled: bool = True
+    sort_order: int = 0
+
+
+class ProviderModelsCheckRequest(BaseModel):
+    """模型可用性校验请求（表单值直传，无需先保存）"""
+
+    base_url: str = Field(min_length=1, description="服务商接口地址，如 https://api.example.com/v1")
+    api_key: str = ""
+    models: list[str] = Field(min_length=1, description="待校验的模型名列表")
+
+
 class MessageResponse(BaseModel):
     """通用消息响应"""
 
@@ -270,10 +298,20 @@ class AnalysisAdminResponse(BaseModel):
     score: float
     summary: str
     ntrp: str | None = None
+    thumb: str | None = None  # 封面帧路径（列表缩略图用，避免列表解析大 JSON）
     created_at: float
     user: dict | None = None
 
     model_config = {"from_attributes": True}
+
+
+class AnalysisDetailAdminResponse(AnalysisAdminResponse):
+    """分析报告详情（管理端，含完整六维报告）"""
+
+    report: dict | None = None  # 后端 json.loads(report) 后返回结构化对象
+    highlights: list[str] | None = None  # 高光帧路径数组
+    video_url: str | None = None  # 视频文件相对路径
+    pose: dict | None = None  # 姿态分析结果（三角度/骨架帧/骨架视频）
 
 
 class PostAdminResponse(BaseModel):

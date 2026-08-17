@@ -45,6 +45,14 @@ class Settings:
     AI_API_KEY: str = os.getenv("AI_API_KEY", "")
     AI_BASE_URL: str = os.getenv("AI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
     AI_MODEL: str = os.getenv("AI_MODEL", "qwen-vl-max")
+    # AI 服务商直选（ai_providers 中已维护的服务商名；空 = 自定义独立配置）
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "")
+
+    # 姿态推理模型（MediaPipe pose_landmarker，随包路径 server/models/）
+    POSE_MODEL_PATH: str = os.getenv(
+        "POSE_MODEL_PATH",
+        f"{Path(__file__).resolve().parent.parent.parent}/models/pose_landmarker_lite.task",
+    )
 
     # 文件存储
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", f"{DATA_DIR}/uploads")

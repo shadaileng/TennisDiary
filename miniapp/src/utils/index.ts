@@ -7,6 +7,7 @@
  */
 
 import { API_PREFIX, BASE_URL } from "@/config";
+import { STORAGE_KEYS } from "@/constants/storage";
 
 import type { CostItem } from "@/types";
 
@@ -112,15 +113,22 @@ export function maskMiddle(value: string | number, keep = 4): string {
 
 /**
  * 将后端返回的上传文件相对 url 转为可展示的完整 URL。
- * 头像 url 形如 `avatars/<user_id>/<uuid>.<ext>` → `/api/upload/avatar/<user_id>/<uuid>.<ext>`；
- * 绝对地址（http/data）原样返回。
+ * - 头像 `avatars/<user_id>/<uuid>.<ext>` → `/api/upload/avatar/<user_id>/<uuid>.<ext>`
+ * - 视频/帧/骨架 `videos/<user_id>/<file>` → `/api/media/videos/<user_id>/<file>?token=`
+ *   （小程序 <image>/<video> 无法携带自定义头，媒体组件需 query 传 token）
+ * - 绝对地址（http/data）原样返回
  */
 export function resolveUploadUrl(url: string): string {
   if (!url) return "";
   if (/^https?:\/\//.test(url) || url.startsWith("data:")) return url;
-  const [group, user_id, ...rest] = url.split("/");
-  if (group === "avatars" && user_id && rest.length) {
-    return `${BASE_URL}${API_PREFIX}/upload/avatar/${user_id}/${rest.join("/")}`;
+  const parts = url.split("/");
+  if (parts[0] === "avatars" && parts[1] && parts.length >= 3) {
+    return `${BASE_URL}${API_PREFIX}/upload/avatar/${parts[1]}/${parts.slice(2).join("/")}`;
+  }
+  if (parts[0] === "videos" && parts[1] && parts.length >= 3) {
+    const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
+    const sep = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `${BASE_URL}${API_PREFIX}/media/${url}${sep}`;
   }
   return url;
 }

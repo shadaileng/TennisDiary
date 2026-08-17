@@ -118,6 +118,11 @@ pnpm dev:mp-weixin   # 微信开发者工具导入 miniapp/dist/dev/mp-weixin
 | Server-2  | Server 部署方案（Oracle Cloud Always Free 免费 VM，代码已实现；待建 VM 启用 CI） | ✅ |
 | Server-3  | Server 部署方案（魔搭创空间 ModelScope Studio，代码已实现；当前启用） | ✅ |
 | Phase 67  | Cloudflare Workers 反向代理（解决魔搭网关 CORS + 鉴权头透传） | ✅ |
+| 75-B2-Admin | Admin 同步 AI 网关三件套（分析详情六维报告 + ai-status/ai-connect + 健康页 AI 卡片） | ✅ |
+| 75-1~6 | AI 评分代理 / 视频上传抽帧 / MediaPipe 姿态推理 / 分析报告落库 / 电子教练页 / 分享工坊 | ✅ |
+| 78 | 动态配置系统与 Admin 配置页（注册表 7 分类 20 项 + system_configs 覆盖表 + AI 三件套在线配置） | ✅ |
+| 79 | AI 服务商管理与配置直选（ai_providers 表 + ai.provider 引用，模型可独立覆盖） | ✅ |
+| 80 | AI 服务商多模型支持（models 列表 + 服务商→模型二选下拉，ai.model 覆盖全局优先） | ✅ |
 
 详细进度与方案索引见 `docs/plans/` 目录。
 

@@ -60,7 +60,7 @@
               {{ backup.size }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              {{ formatDate(backup.created_at) }}
+              {{ formatIso(backup.created_at) }}
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
               <span
@@ -112,6 +112,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { formatIso } from '@/utils/date'
 import {
   createBackup as createBackupApi,
   getBackups,
@@ -150,9 +151,7 @@ const onFileSelected = async (event: Event) => {
   }
 }
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleString('zh-CN')
-}
+
 
 const fetchBackups = async () => {
   try {

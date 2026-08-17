@@ -144,6 +144,28 @@ cd admin && pnpm build                 # 构建管理端
 | Step 72 | Admin 备份管理增强（独立元数据库 `backup_meta.db` + 上传/下载/删除联动 + 恢复状态展示） | ✅ |
 | Step 73 | 测试体系引入 `.env.test` 实现环境隔离（pytest-env 注入 `APP_ENV=test`、配置环境感知加载、`data_test/` 隔离、autouse 目录隔离 fixture） | ✅ |
 | Step 74 | Admin 日志查看倒序分页优化（尾部倒序读取最新优先 + `offset` 游标分页 + `has_more` + 刷新/加载更早/自动轮询） | ✅ |
+| 75-B2-Admin | Admin 同步 AI 网关三件套（分析详情完整六维报告 + ai-status/ai-connect/files 三端点 + 分析页模式/封面列 + 健康页 AI 网关卡片） | ✅ |
+| 75-1 | AI 评分代理接口 `/api/ai/analyze`（OpenAI 兼容六维评分，Key 服务端，失败本地降级） | ✅ |
+| 75-2 | 视频上传与抽帧 `/api/video/upload`（ffmpeg 抽帧，single 7/full 8 帧，imageio-ffmpeg 兜底） | ✅ |
+| 75-3 | MediaPipe 姿态推理 `/api/pose/analyze`（33 关键点 + 肘/膝/躯干角，CPU 推理，模型缺失/无人检测降级） | ✅ |
+| 75-4 | 分析报告落库 + 历史查询（`POST/GET/DELETE /api/analyses`，`video_url` 列迁移） | ✅ |
+| 75-5 | Phase 4 电子教练小程序页（三页：列表/AI 分析/报告，上传/AI/姿态/落库数据层封装） | ✅ |
+| 75-6 | Phase 5 分享工坊（三模板 Canvas 卡片 + 保存相册 + 文案复制） | ✅ |
+| 78 | 动态配置系统与 Admin 配置页（配置注册表 7 分类 20 项 + system_configs 覆盖表 + AI 三件套在线配置 + 权限 system:config） | ✅ |
+| 79 | AI 服务商管理与配置直选（`ai_providers` 表手动维护 + `ai.provider` 下拉直选引用语义，模型可独立覆盖） | ✅ |
+| 80 | AI 服务商多模型支持（`models` JSON 列表，默认模型=首项；配置页服务商→模型二选下拉，`ai.model` 覆盖全局优先） | ✅ |
+| 81 | AI 模型可用性校验与调试脚本（`check-models` list/probe 两级端点 + Admin 校验按钮 + `server/scripts/debug-ai.py` 直连生效配置调试） | ✅ |
+| 82 | 姿态模型获取与随包打包（`download-pose-model.sh` sha256 幂等下载 + 双 Dockerfile 按文件 COPY 随包 + 魔搭/OCI 部署自动下载；修复 mediapipe 1.0 API 路径 `python.BaseOptions`/`mp.Image`） | ✅ |
+| 83 | 姿态可视化与六边形雷达图（每次分析常驻姿态并行推理 + 骨架封面/骨架视频 + 六边形雷达图 + 姿态测量卡 + 用户端媒体服务 `/api/media/{path}?token=` + Admin 姿态详情） | ✅ |
+| 84 | 骨架视频多帧修复（修复骨架视频帧数不足，多帧正确编码） | ✅ |
+| 85 | 骨骼视频帧率自适应绘制（`probe_frame_rate` 获取视频帧率 + `analyze_frames` 使用 `帧数/时长` 计算骨骼视频帧率，确保播放时长与原视频一致） | ✅ |
+| 86 | Admin 静态文件端点移除认证（`/api/admin/system/files/` 无需 `X-Auth-Token`，解决 `<img>` 浏览器原生请求 401 问题） | ✅ |
+| 87 | Admin 时间显示统一东八区（后端 isoformat 加 `Z` 后缀 + 前端共享 `utils/date.ts`，`timeZone: 'Asia/Shanghai'`，8 个视图统一导入） | ✅ |
+| 88 | 分享工坊技术评分卡片六边形维度点评（`drawRadar` + 维度点评列表 + 大球降级） | ✅ |
+| 89 | 分享工坊条件管线模式重构（DrawPipeline → DrawStage → DrawStep 模式 + Playwright 回归测试 8 用例） | ✅ |
+| 90 | 小程序 UI 布局视觉回归测试（RadarChart/LineChart 8 用例 + playwright-visual-regression skill 集成） | ✅ |
+| 91 | 分享工坊技术评分三区域分离（雷达图/进度条/总结 + 白色卡片包裹 + Playwright 4 用例） | ✅ |
+| 92 | 分享工坊视觉优化（雷达图标注偏移+动态对齐 + 进度条文字间距 + footer下移） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

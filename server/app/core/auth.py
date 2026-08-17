@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timedelta
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from fastapi.security import APIKeyHeader
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -69,6 +69,24 @@ def get_current_user(
     from app.models.user import User
 
     openid = decode_access_token(token)
+    user = db.query(User).filter(User.openid == openid).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    return user
+
+
+def get_current_user_media(
+    x_auth_token: str | None = Depends(auth_scheme),
+    token: str | None = Query(default=None, description="媒体组件无法带头，query 回退传 token"),
+    db: Session = Depends(get_db),
+):
+    """媒体访问鉴权：优先 X-Auth-Token 头，缺失时回退 ?token= 查询参数"""
+    from app.models.user import User
+
+    jwt_token = x_auth_token or token
+    if not jwt_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    openid = decode_access_token(jwt_token)
     user = db.query(User).filter(User.openid == openid).first()
     if user is None:
         raise HTTPException(status_code=401, detail="用户不存在")

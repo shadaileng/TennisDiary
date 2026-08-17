@@ -74,6 +74,12 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '健康检查', permission: 'system:health' }
           },
           {
+            path: 'config',
+            name: 'Config',
+            component: () => import('@/views/system/config.vue'),
+            meta: { title: '系统配置', permission: 'system:config' }
+          },
+          {
             path: 'logs',
             name: 'Logs',
             component: () => import('@/views/system/logs.vue'),

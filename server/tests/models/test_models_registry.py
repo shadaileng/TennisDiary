@@ -15,6 +15,8 @@ EXPECTED_TABLES = {
     "analyses",
     "checkins",
     "posts",
+    "system_configs",
+    "ai_providers",
 }
 
 

@@ -3,15 +3,16 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 01 |
-> | 文档版本 | v1.2.0 |
+> | 文档版本 | v2.0.0 |
 > | 文档状态 | 🚧 进行中 |
-> | 最后更新 | 2026-08-05 |
+> | 最后更新 | 2026-08-13 |
 > | 对应功能/内容 | Tennis Diary Web 应用迁移微信小程序可行性分析与方案 |
 >
 > **变更历史**
 >
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
+> | 2026-08-13 | v2.0.0 | 同步项目现状：更新技术栈（Vant 4 / Tailwind 已移除 → 自定义组件与自定义 CSS）、部署方案（HF 停用 → 魔搭创空间 + CF Workers 代理）、接口清单与实施步骤；新增「执行进度与现状对照」章节，澄清 B2 编号冲突（总纲 AI 三件套未实施，43-B2 为后台管理 API） |
 > | 2026-08-05 | v1.2.0 | Phase B1 后台基础接口全部完成，总纲状态更新为进行中；同步 B1 子方案文档编号（02-11） |
 > | 2026-08-05 | v1.2.0 | 前端技术栈调整：微信原生小程序 → uni-app + Vite + Vue3 + Pinia + Vant4 + Tailwind CSS；H5 端预留用于后端测试；更新迁移评估与工时 |
 > | 2026-08-04 | v1.1.0 | 架构调整：微信云开发方案 → 自建 FastAPI + SQLite；新增后台接口清单、部署方案、微信登录链路 |
@@ -38,10 +39,11 @@ Tennis Diary 是一个用 **vibe coding** 方式构建的**纯前端 PWA 应用*
 
 | 端 | 技术栈 |
 |---|---|
-| 小程序前端 | **uni-app**（Vue 3 + Vite + TypeScript）+ **Pinia**（状态管理）+ **Vant 4**（移动端组件库）+ **Tailwind CSS**（`tailwindcss-miniprogram-preset`） |
+| 小程序前端 | **uni-app**（Vue 3 + Vite + TypeScript）+ **Pinia**（状态管理）+ **Tailwind 自定义组件**（`weapp-tailwindcss`；Phase 2.6 起逐步重构为自定义 CSS） |
 | H5 前端（测试用） | 同 uni-app 编译到 H5，**仅用于后端 API 联调测试**，不作为线上发布端 |
-| 后端 | 自建 **FastAPI**（Python）+ **SQLite** 数据库 |
-| 部署 | 本地运行 / Docker / HF Space + Nginx 反代 |
+| 后端 | 自建 **FastAPI**（Python）+ **SQLite** 数据库（Alembic 迁移管理） |
+| 后台管理端 | **admin/**（Vite + Vue 3 + TS + Tailwind），执行中扩展的新业务线，详见 [43-B2 后台管理 API 总纲](./43-B2-后台管理API总纲.md) |
+| 部署 | 本地运行 / Docker / Oracle Cloud VM / **魔搭创空间（当前启用）** + Cloudflare Workers 代理 |
 
 代码结构清晰，约 27 个源码文件，整体是一个典型的「移动端单页 + 底部 Tab」布局，移动优先（`max-w-md mx-auto`）。
 
@@ -95,7 +97,7 @@ Tailwind 自定义了一套橄榄绿/青柠色的视觉体系（`olive`/`lime`/`
 | 系统分享 | `navigator.share` | `wx.showShareImageMenu` / `wx.saveImageToPhotosAlbum` | 🟡 中 |
 | 复制到剪贴板 | `navigator.clipboard` | `wx.setClipboardData` | 🟢 低 |
 | 摄像头实时流 | `getUserMedia` / `<video>` | `camera` 组件或 `wx.createCameraContext` | 🟠 中高 |
-| CSS 框架 | Tailwind（需构建） | uni-app 可通过 `tailwindcss-miniprogram-preset` 支持，基本沿用 | 🟢 低 |
+| CSS 框架 | Tailwind（需构建） | 采用 `weapp-tailwindcss` 支持；Phase 2.6 起重构为自定义 CSS | 🟢 低 |
 | DOM 操作 | `document.createElement` / `querySelector` | 小程序端仍无 DOM（uni-app 在微信端编译为原生渲染），H5 端可正常使用 | 🟠 中高 |
 | 路由 | `react-router-dom` (SPA) | 小程序原生页面栈 | 🟡 中 |
 
@@ -162,8 +164,8 @@ graph TD
 | `money.ts` | 改造 | 30% | React Context→Pinia store，逻辑语义可对应 |
 | `report-image.ts` | 部分复用 | 30% | Canvas API 兼容，布局逻辑复用 |
 | `App.tsx` | 重写 | 80% | SPA 路由→uni-app `pages.json` + TabBar 配置 |
-| `pages/*.tsx` | 重写 | 50-60% | React TSX→Vue SFC，逻辑结构可比原生小程序多复用约 30%；Vant 4 组件覆盖大量 UI |
-| `components/UI.tsx` | 改造 | 40% | React 组件→Vue 组件，**Vant 4 可替代 70%+ 的自定义组件**（Sheet/Toast/Confirm/Seg 等有现成对应） |
+| `pages/*.tsx` | 重写 | 50-60% | React TSX→Vue SFC，逻辑结构可比原生小程序多复用约 30%；UI 用 Tailwind 自定义组件实现 |
+| `components/UI.tsx` | 改造 | 40% | React 组件→Vue 组件，采用 **Tailwind 自定义组件**（`src/components/`）逐个实现（Sheet/Toast/Confirm/Seg 等） |
 | `components/Charts.tsx` | 部分复用 | 50% | SVG→Canvas，计算逻辑复用 |
 | `components/Icons.tsx` | 改造 | 40% | SVG 组件→Vue 组件或 iconfont |
 
@@ -189,34 +191,25 @@ graph TD
 新增 **`wx.login` → FastAPI `/api/auth/login`** 鉴权链路：
 1. 小程序调用 `wx.login()` 获取临时 `code`
 2. 发送 `code` 到 FastAPI，后端用 `appid + secret` 调用 `code2Session` 换取 `openid`
-3. 后端签发 JWT 返回小程序，后续请求携带 `Authorization: Bearer <jwt>`
+3. 后端签发 JWT 返回小程序，后续请求携带 `X-Auth-Token: <jwt>`（魔搭网关占用 `Authorization`，统一改用自定义头，见 [66](./66-ModelScope部署鉴权头兼容改造.md)）
 4. 用户首次登录自动创建账号，无需额外注册流程
 
 #### UI 迁移
-- **Tailwind CSS**：通过 `tailwindcss-miniprogram-preset` 在 uni-app 中直接使用，原 Web 版的橄榄绿/青柠/米白主题色（`tailwind.config.ts` 自定义色值）**完整沿用**，无需手工转 WXSS。
-- **Vant 4 组件库**：替代原 `UI.tsx` 中的自定义组件。映射关系如下：
+- **Tailwind CSS**：通过 `weapp-tailwindcss`（含 `rem2rpx` 转换）在 uni-app 中直接使用，原 Web 版的橄榄绿/青柠/米白主题色（`tailwind.config.ts` 自定义色值）**完整沿用**，无需手工转 WXSS。Phase 2.6（`57-*`）起样式方案重构为**自定义 CSS**（设计 token + 通用类），Tailwind 逐步退出。
+- **自定义组件库**：**未引入 Vant 4**。原 `UI.tsx` 中的自定义组件以 Tailwind 自定义组件逐个实现（`src/components/`）。映射关系如下：
 
-  | Web 版 `UI.tsx` | Vant 4 组件 | 说明 |
+  | Web 版 `UI.tsx` | 小程序实现 | 说明 |
   |---|---|---|
-  | `TopBar` | `van-nav-bar` 或 uni-app 原生导航栏 | 顶栏 + 返回按钮 |
-  | `Section` | `van-cell-group` + `van-cell` | 列表分组 |
-  | `Seg`（分段选择器） | `van-tabs` / `van-dropdown-menu` | 分段/标签切换 |
-  | `Sheet`（底部弹层） | `van-action-sheet` / `van-popup` | 底部弹出面板 |
-  | `Toast` | `van-toast` | 轻提示 |
-  | `Confirm`（确认框） | `van-dialog` | 模态确认弹窗 |
+  | `TopBar` | 自定义顶栏 / uni-app 原生导航栏 | 顶栏 + 返回按钮 |
+  | `Section` | 自定义卡片/分组组件 | 列表分组 |
+  | `Seg`（分段选择器） | 自定义分段组件 | 分段/标签切换 |
+  | `Sheet`（底部弹层） | `uni.showActionSheet` / 自定义弹层 | 底部弹出面板 |
+  | `Toast` | `uni.showToast` | 轻提示 |
+  | `Confirm`（确认框） | `uni.showModal` / 自定义弹窗 | 模态确认弹窗 |
 
-- **Vant 4 小程序兼容性**：Vant 4 主要为 H5 设计，在 uni-app 编译到小程序端时，部分依赖 `window`/`document` 的组件需通过 **uni-app 条件编译** 隔离：
-  ```vue
-  <!-- #ifdef H5 -->
-  <van-some-component />  <!-- H5 端直接使用 -->
-  <!-- #endif -->
-  <!-- #ifdef MP-WEIXIN -->
-  <view>小程序端降级实现</view>  <!-- 小程序端兜底 -->
-  <!-- #endif -->
-  ```
-  绝大多数常用组件（Button/Cell/Toast/Dialog/Popup/Tabs 等）在小程序端可正常工作，仅少数依赖 Web API 的组件（如 `van-image-preview`）需要条件隔离。
+- **小程序 API 适配**：统一用 uni-app API（`uni.showToast` / `uni.showModal` / `uni.showActionSheet` 等）封装，无跨端兼容问题；个别 H5 专用能力（如图片预览）通过条件编译隔离。
 - **底部 Tab**：uni-app `pages.json` 的 `tabBar` 配置，支持图标、选中色等。
-- **视觉风格**：橄榄绿/青柠/米白体系通过 Tailwind 配置直接沿用，Vant 主题变量可通过 CSS 覆盖对齐。
+- **视觉风格**：橄榄绿/青柠/米白体系通过设计 token 直接沿用（Tailwind 自定义色值 → 自定义 CSS 变量），全局统一样式。
 
 ### 5.2 技术架构对比
 
@@ -235,9 +228,9 @@ Web 版架构:
 ┌──────────────────────────────────────────────────────────┐
 │  uni-app (Vue 3 + Vite + TypeScript)                     │
 │  ┌──────────┐  ┌──────────┐  ┌───────────────────────┐  │
-│  │ Vue SFC  │  │ Vant 4   │  │ uni.request (HTTPS)   │  │
-│  │ +Tailwind│  │ + 自定义  │  │ Authorization: JWT    │  │
-│  │ +Pinia   │  │ 组件      │  │                       │  │
+│  │ Vue SFC  │  │ 自定义    │  │ uni.request (HTTPS)   │  │
+│  │ +Pinia   │  │ 组件/CSS  │  │ X-Auth-Token: JWT     │  │
+│  │          │  │          │  │                       │  │
 │  └──────────┘  └──────────┘  └───────────┬───────────┘  │
 │         │                                │               │
 │         │    条件编译: #ifdef MP-WEIXIN  │               │
@@ -247,13 +240,17 @@ Web 版架构:
 │         │       浏览器 API (测试用)       │               │
 │         ▼                                ▼               │
 │  ┌──────────────────────────────────────────────────────┐ │
-│  │         自建 FastAPI 服务 (Docker / HF Space)         │ │
+│  │       自建 FastAPI 服务 (魔搭创空间 / Docker / OCI)    │ │
 │  │                                                       │ │
 │  │  /api/auth/login     微信登录 code2Session → JWT      │ │
-│  │  /api/data/*         日记/装备/体重 CRUD              │ │
-│  │  /api/ai/analyze     OpenAI 兼容代理 (Key 存服务端)   │ │
-│  │  /api/video/upload   视频接收 + ffmpeg 抽帧           │ │
-│  │  /api/pose/analyze   MediaPipe Python 姿态推理        │ │
+│  │  /api/diaries|gears|weights 日记/装备/体重 CRUD       │ │
+│  │  /api/checkin|stats 打卡 / 统计                       │ │
+│  │  /api/upload/*       图片/视频上传                    │ │
+│  │  /api/events         事件日志（埋点上报）             │ │
+│  │  /api/admin/*        后台管理（管理员/数据/监控）      │ │
+│  │  /api/ai/analyze     OpenAI 兼容代理 (Key 存服务端)①  │ │
+│  │  /api/video/upload   视频接收 + ffmpeg 抽帧 ①         │ │
+│  │  /api/pose/analyze   MediaPipe Python 姿态推理 ①      │ │
 │  │                                                       │ │
 │  │  ┌────────────────┐  ┌──────────────────────────┐    │ │
 │  │  │ SQLite         │  │ 文件存储 (本地卷/对象存储) │    │ │
@@ -261,53 +258,63 @@ Web 版架构:
 │  │  └────────────────┘  └──────────────────────────┘    │ │
 │  └──────────────────────────────────────────────────────┘ │
 │         ▲                                                 │
-│         │ HTTPS (自有备案域名 反代 HF Space / Docker)      │
+│         │ HTTPS (魔搭网关 + Cloudflare Workers 代理)      │
 └──────────────────────────────────────────────────────────┘
+
+① 规划中（Phase B2，尚未实施）；其余接口均已上线。
+Web 版部署于浏览器直连第三方 AI API；小程序版统一经后端代理，AI Key 仅存服务端。
 ```
 
-### 5.3 实施步骤建议
+### 5.3 实施步骤建议（含执行状态，2026-08-13 更新）
 
-实施计划分 **小程序端** 与 **后台 FastAPI 端** 两条线并行推进：
+实施计划分 **小程序端** 与 **后台 FastAPI 端** 两条线并行推进。状态列反映当前实际执行情况：
 
-| 阶段 | 端 | 内容 | 预计工时 |
+| 阶段 | 端 | 内容 | 预计工时 | 状态 |
+|---|---|---|---|---|
+| **Phase B1** | 后台 | FastAPI 脚手架、SQLite DB 模型（对应 `types.ts`）、`/api/auth/login` 微信登录/JWT 签发、数据 CRUD 接口、文件存储封装 | 5-7 天 | ✅ 已完成（`02-11`） |
+| **Phase 1** | 小程序 | uni-app 项目初始化、目录结构、`pages.json` TabBar、样式方案集成、`types.ts` 迁移、Pinia store 搭建、对接 B1 登录流程 | 3-4 天 | ✅ 已完成（`12-25`） |
+| **Phase 2** | 小程序 | 数据层、日记/装备/体重/打卡页面 Vue SFC 改写 + Charts 迁移 | 5-7 天 | ✅ 已完成（`26-31`，含 2.5/2.6/2.7 视觉与样式优化） |
+| **Phase B2** | 后台 | `/api/ai/analyze` AI 代理、`/api/video/upload` + ffmpeg 抽帧、`/api/pose/analyze` MediaPipe Python 推理 | 7-10 天 | ⏳ **未实施**（编号冲突澄清见 §7.2） |
+| **Phase 4** | 小程序 | 电子教练：视频选择/上传、等待分析、报告展示（调 B2 接口） | 4-6 天 | ⏳ 未实施（依赖 B2） |
+| **Phase 5** | 小程序 | 分享工坊：Canvas 卡片绘制迁移、保存图片、文案复制 | 2-4 天 | ⏳ 未实施 |
+| **Phase 6** | 双端 | 视觉调优、主题定制对齐橄榄绿、条件编译测试、真机测试、域名备案/反代配置、审核准备 | 5-7 天 | 🟡 进行中（视觉 ✅；备案/审核未做） |
+
+> 执行中的**扩展工作线**（超纲外）：后台管理 API + 前端（`43-54`）、Server 部署三方案（`63-65`）、魔搭鉴权头兼容与 CF Workers 代理（`66-67`）、Admin 优化与备份增强（`62/68/70-72/74`）、事件埋点（`59`）、测试体系（`73`）等，详见 §7.3。
+
+### 5.4 FastAPI 后台接口清单（含实际落地状态）
+
+> 统一响应格式：`{"code": 0, "message": "ok", "success": true, "data": ...}`；鉴权统一使用请求头 `X-Auth-Token: <JWT>`（魔搭网关占用 `Authorization`，故 2026-08 起全面切换，见 [66](./66-ModelScope部署鉴权头兼容改造.md)）。
+
+| 端点 | 方法 | 说明 | Phase | 状态 |
+|---|---|---|---|---|
+| `/api/auth/login` | POST | 接收 `wx.login` code，换 openid，签发 JWT | B1 | ✅ |
+| `/api/diaries` | GET/POST | 日记列表 / 创建 | B1 | ✅ |
+| `/api/diaries/{id}` | GET/PUT/DELETE | 日记详情 / 编辑 / 删除 | B1 | ✅ |
+| `/api/gears` | GET/POST | 装备列表 / 添加 | B1 | ✅ |
+| `/api/gears/{id}` | GET/PUT/DELETE | 装备详情 / 编辑 / 删除 | B1 | ✅ |
+| `/api/weights` | GET/POST | 体重记录列表 / 添加 | B1 | ✅ |
+| `/api/weights/{id}` | GET/DELETE | 体重详情 / 删除 | B1 | ✅（详情为 [70](./70-Admin-日记装备体重点击查看.md) 补充） |
+| `/api/checkin` | GET/POST | 打卡记录查询 / 签到 | B1 | ✅ |
+| `/api/stats` | GET | 统计数据汇总 | B1 | ✅ |
+| `/api/files/{filename}` | GET | 文件下载（图片/视频/缩略图） | B1 | ✅ |
+| `/api/upload/*` | POST | 图片/视频上传（扩展子目录） | 扩展 | ✅ |
+| `/api/events` | GET/POST | 事件日志埋点上报 / 查询 | 扩展 | ✅（[59](./59-小程序事件锚点与线上事件日志.md)） |
+| `/api/admin/*` | - | 管理员/角色/权限/数据查看/系统监控 | 扩展 | ✅（[43](./43-B2-后台管理API总纲.md)） |
+| `/api/ai/analyze` | POST | AI 六维评分（OpenAI 代理，含 NTRP 标尺 prompt） | B2 | ⏳ 规划中 |
+| `/api/video/upload` | POST | 视频上传 + ffmpeg 抽帧 | B2 | ⏳ 规划中 |
+| `/api/pose/analyze` | POST | MediaPipe 姿态推理，返回关键点坐标 | B2 | ⏳ 规划中 |
+
+### 5.5 FastAPI 后台部署方案（含实际落地状态）
+
+| 部署方式 | 说明 | 适用场景 | 状态 |
 |---|---|---|---|
-| **Phase B1** | 后台 | FastAPI 脚手架、SQLite DB 模型（对应 `types.ts`）、`/api/auth/login` 微信登录/JWT 签发、`/api/data/*` CRUD 接口、文件存储封装 | 5-7 天 |
-| **Phase 1** | 小程序 | uni-app 项目初始化、目录结构、`pages.json` TabBar、Tailwind + Vant 4 集成配置、`types.ts` 迁移、Pinia store 搭建、对接 B1 登录流程 | 3-4 天 |
-| **Phase 2** | 小程序 | 数据层（调 B1 data 接口）、日记/装备/体重/打卡页面 Vue SFC 改写 + Charts 迁移（Vant 4 组件加速 UI 搭建） | 5-7 天 |
-| **Phase B2** | 后台 | `/api/ai/analyze` AI 代理、`/api/video/upload` + ffmpeg 抽帧、`/api/pose/analyze` MediaPipe Python 推理、Dockerfile + HF Space 部署配置 | 7-10 天 |
-| **Phase 4** | 小程序 | 电子教练：视频选择/上传、等待分析、报告展示（调 B2 接口） | 4-6 天 |
-| **Phase 5** | 小程序 | 分享工坊：Canvas 卡片绘制迁移、保存图片、文案复制 | 2-4 天 |
-| **Phase 6** | 双端 | 视觉调优、Vant 主题定制对齐橄榄绿、条件编译测试（H5 + 小程序双端验证）、真机测试、域名备案/反代配置、审核准备 | 5-7 天 |
+| 本地运行 | `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` | 开发调试 | ✅ 可用 |
+| Docker 自部署 | `Dockerfile` + `docker-compose.yml`，SQLite 卷挂载 | 生产环境（自有服务器） | ✅ 已实现（[63](./63-Server部署方案-Docker与HF-Space.md)） |
+| HF Space | 利用 HF Space 免费 GPU/CPU 资源部署 | 低成本公网服务 | 🗄️ 已归档（需 PRO 订阅，已停用，见 [64](./64-Server部署方案-Oracle-Cloud.md)） |
+| OCI 免费 VM | Oracle Cloud Always Free 免费 VM 部署 | 长期稳定生产 | ✅ 已实现（待建 VM 启用 CI，见 [65](./65-Server部署方案-ModelScope-创空间.md)） |
+| 魔搭创空间 | ModelScope Studio 部署 + CF Workers 代理 | 低成本公网服务 | ✅ **当前启用**（[66](./66-ModelScope部署鉴权头兼容改造.md) + [67](./67-Cloudflare-Workers-代理-ModelScope-方案.md)） |
 
-**总计**：约 **4-7 周 / 1-2 人**（相比原生小程序方案，前端工时因 Tailwind + Vant 4 复用和 Vue SFC 结构可复用性而压缩约 1-2 周）
-
-### 5.4 FastAPI 后台接口清单
-
-| 端点 | 方法 | 说明 | Phase |
-|---|---|---|---|
-| `/api/auth/login` | POST | 接收 `wx.login` code，换 openid，签发 JWT | B1 |
-| `/api/diaries` | GET/POST | 日记列表 / 创建 | B1 |
-| `/api/diaries/{id}` | GET/PUT/DELETE | 日记详情 / 编辑 / 删除 | B1 |
-| `/api/gears` | GET/POST | 装备列表 / 添加 | B1 |
-| `/api/gears/{id}` | GET/PUT/DELETE | 装备详情 / 编辑 / 删除 | B1 |
-| `/api/weights` | GET/POST | 体重记录列表 / 添加 | B1 |
-| `/api/weights/{id}` | DELETE | 删除体重记录 | B1 |
-| `/api/checkin` | GET/POST | 打卡记录查询 / 签到 | B1 |
-| `/api/stats` | GET | 统计数据汇总 | B1 |
-| `/api/ai/analyze` | POST | AI 六维评分（OpenAI 代理，含 NTRP 标尺 prompt） | B2 |
-| `/api/video/upload` | POST | 视频上传 + ffmpeg 抽帧 | B2 |
-| `/api/pose/analyze` | POST | MediaPipe 姿态推理，返回关键点坐标 | B2 |
-| `/api/files/{filename}` | GET | 文件下载（图片/视频/缩略图） | B1 |
-
-### 5.5 FastAPI 后台部署方案
-
-| 部署方式 | 说明 | 适用场景 |
-|---|---|---|
-| 本地运行 | `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` | 开发调试 |
-| Docker 自部署 | `Dockerfile` + `docker-compose.yml`，SQLite 卷挂载 | 生产环境（自有服务器） |
-| HF Space + 反代 | 利用 HF Space 免费 GPU/CPU 资源部署，自有备案域名 Nginx 反代 | 低成本公网服务 |
-
-> **注意**：微信小程序 `wx.request` 要求合法域名**必须已备案**。HF Space 默认域名（`*.hf.space`）无法备案，生产环境需自备已备案域名 + Nginx/Caddy 反代到 HF Space 或 Docker 实例。
+> **注意**：微信小程序 `wx.request` 要求合法域名**必须已备案**。当前生产链路为「魔搭创空间 + Cloudflare Workers 代理」，已解决 CORS 预检与 `X-Auth-Token` 透传；正式提审前仍需已备案合法域名 + 反代配置。
 
 ---
 
@@ -318,7 +325,8 @@ Web 版架构:
 | 风险项 | 影响等级 | 说明 |
 |---|---|---|
 | 视频逐帧分析 | 🔴 高 | 小程序**无法实现浏览器级逐帧 seek 体验**，需彻底改变交互（上传→等待→出报告） |
-| HF Space 域名备案 | 🔴 高 | 微信 `request` 合法域名必须备案，HF Space 默认域名无法备案，**必须**自备域名 + 反代 |
+| 合法域名备案 | 🔴 高 | 微信 `request` 合法域名必须备案；当前生产链路（魔搭 + CF Workers 代理）为规避方案，正式提审前仍需已备案域名 |
+| 魔搭网关限制 | 🟠 中 | 网关占用 `Authorization` 头、CORS 预检等，已通过 `X-Auth-Token` 统一头 + CF Workers 代理解决（66/67），但需关注网关可用性波动 |
 | 微信登录态管理 | 🟠 中 | `wx.login` → JWT 鉴权链是新增模块，需处理好 token 刷新、过期、静默登录等边界 |
 | FastAPI 运维 | 🟠 中 | 自建后端意味着需要关注服务可用性、日志、监控，相比云函数增加运维成本 |
 | 审核风险 | 🟠 中 | 运动+AI+UGC 内容，需注意内容安全审核（AI 生成内容合规） |
@@ -333,7 +341,7 @@ Web 版架构:
 
 3. **自建后端一体化**：利用 FastAPI 统一承载数据 CRUD、AI 代理、视频处理、姿态推理，相比云开发方案更灵活可控，且 SQLite 零运维成本起步。
 
-4. **域名备案前置**：微信小程序开发阶段可用「不校验合法域名」模式调试，但提审前必须完成域名备案 + 反代配置，建议 Phase B1 阶段就启动备案流程（备案周期通常 2-4 周）。
+4. **域名备案前置**：微信小程序开发阶段可用「不校验合法域名」模式调试，但提审前必须完成域名备案 + 反代配置，建议尽早启动备案流程（备案周期通常 2-4 周）。
 
 5. **渐进式增强**：后续版本可考虑：
    - 端侧轻量姿态识别（等待微信官方端侧 AI 能力开放）
@@ -343,19 +351,64 @@ Web 版架构:
 
 ---
 
-## 七、总结
+## 七、执行进度与现状对照（2026-08-13 同步）
+
+> 本章为总纲维护附加章节，将总纲原始规划与实际执行情况进行映射，便于后续按图索骥。
+
+### 7.1 总纲阶段 ↔ 实际执行映射
+
+| 总纲阶段 | 原计划内容 | 实际执行 | 状态 |
+|---|---|---|---|
+| Phase B1（后台基础） | FastAPI 脚手架 + 登录 + CRUD + 文件存储 | 方案 `02-11` 全部落地；另补 Alembic 迁移（`39`）、统一响应格式（`55`） | ✅ 已完成 |
+| Phase 1（小程序工程） | 工程初始化 + 登录流程 | 方案 `12-25` 全部落地；样式方案经历「Tailwind（`weapp-tailwindcss`）→ 自定义 CSS」重构（`32`/`57`） | ✅ 已完成 |
+| Phase 2（业务页面） | 数据层 + 四业务页 + Charts | 方案 `26-31` 落地；`32-42` 轮番修复与体验优化（未登录门控、游客模式、样式重构等） | ✅ 已完成 |
+| Phase B2（AI 三件套） | `/api/ai/analyze` + `/api/video/upload` + `/api/pose/analyze` | **未实施**；编号被后台管理 API 占用（见 7.2） | ⏳ 待执行 |
+| Phase 4（电子教练） | 视频上传→等待→报告展示 | 未实施（依赖 Phase B2） | ⏳ 待执行 |
+| Phase 5（分享工坊） | Canvas 卡片 + 保存 + 文案复制 | 未实施 | ⏳ 待执行 |
+| Phase 6（收尾） | 视觉调优 / 真机测试 / 备案 / 审核 | 视觉（2.5/2.6/2.7）与部署链路（魔搭 + CF Workers）已完成；备案与审核未做 | 🟡 进行中 |
+
+### 7.2 B2 编号冲突澄清
+
+- 总纲原始 **B2 = AI 网关三件套**（AI 代理 + 视频抽帧 + 姿态推理），**至今未实施**；
+- 实际项目中的 `43-B2` = **后台管理 API**（角色/权限/管理员/数据查看/系统监控），是执行中扩展出的新业务线，不属于总纲范畴；
+- 后续推进 AI 三件套时，方案编号建议为 `75-*`，并在文档开头注明与 `43-B2` 的编号差异，避免歧义。
+
+### 7.3 超出总纲的扩展工作
+
+| 扩展线 | 方案编号 | 说明 | 状态 |
+|---|---|---|---|
+| 后台管理 API | `43-46` | 管理员/角色/权限/数据查看/系统监控 | ✅ |
+| 后台管理前端 | `47-54` | `admin/`（Vite + Vue 3 + Tailwind） | ✅ |
+| Server 部署三方案 | `63-65` | Docker（可用）、HF（已归档）、OCI（待建 VM）、魔搭（当前启用） | ✅ |
+| 魔搭鉴权头 + CF Workers 代理 | `66-67` | `X-Auth-Token` 统一 + CORS/透传 | ✅ |
+| Admin 优化 | `62, 68, 70-72, 74` | 详情弹窗 / Loading / 备份管理 / 日志倒序分页 | ✅ |
+| 小程序埋点 | `59` | 事件锚点 + 线上日志 + 管理端查询 | ✅ |
+| 测试体系 | `73` | `.env.test` 环境隔离 + autouse 目录隔离 | ✅ |
+
+### 7.4 下一步（按总纲优先级）
+
+| 优先级 | 任务 | 前置条件 / 备注 |
+|---|---|---|
+| 1 | **Phase B2** AI 网关三件套（新方案 `75-*`） | 新增依赖 `ffmpeg`（系统级）、`mediapipe`、`openai`；需验证魔搭容器内 ffmpeg 可用性（不可用则在 Dockerfile/CI 预装） |
+| 2 | **Phase 4** 电子教练（小程序视频→报告） | 依赖 Phase B2；复用参考源码 `ai.ts` / `pose.ts` / `CoachAnalyze.tsx` |
+| 3 | **Phase 5** 分享工坊 | 可独立并行（纯 Canvas，无外部依赖），低风险先出成果的可选项 |
+| 4 | **Phase 6** 收尾（真机/备案/审核） | 备案周期 2-4 周，建议尽早启动 |
+
+---
+
+## 八、总结
 
 Tennis Diary 是一个产品定位清晰、代码架构良好的网球数据管理应用。迁移到微信小程序在技术上是**完全可行**的，但需要**重写式迁移**而非简单翻译。
 
 **核心策略**：
 - ✅ 复用：数据模型（`types.ts`）、AI prompt（`ai.ts`）、角度计算算法（`pose.ts`）、Canvas 绘制逻辑（`report-image.ts`）、**Tailwind 样式体系**（橄榄绿/青柠/米白主题色）
-- 🔄 重构：数据存储（SQLite 替代 IndexedDB）、AI 网关（FastAPI 代理）、状态管理（Pinia 替代 React Context）、路由（uni-app `pages.json` 替代 `react-router-dom`）、用户体系（微信登录 + JWT）、UI 组件（Vant 4 替代 `UI.tsx` 自定义组件）
+- 🔄 重构：数据存储（SQLite 替代 IndexedDB）、AI 网关（FastAPI 代理）、状态管理（Pinia 替代 React Context）、路由（uni-app `pages.json` 替代 `react-router-dom`）、用户体系（微信登录 + JWT）、UI 组件（Tailwind 自定义组件替代 `UI.tsx`）
 - ❌ 放弃/替换：MediaPipe 端侧推理（→ FastAPI 服务端推理）、视频逐帧 seek（→ 上传 + ffmpeg 抽帧）、DOM 直接操作（→ Vue 数据驱动 / 条件编译 H5 保留）
 
 **技术栈**：
-- 前端：uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Vant 4 + Tailwind CSS（`tailwindcss-miniprogram-preset`），编译目标为微信小程序；H5 端保留用于后端 API 联调测试
-- 后端：FastAPI（Python）+ SQLite + ffmpeg + MediaPipe Python
-- 部署：Docker / HF Space + Nginx 反代
+- 前端：uni-app（Vue 3 + Vite + TypeScript）+ Pinia + Tailwind 自定义组件（Phase 2.6 起为自定义 CSS），编译目标为微信小程序；H5 端保留用于后端 API 联调测试
+- 后端：FastAPI（Python）+ SQLite + ffmpeg + MediaPipe Python（ffmpeg/MediaPipe 属 Phase B2 规划，尚未引入）
+- 部署：魔搭创空间（当前启用）+ Cloudflare Workers 代理；备选 Docker / OCI 免费 VM
 - 鉴权：`wx.login` → `code2Session` → JWT
 
 按推荐路径实施，预计 **4-7 周**可完成一个功能完整、体验优良的微信小程序版本（含自建 FastAPI 后台）。

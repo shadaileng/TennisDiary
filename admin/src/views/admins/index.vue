@@ -26,7 +26,7 @@
       </template>
 
       <template #cell-last_login="{ value }">
-        {{ value ? formatDate(value) : '从未登录' }}
+        {{ value ? formatIso(value) : '从未登录' }}
       </template>
 
       <template #actions="{ row }">
@@ -130,6 +130,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { formatIso } from '@/utils/date'
 import { getAdmins, createAdmin, updateAdmin, deleteAdmin, resetPassword, toggleAdminStatus, type Admin } from '@/api/admins'
 import { getRoles, type Role } from '@/api/roles'
 import Table from '@/components/common/Table.vue'
@@ -165,9 +166,7 @@ const form = ref({
   role_id: '' as string | number
 })
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleString('zh-CN')
-}
+
 
 const fetchAdmins = async () => {
   try {

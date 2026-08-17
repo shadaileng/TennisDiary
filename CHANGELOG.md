@@ -4,6 +4,156 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.61.8] - 2026-08-16
+
+### Fixed
+
+- miniapp 三张分享图片footer整体下移（height 100→120, bottomMargin 100→60）
+
+## [1.61.7] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分进度条行间距缩小（itemHeight 260→220），更紧凑的视觉效果
+
+## [1.61.6] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分进度条文字间距优化：标题与进度条间距（barTopOffset 12→35），进度条与评论间距（commentStartOffset 68→80）
+
+## [1.61.5] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分进度条行间距增大（itemHeight 195→260），改善视觉层次感
+
+## [1.61.4] - 2026-08-16
+
+### Fixed
+
+- miniapp 技术评分卡片布局优化：整体下移，白色卡片包裹雷达图和进度条区域，总结文本显示在卡片下方；修复summaryStage条件判断（检查analysis.summary而非report.summary）
+
+## [1.61.3] - 2026-08-16
+
+### Fixed
+
+- miniapp 雷达图文字标注优化：标注偏移量从110减小到65更贴近顶点，上下顶点动态居中对齐、左右顶点左右对齐，radarZone高度从420增加到540防止底部标注超出卡片
+
+## [1.61.2] - 2026-08-16
+
+### Changed
+
+- miniapp 分享工坊技术评分三区域分离：将技术评分图片内容区从上到下分为雷达图、进度条、总结三个独立区域，每个区域逐步完善；新增4个Playwright回归测试用例覆盖三个区域
+
+## [1.61.1] - 2026-08-15
+
+### Fixed
+
+- miniapp 去掉用户可见的"AI"字眼：教练主页英雄卡片、分析页进度提示与表单说明、报告页 NTRP 注释、分享卡片标题与文案、页面导航标题，统一改为中性表述（"专属私教"、"教练分析"等）
+
+## [1.61.0] - 2026-08-15
+
+### Added
+
+- admin 静态文件端点移除认证（86）：`/api/admin/system/files/{filename}` 移除 `Depends(get_current_admin)`，解决 `<img>` 浏览器原生请求无法携带 `X-Auth-Token` 导致 401 问题，安全性由文件名不可猜测保证（UUID + 业务前缀）。详见 `docs/plans/86-Admin静态文件端点移除认证.md`
+- admin 时间显示统一东八区（87）：新增 `admin/src/utils/date.ts` 共享工具（`formatTs`/`formatIso`/`formatDate` 三个函数，`timeZone: 'Asia/Shanghai'`），8 个视图（admins/analyses/diaries/gears/system/backups/system/event-logs/users/weights）统一导入替代原生 `toLocaleString`；后端备份列表 `created_at` 时间格式添加 `Z` 后缀保证 ISO 8601 合规。详见 `docs/plans/87-Admin时间显示统一东八区.md`
+
+## [1.60.0] - 2026-08-15
+
+### Added
+
+- server 骨骼视频帧率自适应绘制（85）：`video_service.py` 新增 `probe_frame_rate` 函数获取视频帧率（ffprobe 优先，分数格式解析，回退 30fps）；`process_video` 返回 `frame_rate` 字段；`pose.py` `PoseAnalyzeRequest` 新增 `frame_rate` 参数；`pose_service.py` `analyze_frames` 使用 `帧数/时长` 计算骨骼视频帧率，确保播放时长与原视频一致。小程序 `VideoUploadResult` 新增 `frame_rate` 字段，`analyzePose` 新增 `frameRate` 参数，`analyze.vue` 传递帧率参数。详见 `docs/plans/85-骨骼视频帧率自适应绘制.md`
+
+## [1.59.1] - 2026-08-15
+
+### Fixed
+
+- miniapp 视频上传（fix-2026-08-15）：`analyze.vue` 上传前用 `fs.access()` 检查临时文件是否存在，临时文件被系统回收时提示「视频文件已失效，请重新选择」而非 cryptic `uploadFile:fail file not found`（模拟器已知行为，真机无此问题）
+- server 骨架视频多帧（84）：`encode_skeleton_video` 改用 `-framerate` + `%04d` 通配符直接读图片序列，修复 ffmpeg concat demuxer 将静态 JPEG 视为无限长流导致输出仅 1 帧的 bug；骨架帧命名同步改为 4 位零填充 `{base}_sk{idx:04d}.jpg`；新增 `TestEncodeSkeletonVideo` 真实 ffmpeg 编码测试
+
+## [1.59.0] - 2026-08-14
+
+### Added
+
+- server 姿态可视化与六边形雷达图（83）：`Analysis.pose` 落库（Alembic 迁移 `c1d2e3f4a5b6`）；`pose_service.py` 新增 `draw_skeleton` / `encode_skeleton_video`（concat + fps + 偶数尺寸 scale，防 x264 奇高报错）/ `analyze_frames` 扩展骨架字段；`POST /api/pose/analyze` 请求体加 `video_url` / `save_skeleton` / `duration`；新建 `app/routers/media.py` 用户端媒体服务（归属校验 + `?token=` 回退鉴权）；`main.py` 注册 media 路由。小程序 `RadarChart.vue` 六边形雷达图（canvas 2d，移植 Web `Charts.tsx:137`）；`analyze.vue` 改为 AI 与姿态并行（`Promise.allSettled`），每次分析都跑姿态并落库；`report.vue` 雷达卡 + 姿态测量卡 + 骨架封面优先 + 原视频/骨架视频切换；`coach.vue` 列表骨架徽标。Admin 详情弹窗新增姿态三角度 + 骨架缩略图/视频。
+- tests 新增：`test_pose.py`（draw_skeleton/save_skeleton/video_url 越界）、`test_media.py`（归属/越界/mp4 content-type/query token 鉴权）。
+
+### Fixed
+
+- server 骨架视频编码（83）：x264/yuv420p 对奇数宽高直接报错（实测 `360x269` 返回 rc 187 空输出）；`encode_skeleton_video` 追加 `-vf fps=N,scale=trunc(iw/2)*2:trunc(ih/2)*2` 确保偶数尺寸。
+
+## [1.58.0] - 2026-08-14
+
+### Added
+
+- server 姿态模型下载与随包打包（82）：`server/scripts/download-pose-model.sh` 幂等下载 `pose_landmarker_lite.task`（官方 Google 源，`POSE_MODEL_URL` 可覆盖镜像，sha256 固化 `59929e1d…d574a` + 临时文件 + 大小校验）；双 Dockerfile 按文件 `COPY models/pose_landmarker_lite.task` 随镜像打包（缺失时构建 fail-fast）；`deploy-modelscope.sh` 打包前自动下载 + `FILES_TO_COPY` 加 `models`、`deploy-oci.sh` rsync 前自动下载；`server/models/` 仅 `.gitkeep` 纳入版本管理。详见 `docs/plans/82-姿态模型获取与随包打包.md`
+- server MediaPipe 兼容性测试（82）：`TestMediapipeCompat` 断言 mediapipe 1.0 API 路径存在（`python.BaseOptions` / `mp.Image`），防未来版本漂移。
+
+### Fixed
+
+- server 姿态推理真实链路 API 路径（82）：mediapipe 升级 1.0 后 `vision.BaseOptions` / `mediapipe.tasks.python.core.image.Image` / `ImageFormat.SRGB` 路径变更，`pose_service.py` 改用 `python.BaseOptions`、`mediapipe.Image`、`mp.ImageFormat.SRGB`，真实推理端到端返回 33 关键点。
+
+## [1.57.0] - 2026-08-14
+
+### Added
+
+- server AI 模型可用性校验（81）：`POST /api/admin/config/providers/check-models`（权限 `system:config`），两级策略——list（`GET {base_url}/models` 拉可用模型比对）+ probe（不支持 /models 时逐模型 `max_tokens=1` 文本探测，模型名不存在秒回非 200）；解析兼容 `data[]`/`models[]`（id/name/字符串），15s 超时、401/403 鉴权失败、连接/超时镜像 ai-connect 语义；表单值直传无需先保存。详见 `docs/plans/81-AI模型可用性校验与调试脚本.md`
+- server 模型调试脚本（81）：`server/scripts/debug-ai.py` 直连生效配置（`get_ai_config` 同源），支持最小探测 / 任意文本对话 / `GET /models` 列表 / 完整六维分析（本地图片 → dataURL 生产同款链路）；`--model/--base-url/--api-key` CLI 覆盖优先；不吞错（非 200 打印真实响应），退出码 0/1。
+- admin 服务商表单模型校验（81）：模型列表编辑器每行 ✓ 绿 / ✗ 红徽标 +「校验模型」按钮（`useActionLock` 防重复提交）+ 结果区（list 可用模型列表 / probe 逐模型原因 / 失败 message）。
+
+## [1.56.0] - 2026-08-14
+
+### Added
+
+- server 动态配置系统（78）：配置注册表 7 分类 20 项（`app/core/config_registry.py`）+ `system_configs` 覆盖表，生效值 = DB 覆盖 > env 默认；`GET/PUT/DELETE /api/admin/config`、`POST /api/admin/config/reset`，secret 仅掩码、非法值 400、等于默认值自动删行；AI 三件套（key/base_url/model）可在线编辑；迁移 `da938737d8cb`。详见 `docs/plans/78-动态配置系统与Admin配置页.md`
+- admin 系统配置页（78）：分类卡片展示 + 源徽标（默认/内置/自定义）+ 编辑/恢复默认/全部恢复默认；权限 `system:config`。
+- server AI 服务商管理（79）：`ai_providers` 表（name 唯一索引 + base_url + api_key + model + enabled）+ `ai.provider` select 配置项（options 动态 = 启用服务商 + custom）；`get_ai_config` 引用解析：选中服务商 → base_url/api_key 直读条目、model 覆盖 > 条目默认，条目禁用/删除自动回落 custom；被引用服务商删除 409、name 重复 400；ai-status 返回 `provider`。迁移 `7e375669cd0d`。详见 `docs/plans/79-AI服务商管理配置直选.md`
+- server AI 服务商多模型（80）：`model` → `models` JSON 列表（默认模型 = 首项），新增/编辑/列表均返回 `models` + `default_model`，空列表 400；迁移 `9e8d74e6ab01`（model → models 回填）。详见 `docs/plans/80-AI服务商多模型与模型直选.md`
+- admin 服务商管理 UI（79/80）：AI 卡片服务商下拉直选 + 生效配置展示（掩码 key/模型/Base URL）；「管理服务商」弹窗（增删改、api_key 留空保持不变、删除二次确认）；选中服务商后模型二选下拉（写 `ai.model` 覆盖 / 跟随服务商默认清除覆盖）；服务商表单模型列表编辑器（多行增删、首行默认、保存自动去空行）。
+
+## [1.55.1] - 2026-08-13
+
+### Fixed
+
+- server 全局异常处理响应补充 `Access-Control-Allow-Origin` 头：未知异常由最外层 `ServerErrorMiddleware` 生成响应（绕过 `CORSMiddleware`），此前 500 响应缺失 CORS 头导致浏览器误报跨域拦截；现手动补头，便于前端看到真实错误信息。
+
+## [1.55.0] - 2026-08-13
+
+### Added
+
+- miniapp Phase 5 分享工坊：新增 `pages/share/share`（模板选择 + Canvas 2d 卡片预览 + 保存相册 + 文案复制/重新生成）；`utils/shareCanvas.ts` 提供 `drawShareCard`（月度战报 / 今日日记 / 技术评分三模板）与 `genCaption` 文案模板；「我的」页新增「分享工坊」入口。详见 `docs/plans/75-6-Phase5-分享工坊.md`
+
+## [1.54.0] - 2026-08-13
+
+### Added
+
+- miniapp Phase 4 电子教练页：新增 `pages/coach/` 三页（coach 历史列表、analyze 三步分析流、report 完整报告），「我的」页新增「电子教练」入口，`pages.json` 注册。
+- miniapp 电子教练数据层：`uploadVideo`（uni.uploadFile 直传 + 抽帧，携带 `X-Auth-Token`）、`analyzeSwing`（AI 六维评分，120s 超时）、`analyzePose`（姿态推理，60s 超时）、`createAnalysis`/`getAnalyses`/`getAnalysis`/`deleteAnalysis`（报告落库与历史回看）；`types` 新增 `VideoUploadResult`/`PoseLandmark`/`PoseResult`，`Analysis`/`AnalysisCreate` 增加 `video_url`。详见 `docs/plans/75-5-Phase4-电子教练小程序页.md`
+
+## [1.53.0] - 2026-08-13
+
+### Added
+
+- server MediaPipe 姿态推理接口 `POST /api/pose/analyze`：CPU 推理逐帧输出 33 关键点（归一化坐标 + visibility）+ 首个可测帧的三角度测量（肘角/膝角/躯干倾角，`measure_angles` 与参考版 `pose.ts` 对齐）；mediapipe 懒加载预检、模型缺失返回 503、无人检测返回 200 + `detected=false`。新增依赖 `mediapipe` 与 `server/models/` 目录（模型文件不纳入版本管理）。详见 `docs/plans/75-3-MediaPipe姿态推理.md`
+- server 用户端分析报告落库与历史查询：`POST /api/analyses`（AI 分析成功后落库）、`GET /api/analyses`（历史列表，分页倒序，仅本人）、`GET /api/analyses/{id}`（详情，完整六维报告结构化 JSON）、`DELETE /api/analyses/{id}`；`Analysis` 模型新增 `video_url` 列 + Alembic 增量迁移。详见 `docs/plans/75-4-分析报告落库与历史查询.md`
+
+## [1.52.0] - 2026-08-13
+
+### Added
+
+- admin 分析报告管理增强：详情接口 `GET /api/admin/analyses/{id}` 返回完整六维报告（`report` JSON 对象 + `thumb` 封面 + `highlights` 高光帧数组，非法 JSON 容错返回 `None`）；分析页列表新增「模式」（单次挥拍/综合分析）与「封面」缩略图列，详情弹窗渲染六维评分条/节奏观察/亮点/改进建议/封面与高光帧。详见 `docs/plans/75-B2-Admin同步AI网关功能.md`
+- admin AI 网关状态监控：健康检查页新增「AI 网关」卡片，`GET /api/admin/system/ai-status` 探测 AI Key（掩码 `sk-****abcd`，不暴露明文）/ ffmpeg（含 `imageio-ffmpeg` 兜底提示）/ MediaPipe / 姿态模型四项状态并汇总缺失项；`GET /api/admin/system/ai-connect` 由服务端代理 `{AI_BASE_URL}/models` 验证 Key 有效性（不耗 token），失败含状态码反馈
+- admin 静态文件服务：新增 `GET /api/admin/system/files/{path}`，`normpath` 路径防护（越界 404）+ 媒体类型映射，供 Admin 渲染 `thumb` / `highlights` 图片；相对路径走静态服务、`http(s)://` 绝对 URL 前端原样直出
+- server 新增 `POSE_MODEL_PATH` 配置（MediaPipe 姿态模型路径，默认 `server/models/pose_landmarker_lite.task`）
+
+## [1.51.0] - 2026-08-13
+
+### Added
+
+- server AI 评分代理接口 `POST /api/ai/analyze`：OpenAI 兼容调用阿里云百炼（Key 存服务端，不进入小程序包），六维评分 prompt 与参考版 `analyzeSwing` 对齐，无 Key / 调用失败 / 解析失败自动返回本地降级报告（`build_local_report`，HTTP 200）。详见 `docs/plans/75-1-AI评分代理接口.md`
+- server 视频上传与抽帧接口 `POST /api/video/upload`：ffmpeg 抽帧（single 7 / full 8 帧，640px JPEG，`imageio-ffmpeg` 兜底），时长校验（single 15s / full 90s）、采样时间点与参考版 `CoachAnalyze.tsx` 对齐、封面帧提取；新增依赖 `imageio-ffmpeg`。详见 `docs/plans/75-2-视频上传与抽帧.md`
+
 ## [1.50.1] - 2026-08-13
 
 ### Fixed

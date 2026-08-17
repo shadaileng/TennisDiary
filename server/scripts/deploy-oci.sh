@@ -127,6 +127,12 @@ log_ok "  ✓ Docker 可用"
 ssh_cmd "mkdir -p ${OCI_APP_DIR}/server ${OCI_APP_DIR}/data"
 
 # ---------- rsync 同步代码 ----------
+# 姿态模型缺失时自动下载（本地仓库 gitignore 不含模型；国内网络可用 POSE_MODEL_URL 覆盖镜像源）
+if [ ! -f "$SERVER_DIR/models/pose_landmarker_lite.task" ]; then
+  log_info "姿态模型缺失，自动下载..."
+  bash "$SERVER_DIR/scripts/download-pose-model.sh" || fail "姿态模型下载失败"
+fi
+
 log_info "同步代码到 ${OCI_VM_USER}@${OCI_VM_HOST}:${OCI_APP_DIR}/server ..."
 if ! command -v rsync >/dev/null 2>&1; then
   fail "本机未安装 rsync（macOS 自带；Ubuntu: sudo apt install rsync）"

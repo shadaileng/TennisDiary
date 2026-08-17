@@ -9,12 +9,28 @@ from fastapi.responses import JSONResponse
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
 from app.middleware.logging import RequestLoggingMiddleware
-from app.routers import auth, checkin, diaries, files, gears, stats, upload, weights
+from app.routers import (
+    ai,
+    analyses,
+    auth,
+    checkin,
+    diaries,
+    files,
+    gears,
+    media,
+    pose,
+    stats,
+    upload,
+    video,
+    weights,
+)
 from app.routers import events as user_events
 from app.routers.admin import admins as admin_admins
+from app.routers.admin import ai_providers as admin_ai_providers
 from app.routers.admin import analyses as admin_analyses
 from app.routers.admin import auth as admin_auth
 from app.routers.admin import checkins as admin_checkins
+from app.routers.admin import config as admin_config
 from app.routers.admin import diaries as admin_diaries
 from app.routers.admin import events as admin_events
 from app.routers.admin import gears as admin_gears
@@ -103,7 +119,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """未知异常处理"""
+    """未知异常处理（最外层 ServerErrorMiddleware 生成响应，绕过 CORSMiddleware，需补 CORS 头）"""
     logger.error(f"未处理的异常: {exc}")
     return JSONResponse(
         status_code=500,
@@ -113,17 +129,23 @@ async def general_exception_handler(request: Request, exc: Exception):
             success=False,
             data=None,
         ).model_dump(),
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
 # 注册路由
 app.include_router(auth.router)
+app.include_router(ai.router)
+app.include_router(analyses.router)
+app.include_router(pose.router)
+app.include_router(video.router)
 app.include_router(diaries.router)
 app.include_router(gears.router)
 app.include_router(weights.router)
 app.include_router(checkin.router)
 app.include_router(stats.router)
 app.include_router(files.router)
+app.include_router(media.router)
 app.include_router(upload.router)
 app.include_router(user_events.router)
 
@@ -139,6 +161,8 @@ app.include_router(admin_checkins.router)
 app.include_router(admin_analyses.router)
 app.include_router(admin_posts.router)
 app.include_router(admin_system.router)
+app.include_router(admin_config.router)
+app.include_router(admin_ai_providers.router)
 app.include_router(admin_events.router)
 
 # CORS 配置（开发阶段允许所有来源）

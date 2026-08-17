@@ -104,6 +104,12 @@ yarn-error.log*
 lerna-debug.log*
 
 # ========================
+# Crash dumps (进程崩溃 core 文件)
+# ========================
+/core
+core.*
+
+# ========================
 # Docker
 # ========================
 docker-compose.override.yml
@@ -131,9 +137,17 @@ coverage/
 .nyc_output/
 .pytest_cache/
 .mypy_cache/
+miniapp/test-results/
 
 # 测试数据目录（.env.test 运行时生成，不入库）
 data_test/
+
+# ========================
+# Temp & Config
+# ========================
+.agents/
+skills-lock.json
+nul
 
 # ========================
 # CodeBuddy workspace data

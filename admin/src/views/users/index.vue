@@ -82,7 +82,7 @@
           <div class="border-t border-gray-200"></div>
           <div class="flex justify-between items-center">
             <span class="text-sm text-gray-500">注册时间</span>
-            <span class="text-sm text-gray-700">{{ formatDateTime(selectedUser.created_at) }}</span>
+            <span class="text-sm text-gray-700">{{ formatIso(selectedUser.created_at) }}</span>
           </div>
         </div>
       </div>
@@ -95,6 +95,7 @@ import { ref, onMounted } from 'vue'
 import { getUsers, deleteUser, type User } from '@/api/users'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import { formatDate, formatIso } from '@/utils/date'
 import Modal from '@/components/common/Modal.vue'
 
 const columns = [
@@ -112,20 +113,7 @@ const pageSize = ref(20)
 const showDetail = ref(false)
 const selectedUser = ref<User | null>(null)
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('zh-CN')
-}
 
-const formatDateTime = (date: string) => {
-  if (!date) return '--'
-  return new Date(date).toLocaleString('zh-CN', { 
-    year: 'numeric', 
-    month: '2-digit', 
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 
 const genderText = (gender: number | null): string => {
   const map: Record<number, string> = { 0: '保密', 1: '男', 2: '女' }

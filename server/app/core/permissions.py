@@ -29,6 +29,7 @@ PERMISSIONS = {
     "system:logs": "查看日志",
     "system:backup": "数据库备份",
     "system:restore": "数据恢复",
+    "system:config": "系统配置管理",
     # 管理员管理
     "admins:list": "查看管理员列表",
     "admins:view": "查看管理员详情",

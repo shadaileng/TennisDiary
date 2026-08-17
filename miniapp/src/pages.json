@@ -41,6 +41,30 @@
       "style": {
         "navigationBarTitleText": "编辑资料"
       }
+    },
+    {
+      "path": "pages/coach/coach",
+      "style": {
+        "navigationBarTitleText": "电子教练"
+      }
+    },
+    {
+      "path": "pages/coach/analyze",
+      "style": {
+        "navigationBarTitleText": "分析"
+      }
+    },
+    {
+      "path": "pages/coach/report",
+      "style": {
+        "navigationBarTitleText": "分析报告"
+      }
+    },
+    {
+      "path": "pages/share/share",
+      "style": {
+        "navigationBarTitleText": "分享工坊"
+      }
     }
   ],
   "globalStyle": {

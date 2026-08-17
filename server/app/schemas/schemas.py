@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -164,6 +165,16 @@ class CheckinResponse(CheckinCreate):
 # ==================== 分析 ====================
 
 
+class AnalyzeRequest(BaseModel):
+    """AI 分析请求：frames 为按时间顺序抽取的关键帧（base64/dataURL）"""
+
+    frames: list[str] = Field(min_length=1, description="关键帧 base64/dataURL 数组")
+    kind: str = Field(default="综合", description="击球类型（正手/反手/发球/截击/高压/综合）")
+    mode: Literal["single", "full"] = Field(
+        default="single", description="single=单次挥拍 / full=综合分析"
+    )
+
+
 class DimensionScore(BaseModel):
     name: str
     score: float
@@ -195,6 +206,8 @@ class AnalysisCreate(BaseModel):
     report: AnalysisReportSchema | None = None
     thumb: str | None = None
     highlights: list[str] | None = None
+    video_url: str | None = None
+    pose: dict | None = None
 
 
 class AnalysisResponse(AnalysisCreate):

@@ -14,7 +14,7 @@
       </template>
 
       <template #cell-created_at="{ value }">
-        {{ formatDate(value) }}
+        {{ formatTs(value) }}
       </template>
 
       <template #actions="{ row }">
@@ -83,7 +83,7 @@
             </div>
             <div>
               <span class="text-sm font-medium text-gray-500">创建时间</span>
-              <p class="mt-1 text-sm text-gray-900">{{ formatDate(selectedWeight.created_at) }}</p>
+              <p class="mt-1 text-sm text-gray-900">{{ formatTs(selectedWeight.created_at) }}</p>
             </div>
           </div>
         </div>
@@ -107,6 +107,7 @@ import { ref, onMounted } from 'vue'
 import { getWeights, deleteWeight, type Weight } from '@/api/weights'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
+import { formatTs } from '@/utils/date'
 
 const columns = [
   { key: 'id', title: 'ID' },
@@ -122,10 +123,7 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const selectedWeight = ref<Weight | null>(null)
 
-const formatDate = (timestamp: number) => {
-  if (!timestamp) return '--'
-  return new Date(timestamp * 1000).toLocaleString('zh-CN')
-}
+
 
 const viewWeight = (weight: Weight) => {
   selectedWeight.value = weight
