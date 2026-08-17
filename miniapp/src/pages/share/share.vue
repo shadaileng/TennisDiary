@@ -139,12 +139,14 @@ function draw() {
               fs.writeFileSync(savePath, data)
               cardSavePath.value = savePath
             } catch (e) {
+              logError("持久路径写入失败", { error: String(e) }, "share_persist_save_failed", undefined, createTraceId());
               console.error('[share] 持久路径写入失败:', e)
               // 降级使用 tempFilePath
             }
             // #endif
         },
         fail: (err) => {
+          logError("canvasToTempFilePath 失败", { error: String(err) }, "share_canvas_failed", undefined, createTraceId());
           console.error('[share] canvasToTempFilePath fail:', err)
           cardURL.value = "";
         },

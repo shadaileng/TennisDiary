@@ -22,6 +22,7 @@ import type {
   WeightCreate,
   WeightRecord,
 } from "@/types";
+import { createTraceId, logError } from "@/utils/eventLogger";
 
 /** 读取本地 token（uploadFile 需手动携带 X-Auth-Token） */
 function getToken(): string {
@@ -159,7 +160,10 @@ export function uploadVideo(
           reject(new Error(parseUploadError(res.data as string)));
         }
       },
-      fail: (err) => reject(new Error(err.errMsg || "视频上传失败")),
+      fail: (err) => {
+        logError("视频上传失败", { error: err.errMsg || "未知错误" }, "video_upload_failed", undefined, createTraceId());
+        reject(new Error(err.errMsg || "视频上传失败"));
+      },
     });
   });
 }

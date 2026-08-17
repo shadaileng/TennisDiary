@@ -167,6 +167,7 @@ import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
 import { getStats } from "@/services/data";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
 import type { Stats, WeightRecord } from "@/types";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
 const weightStore = useWeightStore();
@@ -325,6 +326,7 @@ function confirmRemove(id: number) {
 // ==================== 生命周期 ====================
 
 onShow(() => {
+  const traceId = createTraceId();
   // 游客态：不发请求，清空数据并展示游客引导
   if (authStore.isGuest) {
     weightStore.setWeights([]);
@@ -332,14 +334,16 @@ onShow(() => {
     statsLoading.value = false;
     return;
   }
+  logInfo("加载统计数据", { trace_id: traceId }, "stats_load", traceId);
   weightStore.fetchList();
   statsLoading.value = true;
   getStats()
     .then((s) => {
       stats.value = s;
+      logInfo("统计数据加载成功", { trace_id: traceId }, "stats_loaded", traceId);
     })
     .catch((e) => {
-      // 未登录或失败时保持空，打印错误便于排查
+      logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, "stats_load_failed", undefined, traceId);
       console.error("[stats] 拉取统计数据失败", e);
     })
     .finally(() => {
