@@ -91,6 +91,7 @@ import {
 } from "@/services/data";
 import type { AnalysisKind, AnalysisPose, AnalysisReport } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 type Mode = "single" | "full";
 
@@ -148,6 +149,8 @@ function captureHitTime(e: any) {
 
 async function startAnalysis() {
   if (analyzing.value || !videoPath.value) return;
+  const traceId = createTraceId();
+  logInfo("开始AI分析", { trace_id: traceId, mode: mode.value, kind: kind.value }, "analysis_started", traceId);
   analyzing.value = true;
   try {
     // 0. 检查视频文件是否存在（临时文件可能已被系统回收）
@@ -218,8 +221,10 @@ async function startAnalysis() {
     });
 
     uni.redirectTo({ url: `/pages/coach/report?id=${analysis.id}` });
+    logInfo("AI分析完成", { trace_id: traceId, analysis_id: analysis.id, kind: kind.value, mode: mode.value, has_pose: !!pose }, "analysis_completed", traceId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "分析失败，请重试";
+    logError("AI分析失败", { trace_id: traceId, error: msg, kind: kind.value, mode: mode.value }, "analysis_failed", undefined, traceId);
     uni.showToast({ title: msg, icon: "none" });
   } finally {
     analyzing.value = false;

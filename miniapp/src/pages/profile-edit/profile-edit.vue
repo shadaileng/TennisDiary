@@ -77,6 +77,7 @@ import { onShow } from "@dcloudio/uni-app";
 import { uploadAvatar, updateProfile } from "@/services/auth";
 import { useAuthStore } from "@/stores";
 import { resolveUploadUrl, todayStr } from "@/utils";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
 
@@ -136,13 +137,17 @@ async function handleAvatarChangeH5() {
 }
 
 async function uploadAndSaveAvatar(tempUrl: string) {
+  const traceId = createTraceId();
+  logInfo("上传头像", { trace_id: traceId }, "avatar_upload", traceId);
   try {
     const url = await uploadAvatar(tempUrl);
     avatarUrl.value = resolveUploadUrl(url);
     const result = await updateProfile({ avatar_url: url });
     authStore.updateUser(result.user);
+    logInfo("头像上传成功", { trace_id: traceId }, "avatar_uploaded", traceId);
     uni.showToast({ title: "头像已更新", icon: "success" });
   } catch (err: any) {
+    logError("头像上传失败", { trace_id: traceId, error: err?.message }, "avatar_upload_failed", undefined, traceId);
     uni.showToast({ title: err?.message || "更换失败", icon: "none" });
   }
 }
@@ -166,6 +171,8 @@ async function saveField(payload: Record<string, unknown>, successMsg: string) {
 }
 
 function doLogout() {
+  const traceId = createTraceId();
+  logInfo("准备退出登录", { trace_id: traceId }, "logout_start", traceId);
   uni.showModal({
     title: "确认退出",
     content: "退出登录后记录仍保留在本地。",
@@ -173,6 +180,7 @@ function doLogout() {
     success: (res) => {
       if (!res.confirm) return;
       authStore.logout();
+      logInfo("退出登录成功", { trace_id: traceId }, "logout", traceId);
       uni.showToast({ title: "已退出", icon: "success" });
       setTimeout(() => uni.switchTab({ url: "/pages/mine/mine" }), 300);
     },

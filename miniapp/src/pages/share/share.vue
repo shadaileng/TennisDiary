@@ -60,6 +60,7 @@ import {
 } from "@/utils/shareCanvas";
 import type { ShareTemplate } from "@/utils/shareCanvas";
 import { INTENSITY, MOOD } from "@/utils";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const instance = getCurrentInstance();
 const W = 1080;
@@ -170,6 +171,8 @@ function regenerate() {
 }
 
 function copyCaption() {
+  const traceId = createTraceId();
+  logInfo("复制分享文案", { trace_id: traceId }, "caption_copied", traceId);
   uni.setClipboardData({
     data: caption.value,
     success: () => uni.showToast({ title: "文案已复制", icon: "success" }),
@@ -178,6 +181,8 @@ function copyCaption() {
 
 function saveImage() {
   if (saving.value || !cardURL.value) return;
+  const traceId = createTraceId();
+  logInfo("保存分享图片", { trace_id: traceId, template: tpl.value }, "share_image_save", traceId);
   saving.value = true;
 
   let saveTimedOut = false
@@ -194,6 +199,7 @@ function saveImage() {
     success: () => {
       if (saveTimedOut) return
       clearTimeout(saveTimeout)
+      logInfo("分享图片保存成功", { trace_id: traceId, template: tpl.value }, "share_image_saved", traceId);
       uni.showToast({ title: "已保存到相册", icon: "success" })
       saving.value = false
     },
@@ -201,6 +207,7 @@ function saveImage() {
       if (saveTimedOut) return
       clearTimeout(saveTimeout)
       if (err.errMsg?.includes("auth") || err.errMsg?.includes("denied")) {
+        logError("保存图片权限被拒绝", { trace_id: traceId, error: err.errMsg, template: tpl.value }, "share_image_denied", undefined, traceId);
         uni.showModal({
           title: "需要相册权限",
           content: "请在设置中允许保存图片到相册",
@@ -211,6 +218,7 @@ function saveImage() {
         });
       } else {
         console.error('[share] saveImage fail:', err)
+        logError("保存图片失败", { trace_id: traceId, error: err.errMsg, template: tpl.value }, "share_image_failed", undefined, traceId);
         uni.showToast({ title: "保存失败，请重试", icon: "none" });
       }
       saving.value = false
