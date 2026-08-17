@@ -124,6 +124,8 @@ onLoad(async (query) => {
   if (!id) return;
       editingId.value = Number(id);
   uni.setNavigationBarTitle({ title: "编辑装备" });
+  const traceId = createTraceId();
+  logInfo("加载装备详情", { trace_id: traceId, gear_id: editingId.value }, "gear_detail_load", traceId);
   try {
     const g = await getGear(editingId.value);
     form.category = g.category || "球拍";
@@ -133,6 +135,7 @@ onLoad(async (query) => {
     form.feeling = g.feeling || "";
     form.photo = g.photo || "";
   } catch (e) {
+    logError("装备详情加载失败", { trace_id: traceId, gear_id: editingId.value, error: (e as Error).message }, "gear_detail_load_failed", undefined, traceId);
     uni.showToast({ title: "装备加载失败", icon: "none" });
   }
 });

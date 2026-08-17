@@ -165,9 +165,13 @@ onLoad(async (query) => {
     uni.showToast({ title: "参数错误", icon: "none" });
     return;
   }
+  const traceId = createTraceId();
+  logInfo("加载分析报告", { trace_id: traceId, analysis_id: id }, "report_load", traceId);
   try {
     analysis.value = await getAnalysis(id);
-  } catch {
+    logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, "report_loaded", traceId);
+  } catch (e) {
+    logError("分析报告加载失败", { trace_id: traceId, analysis_id: id, error: (e as Error).message }, "report_load_failed", undefined, traceId);
     uni.showToast({ title: "报告加载失败", icon: "none" });
   }
 });

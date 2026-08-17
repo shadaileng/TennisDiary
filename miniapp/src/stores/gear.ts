@@ -52,6 +52,7 @@ export const useGearStore = defineStore("gear", {
       try {
         this.gears = await getGears();
       } catch (e) {
+        logError("装备列表加载失败", { error: (e as Error).message }, "gear_list_load_failed", undefined, createTraceId());
         console.error("[gear] 拉取装备列表失败", e);
       } finally {
         this.loading = false;

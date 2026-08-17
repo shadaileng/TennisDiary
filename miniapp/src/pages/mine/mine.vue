@@ -95,6 +95,7 @@ import { getStats } from "@/services/data";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import type { Stats } from "@/types";
 import { fmtDuration, maskMiddle, resolveUploadUrl } from "@/utils";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
@@ -130,10 +131,14 @@ onShow(() => {
 
 /** 拉取统计数据，失败静默降级为 0，不阻塞页面 */
 async function loadStats() {
+  const traceId = createTraceId();
+  logInfo("加载统计总览", { trace_id: traceId }, "mine_stats_load", traceId);
   try {
     stats.value = await getStats();
-  } catch {
+    logInfo("统计总览加载成功", { trace_id: traceId }, "mine_stats_loaded", traceId);
+  } catch (e) {
     stats.value = null;
+    logError("统计总览加载失败", { trace_id: traceId, error: (e as Error).message }, "mine_stats_load_failed", undefined, traceId);
   }
 }
 

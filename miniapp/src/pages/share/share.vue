@@ -79,6 +79,8 @@ function loadData() {
 }
 
 onShow(async () => {
+  const traceId = createTraceId();
+  logInfo("加载分享数据", { trace_id: traceId }, "share_data_load", traceId);
   try {
     const [ds, as] = await loadData();
     diaries.value = ds;
@@ -87,7 +89,8 @@ onShow(async () => {
     caption.value = genCaption(pipe);
     await nextTick();
     draw();
-  } catch {
+  } catch (e) {
+    logError("分享数据加载失败", { trace_id: traceId, error: (e as Error).message }, "share_data_load_failed", undefined, traceId);
     uni.showToast({ title: "数据加载失败", icon: "none" });
   }
 });

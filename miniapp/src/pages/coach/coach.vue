@@ -57,17 +57,22 @@ import Empty from "@/components/Empty.vue";
 import { getAnalyses } from "@/services/data";
 import type { Analysis } from "@/types";
 import { resolveUploadUrl } from "@/utils";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
 
 const analyses = ref<Analysis[]>([]);
 
 onShow(async () => {
+  const traceId = createTraceId();
+  logInfo("加载历史分析", { trace_id: traceId }, "analyses_load", traceId);
   try {
     const data = await getAnalyses();
     analyses.value = data.items || [];
-  } catch {
+    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, "analyses_loaded", traceId);
+  } catch (e) {
     analyses.value = [];
+    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, "analyses_load_failed", undefined, traceId);
   }
 });
 
