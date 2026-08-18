@@ -60,6 +60,7 @@ class TestRealInference:
         # 如果不抛异常即通过
         image_bytes = pose_service._decode_frame(frame)
         from mediapipe import Image as MpImage
+
         mp_img = pose_service.mp_image_from_bytes(image_bytes, MpImage)
         assert mp_img is not None
 
