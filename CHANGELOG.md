@@ -4,6 +4,33 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.62.2] - 2026-08-18
+
+### Fixed
+
+- server Dockerfile 运行时系统依赖修复（94）：`modelscope/Dockerfile` + `Dockerfile` 在 runtime 阶段（非 builder）添加 `libjpeg62-turbo`/`zlib1g`/`libxcb1` 系统依赖，修复多阶段构建中 builder 阶段安装的系统库不会自动继承到 runtime 导致 MediaPipe `libxcb.so.1` 缺失的 503 错误
+
+## [1.62.1] - 2026-08-18
+
+### Fixed
+
+- server 姿态推理日志修复（94）：`pose.py`/`video.py` 异常日志改 f-string + `exc_info=True`，修复异常消息被 LOG_FORMAT 丢弃的问题
+- server mediapipe 版本锁定：`pyproject.toml` 锁 `mediapipe==1.0.0`（与 uv.lock 一致），消除本地/容器版本漂移
+- server 新增姿态推理真实链路测试：`test_pose_real_inference.py`（4 用例），用真实 JPEG 帧验证完整推理链路
+
+## [1.62.0] - 2026-08-17
+
+### Added
+
+- miniapp 事件埋点补全（59）：补全页面级业务交互埋点（日记/装备/体重/统计/教练/分享）、视频选择与图片保存埋点、静默错误埋点全覆盖，消除无声失败路径；事件日志清单更新至 v1.2
+- miniapp 分享工坊保存图片默认名称与微信隐私 API 适配（93）：保存图片使用业务默认名（月度战报/今日日记/技术评分）替代时间戳，隐私弹窗接入微信官方 `wx.getPrivacySetting` API
+
+### Fixed
+
+- miniapp 修复分享图片隐私错误(112)未上报事件
+- miniapp 分享图片 footer 整体下移（height 100→120, bottomMargin 100→60）
+- miniapp 技术评分进度条行间距继续缩小（itemHeight 210→190→175）
+
 ## [1.61.8] - 2026-08-17
 
 ### Fixed
