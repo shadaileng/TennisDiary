@@ -15,6 +15,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg62-turbo \
     zlib1g \
+    libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 uv（Python 包管理器）
