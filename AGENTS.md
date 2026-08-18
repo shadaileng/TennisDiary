@@ -174,6 +174,16 @@ cd admin && pnpm build                 # 构建管理端
 
 ## 注意事项
 
+> **⚠️ 第一规则：禁止自动推送（git push）**
+>
+> AI 协作者**只能提交（commit）**，**不能推送（push）**。所有推送操作必须由人类确认后手动执行。
+> - 禁止运行 `git push`、`git push --force` 或任何带网络写操作的命令
+> - 禁止使用 `--force` 参数推送
+> - 禁止推送到任何远程分支（包括 dev、master、main）
+> - 如需部署，应提示人类手动触发 CI/CD 或运行部署脚本
+>
+> 违反此规则可能导致意外覆盖远程分支、破坏团队协作流程。
+
 - **Node ≥ 22.12**：低于此版本 `@weapp-tailwindcss/postcss` 无法 `require()` ESM 包
 - **config.py 路径**：`Path(__file__).resolve().parent.parent.parent / ".env"`（向上三级到 `server/`）
 - **数据库迁移**：用 Alembic，禁止 `create_all`；新增模型须在 `app/models/__init__.py` 登记

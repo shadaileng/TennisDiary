@@ -3,6 +3,8 @@
 测试 probe_frame_rate、process_video 返回 frame_rate、analyze_frames 使用 frame_rate
 """
 
+from typing import ClassVar
+
 import pytest
 
 from app.services import video_service
@@ -141,7 +143,7 @@ class TestProcessVideoFrameRate:
 class TestAnalyzeFramesFrameRate:
     """analyze_frames 使用 frame_rate 计算骨骼视频帧率"""
 
-    FAKE_LMS = [{"x": 0.5, "y": 0.3, "z": 0.0, "visibility": 0.9} for _ in range(33)]
+    FAKE_LMS: ClassVar = [{"x": 0.5, "y": 0.3, "z": 0.0, "visibility": 0.9} for _ in range(33)]
 
     def _fake_frame(self) -> str:
         """真实 JPEG 的 base64 dataURL"""
@@ -289,9 +291,9 @@ class TestAnalyzeFramesFrameRate:
 class TestPoseAnalyzeFrameRate:
     """测试 /api/pose/analyze 接收 frame_rate 参数"""
 
-    VALID_PAYLOAD = {"frames": ["data:image/jpeg;base64,/9j/4AAQSkZJRg=="]}
+    VALID_PAYLOAD: ClassVar = {"frames": ["data:image/jpeg;base64,/9j/4AAQSkZJRg=="]}
 
-    FAKE_RESULT = {
+    FAKE_RESULT: ClassVar = {
         "frames": [
             {"landmarks": [{"x": 0.5, "y": 0.3, "z": 0.0, "visibility": 0.9} for _ in range(33)]}
         ],
@@ -349,12 +351,14 @@ class TestPoseAnalyzeFrameRate:
         def fake_analyze(
             frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
         ):
-            received_kwargs.update({
-                "video_url": video_url,
-                "save_skeleton": save_skeleton,
-                "duration": duration,
-                "frame_rate": frame_rate,
-            })
+            received_kwargs.update(
+                {
+                    "video_url": video_url,
+                    "save_skeleton": save_skeleton,
+                    "duration": duration,
+                    "frame_rate": frame_rate,
+                }
+            )
             return self.FAKE_RESULT
 
         monkeypatch.setattr(pose_router.pose_service, "analyze_frames", fake_analyze)
