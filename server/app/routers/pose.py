@@ -56,12 +56,12 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
-        log.error("姿态推理失败", error=str(exc))
+        log.error(f"姿态推理失败: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except Exception as exc:
-        log.error("姿态推理异常", error=str(exc))
+        log.error(f"姿态推理异常: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="姿态推理服务异常，请稍后重试",

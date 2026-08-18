@@ -194,6 +194,12 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           clearAuth();
           promptLogin();
         }
+        logError(`HTTP错误 ${method} ${url}: ${statusCode} ${parseDetail(res)}`, {
+          method,
+          url,
+          statusCode,
+          code: res.data?.code,
+        }, "http_error");
         reject(new ApiError(statusCode, parseDetail(res)));
       },
       fail: (err) => {

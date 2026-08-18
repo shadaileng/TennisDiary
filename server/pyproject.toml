@@ -14,7 +14,7 @@ dependencies = [
     "aiofiles>=24.1.0",
     "Pillow>=11.0.0",
     "imageio-ffmpeg>=0.5",
-    "mediapipe>=0.10.14",
+    "mediapipe==1.0.0",
     "loguru>=0.7.2",
     "python-dotenv>=1.0.1",
     "alembic>=1.19.0",

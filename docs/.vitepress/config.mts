@@ -130,6 +130,7 @@ export default defineConfig({
             { text: '90：小程序 UI 布局视觉回归测试', link: '/plans/90-小程序UI布局视觉回归测试' },
             { text: '91：分享工坊技术评分三区域分离', link: '/plans/91-分享工坊技术评分三区域分离' },
             { text: '92：分享工坊视觉优化', link: '/plans/92-分享工坊视觉优化' },
+            { text: '93：分享工坊保存图片默认名称与隐私API适配', link: '/plans/93-分享工坊保存图片默认名称与隐私API适配' },
           ],
         },
         {
@@ -158,6 +159,7 @@ export default defineConfig({
             { text: '64：Oracle Cloud（待建 VM 启用）', link: '/plans/64-Server部署方案-Oracle-Cloud' },
             { text: '65：魔搭创空间（当前启用）', link: '/plans/65-Server部署方案-ModelScope-创空间' },
             { text: '66：ModelScope 部署鉴权头兼容改造', link: '/plans/66-ModelScope部署鉴权头兼容改造' },
+            { text: '94：姿态推理线上 503 异常排查与修复', link: '/plans/94-姿态推理线上503异常排查与修复' },
           ],
         },
         {
@@ -173,8 +175,8 @@ export default defineConfig({
           items: [
             { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
             { text: '84：骨架视频多帧修复', link: '/plans/84-骨架视频多帧修复' },
-            { text: '85：骨骼视频帧率自适应绘制', link: '/plans/85-骨骼视频帧率自适应绘制' },
-          ],
+             { text: '85：骨骼视频帧率自适应绘制', link: '/plans/85-骨骼视频帧率自适应绘制' },
+],
         },
         {
           text: 'Phase B2（AI 网关三件套）',

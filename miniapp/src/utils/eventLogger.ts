@@ -103,7 +103,15 @@ function flushOne(payload: EventLogPayload): void {
   // 直接从 storage 读取，避免循环依赖（stores/auth → services/auth → request → eventLogger → stores/auth）
   const token = uni.getStorageSync(STORAGE_KEYS.token) as string;
   const userRaw = uni.getStorageSync(STORAGE_KEYS.user) as string;
-  const userId: string | null = userRaw ? (JSON.parse(userRaw) as any)?.id || null : null;
+  let userId: string | null = null;
+  if (userRaw) {
+    try {
+      userId = (JSON.parse(userRaw) as any)?.id || null;
+    } catch {
+      // 缓存损坏时忽略用户ID，不阻塞上报
+      userId = null;
+    }
+  }
 
   const body: Record<string, any> = {
     level: payload.level,
@@ -135,7 +143,8 @@ function flushOne(payload: EventLogPayload): void {
     success() {
       // 静默成功
     },
-    fail() {
+    fail(err) {
+      console.warn("[eventLogger] 事件上报失败，已缓存待重试", payload.action || payload.type, err);
       appendToPending(payload);
     },
   });

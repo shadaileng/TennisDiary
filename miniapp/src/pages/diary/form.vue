@@ -159,6 +159,7 @@ import { useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
 import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import type { SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
@@ -211,6 +212,8 @@ onLoad(async (query) => {
   if (!id) return;
   editingId.value = Number(id);
   uni.setNavigationBarTitle({ title: "编辑日记" });
+  const traceId = createTraceId();
+  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, "diary_detail_load", traceId);
   try {
     const d = await getDiary(editingId.value);
     form.date = d.date;
@@ -223,6 +226,7 @@ onLoad(async (query) => {
     form.gears = d.gears.map((g) => ({ name: g.name, feeling: g.feeling }));
     form.notes = d.notes || "";
   } catch (e) {
+    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, "diary_detail_load_failed", undefined, traceId);
     uni.showToast({ title: "日记加载失败", icon: "none" });
   }
 });
