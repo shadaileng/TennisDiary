@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/admin/system", tags=["admin-system"])
 _BACKUP_ALLOWED_EXT = {".tar.gz", ".db"}
 
 # 兜底版本号：生产镜像（Docker 仅打包 server/，不含根 package.json）时使用
-_FALLBACK_APP_VERSION = "1.50.0"
+_FALLBACK_APP_VERSION = "1.62.1"
 
 
 def _load_app_version() -> str:
