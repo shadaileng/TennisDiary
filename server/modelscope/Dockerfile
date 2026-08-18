@@ -52,6 +52,19 @@ WORKDIR /app
 # 复制 builder 阶段的 .venv（完整依赖树）
 COPY --from=builder /app/.venv /app/.venv
 
+# 安装运行时系统依赖（MediaPipe 需要 libxcb.so.1，Pillow 需要 libjpeg/zlib）
+# builder 阶段的系统库不会自动继承到 runtime，必须重新安装
+RUN set -eux; \
+    APT_SRC=/etc/apt/sources.list.d/debian.sources; \
+    if [ -f "$APT_SRC" ]; then \
+        sed -i 's@deb.debian.org@mirrors.aliyun.com@g' "$APT_SRC"; \
+    fi; \
+    apt-get update && apt-get install -y --no-install-recommends \
+        libjpeg62-turbo \
+        zlib1g \
+        libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # 将 .venv 加入 PATH，使 uvicorn、alembic 等可直接执行
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
