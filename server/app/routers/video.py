@@ -87,7 +87,7 @@ def upload_video(
             detail="服务器未配置 ffmpeg，无法抽帧",
         ) from exc
     except Exception as exc:
-        log.error("视频处理失败", path=abs_path, error=str(exc))
+        log.error(f"视频处理失败: {exc}", path=abs_path, exc_info=True)
         os.unlink(abs_path)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="视频处理失败，请检查文件格式"
