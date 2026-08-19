@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.62.4] - 2026-08-18
+
+### Fixed
+
+- server Dockerfile slim 镜像系统依赖修复（94）：`modelscope/Dockerfile` + `Dockerfile` 基础镜像从 `python:3.11` 更换为 `python:3.11-slim`（125MB→最终 957MB，节省约 150MB），runtime 阶段添加 `libgl1`（提供 libGL.so.1，MediaPipe TFLite 必需）+ `libglib2.0-0`（提供 libgthread-2.0.so.0，OpenCV 必需）
+
 ## [1.62.3] - 2026-08-18
 
 ### Fixed
