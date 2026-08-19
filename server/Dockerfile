@@ -3,14 +3,15 @@
 # ====================
 # 多阶段构建：
 #   builder：安装 Python 依赖（利用 uv 缓存层加速）
-#   runtime：仅包含 .venv，精简镜像体积
+#   runtime：仅包含 .venv + 必要系统库，精简镜像体积
 #
-# 镜像选择：使用 python:3.11 完整版（非 slim），避免 mediapipe TFLite 运行时
-# 缺失 libGL、libEGL 等图形库的问题（slim 版本需手动安装 libgl1 等依赖）
+# 镜像选择：使用 python:3.11-slim 精简镜像，手动安装 MediaPipe 所需系统库
+#   - libgl1：提供 libGL.so.1（TFLite GPU 后端必需）
+#   - libglib2.0-0：提供 libgthread-2.0.so.0（OpenCV 必需）
 # ====================
 
 # ---------- Builder 阶段 ----------
-FROM python:3.11 AS builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -26,12 +27,18 @@ RUN uv venv /app/.venv && \
     chmod -R a+rx /app/.venv
 
 # ---------- Runtime 阶段 ----------
-FROM python:3.11 AS runtime
+FROM python:3.11-slim AS runtime
 
 WORKDIR /app
 
 # 复制 builder 阶段的 .venv（完整依赖树）
 COPY --from=builder /app/.venv /app/.venv
+
+# 安装运行时系统依赖（MediaPipe TFLite 需要 libGL + OpenCV 需要 libglib）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
 # 将 .venv 加入 PATH，使 uvicorn、alembic 等可直接执行
 ENV PATH="/app/.venv/bin:$PATH"
