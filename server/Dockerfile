@@ -4,19 +4,15 @@
 # 多阶段构建：
 #   builder：安装 Python 依赖（利用 uv 缓存层加速）
 #   runtime：仅包含 .venv，精简镜像体积
+#
+# 镜像选择：使用 python:3.11 完整版（非 slim），避免 mediapipe TFLite 运行时
+# 缺失 libGL、libEGL 等图形库的问题（slim 版本需手动安装 libgl1 等依赖）
 # ====================
 
 # ---------- Builder 阶段 ----------
-FROM python:3.10-slim AS builder
+FROM python:3.11 AS builder
 
 WORKDIR /app
-
-# 安装系统依赖（Pillow 需要 libjpeg/zlib）
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg62-turbo \
-    zlib1g \
-    libxcb1 \
-    && rm -rf /var/lib/apt/lists/*
 
 # 安装 uv（Python 包管理器）
 RUN pip install --no-cache-dir uv
@@ -30,20 +26,12 @@ RUN uv venv /app/.venv && \
     chmod -R a+rx /app/.venv
 
 # ---------- Runtime 阶段 ----------
-FROM python:3.10-slim AS runtime
+FROM python:3.11 AS runtime
 
 WORKDIR /app
 
 # 复制 builder 阶段的 .venv（完整依赖树）
 COPY --from=builder /app/.venv /app/.venv
-
-# 安装运行时系统依赖（MediaPipe 需要 libxcb.so.1，Pillow 需要 libjpeg/zlib）
-# builder 阶段的系统库不会自动继承到 runtime，必须重新安装
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg62-turbo \
-    zlib1g \
-    libxcb1 \
-    && rm -rf /var/lib/apt/lists/*
 
 # 将 .venv 加入 PATH，使 uvicorn、alembic 等可直接执行
 ENV PATH="/app/.venv/bin:$PATH"

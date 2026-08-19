@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.62.3] - 2026-08-18
+
+### Fixed
+
+- server Dockerfile 更换基础镜像修复 libGL.so.1 缺失（94）：`modelscope/Dockerfile` + `Dockerfile` 基础镜像从 `python:3.10-slim` 更换为 `python:3.11` 完整版，移除手动系统依赖安装（slim 版本持续缺失图形库：libGL、libEGL、libxcb 等），与本地 Python 3.11.1 版本一致
+
 ## [1.62.2] - 2026-08-18
 
 ### Fixed
