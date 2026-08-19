@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.65.0] - 2026-08-19
+
+### Added
+
+- miniapp 分享工坊分享图添加小程序码（98）：三张模板（月度战报/今日日记/技术评分）分享卡底部右下角绘制微信小程序码 `td-qr.png`（真实 PNG 重编码后随包发布，左侧竖排「扫码体验 / Tennis Diary」标签，footer 高度 120→240）。`share.vue` 通过 `node.createImage()` 异步预载二维码后注入管线上下文（`PipelineContext.qrImage`），失败降级为底部留白不阻塞出图并埋点；`footer` 阶段同步 `ctx.drawImage` 保持管线非阻塞。Playwright 新增二维码像素断言，9 张视觉回归快照全量重建。
+
 ## [1.64.2] - 2026-08-19
 
 ### Fixed

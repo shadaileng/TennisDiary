@@ -1,4 +1,5 @@
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { resolve } from "path";
 import { DrawPipeline } from "../../src/utils/shareCanvas/pipeline";
 import { buildContext } from "../../src/utils/shareCanvas/context";
 import { headerStage } from "../../src/utils/shareCanvas/stages/header";
@@ -9,6 +10,12 @@ import { radarStage, progressStage, summaryStage } from "../../src/utils/shareCa
 import type { ShareTemplate, ShareData, MoodItem, IntensityItem } from "../../src/utils/shareCanvas/config";
 
 const W = 1080;
+
+const qrImagePromise = loadImage(resolve(__dirname, "../../src/static/td-qr.png"));
+
+async function loadQr(): Promise<CanvasImageSource> {
+  return (await qrImagePromise) as unknown as CanvasImageSource;
+}
 
 const DEFAULT_MOOD: readonly MoodItem[] = [
   { v: 1, label: "沮丧", emoji: "😞" },
@@ -39,7 +46,8 @@ export async function renderShareCard(
   tpl: ShareTemplate,
   data: ShareData,
 ): Promise<{ image: Buffer; height: number }> {
-  const pipe = buildContext(tpl, data, DEFAULT_MOOD, DEFAULT_INTENSITY);
+  const qr = await loadQr();
+  const pipe = buildContext(tpl, data, DEFAULT_MOOD, DEFAULT_INTENSITY, qr);
   const pipeline = createTestPipeline();
   const height = pipeline.measureHeight(pipe);
 
@@ -137,7 +145,8 @@ export async function renderTechScoreZone(
   zone: "radar" | "progress" | "summary",
   data: ShareData,
 ): Promise<{ image: Buffer; height: number }> {
-  const pipe = buildContext("技术评分", data, DEFAULT_MOOD, DEFAULT_INTENSITY);
+  const qr = await loadQr();
+  const pipe = buildContext("技术评分", data, DEFAULT_MOOD, DEFAULT_INTENSITY, qr);
   const pipeline = new DrawPipeline().addStage(headerStage);
 
   if (zone === "radar") {

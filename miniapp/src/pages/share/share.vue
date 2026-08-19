@@ -115,27 +115,48 @@ onShow(async () => {
   }
 });
 
+function loadQrImage(node: any): Promise<CanvasImageSource> {
+  return new Promise((resolve, reject) => {
+    if (!node || typeof node.createImage !== "function") {
+      reject(new Error("createImage unsupported"));
+      return;
+    }
+    const img = node.createImage();
+    img.onload = () => resolve(img as CanvasImageSource);
+    img.onerror = () => reject(new Error("qr image load failed"));
+    img.src = "/static/td-qr.png";
+  });
+}
+
 function draw() {
   if (!instance?.proxy) return;
   const query = uni.createSelectorQuery().in(instance.proxy);
   query
     .select("#shareCanvas")
     .fields({ node: true, size: true }, () => {})
-    .exec((res) => {
+    .exec(async (res) => {
       const node = res[0]?.node as
         | { width: number; height: number; getContext: (t: string) => CanvasRenderingContext2D }
         | undefined;
       if (!node) return;
 
       const data = { diaries: diaries.value, analysis: analysis.value };
-      const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never);
+      let qrImage: CanvasImageSource | undefined;
+      try {
+        qrImage = await loadQrImage(node);
+      } catch (e) {
+        logError("分享图二维码加载失败，降级输出", { error: (e as Error).message }, "share_qr_load_failed", undefined, createTraceId());
+        console.error("[share] QR image load failed:", e);
+      }
+
+      const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never, qrImage);
 
       node.width = W * dpr;
       node.height = h * dpr;
 
       const ctx = node.getContext("2d");
       ctx.scale(dpr, dpr);
-      drawShareCard(ctx, tpl.value, data, MOOD as never, INTENSITY as never);
+      drawShareCard(ctx, tpl.value, data, MOOD as never, INTENSITY as never, qrImage);
 
       const opts = {
         canvas: node as never,
