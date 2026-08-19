@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="stats-page">
     <!-- 游客空态：未登录不发请求，引导登录 -->
     <view v-if="authStore.isGuest" class="stats-empty-guide">
@@ -88,7 +89,7 @@
       <!-- 体重趋势折线图 -->
       <view v-if="weightData.length >= 2" class="stats-weight-chart">
         <text class="stats-weight-chart-title">体重趋势</text>
-        <LineChart :data="weightData" :height="130" color="#C8DA2B" unit="kg" />
+        <LineChart :data="weightData" :height="130" :color="settingsStore.themePalette.accent" unit="kg" />
       </view>
 
       <!-- 空态 -->
@@ -163,6 +164,7 @@ import Empty from "@/components/Empty.vue";
 import LineChart from "@/components/LineChart.vue";
 import MoneyToggle from "@/components/MoneyToggle.vue";
 import Popup from "@/components/Popup.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
 import { getStats } from "@/services/data";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
@@ -172,6 +174,7 @@ import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 const authStore = useAuthStore();
 const weightStore = useWeightStore();
 const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
 
 /** 跳转到「我的」页登录（游客空态按钮） */
 function goMine() {
@@ -309,7 +312,7 @@ function confirmRemove(id: number) {
   uni.showModal({
     title: "删除记录",
     content: "删除这条体重记录？",
-    confirmColor: "#A8B822",
+    confirmColor: settingsStore.themePalette.dark,
     success: async (res) => {
       if (!res.confirm) return;
       try {
@@ -355,7 +358,7 @@ onShow(() => {
 <style scoped lang="scss">
 
 .stats-page {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   min-height: 100vh;
   padding-bottom: $space-3xl;
 }
@@ -394,7 +397,7 @@ onShow(() => {
 }
 
 .stats-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -419,7 +422,7 @@ onShow(() => {
   margin-top: $space-xs;
   
   &--cost {
-    color: $color-lime-dark;
+    color: var(--color-accent-dark, #A8B822);
   }
 }
 
@@ -451,7 +454,7 @@ onShow(() => {
 
 .stats-weight-add {
   font-size: 14px;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
   font-weight: 600;
 }
 
@@ -462,7 +465,7 @@ onShow(() => {
 }
 
 .stats-weight-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-md;
   text-align: center;
@@ -488,7 +491,7 @@ onShow(() => {
   margin-top: $space-xs;
   
   &--down {
-    color: $color-lime-dark;
+    color: var(--color-accent-dark, #A8B822);
   }
   
   &--up {
@@ -503,7 +506,7 @@ onShow(() => {
 }
 
 .stats-weight-chart {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   margin-top: $space-md;
@@ -523,7 +526,7 @@ onShow(() => {
 }
 
 .stats-weight-list {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   margin-top: $space-md;
   box-shadow: $shadow-card;
@@ -534,7 +537,7 @@ onShow(() => {
   display: flex;
   align-items: center;
   padding: $space-md $space-lg;
-  border-bottom: 1px solid $color-paper;
+  border-bottom: 1px solid var(--color-border, #E7E9DF);
   transition: opacity 0.15s ease;
   
   &:last-child {

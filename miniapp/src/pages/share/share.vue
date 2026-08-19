@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="share-page">
     <view class="share-body">
       <!-- 选择模板 -->
@@ -60,6 +61,7 @@ import { getCurrentInstance, nextTick, ref, watch } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import Seg from "@/components/Seg.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import { generateCaption, getAnalyses, getDiaries } from "@/services/data";
 import type { Analysis, CaptionStyle, Diary } from "@/types";
 import {
@@ -75,6 +77,7 @@ import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isRuntimePermissionDenied } from "@/utils/privacy";
 
 const instance = getCurrentInstance();
+const { themeStyle, themeBg } = useThemeStyle();
 const W = 1080;
 const dpr = uni.getSystemInfoSync().pixelRatio || 2;
 
@@ -290,7 +293,7 @@ function saveImage() {
 <style scoped lang="scss">
 .share-page {
   min-height: 100vh;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
 }
 
 .share-body {
@@ -302,7 +305,7 @@ function saveImage() {
 }
 
 .form-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -328,7 +331,7 @@ function saveImage() {
 }
 
 .save-btn {
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   font-size: 13px;
   font-weight: 500;
@@ -388,9 +391,9 @@ function saveImage() {
   font-weight: 500;
   padding: 8px 0;
   border-radius: 9999px;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   color: $color-olive-light;
-  border: 1px solid $color-lime-dark;
+  border: 1px solid var(--color-accent-dark, #A8B822);
 
   &.active {
     background-color: $color-olive;
@@ -414,7 +417,7 @@ function saveImage() {
 }
 
 .btn-ghost {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   color: $color-ink;
 }
 

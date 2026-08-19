@@ -69,7 +69,7 @@ function onPlus() {
   justify-content: center;
   border-radius: 50%;
   font-size: 18px;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   color: $color-ink;
   transition: opacity 0.15s ease;
   

@@ -91,7 +91,7 @@ defineEmits<{
 
 .nav-bar-right-btn {
   font-size: 14px;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, $color-lime-dark);
   font-weight: 500;
 }
 </style>

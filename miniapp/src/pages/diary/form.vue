@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="form-page">
     <view class="form-body">
       <!-- 训练类型 -->
@@ -155,6 +156,7 @@ import { onLoad } from "@dcloudio/uni-app";
 
 import EmojiScale from "@/components/EmojiScale.vue";
 import Seg from "@/components/Seg.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import { useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
@@ -164,6 +166,7 @@ import type { SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
 const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
 
 interface CostItemInput {
   name: string
@@ -317,7 +320,7 @@ function confirmRemove() {
   uni.showModal({
     title: "删除日记",
     content: "确定删除这篇日记？",
-    confirmColor: "#A8B822",
+    confirmColor: settingsStore.themePalette.dark,
     success: async (res) => {
       if (!res.confirm || editingId.value == null) return;
       try {
@@ -336,7 +339,7 @@ function confirmRemove() {
 <style scoped lang="scss">
 
 .form-page {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   min-height: 100vh;
   padding-bottom: $space-3xl;
 }
@@ -350,7 +353,7 @@ function confirmRemove() {
 }
 
 .form-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -444,7 +447,7 @@ function confirmRemove() {
   }
   
   &--inactive {
-    background-color: $color-paper;
+    background-color: var(--color-page-bg, #F2F2EF);
     color: $color-olive-light;
   }
   
@@ -491,7 +494,7 @@ function confirmRemove() {
   justify-content: space-between;
   margin-top: $space-md;
   padding-top: $space-md;
-  border-top: 1px solid $color-paper;
+  border-top: 1px solid var(--color-border, #E7E9DF);
 }
 
 .form-total-label {
@@ -502,7 +505,7 @@ function confirmRemove() {
 .form-total-value {
   font-size: 16px;
   font-weight: bold;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
 }
 
 .form-gear-row {
@@ -543,7 +546,7 @@ function confirmRemove() {
 
 .form-link {
   font-size: 14px;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
   font-weight: 600;
 }
 

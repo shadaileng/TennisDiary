@@ -30,8 +30,8 @@ withDefaults(
   font-size: 12px;
   
   &--lime {
-    background-color: rgba(200, 218, 43, 0.2);
-    color: $color-lime-dark;
+    background-color: rgba(var(--color-accent-rgb, 200, 218, 43), 0.2);
+    color: var(--color-accent-dark, $color-lime-dark);
   }
   
   &--olive {
@@ -40,7 +40,7 @@ withDefaults(
   }
   
   &--neutral {
-    background-color: $color-paper;
+    background-color: var(--color-page-bg, #F2F2EF);
     color: $color-olive-light;
   }
 }

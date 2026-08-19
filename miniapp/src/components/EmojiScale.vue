@@ -53,7 +53,7 @@ defineEmits<{
   transition: opacity 0.15s ease;
   
   &--active {
-    background-color: $color-lime-soft;
+    background-color: var(--color-accent-soft, $color-lime-soft);
   }
   
   &:active {

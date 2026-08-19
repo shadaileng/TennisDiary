@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="report-page">
     <view v-if="!analysis" class="report-loading">
       <text>加载中…</text>
@@ -30,7 +31,7 @@
       <!-- 六维评分：雷达图 + 逐项点评 -->
       <view v-if="report && report.dimensions && report.dimensions.length > 0" class="form-card">
         <text class="card-title">📐 分维度点评</text>
-        <RadarChart v-if="report.dimensions.length >= 3" :data="report.dimensions" class="radar-chart" />
+        <RadarChart v-if="report.dimensions.length >= 3" :data="report.dimensions" :color="settingsStore.themePalette.accent" class="radar-chart" />
         <view v-for="d in report.dimensions" :key="d.name" class="dim-item">
           <view class="dim-head">
             <text class="dim-name">{{ d.name }}</text>
@@ -126,12 +127,16 @@ import { computed, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
 import RadarChart from "@/components/RadarChart.vue";
+import { useThemeStyle } from "@/composables/useTheme";
+import { useSettingsStore } from "@/stores";
 import { deleteAnalysis, getAnalysis } from "@/services/data";
 import type { Analysis } from "@/types";
 import { resolveUploadUrl, safeNavigateBack } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const analysis = ref<Analysis | null>(null);
+const { themeStyle, themeBg } = useThemeStyle();
+const settingsStore = useSettingsStore();
 const report = computed(() => analysis.value?.report);
 const pose = computed(() => analysis.value?.pose);
 
@@ -183,7 +188,7 @@ function confirmRemove() {
   uni.showModal({
     title: "删除分析",
     content: "确定删除这条分析记录？",
-    confirmColor: "#A8B822",
+    confirmColor: settingsStore.themePalette.dark,
     success: async (res) => {
       if (!res.confirm || !analysis.value) return;
       try {
@@ -204,7 +209,7 @@ function confirmRemove() {
 <style scoped lang="scss">
 .report-page {
   min-height: 100vh;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
 }
 
 .report-loading {
@@ -254,8 +259,8 @@ function confirmRemove() {
   height: 72px;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.45), transparent 55%);
-  background-color: $color-lime;
-  border: 4px solid $color-paper;
+  background-color: var(--color-accent, #C8DA2B);
+  border: 4px solid var(--color-border, #E7E9DF);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -283,7 +288,7 @@ function confirmRemove() {
   font-size: 11px;
   font-weight: 600;
   color: $color-ink;
-  background: rgba(200, 218, 43, 0.92);
+  background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.92);
   border-radius: 9999px;
   padding: 4px 10px;
 }
@@ -302,7 +307,7 @@ function confirmRemove() {
 
 .pose-metric {
   flex: 1;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   border-radius: 16px;
   padding: 12px 0;
   display: flex;
@@ -313,7 +318,7 @@ function confirmRemove() {
 .pose-metric-value {
   font-size: 20px;
   font-weight: 700;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
 }
 
 .pose-metric-label {
@@ -343,13 +348,13 @@ function confirmRemove() {
 .video-toggle-pill {
   font-size: 12px;
   color: $color-olive-light;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   border-radius: 9999px;
   padding: 6px 14px;
 
   &--active {
     color: $color-ink;
-    background-color: $color-lime;
+    background-color: var(--color-accent, #C8DA2B);
     font-weight: 600;
   }
 }
@@ -406,7 +411,7 @@ function confirmRemove() {
   font-size: 12px;
   font-weight: 700;
   color: $color-ink;
-  background: $color-lime;
+  background: var(--color-accent, #C8DA2B);
   border-radius: 9999px;
   padding: 3px 10px;
 }
@@ -414,7 +419,7 @@ function confirmRemove() {
 .tag-ntrp {
   font-size: 12px;
   font-weight: 700;
-  color: $color-lime;
+  color: var(--color-accent, #C8DA2B);
   background: $color-olive;
   border-radius: 9999px;
   padding: 3px 10px;
@@ -443,7 +448,7 @@ function confirmRemove() {
 
 // ========== 卡片 ==========
 .form-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -489,20 +494,20 @@ function confirmRemove() {
 .dim-score {
   font-size: 15px;
   font-weight: 700;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
 }
 
 .dim-bar {
   height: 8px;
   border-radius: 9999px;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   overflow: hidden;
 }
 
 .dim-bar-fill {
   height: 100%;
   border-radius: 9999px;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
 }
 
 .dim-comment {
@@ -529,7 +534,7 @@ function confirmRemove() {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   font-size: 11px;
   font-weight: 700;
@@ -541,7 +546,7 @@ function confirmRemove() {
 }
 
 .impr-item {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   border-radius: 16px;
   padding: $space-md;
   margin-bottom: $space-sm;
@@ -574,7 +579,7 @@ function confirmRemove() {
   font-size: 14px;
   color: #e05c5c;
   padding: 14px 0;
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   box-shadow: $shadow-card;
 }

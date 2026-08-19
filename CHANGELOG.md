@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.64.0] - 2026-08-19
+
+### Added
+
+- miniapp 小程序大满贯球场主题（96）：修复「我的」页「青柠主题」开关无实际效果，提供四套球场主题（青柠/澳网/法网/温网）。设计隐喻「网球恒青柠、球场随主题」——`accent`/`accent-dark`/`accent-soft`/`accent-rgb` 恒定青柠（按钮/标签/图表/`confirmColor`/switch），`page-bg`/`card`/`border`/`hero-a`/`hero-b` 按球场取色（背景/卡片/分隔线/深色大卡渐变）。`stores/settings.ts` `ThemePalette` 扩展至 9 Token；新增 `composables/useTheme.ts`（`useThemeStyle()` 返回 `{themeStyle, themeBg}`）；11 页接入 `<page-meta page-style + background-color>`；组件/页面 SCSS 硬编码颜色替换为 CSS 变量（Seg/Stepper/Tag/MoneyToggle/Empty 底色→page-bg，页面级卡片→card，分隔线→border）；mine.vue「球场主题」菜单项 + 主题选择弹层（色块显示球场渐变）。
+- miniapp 加强非青柠主题色差（96）：澳网 `#D8E5F4`/`#F0F7FD`、法网 `#E2CABC`/`#F8EDE5`、温网 `#D0E0C9`/`#EDF5E9` 背景/卡片明显区别于青柠；diary/gear hero 卡片背景从固定 `$color-olive` 改为 `var(--color-hero-a/b)` 渐变，与 mine 资料卡/coach hero 卡一致，全端深色大卡随主题。
+
 ## [1.63.0] - 2026-08-19
 
 ### Added

@@ -45,8 +45,8 @@ const { loading } = storeToRefs(useAppStore());
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid $color-lime-soft;
-  border-top-color: $color-lime-dark;
+  border: 4px solid var(--color-accent-soft, $color-lime-soft);
+  border-top-color: var(--color-accent-dark, $color-lime-dark);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

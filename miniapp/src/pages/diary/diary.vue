@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="diary-page">
     <!-- 游客空态：未登录不发请求，引导登录 -->
     <view v-if="authStore.isGuest" class="diary-empty-guide">
@@ -101,6 +102,7 @@ import { onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import MoneyToggle from "@/components/MoneyToggle.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";
@@ -109,6 +111,7 @@ import type { Diary } from "@/types";
 const authStore = useAuthStore();
 const diaryStore = useDiaryStore();
 const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
 
 /** 跳转到「我的」页登录（游客空态按钮） */
 function goMine() {
@@ -196,7 +199,7 @@ onShow(() => {
 <style scoped lang="scss">
 
 .diary-page {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -211,7 +214,7 @@ onShow(() => {
   margin: $space-xl;
   margin-bottom: $space-md;
   border-radius: $radius-hero;
-  background-color: $color-olive;
+  background: linear-gradient(135deg, var(--color-hero-a, #242b1f), var(--color-hero-b, #3a4433));
   padding: $space-xl;
   overflow: hidden;
   position: relative;
@@ -224,7 +227,7 @@ onShow(() => {
   width: 144px;
   height: 144px;
   border-radius: 50%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   opacity: 0.1;
 }
 
@@ -249,7 +252,7 @@ onShow(() => {
 }
 
 .diary-hero-slogan {
-  color: $color-lime;
+  color: var(--color-accent, #C8DA2B);
   font-size: 10px;
   font-weight: bold;
   letter-spacing: 0.25em;
@@ -287,7 +290,7 @@ onShow(() => {
 }
 
 .diary-hero-progress-value {
-  color: $color-lime;
+  color: var(--color-accent, #C8DA2B);
   font-weight: bold;
   font-size: 13px;
 }
@@ -308,7 +311,7 @@ onShow(() => {
 
 .diary-hero-progress-bar-fill {
   height: 100%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   border-radius: 9999px;
   transition: width 0.3s ease;
 }
@@ -364,7 +367,7 @@ onShow(() => {
 
 // 卡片
 .diary-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-md;
   box-shadow: $shadow-card;
@@ -382,8 +385,8 @@ onShow(() => {
   width: 44px;
   height: 44px;
   border-radius: 16px;
-  background-color: $color-lime-soft;
-  color: $color-lime-dark;
+  background-color: var(--color-accent-soft, #F0F5CE);
+  color: var(--color-accent-dark, #A8B822);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -428,7 +431,7 @@ onShow(() => {
 }
 
 .diary-card-cost {
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
   font-weight: 600;
 }
 
@@ -456,7 +459,7 @@ onShow(() => {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   display: flex;
   align-items: center;

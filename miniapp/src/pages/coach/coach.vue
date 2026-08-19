@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="coach-page">
     <!-- hero 卡（深橄榄渐变 + 青柠光斑） -->
     <view class="hero-card">
@@ -54,10 +55,13 @@ import { ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import { getAnalyses } from "@/services/data";
 import type { Analysis } from "@/types";
 import { resolveUploadUrl } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+
+const { themeStyle, themeBg } = useThemeStyle();
 
 const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
 
@@ -88,7 +92,7 @@ function goReport(id: number) {
 <style scoped lang="scss">
 .coach-page {
   min-height: 100vh;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   padding: $space-lg;
   padding-bottom: $space-3xl;
   box-sizing: border-box;
@@ -98,7 +102,7 @@ function goReport(id: number) {
 .hero-card {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, #242b1f, #3a4433);
+  background: linear-gradient(135deg, var(--color-hero-a, #242B1F), var(--color-hero-b, #3A4433));
   border-radius: $radius-card;
   padding: $space-lg;
   margin-bottom: $space-lg;
@@ -114,7 +118,7 @@ function goReport(id: number) {
     width: 200px;
     height: 200px;
     border-radius: 50%;
-    background: rgba(200, 218, 43, 0.16);
+    background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.16);
     filter: blur(36px);
   }
 }
@@ -123,9 +127,9 @@ function goReport(id: number) {
   position: relative;
   z-index: 1;
   font-size: 11px;
-  color: $color-lime;
-  background: rgba(200, 218, 43, 0.14);
-  border: 1px solid rgba(200, 218, 43, 0.3);
+  color: var(--color-accent, #C8DA2B);
+  background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.14);
+  border: 1px solid rgba(var(--color-accent-rgb, 200, 218, 43), 0.3);
   border-radius: 9999px;
   padding: 4px 10px;
   letter-spacing: 1px;
@@ -163,13 +167,13 @@ function goReport(id: number) {
   position: relative;
   z-index: 1;
   margin-top: 20px;
-  background: $color-lime;
+  background: var(--color-accent, #C8DA2B);
   color: $color-ink;
   font-size: 15px;
   font-weight: 600;
   padding: 12px 28px;
   border-radius: 9999px;
-  box-shadow: 0 4px 12px rgba(200, 218, 43, 0.35);
+  box-shadow: 0 4px 12px rgba(var(--color-accent-rgb, 200, 218, 43), 0.35);
 }
 
 // ========== 历史分析 ==========
@@ -235,7 +239,7 @@ function goReport(id: number) {
   right: 2px;
   bottom: 2px;
   font-size: 12px;
-  background: $color-lime;
+  background: var(--color-accent, #C8DA2B);
   border: 2px solid $color-white;
   border-radius: 50%;
   width: 22px;
@@ -260,7 +264,7 @@ function goReport(id: number) {
   font-size: 11px;
   font-weight: 700;
   color: $color-ink;
-  background: $color-lime;
+  background: var(--color-accent, #C8DA2B);
   border-radius: 9999px;
   padding: 2px 8px;
 }
@@ -290,7 +294,7 @@ function goReport(id: number) {
   display: block;
   font-size: 22px;
   font-weight: 700;
-  color: $color-lime-dark;
+  color: var(--color-accent-dark, #A8B822);
   line-height: 1.2;
 }
 

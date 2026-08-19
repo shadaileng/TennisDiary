@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="mine-page">
     <!-- 用户信息卡（深橄榄渐变 + 青柠光斑） -->
     <view class="profile-card">
@@ -66,17 +67,39 @@
           <text class="menu-label">金额隐私</text>
           <text class="menu-desc">隐藏日记与装备中的具体金额</text>
         </view>
-        <switch :checked="settingsStore.hideAmounts" color="#A8B822" @change="settingsStore.toggleHideAmounts()" />
+        <switch :checked="settingsStore.hideAmounts" :color="settingsStore.themePalette.dark" @change="settingsStore.toggleHideAmounts()" />
       </view>
-      <view class="menu-item">
+      <view class="menu-item" @tap="showThemePicker = true">
         <text class="menu-icon">🎨</text>
         <view class="menu-content">
-          <text class="menu-label">青柠主题</text>
-          <text class="menu-desc">使用青柠强调色</text>
+          <text class="menu-label">球场主题</text>
+          <text class="menu-desc">{{ settingsStore.themePalette.name }} · {{ settingsStore.themePalette.desc }}</text>
         </view>
-        <switch :checked="settingsStore.useLimeTheme" color="#A8B822" @change="settingsStore.toggleLimeTheme()" />
+        <view class="theme-swatch" :style="{ background: `linear-gradient(135deg, ${settingsStore.themePalette.heroA}, ${settingsStore.themePalette.heroB})` }" />
+        <text class="menu-arrow">›</text>
       </view>
     </view>
+
+    <!-- 球场主题选择 -->
+    <Popup v-model:show="showThemePicker">
+      <view class="theme-picker">
+        <text class="theme-picker-title">选择球场主题</text>
+        <view
+          v-for="t in THEMES"
+          :key="t.key"
+          class="theme-option"
+          :class="{ 'theme-option--active': settingsStore.theme === t.key }"
+          @tap="settingsStore.setTheme(t.key)"
+        >
+          <view class="theme-option-swatch" :style="{ background: `linear-gradient(135deg, ${t.heroA}, ${t.heroB})` }" />
+          <view class="theme-option-info">
+            <text class="theme-option-name">{{ t.name }}</text>
+            <text class="theme-option-desc">{{ t.desc }}</text>
+          </view>
+          <text v-if="settingsStore.theme === t.key" class="theme-option-check">✓</text>
+        </view>
+      </view>
+    </Popup>
 
     <!-- 关于 -->
     <view class="about">
@@ -91,14 +114,21 @@
 import { computed, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
+import Popup from "@/components/Popup.vue";
 import { getStats } from "@/services/data";
+import { THEMES } from "@/stores/settings";
 import { useAuthStore, useSettingsStore } from "@/stores";
+import { useThemeStyle } from "@/composables/useTheme";
 import type { Stats } from "@/types";
 import { fmtDuration, maskMiddle, resolveUploadUrl } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
+
+/** 球场主题选择弹层开关 */
+const showThemePicker = ref(false);
 
 /** 统计徽章数据（登录后拉取，失败静默降级） */
 const stats = ref<Stats | null>(null);
@@ -176,7 +206,7 @@ async function doLogin() {
 // ========== 页面 ==========
 .mine-page {
   min-height: 100vh;
-  background: #f2f2ef;
+  background: var(--color-page-bg, #F2F2EF);
   padding: 24rpx;
   padding-bottom: 40rpx;
   box-sizing: border-box;
@@ -184,7 +214,7 @@ async function doLogin() {
 
 // ========== 用户信息卡 ==========
 .profile-card {
-  background: linear-gradient(135deg, #242b1f, #3a4433);
+  background: linear-gradient(135deg, var(--color-hero-a, #242B1F), var(--color-hero-b, #3A4433));
   border-radius: 28rpx;
   padding: 32rpx;
   margin-bottom: 24rpx;
@@ -200,7 +230,7 @@ async function doLogin() {
     width: 260rpx;
     height: 260rpx;
     border-radius: 50%;
-    background: rgba(200, 218, 43, 0.2);
+    background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.2);
     filter: blur(40rpx);
   }
   &::after {
@@ -211,7 +241,7 @@ async function doLogin() {
     width: 300rpx;
     height: 300rpx;
     border-radius: 50%;
-    background: rgba(200, 218, 43, 0.12);
+    background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.12);
     filter: blur(50rpx);
   }
 
@@ -233,9 +263,9 @@ async function doLogin() {
   height: 88rpx;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #c8da2b;
+  background: var(--color-accent, #C8DA2B);
   overflow: hidden;
-  box-shadow: 0 0 0 4rpx rgba(200, 218, 43, 0.7);
+  box-shadow: 0 0 0 4rpx rgba(var(--color-accent-rgb, 200, 218, 43), 0.7);
 }
 
 .avatar-img {
@@ -338,7 +368,7 @@ async function doLogin() {
   display: flex;
   align-items: center;
   gap: 16rpx;
-  background: #ffffff;
+  background: var(--color-card, #FFFFFF);
   border-radius: 20rpx;
   padding: 24rpx 28rpx;
   margin-bottom: 12rpx;
@@ -402,5 +432,70 @@ async function doLogin() {
   font-size: 20rpx;
   color: rgba(107, 117, 98, 0.7);
   margin-top: 16rpx;
+}
+
+// ========== 球场主题 ==========
+.theme-swatch {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4rpx rgba(23, 27, 20, 0.05);
+}
+
+.theme-picker-title {
+  display: block;
+  text-align: center;
+  font-size: 28rpx;
+  color: #242b1f;
+  font-weight: 600;
+  margin-bottom: 24rpx;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx 16rpx;
+  border-radius: 16rpx;
+  cursor: pointer;
+
+  &--active {
+    background-color: var(--color-accent-soft, #f0f5ce);
+  }
+}
+
+.theme-option-swatch {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2rpx solid rgba(23, 27, 20, 0.06);
+}
+
+.theme-option-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.theme-option-name {
+  font-size: 28rpx;
+  color: #242b1f;
+  font-weight: 500;
+}
+
+.theme-option-desc {
+  font-size: 22rpx;
+  color: #6b7562;
+}
+
+.theme-option-check {
+  font-size: 32rpx;
+  color: #171b14;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 </style>
