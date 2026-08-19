@@ -4,6 +4,7 @@
     <textarea
       v-if="type === 'textarea'"
       class="field-input"
+      maxlength="-1"
       :placeholder="placeholder"
       placeholder-class="field-placeholder"
       :value="modelValue"

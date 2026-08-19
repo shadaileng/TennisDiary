@@ -41,6 +41,7 @@
         <textarea
           class="caption-area"
           :value="caption"
+          maxlength="-1"
           placeholder="分享文案，可编辑"
           placeholder-class="field-placeholder"
           @input="onCaptionInput"

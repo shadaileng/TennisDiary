@@ -61,6 +61,7 @@
           </view>
           <textarea
             class="field-input field-textarea"
+            maxlength="-1"
             placeholder="使用感受（选填）"
             placeholder-class="field-placeholder"
             :value="form.feeling"

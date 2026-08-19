@@ -126,6 +126,7 @@
         <text class="form-card-title">今日复盘</text>
         <textarea
           class="form-textarea"
+          maxlength="-1"
           placeholder="今天练了什么？手感如何？教练说了什么？"
           placeholder-class="field-placeholder"
           :value="form.notes"

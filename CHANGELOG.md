@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.64.2] - 2026-08-19
+
+### Fixed
+
+- miniapp 修复 textarea 缺省 140 字上限截断润色文案：微信小程序 `<textarea>` `maxlength` 默认为 140，分享工坊 AI 润色文案（80-150 字 + emoji + 标签）超限被截断；分享页配文、日记表单「今日复盘」、装备表单「使用感受」及 `Field.vue` 组件统一设置 `maxlength="-1"` 不限长度。
+
 ## [1.64.1] - 2026-08-19
 
 ### Fixed
