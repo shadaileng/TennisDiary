@@ -218,6 +218,21 @@ class AnalysisResponse(AnalysisCreate):
     model_config = {"from_attributes": True}
 
 
+# ==================== AI 分享文案 ====================
+
+
+class CaptionRequest(BaseModel):
+    """AI 分享文案生成请求：只传模板类型与风格，业务数据由后端按当前用户查库"""
+
+    template: Literal["月度战报", "今日日记", "技术评分"]
+    style: Literal["活泼", "简洁", "专业"] = "活泼"
+    text: str = Field(default="", description="当前 textarea 内容，AI 在此基础上润色")
+
+
+class CaptionResponse(BaseModel):
+    caption: str
+
+
 # ==================== 发布 ====================
 
 

@@ -131,6 +131,7 @@ export default defineConfig({
             { text: '91：分享工坊技术评分三区域分离', link: '/plans/91-分享工坊技术评分三区域分离' },
             { text: '92：分享工坊视觉优化', link: '/plans/92-分享工坊视觉优化' },
             { text: '93：分享工坊保存图片默认名称与隐私API适配', link: '/plans/93-分享工坊保存图片默认名称与隐私API适配' },
+            { text: '95：分享工坊 AI 文案生成', link: '/plans/95-分享工坊AI文案生成' },
           ],
         },
         {

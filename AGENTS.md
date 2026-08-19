@@ -168,6 +168,7 @@ cd admin && pnpm build                 # 构建管理端
 | 92 | 分享工坊视觉优化（雷达图标注偏移+动态对齐 + 进度条文字间距 + footer下移） | ✅ |
 | 93 | 分享工坊保存图片默认名称与隐私API适配（USER_DATA_PATH持久路径 + 微信官方隐私弹窗） | 🚧 进行中 |
 | 94 | 姿态推理线上503异常排查与修复（slim 镜像安装 libgl1+libglib2.0-0，镜像从 1.1GB 降至 957MB） | ✅ |
+| 95 | 分享工坊 AI 文案生成（`POST /api/ai/caption` 后端查库 + 活泼/简洁/专业三风格 + 失败本地模板降级） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

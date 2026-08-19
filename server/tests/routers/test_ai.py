@@ -154,3 +154,320 @@ class TestAnalyze:
         """未登录 → 401/403"""
         response = client.post("/api/ai/analyze", json=self.VALID_PAYLOAD)
         assert response.status_code in (401, 403)
+
+
+# ==================== 接口测试：POST /api/ai/caption ====================
+
+
+class TestCaption:
+    """测试 /api/ai/caption"""
+
+    VALID_PAYLOAD: ClassVar[dict] = {"template": "技术评分", "style": "活泼"}
+
+    def test_caption_success(self, auth_client, test_db, monkeypatch):
+        """调用成功 → 200 + 文案字符串，text 透传到 generate_caption"""
+        from app.routers import ai as ai_router
+
+        monkeypatch.setattr(settings, "AI_API_KEY", "sk-test")
+
+        captured = {}
+
+        async def fake_generate_caption(template, style, context, ai_config, text=""):
+            captured["template"] = template
+            captured["style"] = style
+            captured["text"] = text
+            return "🤖 润色后的文案 #网球 #网球日记"
+
+        monkeypatch.setattr(ai_router.ai_service, "generate_caption", fake_generate_caption)
+        payload = {**self.VALID_PAYLOAD, "text": "本月打了好多次球，超级开心！"}
+        response = auth_client.post("/api/ai/caption", json=payload)
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["caption"] == "🤖 润色后的文案 #网球 #网球日记"
+        assert captured["template"] == "技术评分"
+        assert captured["style"] == "活泼"
+        assert captured["text"] == "本月打了好多次球，超级开心！"
+
+    def test_caption_prompt_polish_style(self, monkeypatch):
+        """有 text 时 prompt 指示润色已有文案；空 text 时标注（无）"""
+        from app.services import ai_service
+
+        context = {"template": "技术评分", "analysis": None}
+        prompt_with_text = ai_service._build_caption_prompt("技术评分", "活泼", context, "已有文案")
+        assert "润色改写" in prompt_with_text
+        assert "当前文案：已有文案" in prompt_with_text
+        prompt_empty = ai_service._build_caption_prompt("技术评分", "活泼", context, "")
+        assert "当前文案：（无）" in prompt_empty
+
+    def test_caption_monthly_context(self, auth_client, mock_user, test_db, monkeypatch):
+        """月度战报 → build_caption_context 返回当月统计上下文"""
+        from app.services import ai_service
+
+        context = ai_service.build_caption_context(test_db, mock_user, "月度战报")
+        assert context["template"] == "月度战报"
+        assert "count" in context
+        assert "total_hours" in context
+        assert "total_cost" in context
+
+    def test_caption_today_context_empty(self, auth_client, mock_user, test_db, monkeypatch):
+        """今日日记无数据 → context.diary 为 None"""
+        from app.services import ai_service
+
+        context = ai_service.build_caption_context(test_db, mock_user, "今日日记")
+        assert context["template"] == "今日日记"
+        assert context["diary"] is None
+
+    def test_caption_without_key_degrade(self, auth_client, test_db, monkeypatch):
+        """无 AI_API_KEY → 200 + 本地降级文案"""
+        monkeypatch.setattr(settings, "AI_API_KEY", "")
+        response = auth_client.post("/api/ai/caption", json=self.VALID_PAYLOAD)
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["caption"]
+        assert "还没有分析报告" in data["caption"]
+
+    def test_caption_service_error_degrade(self, auth_client, test_db, monkeypatch):
+        """AI 调用异常 → 200 + 本地降级文案"""
+        from app.routers import ai as ai_router
+
+        async def boom(template, style, context, ai_config, text=""):
+            raise RuntimeError("ai call failed")
+
+        monkeypatch.setattr(ai_router.ai_service, "generate_caption", boom)
+        response = auth_client.post("/api/ai/caption", json=self.VALID_PAYLOAD)
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["caption"]
+
+    def test_caption_invalid_template(self, auth_client):
+        """非法模板 → 422"""
+        response = auth_client.post("/api/ai/caption", json={"template": "未知", "style": "活泼"})
+        assert response.status_code == 422
+
+    def test_caption_invalid_style(self, auth_client):
+        """非法风格 → 422"""
+        response = auth_client.post(
+            "/api/ai/caption", json={"template": "技术评分", "style": "文艺"}
+        )
+        assert response.status_code == 422
+
+    def test_caption_requires_auth(self, client):
+        """未登录 → 401/403"""
+        response = client.post("/api/ai/caption", json=self.VALID_PAYLOAD)
+        assert response.status_code in (401, 403)
+
+
+# ==================== 服务层单测：本地降级文案 / 纯文本 chat ====================
+
+
+class TestBuildLocalCaption:
+    """ai_service.build_local_caption 本地模板文案"""
+
+    def _build(self):
+        from app.services import ai_service
+
+        return ai_service.build_local_caption
+
+    def test_monthly(self):
+        """月度战报模板文案"""
+        context = {
+            "template": "月度战报",
+            "month": "8",
+            "count": 3,
+            "total_hours": 4.5,
+            "total_cost": 120,
+        }
+        text = self._build()("月度战报", context)
+        assert "8月网球月报" in text
+        assert "3 次" in text
+        assert "4.5 小时" in text
+        assert "¥120" in text
+        assert "#网球" in text
+
+    def test_today_no_diary(self):
+        """今日日记无数据 → 占位文案"""
+        text = self._build()("今日日记", {"template": "今日日记", "diary": None})
+        assert "还没有日记" in text
+
+    def test_today_with_diary(self):
+        """今日日记有数据 → 含日期/类型/时长"""
+        context = {
+            "template": "今日日记",
+            "diary": {
+                "date": "2026-08-19",
+                "type": "训练",
+                "duration_minutes": 90,
+                "notes": "手感很好",
+            },
+        }
+        text = self._build()("今日日记", context)
+        assert "2026-08-19" in text
+        assert "训练" in text
+        assert "1小时30分" in text
+        assert "手感很好" in text
+
+    def test_score_no_analysis(self):
+        """技术评分无报告 → 占位文案"""
+        text = self._build()("技术评分", {"template": "技术评分", "analysis": None})
+        assert "还没有分析报告" in text
+
+    def test_score_with_analysis(self):
+        """技术评分有报告 → 含评分/最强项/改进项"""
+        context = {
+            "template": "技术评分",
+            "analysis": {
+                "kind": "正手",
+                "score": 85,
+                "summary": "发力流畅",
+                "best_dimension": "动力链",
+                "best_score": 90,
+                "next_improvement": "反手稳定性",
+            },
+        }
+        text = self._build()("技术评分", context)
+        assert "85" in text
+        assert "动力链" in text
+        assert "90分" in text
+        assert "反手稳定性" in text
+
+
+class TestChatText:
+    """ai_service.chat_text 纯文本调用请求体"""
+
+    def test_payload_no_images(self, monkeypatch):
+        """chat_text 请求 content 为文本（无 image_url）"""
+        import asyncio
+
+        from app.services import ai_service
+
+        captured = {}
+
+        async def fake_post(payload, ai_config):
+            captured["payload"] = payload
+            return "生成的文案"
+
+        monkeypatch.setattr(ai_service, "_post_completions", fake_post)
+        ai_config = ai_service.AIConfig(
+            api_key="sk-test", base_url="https://x/v1", model="qwen-plus"
+        )
+        text = asyncio.run(ai_service.chat_text("prompt", ai_config))
+        assert text == "生成的文案"
+        content = captured["payload"]["messages"][0]["content"]
+        assert isinstance(content, list)
+        assert content == [{"type": "text", "text": "prompt"}]
+
+
+class TestCaptionCache:
+    """ai_service.generate_caption LRU 缓存"""
+
+    def _make_ai_config(self):
+        from app.services import ai_service
+
+        return ai_service.AIConfig(api_key="sk-test", base_url="https://x/v1", model="qwen-plus")
+
+    def _clear_cache(self):
+        from app.services import ai_service
+
+        ai_service._caption_cache.clear()
+
+    def test_cache_hit_skips_ai_call(self, monkeypatch):
+        """相同参数第二次调用 → 命中缓存，chat_text 不再被调用"""
+        import asyncio
+
+        from app.services import ai_service
+
+        self._clear_cache()
+
+        async def fake_post(payload, ai_config):
+            return "润色文案 A"
+
+        monkeypatch.setattr(ai_service, "_post_completions", fake_post)
+        ai_config = self._make_ai_config()
+        context = {"template": "技术评分", "analysis": None}
+
+        text1 = asyncio.run(
+            ai_service.generate_caption("技术评分", "活泼", context, ai_config, "原文案")
+        )
+        text2 = asyncio.run(
+            ai_service.generate_caption("技术评分", "活泼", context, ai_config, "原文案")
+        )
+        assert text1 == "润色文案 A"
+        assert text2 == "润色文案 A"
+        assert len(ai_service._caption_cache) == 1
+
+    def test_cache_miss_different_text(self, monkeypatch):
+        """text 不同 → 缓存未命中，chat_text 被调用两次"""
+        import asyncio
+
+        from app.services import ai_service
+
+        self._clear_cache()
+        calls = {"n": 0}
+
+        async def fake_post(payload, ai_config):
+            calls["n"] += 1
+            return "润色文案"
+
+        monkeypatch.setattr(ai_service, "_post_completions", fake_post)
+        ai_config = self._make_ai_config()
+        context = {"template": "技术评分", "analysis": None}
+
+        asyncio.run(ai_service.generate_caption("技术评分", "活泼", context, ai_config, "原文案 A"))
+        asyncio.run(ai_service.generate_caption("技术评分", "活泼", context, ai_config, "原文案 B"))
+        assert calls["n"] == 2
+
+    def test_cache_miss_different_style(self, monkeypatch):
+        """style 不同 → 缓存未命中"""
+        import asyncio
+
+        from app.services import ai_service
+
+        self._clear_cache()
+        calls = {"n": 0}
+
+        async def fake_post(payload, ai_config):
+            calls["n"] += 1
+            return "润色文案"
+
+        monkeypatch.setattr(ai_service, "_post_completions", fake_post)
+        ai_config = self._make_ai_config()
+        context = {"template": "技术评分", "analysis": None}
+
+        asyncio.run(ai_service.generate_caption("技术评分", "活泼", context, ai_config, "原文案"))
+        asyncio.run(ai_service.generate_caption("技术评分", "简洁", context, ai_config, "原文案"))
+        assert calls["n"] == 2
+
+    def test_cache_eviction_max(self, monkeypatch):
+        """超过容量 → 淘汰最旧条目，缓存大小 ≤ 20"""
+        import asyncio
+
+        from app.services import ai_service
+
+        self._clear_cache()
+
+        async def fake_post(payload, ai_config):
+            return "润色文案"
+
+        monkeypatch.setattr(ai_service, "_post_completions", fake_post)
+        ai_config = self._make_ai_config()
+        context = {"template": "技术评分", "analysis": None}
+
+        keys = []
+        for i in range(21):
+            asyncio.run(
+                ai_service.generate_caption("技术评分", "活泼", context, ai_config, f"原文案 {i}")
+            )
+            keys.append(ai_service._caption_cache_key("技术评分", "活泼", f"原文案 {i}", context))
+        assert len(ai_service._caption_cache) <= 20
+        assert keys[0] not in ai_service._caption_cache
+
+    def test_cache_key_stability(self):
+        """相同输入生成相同 key；不同输入生成不同 key"""
+        from app.services import ai_service
+
+        context = {"template": "技术评分", "analysis": None}
+        k1 = ai_service._caption_cache_key("技术评分", "活泼", "原文案", context)
+        k2 = ai_service._caption_cache_key("技术评分", "活泼", "原文案", context)
+        k3 = ai_service._caption_cache_key("技术评分", "活泼", "原文案 X", context)
+        assert k1 == k2
+        assert k1 != k3

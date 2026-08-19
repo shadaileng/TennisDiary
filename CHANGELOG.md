@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.63.0] - 2026-08-19
+
+### Added
+
+- server 分享工坊 AI 文案润色（95）：`POST /api/ai/caption` 接收 `template`/`style`/`text`，服务端按当前用户查库（月度战报/今日日记/技术评分）+ 润色 prompt，多风格可选（活泼/简洁/专业），无 Key/异常降级本地模板文案；`generate_caption` 增加 LRU 缓存（MD5 key，20 条上限，永不自动过期，命中打日志），避免重复调用 AI 浪费 token。新增 `ai_service.chat_text` / `build_caption_context` / `build_local_caption` 与 `CaptionRequest`/`CaptionResponse` schema。
+- miniapp 分享工坊润色交互（95）：`share.vue` 按钮「重新生成」→「润色文案」、loading「润色中…」、失败 toast「润色失败，已用模板文案」；textarea 内容透传 AI 结合数据润色；风格选择器（活泼/简洁/专业）；空态提前 return（当月无打卡/无日记/无分析）；前端移除所有用户可见的"AI"字眼。
+- tests 新增（95）：`test_ai.py` `TestCaption` 润色 prompt/text 透传断言 + `TestCaptionCache` LRU 命中/未命中/淘汰/key 稳定性 5 用例，`test_ai.py` 29 用例。
+
 ## [1.62.4] - 2026-08-18
 
 ### Fixed
