@@ -263,6 +263,14 @@ export interface AnalysisPose {
   skeleton_thumb?: string
 }
 
+/** AI 分享文案风格 */
+export type CaptionStyle = "活泼" | "简洁" | "专业"
+
+/** AI 分享文案生成响应 — 后台 POST /api/ai/caption data */
+export interface CaptionResult {
+  caption: string
+}
+
 // ==================== 训练营打卡 ====================
 
 /** 打卡记录 — 后台 CheckinResponse 字段 */

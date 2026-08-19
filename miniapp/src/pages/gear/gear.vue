@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="gear-page">
     <!-- 游客空态：未登录不发请求，引导登录 -->
     <view v-if="authStore.isGuest" class="gear-empty-guide">
@@ -106,6 +107,7 @@ import { onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import MoneyToggle from "@/components/MoneyToggle.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { GEAR_CATEGORIES, fmtMoney } from "@/utils";
@@ -114,6 +116,7 @@ import type { Gear } from "@/types";
 const authStore = useAuthStore();
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
 
 /** 跳转到「我的」页登录（游客空态按钮） */
 function goMine() {
@@ -123,10 +126,10 @@ function goMine() {
 const catFilter = ref("全部");
 const monthFilter = ref("全部");
 
-/** 无照片封面渐变背景 */
-const noPhotoBg = {
-  background: "linear-gradient(135deg, #3A4433, #242B1F)",
-};
+/** 无照片封面渐变背景（跟随球场主题深色大卡色） */
+const noPhotoBg = computed(() => ({
+  background: `linear-gradient(135deg, ${settingsStore.themePalette.heroB}, ${settingsStore.themePalette.heroA})`,
+}));
 
 /** 分类 emoji 图标 */
 const CAT_ICON: Record<string, string> = {
@@ -207,7 +210,7 @@ onShow(() => {
 <style scoped lang="scss">
 
 .gear-page {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -222,7 +225,7 @@ onShow(() => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
 }
 
 // Hero
@@ -230,7 +233,7 @@ onShow(() => {
   margin: $space-xl;
   margin-bottom: $space-md;
   border-radius: $radius-hero;
-  background-color: $color-olive;
+  background: linear-gradient(135deg, var(--color-hero-a, #242b1f), var(--color-hero-b, #3a4433));
   padding: $space-xl;
   overflow: hidden;
   position: relative;
@@ -243,7 +246,7 @@ onShow(() => {
   width: 144px;
   height: 144px;
   border-radius: 50%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   opacity: 0.1;
 }
 
@@ -258,7 +261,7 @@ onShow(() => {
 }
 
 .gear-hero-slogan {
-  color: $color-lime;
+  color: var(--color-accent, #C8DA2B);
   font-size: 10px;
   font-weight: bold;
   letter-spacing: 0.25em;
@@ -329,18 +332,18 @@ onShow(() => {
   font-size: 12px;
   font-weight: 500;
   transition: opacity 0.15s ease;
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   color: $color-olive-light;
-  border: 1px solid $color-paper;
+  border: 1px solid var(--color-border, #E7E9DF);
   
   &--active {
-    background-color: $color-lime;
+    background-color: var(--color-accent, #C8DA2B);
     color: $color-olive;
   }
   
   &--active-month {
     background-color: $color-olive;
-    color: $color-lime;
+    color: var(--color-accent, #C8DA2B);
   }
   
   &:active {
@@ -399,7 +402,7 @@ onShow(() => {
   position: absolute;
   top: $space-sm;
   left: $space-sm;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-olive;
   font-size: 11px;
   font-weight: bold;
@@ -437,7 +440,7 @@ onShow(() => {
 }
 
 .gear-card-price {
-  color: $color-lime;
+  color: var(--color-accent, #C8DA2B);
   font-size: 14px;
   font-weight: bold;
 }
@@ -450,7 +453,7 @@ onShow(() => {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   display: flex;
   align-items: center;

@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view v-if="authStore.isLoggedIn" class="detail-page">
     <!-- 头像（小程序：chooseAvatar 按钮） -->
     <!-- #ifdef MP-WEIXIN -->
@@ -75,11 +76,14 @@ import { ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import { uploadAvatar, updateProfile } from "@/services/auth";
-import { useAuthStore } from "@/stores";
+import { useThemeStyle } from "@/composables/useTheme";
+import { useAuthStore, useSettingsStore } from "@/stores";
 import { resolveUploadUrl, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
+const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
 
 const genderLabels = ["保密", "男", "女"] as const;
 
@@ -176,7 +180,7 @@ function doLogout() {
   uni.showModal({
     title: "确认退出",
     content: "退出登录后记录仍保留在本地。",
-    confirmColor: "#A8B822",
+    confirmColor: settingsStore.themePalette.dark,
     success: (res) => {
       if (!res.confirm) return;
       authStore.logout();
@@ -191,7 +195,7 @@ function doLogout() {
 <style lang="scss" scoped>
 .detail-page {
   min-height: 100vh;
-  background: #f2f2ef;
+  background: var(--color-page-bg, #F2F2EF);
   padding: 32rpx 24rpx;
   padding-bottom: 60rpx;
   box-sizing: border-box;
@@ -217,7 +221,7 @@ function doLogout() {
   width: 120rpx;
   height: 120rpx;
   border-radius: 50%;
-  box-shadow: 0 0 0 4rpx rgba(200, 218, 43, 0.7);
+  box-shadow: 0 0 0 4rpx rgba(var(--color-accent-rgb, 200, 218, 43), 0.7);
 }
 
 .avatar-placeholder {
@@ -227,9 +231,9 @@ function doLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(200, 218, 43, 0.2);
+  background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.2);
   font-size: 52rpx;
-  box-shadow: 0 0 0 4rpx rgba(200, 218, 43, 0.7);
+  box-shadow: 0 0 0 4rpx rgba(var(--color-accent-rgb, 200, 218, 43), 0.7);
 }
 
 .avatar-hint {
@@ -293,7 +297,7 @@ function doLogout() {
 
 .form-divider {
   height: 1rpx;
-  background: #f2f2ef;
+  background: var(--color-page-bg, #F2F2EF);
 }
 
 // ========== 退出登录 ==========

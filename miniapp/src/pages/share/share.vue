@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="share-page">
     <view class="share-body">
       <!-- 选择模板 -->
@@ -28,16 +29,28 @@
       <!-- 配文 -->
       <view class="form-card">
         <text class="card-title">✍️ 配文</text>
+        <view class="style-row">
+          <view
+            v-for="s in CAPTION_STYLES"
+            :key="s"
+            class="style-pill"
+            :class="{ active: style === s }"
+            @tap="onStyleTap(s)"
+          >{{ s }}</view>
+        </view>
         <textarea
           class="caption-area"
           :value="caption"
+          maxlength="-1"
           placeholder="分享文案，可编辑"
           placeholder-class="field-placeholder"
           @input="onCaptionInput"
         />
         <view class="caption-actions">
           <view class="btn-ghost press-btn" @tap="copyCaption">复制文案</view>
-          <view class="btn-regenerate press-btn" @tap="regenerate">重新生成</view>
+          <view class="btn-regenerate press-btn" :class="{ disabled: regenerating }" @tap="regenerate">
+            <text>{{ regenerating ? "润色中…" : "润色文案" }}</text>
+          </view>
         </view>
       </view>
     </view>
@@ -49,8 +62,9 @@ import { getCurrentInstance, nextTick, ref, watch } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import Seg from "@/components/Seg.vue";
-import { getAnalyses, getDiaries } from "@/services/data";
-import type { Analysis, Diary } from "@/types";
+import { useThemeStyle } from "@/composables/useTheme";
+import { generateCaption, getAnalyses, getDiaries } from "@/services/data";
+import type { Analysis, CaptionStyle, Diary } from "@/types";
 import {
   drawShareCard,
   genCaption,
@@ -59,19 +73,24 @@ import {
   buildContext,
 } from "@/utils/shareCanvas";
 import type { ShareTemplate } from "@/utils/shareCanvas";
-import { INTENSITY, MOOD } from "@/utils";
+import { INTENSITY, MOOD, monthKey, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isRuntimePermissionDenied } from "@/utils/privacy";
 
 const instance = getCurrentInstance();
+const { themeStyle, themeBg } = useThemeStyle();
 const W = 1080;
 const dpr = uni.getSystemInfoSync().pixelRatio || 2;
 
+const CAPTION_STYLES: readonly CaptionStyle[] = ["活泼", "简洁", "专业"] as const;
+
 const tpl = ref<ShareTemplate>("月度战报");
+const style = ref<CaptionStyle>("活泼");
 const caption = ref("");
 const cardURL = ref("");
 const cardSavePath = ref("");
 const saving = ref(false);
+const regenerating = ref(false);
 const diaries = ref<Diary[]>([]);
 const analysis = ref<Analysis | undefined>(undefined);
 
@@ -96,27 +115,48 @@ onShow(async () => {
   }
 });
 
+function loadQrImage(node: any): Promise<CanvasImageSource> {
+  return new Promise((resolve, reject) => {
+    if (!node || typeof node.createImage !== "function") {
+      reject(new Error("createImage unsupported"));
+      return;
+    }
+    const img = node.createImage();
+    img.onload = () => resolve(img as CanvasImageSource);
+    img.onerror = () => reject(new Error("qr image load failed"));
+    img.src = "/static/td-qr.png";
+  });
+}
+
 function draw() {
   if (!instance?.proxy) return;
   const query = uni.createSelectorQuery().in(instance.proxy);
   query
     .select("#shareCanvas")
     .fields({ node: true, size: true }, () => {})
-    .exec((res) => {
+    .exec(async (res) => {
       const node = res[0]?.node as
         | { width: number; height: number; getContext: (t: string) => CanvasRenderingContext2D }
         | undefined;
       if (!node) return;
 
       const data = { diaries: diaries.value, analysis: analysis.value };
-      const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never);
+      let qrImage: CanvasImageSource | undefined;
+      try {
+        qrImage = await loadQrImage(node);
+      } catch (e) {
+        logError("分享图二维码加载失败，降级输出", { error: (e as Error).message }, "share_qr_load_failed", undefined, createTraceId());
+        console.error("[share] QR image load failed:", e);
+      }
+
+      const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never, qrImage);
 
       node.width = W * dpr;
       node.height = h * dpr;
 
       const ctx = node.getContext("2d");
       ctx.scale(dpr, dpr);
-      drawShareCard(ctx, tpl.value, data, MOOD as never, INTENSITY as never);
+      drawShareCard(ctx, tpl.value, data, MOOD as never, INTENSITY as never, qrImage);
 
       const opts = {
         canvas: node as never,
@@ -149,7 +189,7 @@ function draw() {
             }
             // #endif
         },
-        fail: (err) => {
+        fail: (err: any) => {
           logError("canvasToTempFilePath 失败", { error: String(err) }, "share_canvas_failed", undefined, createTraceId());
           console.error('[share] canvasToTempFilePath fail:', err)
           cardURL.value = "";
@@ -170,10 +210,49 @@ function onCaptionInput(e: any) {
   caption.value = e.detail.value;
 }
 
-function regenerate() {
-  const pipe = buildContext(tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
-  caption.value = genCaption(pipe);
-  uni.showToast({ title: "已重新生成", icon: "none" });
+function onStyleTap(s: CaptionStyle) {
+  if (regenerating.value) return;
+  style.value = s;
+  regenerate();
+}
+
+async function regenerate() {
+  if (regenerating.value) return;
+
+  // ---- 空态检查：无数据时不调润色接口 ----
+  if (tpl.value === "月度战报") {
+    const monthDiaries = diaries.value.filter((d) => monthKey(d.date) === monthKey(todayStr()));
+    if (monthDiaries.length === 0) {
+      uni.showToast({ title: "还没有打卡记录，去记一篇吧～", icon: "none" });
+      return;
+    }
+  } else if (tpl.value === "今日日记") {
+    if (diaries.value.length === 0) {
+      uni.showToast({ title: "还没有日记，先去记一篇吧～", icon: "none" });
+      return;
+    }
+  } else if (tpl.value === "技术评分") {
+    if (!analysis.value?.report) {
+      uni.showToast({ title: "还没有分析报告，先去做一次分析吧～", icon: "none" });
+      return;
+    }
+  }
+
+  const traceId = createTraceId();
+  regenerating.value = true;
+  try {
+    const res = await generateCaption(tpl.value, style.value, caption.value);
+    caption.value = res.caption || caption.value;
+    logInfo("润色分享文案", { trace_id: traceId, template: tpl.value, style: style.value }, "share_caption_ai", traceId);
+    uni.showToast({ title: "已润色文案", icon: "none" });
+  } catch (e) {
+    const pipe = buildContext(tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
+    caption.value = genCaption(pipe);
+    logError("文案润色失败，降级本地模板", { trace_id: traceId, error: (e as Error).message, template: tpl.value }, "share_caption_ai_failed", undefined, traceId);
+    uni.showToast({ title: "润色失败，已用模板文案", icon: "none" });
+  } finally {
+    regenerating.value = false;
+  }
 }
 
 function copyCaption() {
@@ -236,7 +315,7 @@ function saveImage() {
 <style scoped lang="scss">
 .share-page {
   min-height: 100vh;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
 }
 
 .share-body {
@@ -248,7 +327,7 @@ function saveImage() {
 }
 
 .form-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -274,7 +353,7 @@ function saveImage() {
 }
 
 .save-btn {
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   font-size: 13px;
   font-weight: 500;
@@ -321,6 +400,30 @@ function saveImage() {
   margin-top: $space-md;
 }
 
+.style-row {
+  display: flex;
+  gap: $space-sm;
+  margin-bottom: $space-md;
+}
+
+.style-pill {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 0;
+  border-radius: 9999px;
+  background-color: var(--color-page-bg, #F2F2EF);
+  color: $color-olive-light;
+  border: 1px solid var(--color-accent-dark, #A8B822);
+
+  &.active {
+    background-color: $color-olive;
+    color: $color-white;
+    border-color: $color-olive;
+  }
+}
+
 .btn-ghost,
 .btn-regenerate {
   flex: 1;
@@ -331,8 +434,12 @@ function saveImage() {
   border-radius: 9999px;
 }
 
+.btn-regenerate.disabled {
+  opacity: 0.6;
+}
+
 .btn-ghost {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   color: $color-ink;
 }
 

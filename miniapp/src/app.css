@@ -3,3 +3,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 大满贯球场主题默认值（青柠）。页面通过 <page-meta page-style> 按当前主题覆盖 */
+page {
+  --color-accent: #C8DA2B;
+  --color-accent-dark: #A8B822;
+  --color-accent-soft: #F0F5CE;
+  --color-accent-rgb: 200, 218, 43;
+  --color-page-bg: #F2F2EF;
+  --color-card: #FFFFFF;
+  --color-border: #E7E9DF;
+  --color-hero-a: #242B1F;
+  --color-hero-b: #3A4433;
+}

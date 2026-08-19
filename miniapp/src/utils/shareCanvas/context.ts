@@ -12,6 +12,7 @@ export interface PipelineContext {
   latestDiary?: Diary;
   latestAnalysis?: Analysis;
   monthKey: string;
+  qrImage?: CanvasImageSource;
 }
 
 function monthKeyFromDate(dateStr: string): string {
@@ -29,6 +30,7 @@ export function buildContext(
   data: ShareData,
   MOOD: readonly MoodItem[],
   INTENSITY: readonly IntensityItem[],
+  qrImage?: CanvasImageSource,
 ): PipelineContext {
   const currentMonthKey = monthKeyFromDate(todayStr());
   const monthDiaries = data.diaries.filter((d) => monthKeyFromDate(d.date) === currentMonthKey);
@@ -45,5 +47,6 @@ export function buildContext(
     latestDiary,
     latestAnalysis,
     monthKey: currentMonthKey,
+    qrImage,
   };
 }

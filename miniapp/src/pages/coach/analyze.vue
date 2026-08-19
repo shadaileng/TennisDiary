@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="analyze-page">
     <view class="analyze-body">
       <!-- ① 选择分析类型 -->
@@ -83,6 +84,7 @@
 import { computed, ref } from "vue";
 
 import Seg from "@/components/Seg.vue";
+import { useThemeStyle } from "@/composables/useTheme";
 import {
   analyzePose,
   analyzeSwing,
@@ -93,6 +95,8 @@ import type { AnalysisKind, AnalysisPose, AnalysisReport } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isUserCancel, isRuntimePermissionDenied } from "@/utils/privacy";
+
+const { themeStyle, themeBg } = useThemeStyle();
 
 type Mode = "single" | "full";
 
@@ -246,7 +250,7 @@ async function startAnalysis() {
 <style scoped lang="scss">
 .analyze-page {
   min-height: 100vh;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
 }
 
 .analyze-body {
@@ -258,7 +262,7 @@ async function startAnalysis() {
 }
 
 .form-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -275,7 +279,7 @@ async function startAnalysis() {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   font-size: 12px;
   font-weight: 700;
@@ -311,7 +315,7 @@ async function startAnalysis() {
   }
 
   &--inactive {
-    background-color: $color-paper;
+    background-color: var(--color-page-bg, #F2F2EF);
     color: $color-olive-light;
   }
 }
@@ -396,7 +400,7 @@ async function startAnalysis() {
 }
 
 .hit-btn {
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   font-size: 13px;
   font-weight: 500;
@@ -413,14 +417,14 @@ async function startAnalysis() {
 
 // ========== 分析按钮 ==========
 .analyze-btn {
-  background-color: $color-lime;
+  background-color: var(--color-accent, #C8DA2B);
   color: $color-ink;
   text-align: center;
   font-size: 16px;
   font-weight: 600;
   padding: 14px 0;
   border-radius: 9999px;
-  box-shadow: 0 4px 12px rgba(200, 218, 43, 0.35);
+  box-shadow: 0 4px 12px rgba(var(--color-accent-rgb, 200, 218, 43), 0.35);
 
   &--disabled {
     opacity: 0.6;

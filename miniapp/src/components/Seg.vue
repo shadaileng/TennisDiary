@@ -29,7 +29,7 @@ defineEmits<{
 
 .seg {
   display: flex;
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   border-radius: $radius-card;
   padding: 4px;
 }

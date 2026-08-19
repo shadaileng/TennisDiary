@@ -1,4 +1,5 @@
 <template>
+  <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="form-page">
     <view class="form-body">
       <!-- 封面照片 -->
@@ -60,6 +61,7 @@
           </view>
           <textarea
             class="field-input field-textarea"
+            maxlength="-1"
             placeholder="使用感受（选填）"
             placeholder-class="field-placeholder"
             :value="form.feeling"
@@ -90,12 +92,15 @@ import { computed, reactive, ref } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
 
 import Seg from "@/components/Seg.vue";
-import { useGearStore } from "@/stores";
+import { useThemeStyle } from "@/composables/useTheme";
+import { useGearStore, useSettingsStore } from "@/stores";
 import { getGear } from "@/services/data";
 import { GEAR_CATEGORIES, choosePhoto, safeNavigateBack, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const gearStore = useGearStore();
+const settingsStore = useSettingsStore();
+const { themeStyle, themeBg } = useThemeStyle();
 
 interface GearFormState {
   category: string
@@ -207,7 +212,7 @@ function confirmRemove() {
   uni.showModal({
     title: "删除装备",
     content: "确定删除这件装备？",
-    confirmColor: "#A8B822",
+    confirmColor: settingsStore.themePalette.dark,
     success: async (res) => {
       if (!res.confirm || editingId.value == null) return;
       try {
@@ -226,7 +231,7 @@ function confirmRemove() {
 <style scoped lang="scss">
 
 .form-page {
-  background-color: $color-paper;
+  background-color: var(--color-page-bg, #F2F2EF);
   min-height: 100vh;
   padding-bottom: $space-3xl;
 }
@@ -240,7 +245,7 @@ function confirmRemove() {
 }
 
 .form-card {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   padding: $space-lg;
   box-shadow: $shadow-card;
@@ -305,7 +310,7 @@ function confirmRemove() {
 .photo-upload {
   border-radius: 16px;
   overflow: hidden;
-  border: 2px dashed $color-paper;
+  border: 2px dashed var(--color-border, #E7E9DF);
   transition: border-color 0.15s ease;
   cursor: pointer;
   

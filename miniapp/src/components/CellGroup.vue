@@ -29,7 +29,7 @@ defineProps<{
 }
 
 .cell-group-content {
-  background-color: $color-white;
+  background-color: var(--color-card, #FFFFFF);
   border-radius: $radius-card;
   overflow: hidden;
   box-shadow: $shadow-card;

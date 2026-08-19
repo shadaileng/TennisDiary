@@ -131,6 +131,10 @@ export default defineConfig({
             { text: '91：分享工坊技术评分三区域分离', link: '/plans/91-分享工坊技术评分三区域分离' },
             { text: '92：分享工坊视觉优化', link: '/plans/92-分享工坊视觉优化' },
             { text: '93：分享工坊保存图片默认名称与隐私API适配', link: '/plans/93-分享工坊保存图片默认名称与隐私API适配' },
+            { text: '95：分享工坊 AI 文案生成', link: '/plans/95-分享工坊AI文案生成' },
+            { text: '96：小程序大满贯球场主题', link: '/plans/96-小程序大满贯球场主题' },
+            { text: '97：miniapp 构建 Circular chunk 警告修复', link: '/plans/97-miniapp构建循环chunk警告修复' },
+            { text: '98：分享工坊分享图添加小程序码', link: '/plans/98-分享工坊分享图添加小程序码' },
           ],
         },
         {

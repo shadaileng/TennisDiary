@@ -4,11 +4,12 @@
     <textarea
       v-if="type === 'textarea'"
       class="field-input"
+      maxlength="-1"
       :placeholder="placeholder"
       placeholder-class="field-placeholder"
       :value="modelValue"
       :rows="rows"
-      @input="$emit('update:modelValue', $event.detail.value)"
+      @input="onInput"
     />
     <input
       v-else
@@ -17,7 +18,7 @@
       :placeholder="placeholder"
       placeholder-class="field-placeholder"
       :value="modelValue"
-      @input="$emit('update:modelValue', $event.detail.value)"
+      @input="onInput"
     />
   </view>
 </template>
@@ -36,9 +37,13 @@ defineProps<{
   rows?: number
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (e: "update:modelValue", value: string): void
 }>();
+
+function onInput(e: any) {
+  emit("update:modelValue", e.detail.value);
+}
 </script>
 
 <style scoped lang="scss">

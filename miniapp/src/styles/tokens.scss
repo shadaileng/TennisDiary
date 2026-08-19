@@ -21,7 +21,7 @@ $radius-full: 9999px;
 // 阴影
 $shadow-card: 0 1px 8px rgba(23, 27, 20, 0.04);
 $shadow-card-md: 0 1px 8px rgba(23, 27, 20, 0.06);
-$shadow-fab: 0 6px 20px rgba(200, 218, 43, 0.5);
+$shadow-fab: 0 6px 20px rgba(var(--color-accent-rgb, 200, 218, 43), 0.5);
 
 // 间距
 $space-xs: 4px;

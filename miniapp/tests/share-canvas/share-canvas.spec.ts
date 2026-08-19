@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import {
   renderShareCard,
   renderTechScoreZone,
@@ -13,10 +14,25 @@ const SCREENSHOT_OPTIONS = {
   maxDiffPixelRatio: 0.02,
 };
 
+function countDarkPixels(img: Buffer, x: number, y: number, w: number, h: number): Promise<number> {
+  return loadImage(img).then((image) => {
+    const c = createCanvas(image.width, image.height);
+    const ctx = c.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+    const data = ctx.getImageData(x, y, w, h).data;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const lum = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      if (lum < 100) count++;
+    }
+    return count;
+  });
+}
+
 test.describe("Share Canvas Layout Regression", () => {
   test("月度战报 - 5次训练", async ({ page }) => {
     const { image, height } = await renderShareCard("月度战报", createMonthlyData(5));
-    expect(height).toBe(1280);
+    expect(height).toBe(1400);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
     await page.locator("img").waitFor({ state: "visible" });
     await expect(page.locator("img")).toHaveScreenshot("monthly-5diaries.png", SCREENSHOT_OPTIONS);
@@ -24,7 +40,7 @@ test.describe("Share Canvas Layout Regression", () => {
 
   test("今日日记 - 有复盘内容", async ({ page }) => {
     const { image, height } = await renderShareCard("今日日记", createTodayDiaryData("今天练习了正手击球，感觉进步明显。重点练习了随挥收拍动作，教练说收拍轨迹完整但略显僵硬，需要放松。"));
-    expect(height).toBe(1320);
+    expect(height).toBe(1440);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
     await page.locator("img").waitFor({ state: "visible" });
     await expect(page.locator("img")).toHaveScreenshot("today-with-review.png", SCREENSHOT_OPTIONS);
@@ -32,7 +48,7 @@ test.describe("Share Canvas Layout Regression", () => {
 
   test("今日日记 - 空数据", async ({ page }) => {
     const { image, height } = await renderShareCard("今日日记", createTodayDiaryData(""));
-    expect(height).toBe(1320);
+    expect(height).toBe(1440);
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
     await page.locator("img").waitFor({ state: "visible" });
     await expect(page.locator("img")).toHaveScreenshot("today-empty.png", SCREENSHOT_OPTIONS);
@@ -55,13 +71,13 @@ test.describe("Share Canvas Layout Regression", () => {
   test("高度计算一致性 - 月度战报", async () => {
     const data = createMonthlyData(5);
     const { height } = await renderShareCard("月度战报", data);
-    expect(height).toBe(1280);
+    expect(height).toBe(1400);
   });
 
   test("高度计算一致性 - 今日日记", async () => {
     const data = createTodayDiaryData();
     const { height } = await renderShareCard("今日日记", data);
-    expect(height).toBe(1320);
+    expect(height).toBe(1440);
   });
 
   test("高度计算一致性 - 技术评分", async () => {
@@ -97,5 +113,11 @@ test.describe("Share Canvas Layout Regression", () => {
     await page.setContent(`<html><body style="margin:0;padding:0;background:#f5f5f5"><img src="data:image/png;base64,${image.toString("base64")}" /></body></html>`);
     await page.locator("img").waitFor({ state: "visible" });
     await expect(page.locator("img")).toHaveScreenshot("tech-score-full.png", SCREENSHOT_OPTIONS);
+  });
+
+  test("二维码绘制在底部右下角", async () => {
+    const { image, height } = await renderShareCard("技术评分", createTechScoreData(6));
+    const count = await countDarkPixels(image, 1080 - 70 - 160, height - 200, 160, 160);
+    expect(count).toBeGreaterThan(500);
   });
 });

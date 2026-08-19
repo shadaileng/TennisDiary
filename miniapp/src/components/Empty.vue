@@ -50,7 +50,7 @@ defineEmits<{
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background-color: $color-lime-soft;
+  background-color: var(--color-accent-soft, $color-lime-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -71,14 +71,14 @@ defineEmits<{
 }
 
 .empty-btn {
-  background-color: $color-lime-dark;
+  background-color: var(--color-accent-dark, $color-lime-dark);
   color: $color-white;
   font-size: 14px;
   font-weight: 500;
   padding: $space-md $space-2xl;
   border-radius: 9999px;
   transition: opacity 0.15s ease;
-  box-shadow: 0 4px 12px rgba(168, 184, 34, 0.3);
+  box-shadow: 0 4px 12px rgba(var(--color-accent-rgb, 200, 218, 43), 0.3);
   
   &:active {
     opacity: 0.9;

@@ -57,7 +57,7 @@ function toggle() {
   transition: opacity 0.15s ease;
   
   &--visible {
-    background-color: $color-paper;
+    background-color: var(--color-page-bg, #F2F2EF);
     color: $color-olive-light;
   }
   

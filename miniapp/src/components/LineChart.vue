@@ -44,6 +44,7 @@ function formatValue(v: number): string {
 }
 
 function draw() {
+  if (!instance?.proxy) return;
   const data = props.data;
   if (data.length === 0) return;
 
@@ -60,7 +61,7 @@ function draw() {
 
   const query = uni.createSelectorQuery().in(instance.proxy);
   query.select("#lineChart")
-    .fields({ node: true, size: true })
+    .fields({ node: true, size: true }, () => {})
     .exec((res) => {
       if (!res[0]?.node) return;
       const canvas = res[0].node;

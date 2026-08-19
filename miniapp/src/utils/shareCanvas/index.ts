@@ -37,8 +37,9 @@ export function drawShareCard(
   data: ShareData,
   MOOD: readonly MoodItem[],
   INTENSITY: readonly IntensityItem[],
+  qrImage?: CanvasImageSource,
 ): number {
-  const pipe = buildContext(tpl, data, MOOD, INTENSITY);
+  const pipe = buildContext(tpl, data, MOOD, INTENSITY, qrImage);
   const pipeline = createPipeline();
   return pipeline.execute(ctx, pipe);
 }
@@ -48,8 +49,9 @@ export function measureShareCardHeight(
   data: ShareData,
   MOOD: readonly MoodItem[],
   INTENSITY: readonly IntensityItem[],
+  qrImage?: CanvasImageSource,
 ): number {
-  const pipe = buildContext(tpl, data, MOOD, INTENSITY);
+  const pipe = buildContext(tpl, data, MOOD, INTENSITY, qrImage);
   const pipeline = createPipeline();
   return pipeline.measureHeight(pipe);
 }

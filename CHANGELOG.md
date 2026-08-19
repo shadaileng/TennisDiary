@@ -4,6 +4,45 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.65.1] - 2026-08-19
+
+### Fixed
+
+- miniapp 修复 type-check 存量类型错误（8 项清零）：`Field.vue` 内联 `$event.detail.value` 被 vue-tsc 解析为 DOM `InputEvent.detail:number`，改为 `(e:any)=>e.detail.value` 处理器（与全库 `@input` 约定一致）；`LineChart.vue`/`RadarChart.vue` 增加 `instance?.proxy` 守卫并给 `Query.fields()` 补第二参回调；`share.vue` canvasToTempFilePath `fail` 回调补 `err: any`；`request.ts` 日志内 `res.data?.code` 显式转型 `ApiResponse`。`pnpm type-check` 从 8 错误归零。
+
+## [1.65.0] - 2026-08-19
+
+### Added
+
+- miniapp 分享工坊分享图添加小程序码（98）：三张模板（月度战报/今日日记/技术评分）分享卡底部右下角绘制微信小程序码 `td-qr.png`（真实 PNG 重编码后随包发布，左侧竖排「扫码体验 / Tennis Diary」标签，footer 高度 120→240）。`share.vue` 通过 `node.createImage()` 异步预载二维码后注入管线上下文（`PipelineContext.qrImage`），失败降级为底部留白不阻塞出图并埋点；`footer` 阶段同步 `ctx.drawImage` 保持管线非阻塞。Playwright 新增二维码像素断言，9 张视觉回归快照全量重建。
+
+## [1.64.2] - 2026-08-19
+
+### Fixed
+
+- miniapp 修复 textarea 缺省 140 字上限截断润色文案：微信小程序 `<textarea>` `maxlength` 默认为 140，分享工坊 AI 润色文案（80-150 字 + emoji + 标签）超限被截断；分享页配文、日记表单「今日复盘」、装备表单「使用感受」及 `Field.vue` 组件统一设置 `maxlength="-1"` 不限长度。
+
+## [1.64.1] - 2026-08-19
+
+### Fixed
+
+- miniapp 构建 Circular chunk 警告修复（97）：`stores/auth → services/auth → services/request → stores/auth` 循环分块依赖解耦——`services/request.ts` 移除 `useAuthStore` 静态导入，新增 `onSessionExpired` 回调注册入口，`clearAuth()` 改为清 storage + 通知回调；`stores/auth.ts` 模块顶层注册该回调，401 时延迟调用 `useAuthStore().logout()` 同步重置内存态（行为与之前一致）。网络层保持零 auth-store 依赖，`pnpm build:mp-weixin` 警告消除。
+
+## [1.64.0] - 2026-08-19
+
+### Added
+
+- miniapp 小程序大满贯球场主题（96）：修复「我的」页「青柠主题」开关无实际效果，提供四套球场主题（青柠/澳网/法网/温网）。设计隐喻「网球恒青柠、球场随主题」——`accent`/`accent-dark`/`accent-soft`/`accent-rgb` 恒定青柠（按钮/标签/图表/`confirmColor`/switch），`page-bg`/`card`/`border`/`hero-a`/`hero-b` 按球场取色（背景/卡片/分隔线/深色大卡渐变）。`stores/settings.ts` `ThemePalette` 扩展至 9 Token；新增 `composables/useTheme.ts`（`useThemeStyle()` 返回 `{themeStyle, themeBg}`）；11 页接入 `<page-meta page-style + background-color>`；组件/页面 SCSS 硬编码颜色替换为 CSS 变量（Seg/Stepper/Tag/MoneyToggle/Empty 底色→page-bg，页面级卡片→card，分隔线→border）；mine.vue「球场主题」菜单项 + 主题选择弹层（色块显示球场渐变）。
+- miniapp 加强非青柠主题色差（96）：澳网 `#D8E5F4`/`#F0F7FD`、法网 `#E2CABC`/`#F8EDE5`、温网 `#D0E0C9`/`#EDF5E9` 背景/卡片明显区别于青柠；diary/gear hero 卡片背景从固定 `$color-olive` 改为 `var(--color-hero-a/b)` 渐变，与 mine 资料卡/coach hero 卡一致，全端深色大卡随主题。
+
+## [1.63.0] - 2026-08-19
+
+### Added
+
+- server 分享工坊 AI 文案润色（95）：`POST /api/ai/caption` 接收 `template`/`style`/`text`，服务端按当前用户查库（月度战报/今日日记/技术评分）+ 润色 prompt，多风格可选（活泼/简洁/专业），无 Key/异常降级本地模板文案；`generate_caption` 增加 LRU 缓存（MD5 key，20 条上限，永不自动过期，命中打日志），避免重复调用 AI 浪费 token。新增 `ai_service.chat_text` / `build_caption_context` / `build_local_caption` 与 `CaptionRequest`/`CaptionResponse` schema。
+- miniapp 分享工坊润色交互（95）：`share.vue` 按钮「重新生成」→「润色文案」、loading「润色中…」、失败 toast「润色失败，已用模板文案」；textarea 内容透传 AI 结合数据润色；风格选择器（活泼/简洁/专业）；空态提前 return（当月无打卡/无日记/无分析）；前端移除所有用户可见的"AI"字眼。
+- tests 新增（95）：`test_ai.py` `TestCaption` 润色 prompt/text 透传断言 + `TestCaptionCache` LRU 命中/未命中/淘汰/key 稳定性 5 用例，`test_ai.py` 29 用例。
+
 ## [1.62.4] - 2026-08-18
 
 ### Fixed

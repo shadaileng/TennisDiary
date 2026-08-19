@@ -109,7 +109,7 @@ function onSelect(item: ActionSheetAction) {
   transition: opacity 0.15s ease;
   
   &--bordered {
-    border-top: 1px solid $color-paper;
+    border-top: 1px solid var(--color-border, #E7E9DF);
   }
   
   &:active {
@@ -123,6 +123,6 @@ function onSelect(item: ActionSheetAction) {
   text-align: center;
   font-size: 14px;
   color: $color-olive-light;
-  border-top: 1px solid $color-paper;
+  border-top: 1px solid var(--color-border, #E7E9DF);
 }
 </style>

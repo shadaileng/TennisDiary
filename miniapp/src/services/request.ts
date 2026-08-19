@@ -1,7 +1,6 @@
 import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
 import { useAppStore } from "@/stores/app";
-import { useAuthStore } from "@/stores/auth";
 import { logError, logWarn } from "@/utils/eventLogger";
 
 /**
@@ -67,7 +66,20 @@ function getToken(): string {
 function clearAuth() {
   uni.removeStorageSync(TOKEN_KEY);
   uni.removeStorageSync(USER_KEY);
-  useAuthStore().logout();
+  sessionExpiredHandler?.();
+}
+
+/** 会话失效回调：由 auth store 注册，用于同步重置其内存态 */
+type SessionExpiredHandler = () => void;
+let sessionExpiredHandler: SessionExpiredHandler | null = null;
+
+/**
+ * 注册会话失效回调。
+ * 网络层保持零 store 依赖（避免 request ↔ store 循环 chunk 警告），
+ * auth store 通过本入口在 401 时同步重置内存态。
+ */
+export function onSessionExpired(handler: SessionExpiredHandler) {
+  sessionExpiredHandler = handler;
 }
 
 /** 登录引导 toast 节流间隔（毫秒），避免多请求/重复触发刷屏 */
@@ -198,7 +210,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           method,
           url,
           statusCode,
-          code: res.data?.code,
+          code: (res.data as ApiResponse<unknown> | null)?.code,
         }, "http_error");
         reject(new ApiError(statusCode, parseDetail(res)));
       },

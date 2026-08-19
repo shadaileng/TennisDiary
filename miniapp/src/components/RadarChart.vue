@@ -22,26 +22,29 @@ const props = withDefaults(
   defineProps<{
     data: { name: string; score: number }[]
     height?: number
+    /** 强调色（跟随主题由页面传入，默认青柠） */
+    color?: string
   }>(),
   {
     height: 220,
+    color: "#C8DA2B",
   },
 );
 
 // 与 Web Charts.tsx Radar 一致：三档网格（0.33/0.66/1）+ 辐射线 + 分值多边形 + 顶点标签
 const GRID = "#E7E9DF";
-const LIME = "#C8DA2B";
 const INK = "#171B14";
 const GREY = "#9CA3AF";
 
 function draw() {
+  if (!instance?.proxy) return;
   const data = props.data;
   if (data.length < 3) return;
 
   const query = uni.createSelectorQuery().in(instance.proxy);
   query
     .select("#radarChart")
-    .fields({ node: true, size: true })
+    .fields({ node: true, size: true }, () => {})
     .exec((res) => {
       if (!res[0]?.node) return;
       const canvas = res[0].node;
@@ -105,11 +108,11 @@ function draw() {
         }
       }
       ctx.closePath();
-      ctx.fillStyle = LIME;
+      ctx.fillStyle = props.color;
       ctx.globalAlpha = 0.35;
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = LIME;
+      ctx.strokeStyle = props.color;
       ctx.lineWidth = 2;
       ctx.lineJoin = "round";
       ctx.stroke();
