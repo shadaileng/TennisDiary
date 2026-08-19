@@ -170,6 +170,7 @@ cd admin && pnpm build                 # 构建管理端
 | 94 | 姿态推理线上503异常排查与修复（slim 镜像安装 libgl1+libglib2.0-0，镜像从 1.1GB 降至 957MB） | ✅ |
 | 95 | 分享工坊 AI 文案生成（`POST /api/ai/caption` 后端查库 + 活泼/简洁/专业三风格 + 失败本地模板降级） | ✅ |
 | 96 | 小程序大满贯球场主题（四套球场主题 CSS 变量 + page-meta 注入，修复「青柠主题」开关无效；我的页主题选择弹层；网球恒青柠 + 背景/卡片/hero渐变随主题；加强非青柠主题色差） | 🚧 进行中 |
+| 97 | 小程序构建 Circular chunk 警告修复（request ↔ auth store 循环依赖解耦：`onSessionExpired` 回调注册替代静态导入） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

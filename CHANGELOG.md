@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.64.1] - 2026-08-19
+
+### Fixed
+
+- miniapp 构建 Circular chunk 警告修复（97）：`stores/auth → services/auth → services/request → stores/auth` 循环分块依赖解耦——`services/request.ts` 移除 `useAuthStore` 静态导入，新增 `onSessionExpired` 回调注册入口，`clearAuth()` 改为清 storage + 通知回调；`stores/auth.ts` 模块顶层注册该回调，401 时延迟调用 `useAuthStore().logout()` 同步重置内存态（行为与之前一致）。网络层保持零 auth-store 依赖，`pnpm build:mp-weixin` 警告消除。
+
 ## [1.64.0] - 2026-08-19
 
 ### Added

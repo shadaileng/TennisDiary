@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 
 import { STORAGE_KEYS } from "@/constants/storage";
+import { onSessionExpired } from "@/services/request";
 import { getLoginCode, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
 import { isLoggedIn as isTokenValid } from "@/utils/jwt";
@@ -133,4 +134,13 @@ export const useAuthStore = defineStore("auth", {
       uni.removeStorageSync(HAS_LOGGED_IN_KEY);
     },
   },
+});
+
+/**
+ * 401 时由网络层回调，同步重置本 store 内存态。
+ * 回调延迟到触发时才调用 useAuthStore()（此时 pinia 必然已初始化），
+ * 仅注册函数引用无副作用；且打破 request ←→ store 的循环 chunk。
+ */
+onSessionExpired(() => {
+  useAuthStore().logout();
 });
