@@ -37,13 +37,14 @@ const INK = "#171B14";
 const GREY = "#9CA3AF";
 
 function draw() {
+  if (!instance?.proxy) return;
   const data = props.data;
   if (data.length < 3) return;
 
   const query = uni.createSelectorQuery().in(instance.proxy);
   query
     .select("#radarChart")
-    .fields({ node: true, size: true })
+    .fields({ node: true, size: true }, () => {})
     .exec((res) => {
       if (!res[0]?.node) return;
       const canvas = res[0].node;

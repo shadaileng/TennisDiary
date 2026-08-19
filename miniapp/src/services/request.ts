@@ -210,7 +210,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           method,
           url,
           statusCode,
-          code: res.data?.code,
+          code: (res.data as ApiResponse<unknown> | null)?.code,
         }, "http_error");
         reject(new ApiError(statusCode, parseDetail(res)));
       },

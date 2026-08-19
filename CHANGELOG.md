@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.65.1] - 2026-08-19
+
+### Fixed
+
+- miniapp 修复 type-check 存量类型错误（8 项清零）：`Field.vue` 内联 `$event.detail.value` 被 vue-tsc 解析为 DOM `InputEvent.detail:number`，改为 `(e:any)=>e.detail.value` 处理器（与全库 `@input` 约定一致）；`LineChart.vue`/`RadarChart.vue` 增加 `instance?.proxy` 守卫并给 `Query.fields()` 补第二参回调；`share.vue` canvasToTempFilePath `fail` 回调补 `err: any`；`request.ts` 日志内 `res.data?.code` 显式转型 `ApiResponse`。`pnpm type-check` 从 8 错误归零。
+
 ## [1.65.0] - 2026-08-19
 
 ### Added

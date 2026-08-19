@@ -189,7 +189,7 @@ function draw() {
             }
             // #endif
         },
-        fail: (err) => {
+        fail: (err: any) => {
           logError("canvasToTempFilePath 失败", { error: String(err) }, "share_canvas_failed", undefined, createTraceId());
           console.error('[share] canvasToTempFilePath fail:', err)
           cardURL.value = "";
