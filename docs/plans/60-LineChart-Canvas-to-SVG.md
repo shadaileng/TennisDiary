@@ -7,7 +7,7 @@
 > | 文档状态 | 📋 待实施 |
 > | 最后更新 | 2026-08-09 |
 > | 对应功能/内容 | LineChart 组件从 Canvas 迁移到 SVG |
-> | 关联文档 | [Charts.tsx](../reference/tennis-diary/src/components/Charts.tsx)（参考实现） |
+> | 关联文档 | `docs/reference/tennis-diary/src/components/Charts.tsx`（参考实现，未纳入版本管理） |
 
 # Step 60：LineChart 组件从 Canvas 迁移到 SVG
 
