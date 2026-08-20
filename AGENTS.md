@@ -72,6 +72,17 @@ cd admin && pnpm build                 # 构建管理端
 
 禁止 `git add .`，禁止无意义消息（`wip`、`tmp`）。
 
+### 服务启动规则
+
+**禁止 agent 自动后台启动服务。** 所有服务必须由人类手动启动/停止：
+
+- 后端开发：`pnpm server:dev`（前台运行，Ctrl+C 停止）
+- 前端开发：`pnpm admin:dev` / `cd miniapp && pnpm dev`
+- 启动前如需杀端口：`python scripts/start-server.py`（仅杀进程，不启动服务）
+
+禁止使用 `nohup`、`&`、`subprocess.Popen`、`start /B` 等方式在后台常驻服务。
+禁止在代码中调用 `os.system`、`subprocess.call` 等自动拉起服务的命令。
+
 ## 编码规范
 
 ### 后端
