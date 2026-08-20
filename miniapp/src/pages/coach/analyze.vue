@@ -117,12 +117,15 @@
                 >
                   <text class="tl-clip-label">{{ i + 1 }}</text>
                 </view>
-                <!-- 开放起点标记 -->
+                <!-- 开放起点标记（带包裹感） -->
                 <view
                   v-if="pendingStart !== null"
                   class="tl-pending-mark"
                   :style="{ left: t2x(pendingStart) + 'px' }"
-                ></view>
+                >
+                  <view class="tl-pending-arrow"></view>
+                  <view class="tl-pending-line"></view>
+                </view>
               </view>
 
               <!-- 中间播放头（固定竖线） -->
@@ -1077,17 +1080,29 @@ function fmtTime(s: number): string {
   top: 0;
   bottom: 0;
   width: 2px;
-  background: var(--color-accent, #C8DA2B);
   transform: translateX(-1px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 
-  &::after {
-    content: "▶";
+  // 顶部箭头（指向下方）
+  .tl-pending-arrow {
     position: absolute;
-    top: 4px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 10px;
-    color: var(--color-accent, #C8DA2B);
+    top: 2px;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--color-accent, #C8DA2B);
+  }
+
+  // 竖线（贯穿时间轴）
+  .tl-pending-line {
+    position: absolute;
+    top: 10px;
+    bottom: 0;
+    width: 2px;
+    background: var(--color-accent, #C8DA2B);
   }
 }
 
