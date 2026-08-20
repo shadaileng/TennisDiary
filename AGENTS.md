@@ -72,6 +72,27 @@ cd admin && pnpm build                 # 构建管理端
 
 禁止 `git add .`，禁止无意义消息（`wip`、`tmp`）。
 
+**提交前验证（强制执行）**：
+
+修改后端代码后，提交前必须依次执行：
+```bash
+cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q
+```
+- `ruff check` 有 error 时禁止提交，先修复
+- `ruff format` 有变更时先格式化再提交
+- `pytest` 有失败时禁止提交，先修复
+
+修改前端代码后，提交前必须依次执行：
+```bash
+cd miniapp && pnpm run type-check && pnpm run build:mp-weixin
+```
+或
+```bash
+cd admin && pnpm run type-check && pnpm run build
+```
+
+**违反此规则的代码禁止提交。**
+
 ### 服务启动规则
 
 **禁止 agent 自动后台启动服务。** 所有服务必须由人类手动启动/停止：
