@@ -74,10 +74,16 @@
               <text class="trim-meta">{{ trimMetaText }}</text>
             </view>
 
-            <!-- 缩放控件（透明背景，放大 / 缩小） -->
+            <!-- 缩放控件（时间轴上方两侧，放大镜图标） -->
             <view class="tl-zoom-controls">
-              <view class="tl-zoom-btn press-btn" @tap="zoomOut">−</view>
-              <view class="tl-zoom-btn press-btn" @tap="zoomIn">＋</view>
+              <view class="tl-zoom-btn press-btn" @tap="zoomOut">
+                <view class="tl-glass"></view>
+                <view class="tl-glass-badge">−</view>
+              </view>
+              <view class="tl-zoom-btn press-btn" @tap="zoomIn">
+                <view class="tl-glass"></view>
+                <view class="tl-glass-badge">＋</view>
+              </view>
             </view>
 
             <!-- 时间刻度（固定在容器上，以播放头为 0 参考） -->
@@ -926,24 +932,60 @@ function fmtTime(s: number): string {
 // ========== 时间轴剪辑 ==========
 .tl-zoom-controls {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 6px;
 }
 
 .tl-zoom-btn {
-  width: 34px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9999px;
-  background-color: rgba(0, 0, 0, 0.06); /* 透明背景 */
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  font-size: 18px;
-  font-weight: 600;
-  color: $color-olive-light;
-  line-height: 1;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.85); /* 半透明白色背景 */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  position: relative;
+}
+
+.tl-glass {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid var(--color-olive-light, #6b7c2a);
+  border-radius: 50%;
+  position: relative;
+  box-sizing: border-box;
+  flex-shrink: 0;
+
+  // 手柄
+  &::after {
+    content: "";
+    position: absolute;
+    width: 8px;
+    height: 3px;
+    background: var(--color-olive-light, #6b7c2a);
+    border-radius: 2px;
+    transform: rotate(45deg);
+    right: -8px;
+    bottom: -3px;
+  }
+}
+
+.tl-glass-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--color-accent, #C8DA2B);
+  color: $color-ink;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .tl-ruler {
