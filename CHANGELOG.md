@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.68.4] - 2026-08-21
+
+### Fixed
+
+- 修复时间轴开放起点标记不显示问题：补充父元素 `position: relative` 及子元素定位，添加 `z-index: 8` 确保标记不被遮挡。
+
 ## [1.68.3] - 2026-08-21
 
 ### Fixed
