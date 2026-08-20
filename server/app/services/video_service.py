@@ -449,4 +449,5 @@ def process_video(
         "mode": mode,
         "trimmed": bool(segments),
         "segments": segments,
+        "working_path": working,
     }

@@ -151,7 +151,9 @@ def upload_video(
         ) from exc
 
     result["kind"] = kind
-    rel_video = os.path.relpath(abs_path, settings.UPLOAD_DIR).replace(os.sep, "/")
+    # 裁切后 working != abs_path，video_url 应指向实际存在的文件
+    working_path = result.get("working_path") or abs_path
+    rel_video = os.path.relpath(working_path, settings.UPLOAD_DIR).replace(os.sep, "/")
     result["video_url"] = rel_video
     log.info(
         "视频抽帧完成",
