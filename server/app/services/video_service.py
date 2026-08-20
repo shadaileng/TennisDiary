@@ -22,10 +22,11 @@ _FULL_FRAME_COUNT = 8
 _FRAME_WIDTH = 640
 _FRAME_QUALITY = 2  # ffmpeg q:v 2 ≈ JPEG 质量 0.72
 
-# 片段时长限制（秒）
-_MAX_DURATION = {"single": 15.0, "full": 90.0}
 # 上传完整视频上限制（秒）：超长须先在相册裁短
 _UPLOAD_MAX_DURATION = 180.0
+# 片段/整片时长限制（秒）：与整片上传上限一致，不再按模式额外收紧
+# （single=单次挥拍、full=综合分析；整片 ≤180s，裁剪后总长也 ≤180s）
+_MAX_DURATION = {"single": _UPLOAD_MAX_DURATION, "full": _UPLOAD_MAX_DURATION}
 # 单段最短（秒）
 _MIN_SEGMENT_LEN = 0.6
 # 每模式最大片段数
@@ -373,8 +374,9 @@ def process_video(
     hit_time: float | None,
     cuts: list[dict] | None = None,
 ) -> dict:
-    """编排：探测 → 上传整片校验 →（可选）裁剪拼接 → 片段时长校验 → 采样 → 抽帧 → 封面
+    """编排：探测 → 整片时长校验（≤180s）→（可选）裁剪拼接 → 采样 → 抽帧 → 封面
 
+    - 时长上限仅 _UPLOAD_MAX_DURATION（180s）统一兜底，不做模式差异收紧
     - cuts 提供时先裁切拼接（hit_time 视为拼接后相对时间），再对产物走上游流程
     - 返回 dict 含 trimmed（是否裁剪）与 segments（规范化后的片段列表）
     """
@@ -398,15 +400,8 @@ def process_video(
     else:
         frame_rate = probe_frame_rate(path)
 
-    limit = _MAX_DURATION.get(mode, _MAX_DURATION["single"])
-    if duration > limit:
-        label = "单次挥拍" if mode == "single" else "综合分析"
-        hint = (
-            "" if segments is not None else f"；请在时间轴选择片段（裁剪后总长 ≤ {int(limit)} 秒）"
-        )
-        raise VideoTooLongError(
-            message=f"{label}视频最长 {int(limit)} 秒，当前 {duration:.1f} 秒" + hint
-        )
+    # 时长上限仅由 _UPLOAD_MAX_DURATION（180s）在裁剪前统一兜底，
+    # 整片/裁剪后总长均已 ≤180s，无需再按模式校验
 
     times = build_sampling_times(mode, duration, hit_time)
     frames = extract_frames(working, times)

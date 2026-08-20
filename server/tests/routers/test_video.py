@@ -127,19 +127,21 @@ class TestExtractFrames:
 
 
 class TestProcessVideoLimits:
-    """process_video 时长限制"""
+    """process_video 时长限制（现仅 180s 整片上限统一兜底）"""
 
-    def test_single_too_long(self, monkeypatch):
-        """single 20s > 15s → 抛 VideoTooLongError"""
-        monkeypatch.setattr(video_service, "probe_duration", lambda p: 20.0)
+    def test_video_over_upload_cap(self, monkeypatch):
+        """250s 整片 > 180s → 抛 VideoTooLongError"""
+        monkeypatch.setattr(video_service, "probe_duration", lambda p: 250.0)
         with pytest.raises(VideoTooLongError):
             video_service.process_video("/tmp/v.mp4", "single", 2.0)
 
-    def test_full_too_long(self, monkeypatch):
-        """full 100s > 90s → 抛 VideoTooLongError"""
-        monkeypatch.setattr(video_service, "probe_duration", lambda p: 100.0)
-        with pytest.raises(VideoTooLongError):
-            video_service.process_video("/tmp/v.mp4", "full", 40.0)
+    def test_long_single_no_longer_rejected(self, monkeypatch):
+        """single 120s 整片（≤180s）不再抛超限错误（此前 15s 限制已解除）"""
+        monkeypatch.setattr(video_service, "probe_duration", lambda p: 120.0)
+        # 时长校验通过后进入抽帧，ffmpeg 缺失抛 FfmpegUnavailableError，证明未触发超限
+        monkeypatch.setattr(video_service, "find_ffmpeg", lambda: None)
+        with pytest.raises(FfmpegUnavailableError):
+            video_service.process_video("/tmp/v.mp4", "single", 2.0)
 
     def test_ffmpeg_missing(self, monkeypatch):
         """无 ffmpeg → 抛 FfmpegUnavailableError"""
@@ -236,11 +238,16 @@ class TestValidateCuts:
             video_service.validate_cuts([{"start": 1.0}], "full", 10.0)
 
     def test_total_too_long(self):
-        """拼接总长超过模式上限 → InvalidCutError（single 15s）"""
+        """拼接总长超过 180s 上限 → InvalidCutError（单段内 15s/90s 限制已解除）"""
         with pytest.raises(InvalidCutError):
             video_service.validate_cuts(
-                [{"start": 0.0, "end": 5.0}, {"start": 10.0, "end": 22.0}], "single", 30.0
+                [{"start": 0.0, "end": 100.0}, {"start": 110.0, "end": 220.0}], "full", 240.0
             )
+
+    def test_total_within_cap_accepted(self):
+        """single 单段 120s（≤180s）不再受 15s 限制→合法"""
+        cuts = [{"start": 0.0, "end": 120.0}]
+        assert video_service.validate_cuts(cuts, "single", 120.0) == cuts
 
 
 # ==================== 服务层单测：process_video 裁剪 ====================

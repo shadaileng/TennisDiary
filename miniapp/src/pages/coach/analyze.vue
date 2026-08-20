@@ -178,9 +178,9 @@ interface TrimSegment {
   end: number;
 }
 
-// 与后端 video_service 对齐的裁剪约束
+// 与后端 video_service 对齐的裁剪约束（时长上限与整片上传上限一致，不再按模式收紧）
 const UPLOAD_MAX = 180;
-const MODE_LIMIT: Record<Mode, number> = { single: 15, full: 90 };
+const MODE_LIMIT: Record<Mode, number> = { single: 180, full: 180 };
 const MAX_SEGMENTS: Record<Mode, number> = { single: 1, full: 8 };
 const MIN_SEGMENT = 0.6;
 const MIN_ZOOM_SPAN = 2;
@@ -589,7 +589,8 @@ async function startAnalysis() {
       return;
     }
     if (dur > modeLimit.value) {
-      uni.showToast({ title: `请先在时间轴裁剪片段（裁剪后总长 ≤ ${modeLimit.value}s）`, icon: "none" });
+      // modeLimit 现与整片上传上限一致：此分支仅在选择器时长校验被绕过时兜底
+      uni.showToast({ title: `视频超过 ${UPLOAD_MAX} 秒上限，请先在相册裁剪后再上传`, icon: "none" });
       return;
     }
   }
