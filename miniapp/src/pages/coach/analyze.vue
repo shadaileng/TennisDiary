@@ -1080,9 +1080,9 @@ function fmtTime(s: number): string {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
-  transform: translateX(-1px);
-  z-index: 8;
+  width: 4px;
+  transform: translateX(-2px);
+  z-index: 11;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1095,9 +1095,10 @@ function fmtTime(s: number): string {
     transform: translateX(-50%);
     width: 0;
     height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 8px solid var(--color-accent, #C8DA2B);
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 10px solid var(--color-accent, #C8DA2B);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
   }
 
   // 竖线（贯穿时间轴）
@@ -1106,9 +1107,10 @@ function fmtTime(s: number): string {
     top: 10px;
     bottom: 0;
     left: 50%;
-    width: 2px;
-    margin-left: -1px;
+    width: 4px;
+    margin-left: -2px;
     background: var(--color-accent, #C8DA2B);
+    box-shadow: 0 0 4px rgba(200, 218, 43, 0.5);
   }
 }
 
