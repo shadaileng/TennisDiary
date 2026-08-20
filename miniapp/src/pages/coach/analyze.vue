@@ -74,6 +74,12 @@
               <text class="trim-meta">{{ trimMetaText }}</text>
             </view>
 
+            <!-- 缩放控件（透明背景，放大 / 缩小） -->
+            <view class="tl-zoom-controls">
+              <view class="tl-zoom-btn press-btn" @tap="zoomOut">−</view>
+              <view class="tl-zoom-btn press-btn" @tap="zoomIn">＋</view>
+            </view>
+
             <!-- 时间刻度（固定在容器上，以播放头为 0 参考） -->
             <view class="tl-ruler">
               <text v-for="t in rulerTicks" :key="t" class="tl-ruler-tick" :style="{ left: containerX(t) + 'px' }">{{ fmtTime(t) }}</text>
@@ -107,25 +113,13 @@
                 </view>
               </view>
 
-              <!-- 左侧把手（起始点） -->
-              <view
-                class="tl-handle tl-handle--left"
-                :style="handleLeftStyle()"
-              ></view>
-
-              <!-- 右侧把手（结束点） -->
-              <view
-                class="tl-handle tl-handle--right"
-                :style="handleRightStyle()"
-              ></view>
-
               <!-- 中间播放头（固定竖线） -->
               <view class="tl-playhead"></view>
             </view>
 
             <view class="timeline-info">
               <text class="tl-info-time">▶ {{ fmtTime(playhead) }}s / {{ fmtTime(videoDuration) }}s</text>
-              <text class="tl-info-zoom">拖动轨道选择帧 · 拖动两侧把手设置裁剪范围</text>
+              <text class="tl-info-zoom">拖动轨道选择帧 · ＋/− 缩放</text>
             </view>
 
             <view class="trim-actions">
@@ -234,9 +228,6 @@ let pinchDist = 0;
 let pinchStartPps = TRACK_PPS;
 let lastPanX = 0;
 let lastSeekTs = 0;
-let dragHandleType: "left" | "right" | null = null;
-let handleStartX = 0;
-let handleStartTime = 0;
 
 // 轨道偏移量（px）：使播放头始终显示在容器中间
 const trackOffset = computed(() => barWidth.value / 2 - playhead.value * pps.value);
@@ -425,40 +416,19 @@ function centerOnSegment(i: number) {
   flushPlayhead();
 }
 
-// ============ 时间轴手势：拖动轨道 + 双指捏合缩放 + 把手命中 ============
-/** 检测触点是否落在把手（起始/结束把手）上，返回命中类型 */
-function resolveHandleHit(x: number): "left" | "right" | null {
-  if (!barWidth.value) return null;
-  const leftT = segments.value.length ? segments.value[0].start : 0;
-  const rightT = segments.value.length ? segments.value[0].end : videoDuration.value;
-  const leftX = barLeft.value + containerX(leftT);
-  const rightX = barLeft.value + containerX(rightT);
-  const R = 24; // 把手命中半径（px）
-  if (Math.abs(x - leftX) <= R) return "left";
-  if (Math.abs(x - rightX) <= R) return "right";
-  return null;
-}
-
+// ============ 时间轴手势：拖动轨道 + 双指捏合缩放 ============
 function onTrackTouchStart(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
     dragMode = "pinch";
     pinchDist = touchDist(touches);
     pinchStartPps = pps.value;
-    dragHandleType = null;
     return;
   }
   const touch = touches[0];
   if (!touch) return;
-  // 单指命中把手 → 进入把手拖动模式
-  const hit = resolveHandleHit(touch.clientX);
-  if (hit) {
-    dragHandleType = hit;
-    handleStartX = touch.clientX;
-    handleStartTime =
-      hit === "left" ? segments.value[0]?.start ?? 0 : segments.value[0]?.end ?? videoDuration.value;
-    dragMode = "none";
-    return;
+  if (dragMode === "pinch") {
+    // 双指抬剩单指：记录新起点，仍按拖动轨道处理
   }
   dragMode = "track";
   lastPanX = touch.clientX;
@@ -467,7 +437,6 @@ function onTrackTouchStart(e: any) {
 function onTrackTouchMove(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
-    // 双指缩放优先，任何命中把手的手指都不影响 pinch（以容器为准）
     if (dragMode !== "pinch") {
       dragMode = "pinch";
       pinchDist = touchDist(touches);
@@ -478,12 +447,10 @@ function onTrackTouchMove(e: any) {
   }
   if (touches.length === 1) {
     const x = touches[0].clientX;
-    // 正在拖把手 → 走把手逻辑
-    if (dragHandleType) {
-      onHandleTouchMove(x);
-      return;
+    if (dragMode === "pinch") {
+      dragMode = "track";
+      lastPanX = x;
     }
-    if (dragMode === "pinch") dragMode = "track";
     if (dragMode === "track") {
       const dx = x - lastPanX;
       if (dx !== 0) {
@@ -497,40 +464,26 @@ function onTrackTouchMove(e: any) {
 
 function onTrackTouchEnd() {
   const wasTrack = dragMode === "track";
-  const wasHandle = !!dragHandleType;
   dragMode = "none";
   pinchDist = 0;
-  dragHandleType = null;
-  if (wasHandle || wasTrack) flushPlayhead();
+  if (wasTrack) flushPlayhead();
 }
 
-// ============ 把手拖动（起始点/结束点） ============
-function onHandleTouchMove(clientX: number) {
-  if (!dragHandleType) return;
-  const dx = clientX - handleStartX;
-  const dt = dx / pps.value;
+// ============ 缩放控件（放大 / 缩小按钮） ============
+const ZOOM_STEP = 1.5; // 每次缩放倍率
 
-  if (segments.value.length === 0) {
-    const start = dragHandleType === "left" ? 0 : videoDuration.value;
-    segments.value = [{ key: segKey++, start: 0, end: videoDuration.value }];
-    handleStartTime = start;
-  }
+function zoomIn() {
+  if (!barWidth.value || !videoDuration.value) return;
+  const newPps = Math.min(maxPps.value, pps.value * ZOOM_STEP);
+  if (newPps === pps.value) return;
+  pps.value = newPps;
+}
 
-  const sg = segments.value[0];
-  if (!sg) return;
-
-  let newTime = clampT(handleStartTime + dt);
-  // 吸附到中线播放头（6px 内对齐，便于精确对齐起始/结束帧）
-  if (Math.abs(newTime - playhead.value) * pps.value < 6) {
-    newTime = playhead.value;
-  }
-
-  if (dragHandleType === "left") {
-    if (sg.end - newTime >= MIN_SEGMENT) sg.start = newTime;
-  } else {
-    if (newTime - sg.start >= MIN_SEGMENT) sg.end = newTime;
-  }
-  throttleSeek(dragHandleType === "left" ? sg.start : sg.end);
+function zoomOut() {
+  if (!barWidth.value || !videoDuration.value) return;
+  const newPps = Math.max(minPps.value, pps.value / ZOOM_STEP);
+  if (newPps === pps.value) return;
+  pps.value = newPps;
 }
 
 function touchDist(touches: any[]): number {
@@ -619,17 +572,6 @@ function clipStyle(sg: TrimSegment) {
   const left = t2x(sg.start);
   const width = t2x(sg.end) - left;
   return { left: `${left}px`, width: `${width}px` };
-}
-
-// 把手定位在容器坐标（随轨道偏移移动）
-function handleLeftStyle() {
-  const t = segments.value.length ? segments.value[0].start : 0;
-  return { left: `${containerX(t)}px`, transform: "translateX(-100%)" };
-}
-
-function handleRightStyle() {
-  const t = segments.value.length ? segments.value[0].end : videoDuration.value;
-  return { left: `${containerX(t)}px`, transform: "translateX(0)" };
 }
 
 // ============ 击球瞬间（片段内相对时间） ============
@@ -982,6 +924,28 @@ function fmtTime(s: number): string {
 }
 
 // ========== 时间轴剪辑 ==========
+.tl-zoom-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tl-zoom-btn {
+  width: 34px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: rgba(0, 0, 0, 0.06); /* 透明背景 */
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 18px;
+  font-weight: 600;
+  color: $color-olive-light;
+  line-height: 1;
+}
+
 .tl-ruler {
   position: relative;
   height: 20px;
@@ -1045,26 +1009,6 @@ function fmtTime(s: number): string {
   font-size: 10px;
   font-weight: 700;
   color: $color-ink;
-}
-
-.tl-handle {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 22px;
-  z-index: 5;
-  cursor: grab;
-
-  &--left {
-    left: 0;
-    border-left: 3px solid var(--color-accent, #C8DA2B);
-    background: linear-gradient(90deg, rgba(var(--color-accent-rgb, 200, 218, 43), 0.35), transparent);
-  }
-
-  &--right {
-    border-right: 3px solid var(--color-accent, #C8DA2B);
-    background: linear-gradient(270deg, rgba(var(--color-accent-rgb, 200, 218, 43), 0.35), transparent);
-  }
 }
 
 .tl-playhead {
