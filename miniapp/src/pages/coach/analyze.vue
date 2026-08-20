@@ -105,7 +105,7 @@
 
             <view class="timeline-info">
               <text class="tl-info-time">▶ {{ fmtTime(playhead) }}s / {{ fmtTime(videoDuration) }}s</text>
-              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 双指缩放 · 上拖播放头 / 下拖平移</text>
+              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 拖动时间轴选择帧 · 双指缩放</text>
             </view>
 
             <view class="trim-actions">
@@ -199,7 +199,7 @@ const isPlaying = ref(false); // 视频播放态（决定拖动时是否需要�
 // ============ 时间轴状态 ============
 const segments = ref<TrimSegment[]>([]);
 const pendingStart = ref<number | null>(null);
-const playhead = ref(0);
+const _playhead = ref(0); // 内部状态，由 viewStart + visibleSpan / 2 推导
 const visibleSpan = ref(0); // 可见时间窗（秒）
 const viewStart = ref(0); // 可见窗左边界（原始时间轴秒）
 const barWidth = ref(0);
@@ -209,10 +209,20 @@ const barHeight = ref(44);
 let segKey = 0;
 
 let videoCtx: UniApp.VideoContext | null = null;
-let dragMode: "none" | "scrub" | "pan" | "pinch" = "none";
+let dragMode: "none" | "scrub" | "pinch" = "none";
 let pinchDist = 0;
 let lastPanX = 0;
 let lastSeekTs = 0;
+
+// 播放头固定在中间，时间由视野位置推导
+const playhead = computed({
+  get: () => viewStart.value + visibleSpan.value / 2,
+  set: (t: number) => {
+    // 设置播放头时间时，调整 viewStart 使播放头保持在中间
+    const half = visibleSpan.value / 2;
+    viewStart.value = clampViewStart(t - half);
+  },
+});
 
 const kindOptions = computed(() =>
   mode.value === "full"
@@ -363,17 +373,12 @@ function centerOnSegment(i: number) {
   const sg = segments.value[i];
   if (!sg) return;
   const mid = (sg.start + sg.end) / 2;
-  playhead.value = mid;
+  // 将片段中点移到视野中心（播放头位置）
   viewStart.value = clampViewStart(mid - visibleSpan.value / 2);
   flushPlayhead();
 }
 
-// ============ 时间轴手势：纵向分区（上拖播放头 scrub / 下拖平移 pan）+ 双指捏合缩放 ============
-function resolveModeByY(touch: any): "scrub" | "pan" {
-  const y = touch.clientY - barTop.value;
-  return y < barHeight.value / 2 ? "scrub" : "pan";
-}
-
+// ============ 时间轴手势：拖动时间轴选帧 + 双指捏合缩放 ============
 function onBarTouchStart(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
@@ -381,33 +386,31 @@ function onBarTouchStart(e: any) {
     pinchDist = touchDist(touches);
     return;
   }
-  dragMode = touches[0] ? resolveModeByY(touches[0]) : "scrub";
+  // 单指拖动整个时间轴
+  dragMode = "scrub";
   lastPanX = touches[0]?.clientX ?? 0;
 }
 
 function onBarTouchMove(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
-    if (dragMode === "none" || dragMode === "pan" || dragMode === "scrub") dragMode = "pinch";
+    if (dragMode === "none" || dragMode === "scrub") dragMode = "pinch";
     if (dragMode === "pinch") {
       const d = touchDist(touches);
       if (pinchDist <= 0) pinchDist = d;
       applyPinch(d);
     }
   } else if (touches.length === 1) {
-    if (dragMode === "pinch") dragMode = resolveModeByY(touches[0]); // 抬指从捏合切回，按剩余手指 y 重新分区
+    if (dragMode === "pinch") dragMode = "scrub";
     if (dragMode === "scrub") {
-      const t = clampT(x2t(touches[0].clientX - barLeft.value));
-      playhead.value = t;
-      throttleSeek(t);
-      keepInView();
-    } else if (dragMode === "pan") {
+      // 拖动时间轴，播放头始终在中间
       const x = touches[0].clientX;
       const dx = x - lastPanX;
       if (dx !== 0) {
         const dt = (dx / barWidth.value) * visibleSpan.value;
         viewStart.value = clampViewStart(viewStart.value - dt);
         lastPanX = x;
+        throttleSeek(playhead.value); // playhead 由 viewStart 推导
       }
     }
   }
@@ -417,7 +420,7 @@ function onBarTouchEnd() {
   const wasScrub = dragMode === "scrub";
   dragMode = "none";
   pinchDist = 0;
-  if (wasScrub) flushPlayhead(); // 松手补帧：节流可能跳过最后一帧；平移结束不跳帧
+  if (wasScrub) flushPlayhead(); // 松手补帧
 }
 
 function touchDist(touches: any[]): number {
@@ -430,27 +433,18 @@ function touchDist(touches: any[]): number {
 function applyPinch(dist: number) {
   if (!barWidth.value || dist <= 0 || pinchDist <= 0) return;
   const dur = videoDuration.value;
-  const anchorX = t2x(playhead.value);
   const factor = pinchDist / dist; // 手指张开 → 放大（视野变窄）
   const newSpan = Math.min(Math.max(visibleSpan.value * factor, MIN_ZOOM_SPAN), dur);
-  const ratio = barWidth.value ? anchorX / barWidth.value : 0.5;
+  // 以视野中心（播放头位置）为锚点
+  const center = viewStart.value + visibleSpan.value / 2;
   visibleSpan.value = newSpan;
-  viewStart.value = clampViewStart(playhead.value - ratio * newSpan);
+  viewStart.value = clampViewStart(center - newSpan / 2);
   pinchDist = dist;
 }
 
 function keepInView() {
-  const dur = videoDuration.value;
-  const span = visibleSpan.value;
-  if (span >= dur - 0.01) {
-    viewStart.value = 0;
-    return;
-  }
-  const p = playhead.value;
-  let vs = viewStart.value;
-  if (p < vs + span * 0.1) vs = p - span * 0.1;
-  else if (p > vs + span * 0.9) vs = p - span * 0.9;
-  viewStart.value = clampViewStart(vs);
+  // 播放头固定在中间，不需要自动滚窗
+  // 视野边界由 clampViewStart 在设置 viewStart 时自动处理
 }
 
 function throttleSeek(t: number) {
@@ -534,8 +528,8 @@ function markStyle(t: number) {
 }
 
 function playheadStyle() {
-  const x = t2x(playhead.value);
-  return { left: `${x}px` };
+  // 播放头固定在中间
+  return { left: "50%", transform: "translateX(-1px)" };
 }
 
 // ============ 击球瞬间（片段内相对时间） ============
@@ -941,9 +935,11 @@ function fmtTime(s: number): string {
   position: absolute;
   top: 0;
   bottom: 0;
+  left: 50%;                    /* 固定在中间 */
   width: 2px;
   background: var(--color-accent-dark, #A8B822);
   transform: translateX(-1px);
+  z-index: 10;                  /* 确保在最上层 */
 
   &::before {
     content: "";
