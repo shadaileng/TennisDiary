@@ -483,3 +483,17 @@ class TestVideoUpload:
         assert response.status_code == 400
         assert response.json()["code"] == ErrorCode.INVALID_REQUEST
         assert "视频最长 180 秒" in response.json()["message"]
+
+    def test_upload_unparseable_duration_returns_400(self, auth_client, data_dir, monkeypatch):
+        """时长解析失败（ValueError）→ 400 透出真实消息，而非 500（unlink 已保护）或 10001"""
+        from app.routers import video as video_router
+
+        def boom(path, mode, hit_time, cuts=None):
+            raise ValueError("无法解析视频时长")
+
+        monkeypatch.setattr(video_router.video_service, "process_video", boom)
+        files = {"file": ("swing.mp4", b"fake", "video/mp4")}
+        response = auth_client.post("/api/video/upload", files=files, data={"mode": "single"})
+        assert response.status_code == 400
+        assert response.json()["code"] == ErrorCode.INVALID_REQUEST
+        assert "无法解析视频时长" in response.json()["message"]

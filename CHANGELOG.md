@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.8] - 2026-08-20
+
+### Fixed
+
+- 修复视频上传失败时二次 `os.unlink` 抛 `FileNotFoundError` 导致 500：路由各异常分支改用 `_safe_unlink`（文件已不存在时忽略），并新增 `ValueError` 类异常（如「无法解析视频时长」）真实消息透出，便于用户/日志定位（此前一律掩盖为「视频处理失败，请检查文件格式」）。
+- `probe_duration` 解析失败时记录 ffprobe/ffmpeg 返回码与 stderr 尾部（便于排查用户视频无法解析时长）。
+
 ## [1.66.7] - 2026-08-20
 
 ### Fixed

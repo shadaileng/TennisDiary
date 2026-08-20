@@ -27,6 +27,14 @@ router = APIRouter(prefix="/api/video", tags=["video"])
 _ALLOWED_VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm"}
 
 
+def _safe_unlink(path: str) -> None:
+    """删除失败文件；文件已不存在时忽略（避免 catch 内二次 unlink 抛错变 500）"""
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
 def _is_video_file(filename: str, content_type: str | None) -> bool:
     """按扩展名与 content-type 判断是否视频"""
     ext = os.path.splitext(filename or "")[1].lower()
@@ -95,22 +103,25 @@ def upload_video(
     try:
         result = video_service.process_video(abs_path, mode, hit_time, cuts=parsed_cuts)
     except VideoTooLongError as exc:
-        os.unlink(abs_path)
+        _safe_unlink(abs_path)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except InvalidCutError as exc:
-        os.unlink(abs_path)
+        _safe_unlink(abs_path)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except FfmpegUnavailableError as exc:
-        os.unlink(abs_path)
+        _safe_unlink(abs_path)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="服务器未配置 ffmpeg，无法抽帧",
         ) from exc
     except Exception as exc:
         log.error(f"视频处理失败: {exc}", path=abs_path, exc_info=True)
-        os.unlink(abs_path)
+        _safe_unlink(abs_path)
+        # ValueError 类（如"无法解析视频时长"）消息面向用户，直接透出便于定位问题
+        detail = str(exc) if isinstance(exc, ValueError) else "视频处理失败，请检查文件格式"
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="视频处理失败，请检查文件格式"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail,
         ) from exc
 
     result["kind"] = kind
