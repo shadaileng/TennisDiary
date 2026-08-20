@@ -108,6 +108,10 @@ def upload_video(
             ) from exc
 
     try:
+        # 在调用 process_video 前保存一份原始上传文件，防止处理过程中文件消失无法排查
+        backup_path = os.path.join(abs_dir, f"_debug_{uuid.uuid4().hex}{ext}")
+        shutil.copy2(abs_path, backup_path)
+        log.info(f"上传文件已备份: {backup_path} size={os.path.getsize(backup_path)}")
         result = video_service.process_video(abs_path, mode, hit_time, cuts=parsed_cuts)
     except VideoTooLongError as exc:
         _safe_unlink(abs_path)
