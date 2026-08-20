@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.68.3] - 2026-08-21
+
+### Fixed
+
+- 优化时间轴开放起点标记视觉样式：三角形箭头 + 竖线组合，增强"包裹感"和起点标识清晰度。
+
 ## [1.68.2] - 2026-08-21
 
 ### Changed
