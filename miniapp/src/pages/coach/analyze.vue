@@ -52,7 +52,8 @@
             :src="videoPath"
             controls
             @loadedmetadata="onVideoMeta"
-            @pause="captureHitTime"
+            @play="isPlaying = true"
+            @pause="isPlaying = false; captureHitTime($event)"
             @timeupdate="captureHitTime"
           />
           <view v-if="mode === 'single'" class="hit-row">
@@ -191,6 +192,8 @@ const analyzing = ref(false);
 const progress = ref("");
 const hitTime = ref(0);
 const warnMsg = ref("");
+const videoReady = ref(false); // 视频元数据就绪（可安全 seek 预览）
+const isPlaying = ref(false); // 视频播放态（决定拖动时是否需要强制刷新帧）
 
 // ============ 时间轴状态 ============
 const segments = ref<TrimSegment[]>([]);
@@ -306,6 +309,9 @@ function onVideoMeta(e: any) {
     videoDuration.value = d;
     visibleSpan.value = d;
   }
+  // 视频元素此时已渲染，重新绑定上下文保证 seek 预览可用
+  videoCtx = uni.createVideoContext("swingVideo");
+  videoReady.value = true;
 }
 
 // ============ 时间轴坐标换算 ============
@@ -372,6 +378,7 @@ function onBarTouchMove(e: any) {
 function onBarTouchEnd() {
   dragMode = "none";
   pinchDist = 0;
+  flushPlayhead(); // 松手补帧：节流可能跳过最后一帧
 }
 
 function touchDist(touches: any[]): number {
@@ -413,13 +420,26 @@ function throttleSeek(t: number) {
   const now = Date.now();
   if (now - lastSeekTs < 50) return;
   lastSeekTs = now;
-  if (videoCtx) {
-    try {
-      videoCtx.seek(t);
-    } catch {
-      /* 视频上下文未就绪时忽略 */
+  seekPreview(t);
+}
+
+/** seek + （暂停态下）play/pause 强制刷新目标帧（Chromium 模拟器/真机通用） */
+function seekPreview(t: number) {
+  if (!videoCtx || !videoReady.value) return;
+  try {
+    videoCtx.seek(t);
+    if (!isPlaying.value) {
+      videoCtx.play();
+      videoCtx.pause();
     }
+  } catch {
+    /* 视频上下文未就绪时忽略 */
   }
+}
+
+/** 松手/设点后强制刷新一次目标帧（节流可能跳过最后一帧） */
+function flushPlayhead() {
+  seekPreview(playhead.value);
 }
 
 // ============ 片段（起始点/结束点） ============

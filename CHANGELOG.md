@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.2] - 2026-08-20
+
+### Fixed
+
+- miniapp 修复播放头拖动画面不预览（99 时间轴）：`videoCtx` 原在 `onMounted` 创建，视频元素尚未渲染导致 `seek` 静默失效——改在 `@loadedmetadata`（`onVideoMeta`）就绪后重新 `createVideoContext("swingVideo")` 并置 `videoReady`；拖动 seek 前校验就绪标记。新增暂停态**强制刷新帧** hack（`seekPreview`：`seek(t)` 后若未播放则 `play()+pause()`），解决微信开发者工具模拟器（Chromium 原生组件暂停态不重绘解码帧）与部分真机核对；`@play/@pause` 记录播放态，`onBarTouchEnd` 松手补帧（`flushPlayhead`）确保节流跳过的最后一帧精确落位。
+
 ## [1.66.1] - 2026-08-20
 
 ### Fixed
