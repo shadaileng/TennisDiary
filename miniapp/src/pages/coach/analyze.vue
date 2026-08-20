@@ -1081,6 +1081,7 @@ function fmtTime(s: number): string {
   bottom: 0;
   width: 2px;
   transform: translateX(-1px);
+  z-index: 8;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1089,6 +1090,8 @@ function fmtTime(s: number): string {
   .tl-pending-arrow {
     position: absolute;
     top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 0;
     height: 0;
     border-left: 6px solid transparent;
@@ -1101,7 +1104,9 @@ function fmtTime(s: number): string {
     position: absolute;
     top: 10px;
     bottom: 0;
+    left: 50%;
     width: 2px;
+    margin-left: -1px;
     background: var(--color-accent, #C8DA2B);
   }
 }
