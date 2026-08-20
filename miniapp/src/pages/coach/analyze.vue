@@ -100,7 +100,7 @@
                 :style="markStyle(pendingStart)"
               >▶</view>
               <!-- 播放头 -->
-              <view class="tl-playhead" :style="playheadStyle"></view>
+              <view class="tl-playhead" :style="playheadStyle()"></view>
             </view>
 
             <view class="timeline-info">
