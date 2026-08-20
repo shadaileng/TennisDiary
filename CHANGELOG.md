@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.4] - 2026-08-20
+
+### Fixed
+
+- miniapp 时间轴交互改为**纵向分区**（99 时间轴）：上半区域拖动 → 拉播放头 scrub（seek 逐帧预览），下半区域拖动 → 平移视野 pan（仅滚 `viewStart`、不改播放头不 seek）；移除原「播放头 x 距离 ±10px」命中判定，改为 `barTop`/`barHeight` 测量 + 按 `touch.clientY` 判定；双指抬指剩单指时按剩余手指 y 重新分区；提示文案更新为「双指缩放 · 上拖播放头 / 下拖平移」。
+
 ## [1.66.3] - 2026-08-20
 
 ### Fixed

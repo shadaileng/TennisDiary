@@ -105,7 +105,7 @@
 
             <view class="timeline-info">
               <text class="tl-info-time">▶ {{ fmtTime(playhead) }}s / {{ fmtTime(videoDuration) }}s</text>
-              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 双指缩放 / 拖动平移</text>
+              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 双指缩放 · 上拖播放头 / 下拖平移</text>
             </view>
 
             <view class="trim-actions">
@@ -184,7 +184,6 @@ const MODE_LIMIT: Record<Mode, number> = { single: 15, full: 90 };
 const MAX_SEGMENTS: Record<Mode, number> = { single: 1, full: 8 };
 const MIN_SEGMENT = 0.6;
 const MIN_ZOOM_SPAN = 2;
-const PLAYHEAD_HIT = 10;
 
 const mode = ref<Mode>("single");
 const kind = ref<AnalysisKind>("正手");
@@ -205,6 +204,8 @@ const visibleSpan = ref(0); // 可见时间窗（秒）
 const viewStart = ref(0); // 可见窗左边界（原始时间轴秒）
 const barWidth = ref(0);
 const barLeft = ref(0);
+const barTop = ref(0);
+const barHeight = ref(44);
 let segKey = 0;
 
 let videoCtx: UniApp.VideoContext | null = null;
@@ -326,6 +327,8 @@ function measureBar() {
         if (rect && rect.width > 0) {
           barWidth.value = rect.width;
           barLeft.value = rect.left;
+          barTop.value = rect.top;
+          if (rect.height > 0) barHeight.value = rect.height;
         }
       })
       .exec();
@@ -365,7 +368,12 @@ function centerOnSegment(i: number) {
   flushPlayhead();
 }
 
-// ============ 时间轴手势：播放头拖动(scrub) + 平移视野(pan) + 双指捏合缩放 ============
+// ============ 时间轴手势：纵向分区（上拖播放头 scrub / 下拖平移 pan）+ 双指捏合缩放 ============
+function resolveModeByY(touch: any): "scrub" | "pan" {
+  const y = touch.clientY - barTop.value;
+  return y < barHeight.value / 2 ? "scrub" : "pan";
+}
+
 function onBarTouchStart(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
@@ -373,13 +381,7 @@ function onBarTouchStart(e: any) {
     pinchDist = touchDist(touches);
     return;
   }
-  const x = touches[0]?.clientX - barLeft.value;
-  // 命中播放头（±10px）→ scrub；否则（空白/片段色块）→ pan 平移视野
-  if (Math.abs(t2x(playhead.value) - x) <= PLAYHEAD_HIT) {
-    dragMode = "scrub";
-  } else {
-    dragMode = "pan";
-  }
+  dragMode = touches[0] ? resolveModeByY(touches[0]) : "scrub";
   lastPanX = touches[0]?.clientX ?? 0;
 }
 
@@ -393,7 +395,7 @@ function onBarTouchMove(e: any) {
       applyPinch(d);
     }
   } else if (touches.length === 1) {
-    if (dragMode === "pinch") dragMode = "pan"; // 抬指从捏合切回平移
+    if (dragMode === "pinch") dragMode = resolveModeByY(touches[0]); // 抬指从捏合切回，按剩余手指 y 重新分区
     if (dragMode === "scrub") {
       const t = clampT(x2t(touches[0].clientX - barLeft.value));
       playhead.value = t;
