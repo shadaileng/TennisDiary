@@ -117,15 +117,16 @@
                 >
                   <text class="tl-clip-label">{{ i + 1 }}</text>
                 </view>
-                <!-- 开放起点标记（带包裹感） -->
-                <view
-                  v-if="pendingStart !== null"
-                  class="tl-pending-mark"
-                  :style="{ left: t2x(pendingStart) + 'px' }"
-                >
-                  <view class="tl-pending-arrow"></view>
-                  <view class="tl-pending-line"></view>
-                </view>
+              </view>
+
+              <!-- 开放起点标记（在容器级别，不受轨道 transform 影响） -->
+              <view
+                v-if="pendingStart !== null"
+                class="tl-pending-mark"
+                :style="{ left: containerX(pendingStart) + 'px' }"
+              >
+                <view class="tl-pending-arrow"></view>
+                <view class="tl-pending-line"></view>
               </view>
 
               <!-- 中间播放头（固定竖线） -->
