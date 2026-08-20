@@ -11,9 +11,9 @@ import sys
 import time
 
 PORT = 8000
-SERVER_DIR = os.path.dirname(os.path.abspath(__file__)) + "/server"
-UVICORN = SERVER_DIR + "/.venv/Scripts/uvicorn.exe"
-LOG_FILE = SERVER_DIR + "/data/logs/start-server.log"
+_SERVER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server")
+UVICORN = os.path.join(_SERVER_DIR, ".venv", "Scripts", "uvicorn.exe")
+LOG_FILE = os.path.join(_SERVER_DIR, "data", "logs", "start-server.log")
 
 
 def kill_on_port(port):
@@ -60,7 +60,7 @@ def main():
     with open(LOG_FILE, "w", encoding="utf-8") as log_f:
         subprocess.call(
             [UVICORN, "app.main:app", "--host", "0.0.0.0", "--port", str(PORT)],
-            cwd=SERVER_DIR,
+            cwd=_SERVER_DIR,
             stdout=log_f,
             stderr=subprocess.STDOUT,
         )
