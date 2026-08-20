@@ -100,20 +100,24 @@ def probe_duration(path: str) -> float:
             capture_output=True,
             timeout=30,
         )
-        log.info(f"ffprobe: rc={proc.returncode} stdout={proc.stdout.decode()!r} stderr={proc.stderr.decode()[-300:]!r}")
+        _stdout = proc.stdout.decode().strip()
+        _stderr = proc.stderr.decode()[-300:]
+        log.info(f"ffprobe: rc={proc.returncode} stdout={_stdout!r} stderr={_stderr!r}")
         if proc.returncode == 0:
             try:
-                return float(proc.stdout.decode().strip())
+                return float(_stdout)
             except ValueError:
                 pass
-        log.warning(f"ffprobe 探测时长失败 rc={proc.returncode} stderr={proc.stderr.decode('utf-8', 'replace')[-300:]}")
+        _stderr2 = proc.stderr.decode("utf-8", "replace")[-300:]
+        log.warning(f"ffprobe 探测时长失败 rc={proc.returncode} stderr={_stderr2}")
     ffmpeg = find_ffmpeg()
     if ffmpeg:
         proc = subprocess.run([ffmpeg, "-i", path], capture_output=True, timeout=30)
         try:
             return _parse_duration_from_ffmpeg_stderr(proc.stderr.decode(errors="replace"))
         except ValueError:
-            log.warning(f"ffmpeg 解析时长失败 rc={proc.returncode} stderr={proc.stderr.decode('utf-8', 'replace')[-300:]}")
+            _fs = proc.stderr.decode("utf-8", "replace")[-300:]
+            log.warning(f"ffmpeg 解析时长失败 rc={proc.returncode} stderr={_fs}")
             raise
     raise FfmpegUnavailableError("ffmpeg 不可用")
 
@@ -230,7 +234,11 @@ def trim_video(src: str, dst: str, start: float, length: float) -> None:
         cmd = [*base, *extra, dst]
         log.info(f"trim_video cmd={' '.join(cmd[:8])}... dst={dst}")
         proc = subprocess.run(cmd, capture_output=True, timeout=120)
-        log.info(f"trim_video rc={proc.returncode} dst_exists={os.path.isfile(dst)} dst_size={os.path.getsize(dst) if os.path.isfile(dst) else 'N/A'} stderr={proc.stderr.decode('utf-8', errors='replace')[-500:]!r}")
+        _dst_exists = os.path.isfile(dst)
+        _dst_size = os.path.getsize(dst) if _dst_exists else None
+        _stderr = proc.stderr.decode("utf-8", errors="replace")[-500:]
+        log.info(f"trim_video rc={proc.returncode} dst_exists={_dst_exists}"
+                 f" dst_size={_dst_size} stderr={_stderr!r}")
         if proc.returncode == 0 and os.path.isfile(dst) and os.path.getsize(dst) > 0:
             return
     log.warning("视频片段裁切失败", start=start, length=length, src=src)

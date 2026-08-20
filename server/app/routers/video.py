@@ -136,7 +136,8 @@ def upload_video(
                 shutil.copy2(abs_path, keep_path)
                 kept = keep_path
             except OSError as copy_err:
-                log.warning(f"保留失败副本失败: {copy_err} path={abs_path} exists={exists} size={size}")
+                log.warning(f"保留失败副本失败: {copy_err}"
+                            f" path={abs_path} exists={exists} size={size}")
                 kept = ""
         log.error(
             f"视频处理失败: {exc} exc_type={type(exc).__name__} "
