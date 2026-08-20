@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.68.5] - 2026-08-21
+
+### Fixed
+
+- 修复时间轴开放起点标记被播放头遮挡问题（`z-index: 8` → `11`），并加粗标记宽度（2px → 4px）添加阴影增强视觉层次。
+
 ## [1.68.4] - 2026-08-21
 
 ### Fixed
