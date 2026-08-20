@@ -38,7 +38,7 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:5173
+访问 `http://localhost:5173`
 
 ### 3.2 构建生产版本
 
@@ -68,7 +68,7 @@ docker run -p 80:80 tennis-diary-admin
 |------|------|--------|
 | VITE_APP_TITLE | 应用标题 | Tennis Diary Admin |
 | VITE_APP_VERSION | 应用版本 | 1.0.0 |
-| VITE_API_BASE_URL | API地址 | http://localhost:8000 |
+| VITE_API_BASE_URL | API地址 | `http://localhost:8000` |
 
 ## 五、提交规范
 

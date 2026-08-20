@@ -136,10 +136,10 @@ export function getStats(): Promise<Stats> {
 
 // ==================== 电子教练（视频/AI/姿态/分析） ====================
 
-/** 上传视频并抽帧（multipart 直传后端，75-2 抽帧） */
+/** 上传视频并抽帧（multipart 直传后端，75-2 抽帧 + Step99 裁剪拼接） */
 export function uploadVideo(
   filePath: string,
-  formData: { mode: string; kind: string; hit_time?: string },
+  formData: { mode: string; kind: string; hit_time?: string; cuts?: string },
 ): Promise<VideoUploadResult> {
   return new Promise((resolve, reject) => {
     uni.uploadFile({

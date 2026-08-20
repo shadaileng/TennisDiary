@@ -217,13 +217,15 @@ export interface AnalysisCreate {
 export interface VideoUploadResult {
   frames: string[] // 抽帧 base64 dataURL（AI 分析用）
   frame_urls: string[] // 帧文件相对路径
-  duration: number // 秒
+  duration: number // 秒（裁剪拼接后的时长）
   frame_rate?: number // 视频帧率（fps）
   thumbnail: string // 封面帧 base64 dataURL
   hit_time: number
   mode: "single" | "full"
   kind: string
   video_url: string // 视频文件相对路径
+  trimmed?: boolean // 是否服务端裁剪拼接
+  segments?: { start: number; end: number }[] // 裁剪片段列表（拼接后）
 }
 
 /** 姿态关键点（BlazePose 33 项之一） */
