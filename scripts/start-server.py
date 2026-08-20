@@ -10,10 +10,11 @@ import subprocess
 import sys
 import time
 
-PORT = 8000
-_SERVER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server")
-UVICORN = os.path.join(_SERVER_DIR, ".venv", "Scripts", "uvicorn.exe")
-LOG_FILE = os.path.join(_SERVER_DIR, "data", "logs", "start-server.log")
+_PORT = 8000
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_SERVER_DIR = os.path.join(_ROOT, "server")
+_UVICORN = os.path.join(_SERVER_DIR, ".venv", "Scripts", "uvicorn.exe")
+_LOG_FILE = os.path.join(_SERVER_DIR, "data", "logs", "start-server.log")
 
 
 def kill_on_port(port):
@@ -40,26 +41,26 @@ def kill_on_port(port):
 
 
 def main():
-    kill_on_port(PORT)
+    kill_on_port(_PORT)
     # wait for port to free
     for _ in range(20):
         try:
             r = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5)
-            busy = any(f":{PORT}" in p and "LISTENING" in p for p in r.stdout.splitlines())
+            busy = any(f":{_PORT}" in p and "LISTENING" in p for p in r.stdout.splitlines())
             if not busy:
                 break
         except Exception:
             pass
         time.sleep(0.5)
     else:
-        print(f"ERROR: port {PORT} still in use", file=sys.stderr)
+        print(f"ERROR: port {_PORT} still in use", file=sys.stderr)
         sys.exit(1)
 
-    os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-    print(f"starting uvicorn, log={LOG_FILE} (Ctrl+C to stop)")
-    with open(LOG_FILE, "w", encoding="utf-8") as log_f:
+    os.makedirs(os.path.dirname(_LOG_FILE), exist_ok=True)
+    print(f"starting uvicorn, log={_LOG_FILE} (Ctrl+C to stop)")
+    with open(_LOG_FILE, "w", encoding="utf-8") as log_f:
         subprocess.call(
-            [UVICORN, "app.main:app", "--host", "0.0.0.0", "--port", str(PORT)],
+            [_UVICORN, "app.main:app", "--host", "0.0.0.0", "--port", str(_PORT)],
             cwd=_SERVER_DIR,
             stdout=log_f,
             stderr=subprocess.STDOUT,
