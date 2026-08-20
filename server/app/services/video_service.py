@@ -22,8 +22,14 @@ _FULL_FRAME_COUNT = 8
 _FRAME_WIDTH = 640
 _FRAME_QUALITY = 2  # ffmpeg q:v 2 ≈ JPEG 质量 0.72
 
-# 时长限制（秒）
+# 片段时长限制（秒）
 _MAX_DURATION = {"single": 15.0, "full": 90.0}
+# 上传完整视频上限制（秒）：超长须先在相册裁短
+_UPLOAD_MAX_DURATION = 180.0
+# 单段最短（秒）
+_MIN_SEGMENT_LEN = 0.6
+# 每模式最大片段数
+_MAX_SEGMENTS = {"single": 1, "full": 8}
 
 
 class FfmpegUnavailableError(RuntimeError):
@@ -32,6 +38,17 @@ class FfmpegUnavailableError(RuntimeError):
 
 class VideoTooLongError(ValueError):
     """视频时长超过模式限制"""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self) -> str:
+        return self.message
+
+
+class InvalidCutError(ValueError):
+    """裁剪片段校验失败"""
 
     def __init__(self, message: str = "") -> None:
         super().__init__(message)
@@ -130,6 +147,167 @@ def probe_frame_rate(path: str) -> float:
     return 30.0  # 默认帧率
 
 
+def validate_cuts(cuts: list[dict], mode: str, duration: float) -> list[dict]:
+    """校验并规范化裁剪片段列表，返回按 start 排序的片段 dict 列表
+
+    规则：
+    - 片段数 ≤ 模式上限（single 1 / full 8）
+    - 每段 0 ≤ start < end ≤ duration，且长度 ≥ 0.6s
+    - 片段按 start 升序且互不重叠（相邻可相切）
+    - 拼接总长 ≤ 模式上限
+    """
+    if not isinstance(cuts, list):
+        raise InvalidCutError("裁剪片段参数格式错误")
+    limit = _MAX_DURATION.get(mode, _MAX_DURATION["single"])
+    max_segments = _MAX_SEGMENTS.get(mode, _MAX_SEGMENTS["single"])
+    if len(cuts) > max_segments:
+        label = "单次挥拍" if mode == "single" else "综合分析"
+        raise InvalidCutError(f"{label}最多选择 {max_segments} 个片段")
+
+    ordered = sorted(cuts, key=lambda c: float(c.get("start", 0)))
+    total = 0.0
+    prev_end = 0.0
+    for c in ordered:
+        try:
+            start = float(c["start"])
+            end = float(c["end"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise InvalidCutError("裁剪片段缺少起点/终点") from exc
+        if not (0 <= start < end <= duration):
+            raise InvalidCutError("片段起点/终点超出视频范围")
+        if end - start < _MIN_SEGMENT_LEN:
+            raise InvalidCutError(f"片段最短 {_MIN_SEGMENT_LEN:.0f} 秒")
+        if start < prev_end:
+            raise InvalidCutError("片段存在重叠，请调整")
+        prev_end = end
+        total += end - start
+
+    if total > limit:
+        raise InvalidCutError(
+            f"{'单次挥拍' if mode == 'single' else '综合分析'}片段总长最长 "
+            f"{int(limit)} 秒，当前 {total:.1f} 秒"
+        )
+    return ordered
+
+
+def trim_video(src: str, dst: str, start: float, length: float) -> None:
+    """用 ffmpeg 精确 seek（输出端 seek）裁切片段并重编码为 H.264 mp4
+
+    音频优先 `-c:a copy`（无需转码）；失败时降级丢弃音轨重试。
+    精确 seek 对击球瞬间等时间点敏感，故用 `-ss` 放在 `-i` 之后（逐帧解码到起点）。
+    """
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        raise FfmpegUnavailableError("ffmpeg 不可用")
+
+    base = [
+        ffmpeg,
+        "-y",
+        "-i",
+        src,
+        "-ss",
+        f"{start:.3f}",
+        "-t",
+        f"{length:.3f}",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+    ]
+    for extra in (["-c:a", "copy"], ["-an"]):
+        proc = subprocess.run([*base, *extra, dst], capture_output=True, timeout=120)
+        if proc.returncode == 0 and os.path.isfile(dst) and os.path.getsize(dst) > 0:
+            return
+    log.warning("视频片段裁切失败", start=start, length=length, src=src)
+    raise InvalidCutError("视频片段裁切失败，请重试")
+
+
+def trim_and_concat(src: str, cuts: list[dict], mode: str) -> str:
+    """按裁剪片段列表逐个裁切并拼接为单个 mp4；返回最终输出路径
+
+    产物与源文件同目录（`videos/{user}/`），片段命名为 `{base}_seg{i}.mp4`，
+    多段时以 concat demuxer 拼接为 `{base}_concat.mp4`（失败降级重编码拼接）。
+    """
+    seg_dir = os.path.dirname(src)
+    stem = os.path.splitext(os.path.basename(src))[0]
+
+    seg_paths: list[str] = []
+    try:
+        for i, cut in enumerate(cuts):
+            seg = os.path.join(seg_dir, f"{stem}_seg{i}.mp4")
+            trim_video(src, seg, cut["start"], cut["end"] - cut["start"])
+            seg_paths.append(seg)
+        if len(seg_paths) == 1:
+            return seg_paths[0]
+
+        out = os.path.join(seg_dir, f"{stem}_concat.mp4")
+        concat_list = os.path.join(seg_dir, f"{stem}_concat.txt")
+        with open(concat_list, "w", encoding="utf-8") as fh:
+            for seg in seg_paths:
+                fh.write(f"file '{os.path.basename(seg)}'\n")
+
+        ffmpeg = find_ffmpeg()
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                concat_list,
+                "-c",
+                "copy",
+                "-movflags",
+                "+faststart",
+                out,
+            ],
+            capture_output=True,
+            timeout=180,
+        )
+        if proc.returncode != 0 or not os.path.isfile(out) or os.path.getsize(out) == 0:
+            proc = subprocess.run(
+                [
+                    ffmpeg,
+                    "-y",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    concat_list,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    "-c:a",
+                    "copy",
+                    out,
+                ],
+                capture_output=True,
+                timeout=240,
+            )
+        if proc.returncode != 0 or not os.path.isfile(out) or os.path.getsize(out) == 0:
+            raise InvalidCutError("视频片段拼接失败，请重试")
+        return out
+    finally:
+        for seg in seg_paths:
+            if os.path.isfile(seg):
+                os.unlink(seg)
+        leftover = os.path.join(seg_dir, f"{stem}_concat.txt")
+        if os.path.isfile(leftover):
+            os.unlink(leftover)
+
+
 def build_sampling_times(mode: str, duration: float, hit_time: float | None) -> list[float]:
     """生成采样时间点（与参考版 CoachAnalyze.tsx 一致）"""
     lo, hi = 0.01, max(0.01, duration - 0.1)
@@ -189,10 +367,37 @@ def extract_frames(path: str, times: list[float], width: int = _FRAME_WIDTH) -> 
     return frames
 
 
-def process_video(path: str, mode: str, hit_time: float | None) -> dict:
-    """编排：探测 → 校验时长 → 采样 → 抽帧 → 封面，返回抽帧结果 dict"""
+def process_video(
+    path: str,
+    mode: str,
+    hit_time: float | None,
+    cuts: list[dict] | None = None,
+) -> dict:
+    """编排：探测 → 上传整片校验 →（可选）裁剪拼接 → 片段时长校验 → 采样 → 抽帧 → 封面
+
+    - cuts 提供时先裁切拼接（hit_time 视为拼接后相对时间），再对产物走上游流程
+    - 返回 dict 含 trimmed（是否裁剪）与 segments（规范化后的片段列表）
+    """
     duration = probe_duration(path)
-    frame_rate = probe_frame_rate(path)
+    if duration > _UPLOAD_MAX_DURATION:
+        raise VideoTooLongError(
+            message=f"视频最长 {int(_UPLOAD_MAX_DURATION)} 秒，当前 {duration:.1f} 秒，"
+            "请先在相册裁剪后再上传"
+        )
+
+    segments: list[dict] | None = None
+    working = path
+    if cuts:
+        segments = validate_cuts(cuts, mode, duration)
+        working = trim_and_concat(path, segments, mode)
+        if working != path and os.path.isfile(path):
+            os.unlink(path)  # 裁剪后原完整视频不再保留
+        # 重探测裁剪产物的时长/帧率（拼接结果实际值）
+        duration = probe_duration(working)
+        frame_rate = probe_frame_rate(working)
+    else:
+        frame_rate = probe_frame_rate(path)
+
     limit = _MAX_DURATION.get(mode, _MAX_DURATION["single"])
     if duration > limit:
         raise VideoTooLongError(
@@ -201,7 +406,7 @@ def process_video(path: str, mode: str, hit_time: float | None) -> dict:
         )
 
     times = build_sampling_times(mode, duration, hit_time)
-    frames = extract_frames(path, times)
+    frames = extract_frames(working, times)
     if not frames:
         raise ValueError("未能抽取任何视频帧")
 
@@ -210,10 +415,10 @@ def process_video(path: str, mode: str, hit_time: float | None) -> dict:
     thumb_idx = min(range(len(times)), key=lambda i: abs(times[i] - hit))
     thumbnail = frames[thumb_idx]
 
-    video_dir = os.path.dirname(path)
+    video_dir = os.path.dirname(working)
     frame_urls = []
     for i, frame in enumerate(frames):
-        base = os.path.splitext(os.path.basename(path))[0]
+        base = os.path.splitext(os.path.basename(working))[0]
         frame_name = f"{base}_f{i}.jpg"
         frame_path = os.path.join(video_dir, frame_name)
         with open(frame_path, "wb") as out:
@@ -229,4 +434,6 @@ def process_video(path: str, mode: str, hit_time: float | None) -> dict:
         "thumbnail": _to_data_url(thumbnail),
         "hit_time": hit,
         "mode": mode,
+        "trimmed": bool(segments),
+        "segments": segments,
     }

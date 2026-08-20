@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.0] - 2026-08-20
+
+### Added
+
+- 电子教练时间轴多段剪辑（99）：小程序端 `analyze.vue` 新增自定义触摸时间轴——**双指捏合缩放**（可见窗最窄 2s，以播放头为锚点滚动）、**播放头单指拖动实时 `VideoContext.seek` 逐帧预览**（50ms 节流 + 边缘自动滚窗）、**多段起止标记**（`➕起点`/`✋终点` 按序闭合，single 限 1 段 / full ≤8 段，单段 ≥0.6s、不重叠、总长 ≤ 模式上限，可删段/重置）；`hit_time` 由前端按片段前缀长度换算为**拼接后相对时间**，落在片段间隙忽略并提示。
+- 服务端 `POST /api/video/upload` 新增 `cuts` 表单字段（JSON 数组 `[{start,end}]`）：`video_service` 新增 `_UPLOAD_MAX_DURATION=180s` 整片上限、`validate_cuts` 权威校验、`trim_video`（ffmpeg 输出端精确 seek + libx264 重编码 + 音频 copy 兜底 `-an`）、`trim_and_concat`（截取 concat demuxer `-c copy` 拼接，失败降级重编码），裁切后删除原片并重探测时长/帧率，下游（报告视频/骨架视频/帧率适配）零改动；返回新增 `trimmed`/`segments`。后端全量 375 passed（含真实 ffmpeg 两段拼接用例）+ ruff 通过；miniapp `type-check` + `build:mp-weixin` 通过。
+
 ## [1.65.1] - 2026-08-19
 
 ### Fixed

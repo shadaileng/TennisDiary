@@ -1,5 +1,6 @@
 """视频上传与抽帧路由（POST /api/video/upload）"""
 
+import json
 import os
 import uuid
 from typing import Literal
@@ -12,7 +13,11 @@ from app.core.logging import get_logger
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import video_service
-from app.services.video_service import FfmpegUnavailableError, VideoTooLongError
+from app.services.video_service import (
+    FfmpegUnavailableError,
+    InvalidCutError,
+    VideoTooLongError,
+)
 
 log = get_logger("user")
 
@@ -34,11 +39,14 @@ def upload_video(
     mode: Literal["single", "full"] = Form(default="single"),
     kind: str = Form(default="综合"),
     hit_time: float | None = Form(default=None),
+    cuts: str | None = Form(default=None),
     current_user: User = Depends(get_current_user),
 ):
     """上传视频并抽帧：落盘 UPLOAD_DIR/videos/{user_id}/，ffmpeg 抽帧返回 base64 帧列表
 
     - mode=single：≤15s，7 帧（相对击球瞬间采样）；mode=full：≤90s，8 帧（均匀采样）
+    - cuts（JSON 数组 `[{start,end},…]`，可选）：先由 ffmpeg 裁剪拼接后再抽帧，
+      hit_time 为拼接后相对时间；返回 segments + trimmed 标志
     - 返回 frames（base64 dataURL，按时间顺序）+ duration + thumbnail + hit_time
     """
     if not _is_video_file(file.filename, file.content_type):
@@ -75,9 +83,21 @@ def upload_video(
             status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
         )
 
+    parsed_cuts: list[dict] | None = None
+    if cuts:
+        try:
+            parsed_cuts = json.loads(cuts)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="裁剪片段参数格式错误"
+            ) from exc
+
     try:
-        result = video_service.process_video(abs_path, mode, hit_time)
+        result = video_service.process_video(abs_path, mode, hit_time, cuts=parsed_cuts)
     except VideoTooLongError as exc:
+        os.unlink(abs_path)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except InvalidCutError as exc:
         os.unlink(abs_path)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except FfmpegUnavailableError as exc:

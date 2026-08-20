@@ -135,6 +135,7 @@ export default defineConfig({
             { text: '96：小程序大满贯球场主题', link: '/plans/96-小程序大满贯球场主题' },
             { text: '97：miniapp 构建 Circular chunk 警告修复', link: '/plans/97-miniapp构建循环chunk警告修复' },
             { text: '98：分享工坊分享图添加小程序码', link: '/plans/98-分享工坊分享图添加小程序码' },
+            { text: '99：电子教练时间轴多段剪辑', link: '/plans/99-电子教练时间轴多段剪辑' },
           ],
         },
         {

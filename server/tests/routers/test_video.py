@@ -1,9 +1,16 @@
 """POST /api/video/upload 视频上传与抽帧接口测试"""
 
+import os
+import subprocess
+
 import pytest
 
 from app.services import video_service
-from app.services.video_service import FfmpegUnavailableError, VideoTooLongError
+from app.services.video_service import (
+    FfmpegUnavailableError,
+    InvalidCutError,
+    VideoTooLongError,
+)
 
 # ==================== 服务层单测 ====================
 
@@ -165,6 +172,180 @@ class TestProcessVideoLimits:
         assert result["hit_time"] == 2.0
 
 
+# ==================== 服务层单测：validate_cuts ====================
+
+
+class TestValidateCuts:
+    """裁剪片段规范化校验"""
+
+    def test_single_cut_ok(self):
+        """单段合法 → 返回有序列表"""
+        cuts = [{"start": 1.0, "end": 8.0}]
+        assert video_service.validate_cuts(cuts, "single", 10.0) == cuts
+
+    def test_multi_cut_sorted(self):
+        """多段乱序 → 按 start 升序返回"""
+        cuts = [{"start": 8.0, "end": 10.0}, {"start": 2.0, "end": 4.0}]
+        ordered = video_service.validate_cuts(cuts, "full", 12.0)
+        assert [c["start"] for c in ordered] == [2.0, 8.0]
+
+    def test_single_rejects_multiple(self):
+        """single 模式多段 → InvalidCutError"""
+        cuts = [{"start": 0.0, "end": 3.0}, {"start": 5.0, "end": 8.0}]
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts(cuts, "single", 10.0)
+
+    def test_full_rejects_too_many(self):
+        """full 模式超过 8 段 → InvalidCutError"""
+        cuts = [{"start": float(i), "end": float(i) + 0.6} for i in range(9)]
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts(cuts, "full", 30.0)
+
+    def test_overlap_rejected(self):
+        """片段重叠 → InvalidCutError"""
+        cuts = [
+            {"start": 1.0, "end": 5.0},
+            {"start": 4.0, "end": 7.0},
+        ]
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts(cuts, "full", 10.0)
+        # 相邻相切（start == prev_end）允许
+        cuts = [
+            {"start": 1.0, "end": 5.0},
+            {"start": 5.0, "end": 7.0},
+        ]
+        assert video_service.validate_cuts(cuts, "full", 10.0)
+
+    def test_out_of_range_rejected(self):
+        """片段起点/终点越界 → InvalidCutError"""
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts([{"start": 8.0, "end": 12.0}], "single", 10.0)
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts([{"start": -1.0, "end": 3.0}], "single", 10.0)
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts([{"start": 5.0, "end": 5.0}], "single", 10.0)
+
+    def test_segment_too_short_rejected(self):
+        """单段不足 0.6s → InvalidCutError"""
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts([{"start": 1.0, "end": 1.3}], "full", 10.0)
+
+    def test_missing_fields_rejected(self):
+        """缺少 start/end → InvalidCutError"""
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts([{"start": 1.0}], "full", 10.0)
+
+    def test_total_too_long(self):
+        """拼接总长超过模式上限 → InvalidCutError（single 15s）"""
+        with pytest.raises(InvalidCutError):
+            video_service.validate_cuts(
+                [{"start": 0.0, "end": 5.0}, {"start": 10.0, "end": 22.0}], "single", 30.0
+            )
+
+
+# ==================== 服务层单测：process_video 裁剪 ====================
+
+
+class TestProcessVideoTrim:
+    """process_video 裁剪拼接路径"""
+
+    def test_trim_and_concat_used(self, monkeypatch, tmp_path):
+        """提供 cuts → trim_and_concat 被执行，产物接续上游流程，原文件删除"""
+        video_dir = tmp_path / "videos" / "1"
+        video_dir.mkdir(parents=True)
+        original = video_dir / "test.mp4"
+        original.write_bytes(b"fake-video")
+
+        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        # 裁剪后重新探测统一返回 30，仅验证流程与标志
+        monkeypatch.setattr(video_service, "probe_duration", lambda p: 30.0)
+        monkeypatch.setattr(video_service, "find_ffmpeg", lambda: "/usr/bin/ffmpeg")
+
+        concat_path = str(video_dir / "test_concat.mp4")
+        touched: list[str] = []
+        monkeypatch.setattr(
+            video_service,
+            "trim_and_concat",
+            lambda src, cuts, mode: touched.append(str(src)) or concat_path,
+        )
+        monkeypatch.setattr(video_service, "probe_frame_rate", lambda p: 30.0)
+        monkeypatch.setattr(
+            video_service,
+            "extract_frames",
+            lambda path, times, **kw: [b"\xff\xd8f" + bytes([i]) for i in range(len(times))],
+        )
+
+        cuts = [
+            {"start": 2.0, "end": 6.0},
+            {"start": 10.0, "end": 14.0},
+        ]
+        result = video_service.process_video(str(original), "full", 3.0, cuts=cuts)
+        assert touched == [str(original)]
+        assert result["trimmed"] is True
+        assert result["segments"] == cuts
+        assert result["duration"] == 30.0  # 裁剪后重新探测
+        assert not os.path.isfile(original)  # 原文件已删
+        assert "test_concat" in result["frame_urls"][0]  # 抽帧基于裁剪产物命名
+
+    def test_validation_error_propagates(self, monkeypatch, tmp_path):
+        """裁剪片段非法 → 抛 InvalidCutError，不触发裁剪"""
+        original = tmp_path / "test.mp4"
+        original.write_bytes(b"fake-video")
+        monkeypatch.setattr(video_service, "probe_duration", lambda p: 10.0)
+        called = {"v": False}
+        monkeypatch.setattr(
+            video_service,
+            "trim_and_concat",
+            lambda src, cuts, mode: called.__setitem__("v", True) or src,
+        )
+        monkeypatch.setattr(video_service, "probe_frame_rate", lambda p: 30.0)
+        with pytest.raises(InvalidCutError):
+            video_service.process_video(
+                str(original), "single", 1.0, cuts=[{"start": 0.0, "end": 20.0}]
+            )
+        assert called["v"] is False
+
+    def test_upload_over_cap_rejected(self, monkeypatch):
+        """整片超过 180s → 抛 VideoTooLongError"""
+        monkeypatch.setattr(video_service, "probe_duration", lambda p: 200.0)
+        with pytest.raises(VideoTooLongError):
+            video_service.process_video("/tmp/v.mp4", "full", None)
+
+
+class TestTrimAndConcatReal:
+    """trim_and_concat 真实 ffmpeg 裁切拼接（需要系统 ffmpeg）"""
+
+    def test_two_segments_concat_duration(self, tmp_path):
+        """两段裁切拼接 → 输出为单文件，时长 ≈ 两段之和"""
+        ffmpeg = video_service.find_ffmpeg()
+        if ffmpeg is None:
+            pytest.skip("ffmpeg 未安装，跳过真实裁切拼接测试")
+
+        src = str(tmp_path / "src.mp4")
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=duration=16:size=320x240:rate=30",
+                "-pix_fmt",
+                "yuv420p",
+                src,
+            ],
+            capture_output=True,
+            timeout=120,
+            check=True,
+        )
+        cuts = [{"start": 1.0, "end": 5.0}, {"start": 8.0, "end": 12.0}]
+        out = video_service.trim_and_concat(src, cuts, "full")
+        assert os.path.isfile(out)
+        dur = video_service.probe_duration(out)
+        assert 7.4 < dur < 8.6, f"期望拼接后约 8 秒，实际 {dur:.2f}"
+        os.unlink(out)
+
+
 # ==================== 接口测试 ====================
 
 
@@ -182,7 +363,9 @@ class TestVideoUpload:
             "hit_time": 2.0,
         }
         monkeypatch.setattr(
-            video_router.video_service, "process_video", lambda path, mode, hit_time: fake_result
+            video_router.video_service,
+            "process_video",
+            lambda path, mode, hit_time, cuts=None: fake_result,
         )
         files = {"file": ("swing.mp4", b"fake-video-bytes", "video/mp4")}
         data = {"mode": "single", "kind": "正手", "hit_time": "2.0"}
@@ -199,7 +382,7 @@ class TestVideoUpload:
         from app.routers import video as video_router
 
         monkeypatch.setattr(
-            video_router.video_service, "process_video", lambda path, mode, hit_time: {}
+            video_router.video_service, "process_video", lambda path, mode, hit_time, cuts=None: {}
         )
         files = {"file": ("img.png", b"png-bytes", "image/png")}
         response = auth_client.post("/api/video/upload", files=files, data={"mode": "single"})
@@ -209,7 +392,7 @@ class TestVideoUpload:
         """ffmpeg 不可用 → 503"""
         from app.routers import video as video_router
 
-        def boom(path, mode, hit_time):
+        def boom(path, mode, hit_time, cuts=None):
             raise FfmpegUnavailableError("ffmpeg 不可用")
 
         monkeypatch.setattr(video_router.video_service, "process_video", boom)
@@ -222,3 +405,57 @@ class TestVideoUpload:
         files = {"file": ("swing.mp4", b"fake", "video/mp4")}
         response = client.post("/api/video/upload", files=files, data={"mode": "single"})
         assert response.status_code in (401, 403)
+
+    def test_upload_forwards_cuts(self, auth_client, data_dir, monkeypatch):
+        """cuts JSON 透传给 process_video"""
+        from app.routers import video as video_router
+
+        captured: dict = {}
+
+        def fake_process(path, mode, hit_time, cuts=None):
+            captured["cuts"] = cuts
+            return {"frames": [], "duration": 8.0}
+
+        monkeypatch.setattr(video_router.video_service, "process_video", fake_process)
+        files = {"file": ("swing.mp4", b"fake", "video/mp4")}
+        data = {"mode": "full", "cuts": '[{"start":1.0,"end":4.0},{"start":6.0,"end":9.0}]'}
+        response = auth_client.post("/api/video/upload", files=files, data=data)
+        assert response.status_code == 200
+        assert captured["cuts"] == [{"start": 1.0, "end": 4.0}, {"start": 6.0, "end": 9.0}]
+
+    def test_upload_no_cuts_passes_none(self, auth_client, data_dir, monkeypatch):
+        """不传 cuts → process_video 收到 None"""
+        from app.routers import video as video_router
+
+        captured: dict = {}
+
+        def fake_process(path, mode, hit_time, cuts=None):
+            captured["cuts"] = cuts
+            return {"frames": [], "duration": 8.0}
+
+        monkeypatch.setattr(video_router.video_service, "process_video", fake_process)
+        files = {"file": ("swing.mp4", b"fake", "video/mp4")}
+        response = auth_client.post("/api/video/upload", files=files, data={"mode": "single"})
+        assert response.status_code == 200
+        assert captured["cuts"] is None
+
+    def test_upload_invalid_cuts_json(self, auth_client, data_dir, monkeypatch):
+        """cuts 非合法 JSON → 400"""
+        files = {"file": ("swing.mp4", b"fake", "video/mp4")}
+        data = {"mode": "full", "cuts": "not-json"}
+        response = auth_client.post("/api/video/upload", files=files, data=data)
+        assert response.status_code == 400
+
+    def test_upload_invalid_cut_rejected(self, auth_client, data_dir, monkeypatch):
+        """裁剪片段校验失败 → 400 + 明确提示"""
+        from app.routers import video as video_router
+
+        def boom(path, mode, hit_time, cuts=None):
+            raise InvalidCutError("片段存在重叠，请调整")
+
+        monkeypatch.setattr(video_router.video_service, "process_video", boom)
+        files = {"file": ("swing.mp4", b"fake", "video/mp4")}
+        data = {"mode": "full", "cuts": '[{"start":1.0,"end":5.0},{"start":4.0,"end":7.0}]'}
+        response = auth_client.post("/api/video/upload", files=files, data=data)
+        assert response.status_code == 400
+        assert "重叠" in response.json()["message"]
