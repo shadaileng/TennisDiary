@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.1] - 2026-08-20
+
+### Fixed
+
+- miniapp 修复 `chooseVideo` 选视频失败回归（99 引入）：Step 99 将 `maxDuration` 误设为 180，触发微信选择器前置硬校验 `maxDuration can not over 60`，导致选择器无法弹出（Step 77 曾修复同类问题）。已移除 `maxDuration` 参数，相册长片不受限；整片 180s 上限改由选后 `dur > 180` 预检查 toast + 服务端 `_UPLOAD_MAX_DURATION` 校验兜底。
+
 ## [1.66.0] - 2026-08-20
 
 ### Added

@@ -266,8 +266,8 @@ function chooseVideo() {
   const traceId = createTraceId();
   logInfo("选择视频", { trace_id: traceId }, "choose_video", traceId);
   uni.chooseVideo({
+    // 不传 maxDuration：微信选择器硬上限 60s，传入会前置报错；相册长片由下方 180s 预检查兜底
     sourceType: ["album", "camera"],
-    maxDuration: UPLOAD_MAX,
     success: (res) => {
       const dur = Number(res.duration) || 0;
       if (dur > UPLOAD_MAX) {
