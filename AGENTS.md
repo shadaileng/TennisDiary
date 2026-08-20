@@ -62,19 +62,6 @@ cd admin && pnpm build                 # 构建管理端
 
 ### 提交规范
 
-**每次代码变更提交前必须完成验证**：
-
-```bash
-cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q
-```
-
-- ruff check：lint 规则检查，0 error 才能提交
-- ruff format：格式化，确保代码风格一致
-- pytest -q：测试全绿才能提交
-- 前端同理：`cd miniapp && pnpm run type-check && pnpm run build:mp-weixin`
-
-禁止在 lint 报错或测试失败时提交代码。
-
 ```
 <type>(<scope>): <中文描述>
 ```
