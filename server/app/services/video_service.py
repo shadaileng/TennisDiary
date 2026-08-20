@@ -84,6 +84,7 @@ def _parse_duration_from_ffmpeg_stderr(stderr: str) -> float:
 def probe_duration(path: str) -> float:
     """探测视频时长：优先 ffprobe，回退 ffmpeg stderr 解析"""
     ffprobe = shutil.which("ffprobe")
+    log.info(f"probe_duration: path={path} ffprobe={ffprobe}")
     if ffprobe:
         proc = subprocess.run(
             [
@@ -99,27 +100,20 @@ def probe_duration(path: str) -> float:
             capture_output=True,
             timeout=30,
         )
+        log.info(f"ffprobe: rc={proc.returncode} stdout={proc.stdout.decode()!r} stderr={proc.stderr.decode()[-300:]!r}")
         if proc.returncode == 0:
             try:
                 return float(proc.stdout.decode().strip())
             except ValueError:
                 pass
-        log.warning(
-            "ffprobe 探测时长失败 rc=%s stderr=%r",
-            proc.returncode,
-            proc.stderr.decode("utf-8", "replace")[-300:],
-        )
+        log.warning(f"ffprobe 探测时长失败 rc={proc.returncode} stderr={proc.stderr.decode('utf-8', 'replace')[-300:]}")
     ffmpeg = find_ffmpeg()
     if ffmpeg:
         proc = subprocess.run([ffmpeg, "-i", path], capture_output=True, timeout=30)
         try:
             return _parse_duration_from_ffmpeg_stderr(proc.stderr.decode(errors="replace"))
         except ValueError:
-            log.warning(
-                "ffmpeg 解析时长失败 rc=%s stderr=%r",
-                proc.returncode,
-                proc.stderr.decode("utf-8", "replace")[-300:],
-            )
+            log.warning(f"ffmpeg 解析时长失败 rc={proc.returncode} stderr={proc.stderr.decode('utf-8', 'replace')[-300:]}")
             raise
     raise FfmpegUnavailableError("ffmpeg 不可用")
 
