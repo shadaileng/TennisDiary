@@ -5,6 +5,7 @@ import subprocess
 
 import pytest
 
+from app.schemas.common import ErrorCode
 from app.services import video_service
 from app.services.video_service import (
     FfmpegUnavailableError,
@@ -466,3 +467,19 @@ class TestVideoUpload:
         response = auth_client.post("/api/video/upload", files=files, data=data)
         assert response.status_code == 400
         assert "重叠" in response.json()["message"]
+        # 业务/参数错误不得再误报为 10001（未登录）
+        assert response.json()["code"] == ErrorCode.INVALID_REQUEST
+
+    def test_upload_too_long_code_not_unauthorized(self, auth_client, data_dir, monkeypatch):
+        """整片超上限（业务错误）→ 400 + code 30000（此前误返回 10001 未登录）"""
+        from app.routers import video as video_router
+
+        def boom(path, mode, hit_time, cuts=None):
+            raise VideoTooLongError("视频最长 180 秒，当前 200 秒，请先在相册裁剪后再上传")
+
+        monkeypatch.setattr(video_router.video_service, "process_video", boom)
+        files = {"file": ("swing.mp4", b"fake", "video/mp4")}
+        response = auth_client.post("/api/video/upload", files=files, data={"mode": "single"})
+        assert response.status_code == 400
+        assert response.json()["code"] == ErrorCode.INVALID_REQUEST
+        assert "视频最长 180 秒" in response.json()["message"]

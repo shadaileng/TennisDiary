@@ -76,9 +76,11 @@ logger.info("Tennis Diary API 启动")
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """HTTP异常处理（401/403/404等）"""
-    code = ErrorCode.UNAUTHORIZED
-    if exc.status_code == 403:
+    """HTTP异常处理（400=参数/业务、401/403/404等）"""
+    code = ErrorCode.INVALID_REQUEST
+    if exc.status_code == 401:
+        code = ErrorCode.UNAUTHORIZED
+    elif exc.status_code == 403:
         code = ErrorCode.FORBIDDEN
     elif exc.status_code == 404:
         code = ErrorCode.NOT_FOUND
