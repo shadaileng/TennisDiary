@@ -105,10 +105,9 @@ def probe_duration(path: str) -> float:
             except ValueError:
                 pass
         log.warning(
-            "ffprobe 探测时长失败",
-            path=path,
-            returncode=proc.returncode,
-            stderr=proc.stderr.decode(errors="replace")[-300:],
+            "ffprobe 探测时长失败 rc=%s stderr=%r",
+            proc.returncode,
+            proc.stderr.decode("utf-8", "replace")[-300:],
         )
     ffmpeg = find_ffmpeg()
     if ffmpeg:
@@ -117,10 +116,9 @@ def probe_duration(path: str) -> float:
             return _parse_duration_from_ffmpeg_stderr(proc.stderr.decode(errors="replace"))
         except ValueError:
             log.warning(
-                "ffmpeg 解析时长失败",
-                path=path,
-                returncode=proc.returncode,
-                stderr=proc.stderr.decode(errors="replace")[-300:],
+                "ffmpeg 解析时长失败 rc=%s stderr=%r",
+                proc.returncode,
+                proc.stderr.decode("utf-8", "replace")[-300:],
             )
             raise
     raise FfmpegUnavailableError("ffmpeg 不可用")

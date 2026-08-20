@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.10] - 2026-08-20
+
+### Fixed
+
+- 视频上传处理失败时保留 `_debug_` 副本并记录文件大小/保留路径（仅 `ValueError` 类，用于排查设备上传「无法解析视频时长」字节损坏问题，定位后清理）。
+- `probe_duration` 解析失败日志改为内联 `rc=` 与 `stderr=`（此前为 loguru keyword 参数，部分日志处理链路丢失上下文）。
+
 ## [1.66.9] - 2026-08-21
 
 ### Changed
