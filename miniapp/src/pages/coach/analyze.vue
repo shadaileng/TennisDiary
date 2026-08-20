@@ -202,8 +202,10 @@ const UPLOAD_MAX = 180;
 const MODE_LIMIT: Record<Mode, number> = { single: 180, full: 180 };
 const MAX_SEGMENTS: Record<Mode, number> = { single: 1, full: 8 };
 const MIN_SEGMENT = 0.6;
-const MIN_ZOOM_SPAN = 2;
-const TRACK_PPS = 80; // 每秒视频在轨道上的像素宽度（pixels per second）
+const MIN_ZOOM_SPAN = 0.5; // 放大极限：0.5s 满屏（接近逐帧）
+const INIT_SPAN = 4; // 初始视野：约显示 4 秒（保证缩小/放大均有明显范围）
+const TRACK_PPS = 80; // 兜底每秒像素（measureBar 前）
+let zoomInitialized = false; // 缩放是否已按容器宽度初始化
 
 const mode = ref<Mode>("single");
 const kind = ref<AnalysisKind>("正手");
@@ -335,6 +337,8 @@ function chooseVideo() {
       hitTime.value = 0;
       resetSegments();
       playhead.value = 0;
+      pps.value = TRACK_PPS;
+      zoomInitialized = false;
       measureBar();
       logInfo("视频选择成功", { trace_id: traceId, duration: dur }, "choose_video_success", traceId);
     },
@@ -374,6 +378,13 @@ function measureBar() {
           barLeft.value = rect.left;
           barTop.value = rect.top;
           if (rect.height > 0) barHeight.value = rect.height;
+          // 首次按容器宽度初始化缩放：初始显示约 min(duration, INIT_SPAN) 秒，
+          // 使缩小可达全览、放大可达帧级，缩放范围感知明显
+          if (!zoomInitialized && videoDuration.value > 0) {
+            const initSpan = Math.min(videoDuration.value, INIT_SPAN);
+            pps.value = Math.max(rect.width / initSpan, rect.width / videoDuration.value);
+            zoomInitialized = true;
+          }
         }
       })
       .exec();
