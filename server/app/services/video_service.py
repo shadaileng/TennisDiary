@@ -227,7 +227,10 @@ def trim_video(src: str, dst: str, start: float, length: float) -> None:
         "+faststart",
     ]
     for extra in (["-c:a", "copy"], ["-an"]):
-        proc = subprocess.run([*base, *extra, dst], capture_output=True, timeout=120)
+        cmd = [*base, *extra, dst]
+        log.info(f"trim_video cmd={' '.join(cmd[:8])}... dst={dst}")
+        proc = subprocess.run(cmd, capture_output=True, timeout=120)
+        log.info(f"trim_video rc={proc.returncode} dst_exists={os.path.isfile(dst)} dst_size={os.path.getsize(dst) if os.path.isfile(dst) else 'N/A'} stderr={proc.stderr.decode('utf-8', errors='replace')[-500:]!r}")
         if proc.returncode == 0 and os.path.isfile(dst) and os.path.getsize(dst) > 0:
             return
     log.warning("视频片段裁切失败", start=start, length=length, src=src)
