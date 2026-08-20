@@ -396,9 +396,12 @@ def process_video(
 
     segments: list[dict] | None = None
     working = path
+    log.info(f"process_video: cuts={cuts} duration={duration}")
     if cuts:
         segments = validate_cuts(cuts, mode, duration)
+        log.info(f"validate_cuts OK: segments={segments}")
         working = trim_and_concat(path, segments, mode)
+        log.info(f"trim_and_concat returned: working={working} exists={os.path.isfile(working)}")
         if working != path and os.path.isfile(path):
             os.unlink(path)  # 裁剪后原完整视频不再保留
         # 重探测裁剪产物的时长/帧率（拼接结果实际值）
