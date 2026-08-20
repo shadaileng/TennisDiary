@@ -117,6 +117,12 @@
                 >
                   <text class="tl-clip-label">{{ i + 1 }}</text>
                 </view>
+                <!-- 开放起点标记 -->
+                <view
+                  v-if="pendingStart !== null"
+                  class="tl-pending-mark"
+                  :style="{ left: t2x(pendingStart) + 'px' }"
+                ></view>
               </view>
 
               <!-- 中间播放头（固定竖线） -->
@@ -129,14 +135,15 @@
             </view>
 
             <view class="trim-actions">
-              <view class="trim-btn press-btn" @tap="setTrimToPlayhead('start')">
-                设置起点 @ {{ fmtTime(playhead) }}s
-              </view>
-              <view class="trim-btn press-btn" @tap="setTrimToPlayhead('end')">
-                设置终点 @ {{ fmtTime(playhead) }}s
+              <view
+                class="trim-btn press-btn"
+                :class="{ 'trim-btn--pending': pendingStart !== null }"
+                @tap="toggleSegment"
+              >
+                {{ pendingStart === null ? `设置起点 @ ${fmtTime(playhead)}s` : `设置终点 @ ${fmtTime(playhead)}s` }}
               </view>
               <view
-                v-if="segments.length"
+                v-if="segments.length || pendingStart !== null"
                 class="trim-undo press-btn"
                 @tap="resetSegments"
               >重置</view>
@@ -220,6 +227,7 @@ const isPlaying = ref(false);
 
 // ============ 时间轴状态（剪映式：轨道可拖动 + 固定中间播放头） ============
 const segments = ref<TrimSegment[]>([]);
+const pendingStart = ref<number | null>(null); // 当前开放的起点，null 表示无开放段
 const pps = ref(TRACK_PPS); // 每秒像素（轨道缩放比例，越大越放大）
 const playhead = ref(0); // 播放头时间（秒），固定在容器中间
 const barWidth = ref(0);
@@ -533,43 +541,46 @@ function flushPlayhead() {
   seekPreview(playhead.value);
 }
 
-// ============ 裁剪控制 ============
-/** 将起点/终点设置到播放头位置；已有片段时创建下一段，否则修改第一段 */
-function setTrimToPlayhead(type: "start" | "end") {
+// ============ 片段裁剪控制（支持多段） ============
+/** 切换段状态：开段 → 闭段，或开新段 */
+function toggleSegment() {
   const t = playhead.value;
   warnMsg.value = "";
 
-  if (segments.value.length === 0) {
-    segments.value =
-      type === "start"
-        ? [{ key: segKey++, start: t, end: videoDuration.value }]
-        : [{ key: segKey++, start: 0, end: t }];
+  if (pendingStart.value === null) {
+    // 开新段
+    if (segments.value.length >= MAX_SEGMENTS[mode.value]) {
+      warnMsg.value = mode.value === "full" ? "最多 8 段，请先删除已有片段" : "单次挥拍仅支持 1 段";
+      return;
+    }
+    // single 模式：已有片段时不允许新开段
+    if (mode.value === "single" && segments.value.length > 0) {
+      warnMsg.value = "单次挥拍仅支持 1 段，请先重置";
+      return;
+    }
+    pendingStart.value = t;
     return;
   }
 
-  const sg = segments.value[0];
-  if (type === "start") {
-    if (sg.end - t < MIN_SEGMENT) {
-      warnMsg.value = "起点需在终点前至少 0.6 秒";
-      return;
-    }
-    sg.start = t;
-  } else {
-    if (t - sg.start < MIN_SEGMENT) {
-      warnMsg.value = "终点需在起点后至少 0.6 秒";
-      return;
-    }
-    sg.end = t;
+  // 闭段
+  const start = pendingStart.value;
+  if (t - start < MIN_SEGMENT) {
+    warnMsg.value = "片段最短 0.6 秒";
+    return;
   }
+  segments.value.push({ key: segKey++, start, end: t });
+  pendingStart.value = null;
 }
 
 function removeSegment(i: number) {
   segments.value.splice(i, 1);
+  pendingStart.value = null;
   warnMsg.value = "";
 }
 
 function resetSegments() {
   segments.value = [];
+  pendingStart.value = null;
   warnMsg.value = "";
 }
 
@@ -1059,6 +1070,25 @@ function fmtTime(s: number): string {
   font-size: 10px;
   font-weight: 700;
   color: $color-ink;
+}
+
+.tl-pending-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-accent, #C8DA2B);
+  transform: translateX(-1px);
+
+  &::after {
+    content: "▶";
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: var(--color-accent, #C8DA2B);
+  }
 }
 
 .tl-playhead {
