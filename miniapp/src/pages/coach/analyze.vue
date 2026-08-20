@@ -67,57 +67,84 @@
             {{ mode === "single" ? "🧭 用下方时间轴拖动播放头到击球瞬间，或视频内直接暂停定位" : "🧭 可在下方时间轴添加多个片段拼接分析" }}
           </text>
 
-          <!-- 时间轴剪辑 -->
+          <!-- 时间轴剪辑 - 类似剪映风格 -->
           <view v-if="videoDuration > 0" class="trim-section">
             <view class="trim-head">
               <text class="trim-title">时间轴剪辑</text>
               <text class="trim-meta">{{ trimMetaText }}</text>
             </view>
 
+            <!-- 时间刻度（固定在容器上，以播放头为 0 参考） -->
+            <view class="tl-ruler">
+              <text v-for="t in rulerTicks" :key="t" class="tl-ruler-tick" :style="{ left: containerX(t) + 'px' }">{{ fmtTime(t) }}</text>
+            </view>
+
+            <!-- 视频轨道容器 -->
             <view
-              class="timeline-bar"
-              @touchstart="onBarTouchStart"
-              @touchmove="onBarTouchMove"
-              @touchend="onBarTouchEnd"
-              @touchcancel="onBarTouchEnd"
+              class="tl-track-container"
+              @touchstart="onTrackTouchStart"
+              @touchmove="onTrackTouchMove"
+              @touchend="onTrackTouchEnd"
+              @touchcancel="onTrackTouchEnd"
             >
-              <!-- 基线刻度 -->
-              <view class="tl-track"></view>
-              <!-- 片段色块：点击居中预览 -->
+              <!-- 视频轨道（可拖动，宽度随视频时长与缩放变化） -->
               <view
-                v-for="(sg, i) in segments"
-                :key="sg.key"
-                class="tl-block"
-                :style="blockStyle(sg)"
-                @tap.stop="centerOnSegment(i)"
+                class="tl-track"
+                :style="{
+                  width: trackWidth + 'px',
+                  transform: `translateX(${trackOffset}px)`
+                }"
               >
-                <text class="tl-block-label">{{ i + 1 }}</text>
+                <!-- 已选片段色块 -->
+                <view
+                  v-for="(sg, i) in segments"
+                  :key="sg.key"
+                  class="tl-clip"
+                  :style="clipStyle(sg)"
+                  @tap.stop="centerOnSegment(i)"
+                >
+                  <text class="tl-clip-label">{{ i + 1 }}</text>
+                </view>
               </view>
-              <!-- 未闭合起点 -->
+
+              <!-- 左侧把手（起始点） -->
               <view
-                v-if="pendingStart !== null"
-                class="tl-start-mark"
-                :style="markStyle(pendingStart)"
-              >▶</view>
-              <!-- 播放头 -->
-              <view class="tl-playhead" :style="playheadStyle()"></view>
+                class="tl-handle tl-handle--left"
+                :style="handleLeftStyle()"
+                @touchstart.stop="onHandleTouchStart($event, 'left')"
+                @touchmove.stop="onTrackTouchMove"
+                @touchend.stop="onHandleTouchEnd"
+                @touchcancel.stop="onHandleTouchEnd"
+              ></view>
+
+              <!-- 右侧把手（结束点） -->
+              <view
+                class="tl-handle tl-handle--right"
+                :style="handleRightStyle()"
+                @touchstart.stop="onHandleTouchStart($event, 'right')"
+                @touchmove.stop="onTrackTouchMove"
+                @touchend.stop="onHandleTouchEnd"
+                @touchcancel.stop="onHandleTouchEnd"
+              ></view>
+
+              <!-- 中间播放头（固定竖线） -->
+              <view class="tl-playhead"></view>
             </view>
 
             <view class="timeline-info">
               <text class="tl-info-time">▶ {{ fmtTime(playhead) }}s / {{ fmtTime(videoDuration) }}s</text>
-              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 拖动时间轴选择帧 · 双指缩放</text>
+              <text class="tl-info-zoom">拖动轨道选择帧 · 拖动两侧把手设置裁剪范围</text>
             </view>
 
             <view class="trim-actions">
-              <view
-                class="trim-btn press-btn"
-                :class="{ 'trim-btn--disabled': !canAddSegment && pendingStart === null }"
-                @tap="toggleSegment"
-              >
-                {{ pendingStart === null ? "➕ 起点" : "✋ 终点" }} @ {{ fmtTime(playhead) }}s
+              <view class="trim-btn press-btn" @tap="setTrimToPlayhead('start')">
+                设置起点 @ {{ fmtTime(playhead) }}s
+              </view>
+              <view class="trim-btn press-btn" @tap="setTrimToPlayhead('end')">
+                设置终点 @ {{ fmtTime(playhead) }}s
               </view>
               <view
-                v-if="segments.length || pendingStart !== null"
+                v-if="segments.length"
                 class="trim-undo press-btn"
                 @tap="resetSegments"
               >重置</view>
@@ -184,6 +211,7 @@ const MODE_LIMIT: Record<Mode, number> = { single: 180, full: 180 };
 const MAX_SEGMENTS: Record<Mode, number> = { single: 1, full: 8 };
 const MIN_SEGMENT = 0.6;
 const MIN_ZOOM_SPAN = 2;
+const TRACK_PPS = 80; // 每秒视频在轨道上的像素宽度（pixels per second）
 
 const mode = ref<Mode>("single");
 const kind = ref<AnalysisKind>("正手");
@@ -193,35 +221,49 @@ const analyzing = ref(false);
 const progress = ref("");
 const hitTime = ref(0);
 const warnMsg = ref("");
-const videoReady = ref(false); // 视频元数据就绪（可安全 seek 预览）
-const isPlaying = ref(false); // 视频播放态（决定拖动时是否需要强制刷新帧）
+const videoReady = ref(false);
+const isPlaying = ref(false);
 
-// ============ 时间轴状态 ============
+// ============ 时间轴状态（剪映式：轨道可拖动 + 固定中间播放头） ============
 const segments = ref<TrimSegment[]>([]);
-const pendingStart = ref<number | null>(null);
-const _playhead = ref(0); // 内部状态，由 viewStart + visibleSpan / 2 推导
-const visibleSpan = ref(0); // 可见时间窗（秒）
-const viewStart = ref(0); // 可见窗左边界（原始时间轴秒）
+const pps = ref(TRACK_PPS); // 每秒像素（轨道缩放比例，越大越放大）
+const playhead = ref(0); // 播放头时间（秒），固定在容器中间
 const barWidth = ref(0);
 const barLeft = ref(0);
 const barTop = ref(0);
-const barHeight = ref(44);
+const barHeight = ref(60);
 let segKey = 0;
 
 let videoCtx: UniApp.VideoContext | null = null;
-let dragMode: "none" | "scrub" | "pinch" = "none";
+let dragMode: "none" | "track" | "pinch" = "none";
 let pinchDist = 0;
+let pinchStartPps = TRACK_PPS;
 let lastPanX = 0;
 let lastSeekTs = 0;
+let dragHandleType: "left" | "right" | null = null;
+let handleStartX = 0;
+let handleStartTime = 0;
 
-// 播放头固定在中间，时间由视野位置推导
-const playhead = computed({
-  get: () => viewStart.value + visibleSpan.value / 2,
-  set: (t: number) => {
-    // 设置播放头时间时，调整 viewStart 使播放头保持在中间
-    const half = visibleSpan.value / 2;
-    viewStart.value = clampViewStart(t - half);
-  },
+// 轨道偏移量（px）：使播放头始终显示在容器中间
+const trackOffset = computed(() => barWidth.value / 2 - playhead.value * pps.value);
+
+// 缩放范围：最大视野=整片、最小视野=MIN_ZOOM_SPAN 秒
+const minPps = computed(() => (videoDuration.value && barWidth.value ? barWidth.value / videoDuration.value : 1));
+const maxPps = computed(() => (barWidth.value ? barWidth.value / MIN_ZOOM_SPAN : 100));
+
+// 轨道总宽度（像素）
+const trackWidth = computed(() => videoDuration.value * pps.value);
+
+// 时间刻度标记（位于轨道内部，随轨道移动）
+const rulerTicks = computed(() => {
+  const dur = videoDuration.value;
+  if (dur <= 0) return [];
+  const ticks: number[] = [];
+  const step = dur <= 10 ? 1 : dur <= 60 ? 5 : 10;
+  for (let t = 0; t <= dur; t += step) {
+    ticks.push(t);
+  }
+  return ticks;
 });
 
 const kindOptions = computed(() =>
@@ -248,17 +290,6 @@ const needTrimHint = computed(() => {
 const trimMetaText = computed(() => {
   if (!segments.value.length) return "整片直传";
   return `${segments.value.length}/${MAX_SEGMENTS[mode.value]} 段 · ${totalConcat.value.toFixed(1)}s`;
-});
-const canAddSegment = computed(() => {
-  if (pendingStart.value !== null) return true;
-  const lastEnd = segments.value.length
-    ? segments.value[segments.value.length - 1].end
-    : 0;
-  return (
-    segments.value.length < MAX_SEGMENTS[mode.value] &&
-    playhead.value > lastEnd + 0.01 &&
-    videoDuration.value > 0
-  );
 });
 
 onMounted(() => {
@@ -296,8 +327,6 @@ function chooseVideo() {
       videoDuration.value = dur;
       hitTime.value = 0;
       resetSegments();
-      visibleSpan.value = dur || 60;
-      viewStart.value = 0;
       playhead.value = 0;
       measureBar();
       logInfo("视频选择成功", { trace_id: traceId, duration: dur }, "choose_video_success", traceId);
@@ -321,7 +350,6 @@ function onVideoMeta(e: any) {
   const d = e?.detail?.duration;
   if (typeof d === "number" && d > 0 && !videoDuration.value) {
     videoDuration.value = d;
-    visibleSpan.value = d;
   }
   // 视频元素此时已渲染，重新绑定上下文保证 seek 预览可用
   videoCtx = uni.createVideoContext("swingVideo");
@@ -332,7 +360,7 @@ function onVideoMeta(e: any) {
 function measureBar() {
   nextTick(() => {
     uni.createSelectorQuery()
-      .select(".timeline-bar")
+      .select(".tl-track-container")
       .boundingClientRect((rect: any) => {
         if (rect && rect.width > 0) {
           barWidth.value = rect.width;
@@ -345,14 +373,20 @@ function measureBar() {
   });
 }
 
+/** 时间(秒) → 轨道内像素位置（相对轨道起点） */
 function t2x(t: number): number {
-  if (!barWidth.value || !visibleSpan.value) return 0;
-  return ((t - viewStart.value) / visibleSpan.value) * barWidth.value;
+  return t * pps.value;
 }
 
+/** 时间(秒) → 容器内像素位置（相对容器左端，含轨道偏移） */
+function containerX(t: number): number {
+  return barWidth.value / 2 + (t - playhead.value) * pps.value;
+}
+
+/** 容器内像素 → 时间(秒) */
 function x2t(x: number): number {
-  if (!barWidth.value || !visibleSpan.value) return 0;
-  return viewStart.value + (x / barWidth.value) * visibleSpan.value;
+  if (!barWidth.value || !pps.value) return 0;
+  return playhead.value + (x - barWidth.value / 2) / pps.value;
 }
 
 function clampT(t: number): number {
@@ -360,67 +394,112 @@ function clampT(t: number): number {
   return Math.min(Math.max(0, t), Math.max(0, dur));
 }
 
-/** 把可见窗左边界夹紧到 [0, duration - visibleSpan]，全览时归 0 */
-function clampViewStart(vs: number): number {
-  const dur = videoDuration.value;
-  const span = visibleSpan.value;
-  if (span >= dur - 0.01) return 0;
-  return Math.min(Math.max(0, vs), Math.max(0, dur - span));
+/** 设置播放头时间（夹紧） */
+function setPlayhead(t: number) {
+  playhead.value = clampT(t);
 }
 
-/** 点击选中的片段 → 视野居中该片段并预览中点帧 */
+/** 点击选中的片段 → 播放头移到片段中点并预览 */
 function centerOnSegment(i: number) {
   const sg = segments.value[i];
   if (!sg) return;
-  const mid = (sg.start + sg.end) / 2;
-  // 将片段中点移到视野中心（播放头位置）
-  viewStart.value = clampViewStart(mid - visibleSpan.value / 2);
+  setPlayhead((sg.start + sg.end) / 2);
   flushPlayhead();
 }
 
-// ============ 时间轴手势：拖动时间轴选帧 + 双指捏合缩放 ============
-function onBarTouchStart(e: any) {
+// ============ 时间轴手势：拖动轨道 + 双指捏合缩放 ============
+function onTrackTouchStart(e: any) {
+  if (dragHandleType) return; // 已在拖把手
   const touches = e.touches || [];
   if (touches.length >= 2) {
     dragMode = "pinch";
     pinchDist = touchDist(touches);
+    pinchStartPps = pps.value;
     return;
   }
-  // 单指拖动整个时间轴
-  dragMode = "scrub";
+  dragMode = "track";
   lastPanX = touches[0]?.clientX ?? 0;
 }
 
-function onBarTouchMove(e: any) {
+function onTrackTouchMove(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
-    if (dragMode === "none" || dragMode === "scrub") dragMode = "pinch";
-    if (dragMode === "pinch") {
-      const d = touchDist(touches);
-      if (pinchDist <= 0) pinchDist = d;
-      applyPinch(d);
+    if (dragMode !== "pinch") {
+      dragMode = "pinch";
+      pinchDist = touchDist(touches);
+      pinchStartPps = pps.value;
     }
-  } else if (touches.length === 1) {
-    if (dragMode === "pinch") dragMode = "scrub";
-    if (dragMode === "scrub") {
-      // 拖动时间轴，播放头始终在中间
-      const x = touches[0].clientX;
+    applyPinch(touchDist(touches));
+    return;
+  }
+  if (touches.length === 1) {
+    const x = touches[0].clientX;
+    // 正在拖把手 → 走把手逻辑
+    if (dragHandleType) {
+      onHandleTouchMove(x);
+      return;
+    }
+    if (dragMode === "pinch") dragMode = "track";
+    if (dragMode === "track") {
       const dx = x - lastPanX;
       if (dx !== 0) {
-        const dt = (dx / barWidth.value) * visibleSpan.value;
-        viewStart.value = clampViewStart(viewStart.value - dt);
+        setPlayhead(playhead.value - dx / pps.value);
         lastPanX = x;
-        throttleSeek(playhead.value); // playhead 由 viewStart 推导
+        throttleSeek(playhead.value);
       }
     }
   }
 }
 
-function onBarTouchEnd() {
-  const wasScrub = dragMode === "scrub";
+function onTrackTouchEnd() {
+  const wasTrack = dragMode === "track";
   dragMode = "none";
   pinchDist = 0;
-  if (wasScrub) flushPlayhead(); // 松手补帧
+  if (!dragHandleType && wasTrack) flushPlayhead();
+}
+
+// ============ 把手拖动（起始点/结束点） ============
+function onHandleTouchStart(e: any, type: "left" | "right") {
+  const touch = e.touches?.[0];
+  if (!touch) return;
+  e.stopPropagation?.();
+  dragHandleType = type;
+  handleStartX = touch.clientX;
+  handleStartTime =
+    type === "left" ? segments.value[0]?.start ?? 0 : segments.value[0]?.end ?? videoDuration.value;
+}
+
+function onHandleTouchMove(clientX: number) {
+  if (!dragHandleType) return;
+  const dx = clientX - handleStartX;
+  const dt = dx / pps.value;
+
+  if (segments.value.length === 0) {
+    const start = dragHandleType === "left" ? 0 : videoDuration.value;
+    segments.value = [{ key: segKey++, start: 0, end: videoDuration.value }];
+    handleStartTime = start;
+  }
+
+  const sg = segments.value[0];
+  if (!sg) return;
+
+  let newTime = clampT(handleStartTime + dt);
+  // 吸附到中线播放头（6px 内对齐，便于精确对齐起始/结束帧）
+  if (Math.abs(newTime - playhead.value) * pps.value < 6) {
+    newTime = playhead.value;
+  }
+
+  if (dragHandleType === "left") {
+    if (sg.end - newTime >= MIN_SEGMENT) sg.start = newTime;
+  } else {
+    if (newTime - sg.start >= MIN_SEGMENT) sg.end = newTime;
+  }
+  throttleSeek(dragHandleType === "left" ? sg.start : sg.end);
+}
+
+function onHandleTouchEnd() {
+  dragHandleType = null;
+  flushPlayhead();
 }
 
 function touchDist(touches: any[]): number {
@@ -432,19 +511,10 @@ function touchDist(touches: any[]): number {
 
 function applyPinch(dist: number) {
   if (!barWidth.value || dist <= 0 || pinchDist <= 0) return;
-  const dur = videoDuration.value;
-  const factor = pinchDist / dist; // 手指张开 → 放大（视野变窄）
-  const newSpan = Math.min(Math.max(visibleSpan.value * factor, MIN_ZOOM_SPAN), dur);
-  // 以视野中心（播放头位置）为锚点
-  const center = viewStart.value + visibleSpan.value / 2;
-  visibleSpan.value = newSpan;
-  viewStart.value = clampViewStart(center - newSpan / 2);
+  const factor = dist / pinchDist; // 手指张开 → 放大
+  const newPps = Math.min(Math.max(pinchStartPps * factor, minPps.value), maxPps.value);
+  pps.value = newPps;
   pinchDist = dist;
-}
-
-function keepInView() {
-  // 播放头固定在中间，不需要自动滚窗
-  // 视野边界由 clampViewStart 在设置 viewStart 时自动处理
 }
 
 function throttleSeek(t: number) {
@@ -454,7 +524,7 @@ function throttleSeek(t: number) {
   seekPreview(t);
 }
 
-/** seek + （暂停态下）play/pause 强制刷新目标帧（Chromium 模拟器/真机通用） */
+/** seek + （暂停态下）play/pause 强制刷新目标帧 */
 function seekPreview(t: number) {
   if (!videoCtx || !videoReady.value) return;
   try {
@@ -468,40 +538,38 @@ function seekPreview(t: number) {
   }
 }
 
-/** 松手/设点后强制刷新一次目标帧（节流可能跳过最后一帧） */
+/** 松手后强制刷新一次目标帧 */
 function flushPlayhead() {
   seekPreview(playhead.value);
 }
 
-// ============ 片段（起始点/结束点） ============
-function toggleSegment() {
+// ============ 裁剪控制 ============
+/** 将起点/终点设置到播放头位置；已有片段时创建下一段，否则修改第一段 */
+function setTrimToPlayhead(type: "start" | "end") {
   const t = playhead.value;
-  if (pendingStart.value === null) {
-    if (!canAddSegment.value) {
-      warnMsg.value =
-        segments.value.length >= MAX_SEGMENTS[mode.value]
-          ? `${mode.value === "full" ? "最多 8" : "最多 1"} 段，先点击已选片段删除`
-          : "起点需晚于上一段终点";
+  warnMsg.value = "";
+
+  if (segments.value.length === 0) {
+    segments.value =
+      type === "start"
+        ? [{ key: segKey++, start: t, end: videoDuration.value }]
+        : [{ key: segKey++, start: 0, end: t }];
+    return;
+  }
+
+  const sg = segments.value[0];
+  if (type === "start") {
+    if (sg.end - t < MIN_SEGMENT) {
+      warnMsg.value = "起点需在终点前至少 0.6 秒";
       return;
     }
-    pendingStart.value = t;
-    warnMsg.value = "";
-    throttleSeek(t);
+    sg.start = t;
   } else {
-    const start = pendingStart.value;
-    const end = t;
-    if (end - start < MIN_SEGMENT) {
-      warnMsg.value = "片段最短 0.6 秒";
+    if (t - sg.start < MIN_SEGMENT) {
+      warnMsg.value = "终点需在起点后至少 0.6 秒";
       return;
     }
-    const extra = end - start;
-    if (totalConcat.value + extra > modeLimit.value + 0.001) {
-      warnMsg.value = `片段总长超上限 ${modeLimit.value}s（当前 ${(totalConcat.value + extra).toFixed(1)}s），请缩短终点`;
-      return;
-    }
-    segments.value.push({ key: segKey++, start, end });
-    pendingStart.value = null;
-    warnMsg.value = "";
+    sg.end = t;
   }
 }
 
@@ -512,24 +580,25 @@ function removeSegment(i: number) {
 
 function resetSegments() {
   segments.value = [];
-  pendingStart.value = null;
   warnMsg.value = "";
 }
 
-// ============ 样式（坐标转 px） ============
-function blockStyle(sg: TrimSegment) {
+// ============ 样式 ============
+function clipStyle(sg: TrimSegment) {
   const left = t2x(sg.start);
   const width = t2x(sg.end) - left;
   return { left: `${left}px`, width: `${width}px` };
 }
 
-function markStyle(t: number) {
-  return { left: `${t2x(t)}px` };
+// 把手定位在容器坐标（随轨道偏移移动）
+function handleLeftStyle() {
+  const t = segments.value.length ? segments.value[0].start : 0;
+  return { left: `${containerX(t)}px`, transform: "translateX(-100%)" };
 }
 
-function playheadStyle() {
-  // 播放头固定在中间
-  return { left: "50%", transform: "translateX(-1px)" };
+function handleRightStyle() {
+  const t = segments.value.length ? segments.value[0].end : videoDuration.value;
+  return { left: `${containerX(t)}px`, transform: "translateX(0)" };
 }
 
 // ============ 击球瞬间（片段内相对时间） ============
@@ -881,9 +950,24 @@ function fmtTime(s: number): string {
   color: $color-olive-light;
 }
 
-.timeline-bar {
+// ========== 时间轴剪辑 ==========
+.tl-ruler {
   position: relative;
-  height: 44px;
+  height: 16px;
+  margin-bottom: 4px;
+}
+
+.tl-ruler-tick {
+  position: absolute;
+  font-size: 9px;
+  color: $color-olive-light;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.tl-track-container {
+  position: relative;
+  height: 60px;
   border-radius: 8px;
   background-color: var(--color-page-bg, #F2F2EF);
   overflow: hidden;
@@ -891,19 +975,18 @@ function fmtTime(s: number): string {
 
 .tl-track {
   position: absolute;
-  top: 50%;
+  top: 0;
   left: 0;
-  right: 0;
-  height: 6px;
-  transform: translateY(-50%);
-  border-radius: 3px;
-  background: linear-gradient(90deg, #d8d8d0, #c8c8c0 50%, #d8d8d0);
+  height: 100%;
+  min-width: 100%;
+  box-sizing: border-box;
+  border-right: 1px dashed #d8d8d0;
 }
 
-.tl-block {
+.tl-clip {
   position: absolute;
-  top: 7px;
-  bottom: 7px;
+  top: 5px;
+  bottom: 5px;
   border-radius: 6px;
   background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.55);
   border: 1px solid var(--color-accent-dark, #A8B822);
@@ -914,43 +997,54 @@ function fmtTime(s: number): string {
   box-sizing: border-box;
 }
 
-.tl-block-label {
+.tl-clip-label {
   font-size: 10px;
   font-weight: 700;
   color: $color-ink;
 }
 
-.tl-start-mark {
+.tl-handle {
   position: absolute;
   top: 0;
-  width: 0;
-  height: 0;
-  border-left: 7px solid var(--color-accent, #C8DA2B);
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-  transform: translateX(-50%);
+  bottom: 0;
+  width: 22px;
+  z-index: 5;
+  cursor: grab;
+
+  &--left {
+    left: 0;
+    border-left: 3px solid var(--color-accent, #C8DA2B);
+    background: linear-gradient(90deg, rgba(var(--color-accent-rgb, 200, 218, 43), 0.35), transparent);
+  }
+
+  &--right {
+    border-right: 3px solid var(--color-accent, #C8DA2B);
+    background: linear-gradient(270deg, rgba(var(--color-accent-rgb, 200, 218, 43), 0.35), transparent);
+  }
 }
 
 .tl-playhead {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 50%;                    /* 固定在中间 */
+  left: 50%;
   width: 2px;
   background: var(--color-accent-dark, #A8B822);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
   transform: translateX(-1px);
-  z-index: 10;                  /* 确保在最上层 */
+  z-index: 10;
 
   &::before {
     content: "";
     position: absolute;
-    top: -2px;
-    left: -4px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--color-accent, #C8DA2B);
+    top: -4px;
+    left: -5px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50% 50% 50% 0;
+    background: var(--color-accent-dark, #A8B822);
     border: 2px solid $color-white;
+    transform: rotate(-45deg);
   }
 }
 
