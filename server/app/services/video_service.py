@@ -253,8 +253,9 @@ def trim_and_concat(src: str, cuts: list[dict], mode: str) -> str:
             trim_video(src, seg, cut["start"], cut["end"] - cut["start"])
             seg_paths.append(seg)
         if len(seg_paths) == 1:
+            result = seg_paths[0]
             seg_paths.clear()  # 单片段产物不作为临时文件清理
-            return seg_paths[0]  # type: ignore[return-value]
+            return result
 
         out = os.path.join(seg_dir, f"{stem}_concat.mp4")
         concat_list = os.path.join(seg_dir, f"{stem}_concat.txt")
