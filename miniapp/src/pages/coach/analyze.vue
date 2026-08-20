@@ -61,7 +61,7 @@
               <text class="hit-label">击球瞬间（片段内）</text>
               <text class="hit-value">{{ hitTimeText }}</text>
             </view>
-            <view class="hit-btn press-btn" @tap="setHitTime">设为击球瞬间</view>
+            <view class="hit-btn press-btn" @tap="clearHitTime">清除击球瞬间</view>
           </view>
           <text class="video-sub">
             {{ mode === "single" ? "🧭 用下方时间轴拖动播放头到击球瞬间，或视频内直接暂停定位" : "🧭 可在下方时间轴添加多个片段拼接分析" }}
@@ -172,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -605,30 +605,23 @@ function segmentIndexAt(t: number): number {
 
 /** 视频播放时自动更新击球瞬间时间 */
 function onVideoTimeUpdate(e: any) {
-  if (mode.value !== "single") return;
-  const t = e?.detail?.currentTime;
-  if (typeof t !== "number" || t <= 0) return;
-  if (segmentIndexAt(t) < 0) {
-    warnMsg.value = trimmed.value ? "击球瞬间需落在所选片段内" : "";
-    return;
-  }
-  const concatT = toConcatTime(t);
-  if (concatT === null) return;
-  hitTime.value = concatT;
-  warnMsg.value = "";
+  // 播放头已自动跟随，此函数保留用于兼容（可选）
 }
 
-function setHitTime() {
+/** 播放头变化时自动更新击球瞬间 */
+watch(playhead, (t) => {
   if (mode.value !== "single") return;
-  const t = playhead.value;
-  if (t <= 0) return;
-  if (segmentIndexAt(t) < 0) {
-    warnMsg.value = trimmed.value ? "击球瞬间需落在所选片段内" : "";
+  const idx = segmentIndexAt(t);
+  if (idx < 0) {
+    hitTime.value = 0;
     return;
   }
   const concatT = toConcatTime(t);
-  if (concatT === null) return;
-  hitTime.value = concatT;
+  if (concatT !== null) hitTime.value = concatT;
+});
+
+function clearHitTime() {
+  hitTime.value = 0;
   warnMsg.value = "";
 }
 
