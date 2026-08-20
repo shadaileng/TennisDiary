@@ -72,10 +72,15 @@ def upload_video(
     abs_path = os.path.join(abs_dir, filename)
 
     # 分块写入，避免大视频占用内存
+    written = 0
     try:
         with open(abs_path, "wb") as out:
-            while chunk := file.file.read(1024 * 1024):
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
                 out.write(chunk)
+                written += len(chunk)
             out.flush()
             os.fsync(out.fileno())
     except Exception:
@@ -85,6 +90,7 @@ def upload_video(
         raise
 
     actual_size = os.path.getsize(abs_path)
+    log.info(f"视频上传完成: path={abs_path} written={written} actual={actual_size}")
 
     if actual_size == 0:
         os.unlink(abs_path)
