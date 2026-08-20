@@ -83,12 +83,13 @@
             >
               <!-- 基线刻度 -->
               <view class="tl-track"></view>
-              <!-- 片段色块 -->
+              <!-- 片段色块：点击居中预览 -->
               <view
                 v-for="(sg, i) in segments"
                 :key="sg.key"
                 class="tl-block"
                 :style="blockStyle(sg)"
+                @tap.stop="centerOnSegment(i)"
               >
                 <text class="tl-block-label">{{ i + 1 }}</text>
               </view>
@@ -104,7 +105,7 @@
 
             <view class="timeline-info">
               <text class="tl-info-time">▶ {{ fmtTime(playhead) }}s / {{ fmtTime(videoDuration) }}s</text>
-              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 双指缩放</text>
+              <text class="tl-info-zoom">视野 {{ fmtTime(visibleSpan) }}s · 双指缩放 / 拖动平移</text>
             </view>
 
             <view class="trim-actions">
@@ -183,6 +184,7 @@ const MODE_LIMIT: Record<Mode, number> = { single: 15, full: 90 };
 const MAX_SEGMENTS: Record<Mode, number> = { single: 1, full: 8 };
 const MIN_SEGMENT = 0.6;
 const MIN_ZOOM_SPAN = 2;
+const PLAYHEAD_HIT = 10;
 
 const mode = ref<Mode>("single");
 const kind = ref<AnalysisKind>("正手");
@@ -206,8 +208,9 @@ const barLeft = ref(0);
 let segKey = 0;
 
 let videoCtx: UniApp.VideoContext | null = null;
-let dragMode: "none" | "drag" | "pinch" = "none";
+let dragMode: "none" | "scrub" | "pan" | "pinch" = "none";
 let pinchDist = 0;
+let lastPanX = 0;
 let lastSeekTs = 0;
 
 const kindOptions = computed(() =>
@@ -344,41 +347,75 @@ function clampT(t: number): number {
   return Math.min(Math.max(0, t), Math.max(0, dur));
 }
 
-// ============ 时间轴手势：播放头拖动 + 双指捏合缩放 ============
+/** 把可见窗左边界夹紧到 [0, duration - visibleSpan]，全览时归 0 */
+function clampViewStart(vs: number): number {
+  const dur = videoDuration.value;
+  const span = visibleSpan.value;
+  if (span >= dur - 0.01) return 0;
+  return Math.min(Math.max(0, vs), Math.max(0, dur - span));
+}
+
+/** 点击选中的片段 → 视野居中该片段并预览中点帧 */
+function centerOnSegment(i: number) {
+  const sg = segments.value[i];
+  if (!sg) return;
+  const mid = (sg.start + sg.end) / 2;
+  playhead.value = mid;
+  viewStart.value = clampViewStart(mid - visibleSpan.value / 2);
+  flushPlayhead();
+}
+
+// ============ 时间轴手势：播放头拖动(scrub) + 平移视野(pan) + 双指捏合缩放 ============
 function onBarTouchStart(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
     dragMode = "pinch";
     pinchDist = touchDist(touches);
-  } else {
-    dragMode = "drag";
+    return;
   }
+  const x = touches[0]?.clientX - barLeft.value;
+  // 命中播放头（±10px）→ scrub；否则（空白/片段色块）→ pan 平移视野
+  if (Math.abs(t2x(playhead.value) - x) <= PLAYHEAD_HIT) {
+    dragMode = "scrub";
+  } else {
+    dragMode = "pan";
+  }
+  lastPanX = touches[0]?.clientX ?? 0;
 }
 
 function onBarTouchMove(e: any) {
   const touches = e.touches || [];
   if (touches.length >= 2) {
-    if (dragMode === "none") dragMode = "pinch";
+    if (dragMode === "none" || dragMode === "pan" || dragMode === "scrub") dragMode = "pinch";
     if (dragMode === "pinch") {
       const d = touchDist(touches);
       if (pinchDist <= 0) pinchDist = d;
       applyPinch(d);
     }
   } else if (touches.length === 1) {
-    if (dragMode === "pinch") dragMode = "drag"; // 抬指从捏合切回拖动
-    if (dragMode === "drag") {
+    if (dragMode === "pinch") dragMode = "pan"; // 抬指从捏合切回平移
+    if (dragMode === "scrub") {
       const t = clampT(x2t(touches[0].clientX - barLeft.value));
       playhead.value = t;
       throttleSeek(t);
       keepInView();
+    } else if (dragMode === "pan") {
+      const x = touches[0].clientX;
+      const dx = x - lastPanX;
+      if (dx !== 0) {
+        const dt = (dx / barWidth.value) * visibleSpan.value;
+        viewStart.value = clampViewStart(viewStart.value - dt);
+        lastPanX = x;
+      }
     }
   }
 }
 
 function onBarTouchEnd() {
+  const wasScrub = dragMode === "scrub";
   dragMode = "none";
   pinchDist = 0;
-  flushPlayhead(); // 松手补帧：节流可能跳过最后一帧
+  if (wasScrub) flushPlayhead(); // 松手补帧：节流可能跳过最后一帧；平移结束不跳帧
 }
 
 function touchDist(touches: any[]): number {
@@ -396,8 +433,7 @@ function applyPinch(dist: number) {
   const newSpan = Math.min(Math.max(visibleSpan.value * factor, MIN_ZOOM_SPAN), dur);
   const ratio = barWidth.value ? anchorX / barWidth.value : 0.5;
   visibleSpan.value = newSpan;
-  viewStart.value = clampT(playhead.value - ratio * newSpan);
-  if (visibleSpan.value >= dur - 0.01) viewStart.value = 0;
+  viewStart.value = clampViewStart(playhead.value - ratio * newSpan);
   pinchDist = dist;
 }
 
@@ -412,8 +448,7 @@ function keepInView() {
   let vs = viewStart.value;
   if (p < vs + span * 0.1) vs = p - span * 0.1;
   else if (p > vs + span * 0.9) vs = p - span * 0.9;
-  viewStart.value = clampT(vs);
-  if (viewStart.value > dur - span) viewStart.value = Math.max(0, dur - span);
+  viewStart.value = clampViewStart(vs);
 }
 
 function throttleSeek(t: number) {

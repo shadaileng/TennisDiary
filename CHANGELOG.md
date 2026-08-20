@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.3] - 2026-08-20
+
+### Fixed
+
+- miniapp 修复时间轴放大后无法观察目标片段（99 时间轴）：新增平移与居中能力——单指按下区分命中（播放头 ±10px 内 → scrub；空白/片段色块 → pan），`pan` 模式按 `Δx/barWidth × visibleSpan` 平移可见窗且不改播放头、不触发 seek；点击片段色块 → 视野居中该片段并预览中点帧（`centerOnSegment`）；统一 `clampViewStart` 汇集可见窗边界夹紧逻辑；提示文案更新为「双指缩放 / 拖动平移」。
+
 ## [1.66.2] - 2026-08-20
 
 ### Fixed
