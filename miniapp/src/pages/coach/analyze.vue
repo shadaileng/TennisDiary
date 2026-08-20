@@ -581,9 +581,17 @@ async function startAnalysis() {
   const traceId = createTraceId();
   logInfo("开始AI分析", { trace_id: traceId, mode: mode.value, kind: kind.value }, "analysis_started", traceId);
 
-  if (!trimmed.value && videoDuration.value > modeLimit.value) {
-    uni.showToast({ title: `请先在时间轴裁剪片段（≤ ${modeLimit.value}s）`, icon: "none" });
-    return;
+  const dur = videoDuration.value;
+  if (!trimmed.value) {
+    if (dur <= 0) {
+      // 时长未加载（chooseVideo/loadedmetadata 均未就绪）时不能盲目放行，否则会让用户撞上后端"整片超限"报错
+      uni.showToast({ title: "视频时长未加载，请稍候或重新选择视频后在时间轴截取片段", icon: "none" });
+      return;
+    }
+    if (dur > modeLimit.value) {
+      uni.showToast({ title: `请先在时间轴裁剪片段（裁剪后总长 ≤ ${modeLimit.value}s）`, icon: "none" });
+      return;
+    }
   }
 
   analyzing.value = true;

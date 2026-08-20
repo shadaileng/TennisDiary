@@ -400,9 +400,12 @@ def process_video(
 
     limit = _MAX_DURATION.get(mode, _MAX_DURATION["single"])
     if duration > limit:
+        label = "单次挥拍" if mode == "single" else "综合分析"
+        hint = (
+            "" if segments is not None else f"；请在时间轴选择片段（裁剪后总长 ≤ {int(limit)} 秒）"
+        )
         raise VideoTooLongError(
-            message=f"{'单次挥拍' if mode == 'single' else '综合分析'}视频最长 "
-            f"{int(limit)} 秒，当前 {duration:.1f} 秒"
+            message=f"{label}视频最长 {int(limit)} 秒，当前 {duration:.1f} 秒" + hint
         )
 
     times = build_sampling_times(mode, duration, hit_time)
