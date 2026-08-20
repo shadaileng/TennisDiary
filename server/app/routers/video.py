@@ -116,7 +116,8 @@ def upload_video(
             detail="服务器未配置 ffmpeg，无法抽帧",
         ) from exc
     except Exception as exc:
-        size = os.path.getsize(abs_path) if os.path.isfile(abs_path) else -1
+        exists = os.path.isfile(abs_path)
+        size = os.path.getsize(abs_path) if exists else -1
         kept = ""
         if isinstance(exc, ValueError):
             # 保留失败副本便于排查上传字节问题（定位后清理）
@@ -124,9 +125,13 @@ def upload_video(
                 keep_path = os.path.join(abs_dir, f"_debug_{uuid.uuid4().hex}{ext}")
                 shutil.copy2(abs_path, keep_path)
                 kept = keep_path
-            except OSError:
+            except OSError as copy_err:
+                log.warning(f"保留失败副本失败: {copy_err} path={abs_path} exists={exists} size={size}")
                 kept = ""
-        log.error(f"视频处理失败: {exc} path={abs_path} size={size} kept={kept}")
+        log.error(
+            f"视频处理失败: {exc} exc_type={type(exc).__name__} "
+            f"path={abs_path} exists={exists} size={size} kept={kept}"
+        )
         _safe_unlink(abs_path)
         # ValueError 类（如"无法解析视频时长"）消息面向用户，直接透出便于定位问题
         detail = str(exc) if isinstance(exc, ValueError) else "视频处理失败，请检查文件格式"
