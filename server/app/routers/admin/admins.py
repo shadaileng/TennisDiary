@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_permission
 from app.core.database import get_db
 from app.core.security import hash_password
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.role import Role
 from app.schemas.admin import (
@@ -56,6 +57,7 @@ def list_admins(
 
 
 @router.post("", response_model=ApiResponse[AdminResponse])
+@audit(action="CREATE", resource_type="admin")
 def create_admin(
     body: AdminCreateRequest,
     admin: Admin = Depends(require_permission("admins:create")),
@@ -99,6 +101,7 @@ def get_admin(
 
 
 @router.put("/{admin_id}", response_model=ApiResponse[AdminResponse])
+@audit(action="UPDATE", resource_type="admin", resource_id_key="admin_id")
 def update_admin(
     admin_id: int,
     body: AdminUpdateRequest,
@@ -129,6 +132,7 @@ def update_admin(
 
 
 @router.put("/{admin_id}/password", response_model=ApiResponse[None])
+@audit(action="UPDATE", resource_type="admin", resource_id_key="admin_id")
 def reset_password(
     admin_id: int,
     body: AdminResetPasswordRequest,
@@ -146,6 +150,7 @@ def reset_password(
 
 
 @router.put("/{admin_id}/status", response_model=ApiResponse[None])
+@audit(action="UPDATE", resource_type="admin", resource_id_key="admin_id")
 def toggle_status(
     admin_id: int,
     admin: Admin = Depends(require_permission("admins:edit")),
@@ -167,6 +172,7 @@ def toggle_status(
 
 
 @router.delete("/{admin_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="admin", resource_id_key="admin_id")
 def delete_admin(
     admin_id: int,
     admin: Admin = Depends(require_permission("admins:delete")),

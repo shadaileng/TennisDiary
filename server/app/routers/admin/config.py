@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import require_permission
 from app.core.database import get_db
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.schemas.admin import ConfigUpdateRequest
 from app.schemas.common import ApiResponse
@@ -23,6 +24,7 @@ def list_configs(
 
 
 @router.put("/{key}", response_model=ApiResponse[dict])
+@audit(action="UPDATE", resource_type="config", resource_id_key="key")
 def update_config(
     key: str,
     req: ConfigUpdateRequest,
@@ -34,6 +36,7 @@ def update_config(
 
 
 @router.delete("/{key}", response_model=ApiResponse[dict])
+@audit(action="DELETE", resource_type="config", resource_id_key="key")
 def delete_config(
     key: str,
     admin: Admin = Depends(require_permission("system:config")),
@@ -44,6 +47,7 @@ def delete_config(
 
 
 @router.post("/reset", response_model=ApiResponse[dict])
+@audit(action="UPDATE", resource_type="config")
 def reset_configs(
     admin: Admin = Depends(require_permission("system:config")),
     db: Session = Depends(get_db),

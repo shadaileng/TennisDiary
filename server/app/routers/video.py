@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import video_service
@@ -43,6 +44,7 @@ def _is_video_file(filename: str, content_type: str | None) -> bool:
 
 
 @router.post("/upload", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="video")
 def upload_video(
     file: UploadFile = File(...),
     mode: Literal["single", "full"] = Form(default="single"),

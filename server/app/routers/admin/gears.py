@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin
 from app.core.database import get_db
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.gear import Gear
 from app.models.user import User
@@ -61,6 +62,7 @@ def get_gear(
 
 
 @router.delete("/{gear_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="gear", resource_id_key="gear_id")
 def delete_gear(
     gear_id: int,
     admin: Admin = Depends(get_current_admin),

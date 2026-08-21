@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.gear import Gear
 from app.models.user import User
 from app.schemas.common import ApiResponse
@@ -40,6 +41,7 @@ def list_gears(
 
 
 @router.post("", response_model=ApiResponse[GearResponse], status_code=status.HTTP_200_OK)
+@audit(action="CREATE", resource_type="gear")
 def create_gear(
     body: GearCreate,
     db: Session = Depends(get_db),
@@ -76,6 +78,7 @@ def get_gear(
 
 
 @router.put("/{gear_id}", response_model=ApiResponse[GearResponse])
+@audit(action="UPDATE", resource_type="gear", resource_id_key="gear_id")
 def update_gear(
     gear_id: int,
     body: GearUpdate,
@@ -105,6 +108,7 @@ def update_gear(
 
 
 @router.delete("/{gear_id}", response_model=ApiResponse[None], status_code=status.HTTP_200_OK)
+@audit(action="DELETE", resource_type="gear", resource_id_key="gear_id")
 def delete_gear(
     gear_id: int,
     db: Session = Depends(get_db),

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import logger
+from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.schemas.schemas import AnalyzeRequest, CaptionRequest, CaptionResponse
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
 @router.post("/analyze", response_model=ApiResponse[dict])
+@audit(action="ANALYZE", resource_type="ai")
 async def analyze(
     req: AnalyzeRequest,
     current_user: User = Depends(get_current_user),
@@ -36,6 +38,7 @@ async def analyze(
 
 
 @router.post("/caption", response_model=ApiResponse[CaptionResponse])
+@audit(action="ANALYZE", resource_type="ai")
 async def caption(
     req: CaptionRequest,
     current_user: User = Depends(get_current_user),

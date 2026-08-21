@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.69.0] - 2026-08-21
+
+### Added
+
+- 操作审计日志（102）：中间件+装饰器架构，独立审计库 audit.db，41 个写操作端点全量装饰器，Admin 前端审计日志页（列表+详情+筛选），13 个后端测试通过。
+
 ## [1.68.5] - 2026-08-21
 
 ### Fixed

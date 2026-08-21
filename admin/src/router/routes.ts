@@ -96,6 +96,12 @@ const routes: RouteRecordRaw[] = [
             name: 'EventLogs',
             component: () => import('@/views/system/event-logs.vue'),
             meta: { title: '事件日志', permission: 'system:logs' }
+          },
+          {
+            path: 'audit-logs',
+            name: 'AuditLogs',
+            component: () => import('@/views/system/audit-logs.vue'),
+            meta: { title: '审计日志', permission: 'system:config' }
           }
         ]
       }

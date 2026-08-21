@@ -24,6 +24,7 @@ from app.core.backup_meta import BACKUP_META_DB_NAME, get_backup_meta_db
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
 from app.schemas.common import ApiResponse
@@ -425,6 +426,7 @@ def _resolve_backup(backup_id: str) -> Path:
 
 
 @router.post("/backup", response_model=ApiResponse[None])
+@audit(action="CREATE", resource_type="system")
 def backup_database(
     admin: Admin = Depends(get_current_admin),
     meta_db: Session = Depends(get_backup_meta_db),
@@ -507,6 +509,7 @@ def download_backup(
 
 
 @router.post("/backup/upload", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="system")
 def upload_backup(
     file: UploadFile = File(...),
     admin: Admin = Depends(get_current_admin),
@@ -561,6 +564,7 @@ def upload_backup(
 
 
 @router.delete("/backup/{backup_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="system", resource_id_key="backup_id")
 def delete_backup(
     backup_id: str,
     admin: Admin = Depends(get_current_admin),
@@ -594,6 +598,7 @@ def delete_backup(
 
 
 @router.post("/restore/{backup_id}", response_model=ApiResponse[None])
+@audit(action="UPDATE", resource_type="system", resource_id_key="backup_id")
 def restore_database(
     backup_id: str,
     admin: Admin = Depends(get_current_admin),

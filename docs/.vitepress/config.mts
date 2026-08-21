@@ -136,6 +136,7 @@ export default defineConfig({
             { text: '97：miniapp 构建 Circular chunk 警告修复', link: '/plans/97-miniapp构建循环chunk警告修复' },
             { text: '98：分享工坊分享图添加小程序码', link: '/plans/98-分享工坊分享图添加小程序码' },
             { text: '99：电子教练时间轴多段剪辑', link: '/plans/99-电子教练时间轴多段剪辑' },
+            { text: '99-D：视频上传调试记录', link: '/plans/99-D-视频上传调试记录' },
             { text: '100：hit_time 裁剪后时间基准修复', link: '/plans/100-hit-time裁剪后时间基准修复' },
           ],
         },
@@ -155,6 +156,7 @@ export default defineConfig({
             { text: '81：AI 模型可用性校验与调试脚本', link: '/plans/81-AI模型可用性校验与调试脚本' },
             { text: '86：Admin 静态文件端点移除认证', link: '/plans/86-Admin静态文件端点移除认证' },
             { text: '87：Admin 时间显示统一东八区', link: '/plans/87-Admin时间显示统一东八区' },
+            { text: '102：操作审计日志', link: '/plans/102-操作审计日志' },
           ],
         },
         {
