@@ -122,7 +122,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """未知异常处理（最外层 ServerErrorMiddleware 生成响应，绕过 CORSMiddleware，需补 CORS 头）"""
-    logger.error(f"未处理的异常: {exc}")
+    logger.error(f"未处理的异常: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content=ApiResponse(

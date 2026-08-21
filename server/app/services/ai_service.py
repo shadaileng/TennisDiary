@@ -90,10 +90,12 @@ async def _post_completions(
                 },
                 json=payload,
             )
-    except httpx.TimeoutException:
-        raise RuntimeError("AI 请求超时（120 秒），请检查网络后重试") from None
-    except httpx.HTTPError:
-        raise RuntimeError("网络异常，无法连接 AI 服务") from None
+    except httpx.TimeoutException as exc:
+        logger.warning(f"AI 请求超时（120秒）: {exc}")
+        raise RuntimeError("AI 请求超时（120 秒），请检查网络后重试") from exc
+    except httpx.HTTPError as exc:
+        logger.warning(f"AI 网络异常: {exc}")
+        raise RuntimeError("网络异常，无法连接 AI 服务") from exc
     if resp.status_code != 200:
         text = resp.text[:200]
         raise RuntimeError(f"AI 请求失败 ({resp.status_code})：{text}")
@@ -310,7 +312,8 @@ def build_caption_context(db: Session, user: User, template: str) -> dict:
     if analysis and analysis.report:
         try:
             report = json.loads(analysis.report)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as exc:
+            logger.debug(f"分析报告 JSON 解析失败 analysis_id={analysis.id}: {exc}")
             report = {}
     dimensions = report.get("dimensions") or []
     best = max(

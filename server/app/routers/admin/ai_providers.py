@@ -6,10 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import require_permission
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.models.admin import Admin
 from app.schemas.admin import AiProviderRequest, ProviderModelsCheckRequest
 from app.schemas.common import ApiResponse
 from app.services import ai_provider_service
+
+log = get_logger("admin")
 
 router = APIRouter(prefix="/api/admin/config/providers", tags=["admin-ai-providers"])
 
@@ -142,7 +145,8 @@ async def check_models(
     if resp.status_code == 200:
         try:
             available = _extract_available_models(resp.json())
-        except ValueError:
+        except ValueError as exc:
+            log.debug(f"AI 服务商模型列表 JSON 解析失败: {exc}")
             available = []
         if available:
             results = [

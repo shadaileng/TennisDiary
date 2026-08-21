@@ -5,10 +5,13 @@ import json
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.logging import get_logger
 from app.core.permissions import DEFAULT_ROLES
 from app.core.security import hash_password
 from app.models.admin import Admin
 from app.models.role import Role
+
+log = get_logger("app")
 
 
 def init_default_roles(db: Session) -> None:
@@ -28,7 +31,7 @@ def init_default_roles(db: Session) -> None:
         db.add(role)
 
     db.commit()
-    print("[OK] 已初始化默认角色")
+    log.info("[OK] 已初始化默认角色")
 
 
 def init_default_admin(db: Session) -> None:
@@ -43,7 +46,7 @@ def init_default_admin(db: Session) -> None:
     # 获取超级管理员角色
     role = db.query(Role).filter(Role.code == "superadmin").first()
     if role is None:
-        print("[FAIL] 超级管理员角色不存在，请先运行 init_default_roles")
+        log.error("[FAIL] 超级管理员角色不存在，请先运行 init_default_roles")
         return
 
     admin = Admin(
@@ -55,4 +58,4 @@ def init_default_admin(db: Session) -> None:
     )
     db.add(admin)
     db.commit()
-    print(f"[OK] 已创建默认管理员账号: {username}")
+    log.info(f"[OK] 已创建默认管理员账号: {username}")

@@ -69,6 +69,7 @@ def find_ffmpeg() -> str | None:
 
         return imageio_ffmpeg.get_ffmpeg_exe()
     except ImportError:
+        log.debug("imageio_ffmpeg 未安装，跳过 bundled ffmpeg")
         return None
 
 
@@ -107,7 +108,7 @@ def probe_duration(path: str) -> float:
             try:
                 return float(_stdout)
             except ValueError:
-                pass
+                log.warning(f"ffprobe 输出无法解析为时长: stdout={_stdout!r}")
         _stderr2 = proc.stderr.decode("utf-8", "replace")[-300:]
         log.warning(f"ffprobe 探测时长失败 rc={proc.returncode} stderr={_stderr2}")
     ffmpeg = find_ffmpeg()
@@ -155,7 +156,7 @@ def probe_frame_rate(path: str) -> float:
                         return float(num) / float(den)
                     return float(frame_rate_str)
                 except (ValueError, ZeroDivisionError):
-                    pass
+                    log.debug(f"帧率字符串解析失败: {frame_rate_str!r}，使用默认 30fps")
     return 30.0  # 默认帧率
 
 
@@ -237,8 +238,10 @@ def trim_video(src: str, dst: str, start: float, length: float) -> None:
         _dst_exists = os.path.isfile(dst)
         _dst_size = os.path.getsize(dst) if _dst_exists else None
         _stderr = proc.stderr.decode("utf-8", errors="replace")[-500:]
-        log.info(f"trim_video rc={proc.returncode} dst_exists={_dst_exists}"
-                 f" dst_size={_dst_size} stderr={_stderr!r}")
+        log.info(
+            f"trim_video rc={proc.returncode} dst_exists={_dst_exists}"
+            f" dst_size={_dst_size} stderr={_stderr!r}"
+        )
         if proc.returncode == 0 and os.path.isfile(dst) and os.path.getsize(dst) > 0:
             return
     log.warning("视频片段裁切失败", start=start, length=length, src=src)
@@ -397,7 +400,7 @@ def process_video(
     """编排：探测 → 整片时长校验（≤180s）→（可选）裁剪拼接 → 采样 → 抽帧 → 封面
 
     - 时长上限仅 _UPLOAD_MAX_DURATION（180s）统一兜底，不做模式差异收紧
-    - cuts 提供时先裁切拼接（hit_time 视为拼接后相对时间），再对产物走上游流程
+    - cuts 提供时先裁切拼接，hit_time（原始视频绝对时间）自动转换为裁剪后相对时间
     - 返回 dict 含 trimmed（是否裁剪）与 segments（规范化后的片段列表）
     """
     duration = probe_duration(path)
@@ -420,6 +423,9 @@ def process_video(
         # 重探测裁剪产物的时长/帧率（拼接结果实际值）
         duration = probe_duration(working)
         frame_rate = probe_frame_rate(working)
+        # hit_time 是原始视频的绝对时间，需转换为裁剪后视频的相对时间
+        if hit_time is not None:
+            hit_time = hit_time - segments[0]["start"]
     else:
         frame_rate = probe_frame_rate(path)
 

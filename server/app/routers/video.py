@@ -83,7 +83,8 @@ def upload_video(
                 written += len(chunk)
             out.flush()
             os.fsync(out.fileno())
-    except Exception:
+    except Exception as exc:
+        log.warning(f"视频文件写入失败: path={abs_path} error={exc}")
         os.makedirs(abs_dir, exist_ok=True)
         if os.path.isfile(abs_path):
             os.unlink(abs_path)
@@ -136,8 +137,9 @@ def upload_video(
                 shutil.copy2(abs_path, keep_path)
                 kept = keep_path
             except OSError as copy_err:
-                log.warning(f"保留失败副本失败: {copy_err}"
-                            f" path={abs_path} exists={exists} size={size}")
+                log.warning(
+                    f"保留失败副本失败: {copy_err} path={abs_path} exists={exists} size={size}"
+                )
                 kept = ""
         log.error(
             f"视频处理失败: {exc} exc_type={type(exc).__name__} "

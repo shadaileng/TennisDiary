@@ -39,7 +39,9 @@ def _effective_ai_config():
     if os.environ.get("TENNIS_DEBUG_AI_KEY"):
         return AIConfig(
             api_key=os.environ["TENNIS_DEBUG_AI_KEY"],
-            base_url=os.environ.get("TENNIS_DEBUG_AI_BASE_URL", "https://api.agnes-ai.cn/v1").rstrip("/"),
+            base_url=os.environ.get(
+                "TENNIS_DEBUG_AI_BASE_URL", "https://api.agnes-ai.cn/v1"
+            ).rstrip("/"),
             model=os.environ.get("TENNIS_DEBUG_AI_MODEL", "agnes-2.5-flash"),
             provider="env 覆盖",
         )
@@ -95,9 +97,7 @@ def test_forehand_ai_report(pipeline):
         mode = "local(无 Key)"
     else:
         try:
-            report = asyncio.run(
-                ai_service.analyze_swing(frames, "正手", "single", ai_config)
-            )
+            report = asyncio.run(ai_service.analyze_swing(frames, "正手", "single", ai_config))
             mode = f"ai({ai_config.provider})"
         except Exception as exc:  # noqa: BLE001 - 调试测试需捕获失败并落降级
             logger.warning(f"AI 调用失败，落本地降级: {exc}")

@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.logging import get_logger
+
+log = get_logger("auth")
 
 # 自定义鉴权头（魔搭网关占用 Authorization，需绕开）
 AUTH_HEADER = "X-Auth-Token"
@@ -46,8 +49,9 @@ def decode_access_token(token: str) -> str:
         if openid is None:
             raise HTTPException(status_code=401, detail="无效的 token")
         return openid
-    except JWTError:
-        raise HTTPException(status_code=401, detail="无效的 token") from None
+    except JWTError as exc:
+        log.debug(f"用户 JWT 解码失败: {type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=401, detail="无效的 token") from exc
 
 
 def create_admin_access_token(admin_id: int) -> str:
@@ -112,8 +116,9 @@ def get_current_admin(
         if admin is None or not admin.is_active:
             raise HTTPException(status_code=401, detail="管理员不存在或已禁用")
         return admin
-    except JWTError:
-        raise HTTPException(status_code=401, detail="无效的token") from None
+    except JWTError as exc:
+        log.debug(f"管理员 JWT 解码失败: {type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=401, detail="无效的token") from exc
 
 
 def require_permission(permission: str):

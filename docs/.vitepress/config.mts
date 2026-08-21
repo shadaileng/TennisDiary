@@ -136,6 +136,7 @@ export default defineConfig({
             { text: '97：miniapp 构建 Circular chunk 警告修复', link: '/plans/97-miniapp构建循环chunk警告修复' },
             { text: '98：分享工坊分享图添加小程序码', link: '/plans/98-分享工坊分享图添加小程序码' },
             { text: '99：电子教练时间轴多段剪辑', link: '/plans/99-电子教练时间轴多段剪辑' },
+            { text: '100：hit_time 裁剪后时间基准修复', link: '/plans/100-hit-time裁剪后时间基准修复' },
           ],
         },
         {
@@ -181,6 +182,7 @@ export default defineConfig({
             { text: '73：测试体系引入 .env.test 实现环境隔离', link: '/plans/73-测试体系引入-env-test实现环境隔离' },
             { text: '84：骨架视频多帧修复', link: '/plans/84-骨架视频多帧修复' },
              { text: '85：骨骼视频帧率自适应绘制', link: '/plans/85-骨骼视频帧率自适应绘制' },
+             { text: '101：后端日志细化与异常静默处理修复', link: '/plans/101-后端日志细化与异常静默处理修复' },
 ],
         },
         {

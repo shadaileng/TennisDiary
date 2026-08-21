@@ -31,7 +31,7 @@ async def analyze(
         report = await ai_service.analyze_swing(req.frames, req.kind, req.mode, ai_config)
         return ApiResponse(data=report)
     except Exception as exc:  # noqa: BLE001 - 统一降级，不向上抛 5xx
-        logger.error(f"AI 分析失败，降级: {exc}")
+        logger.error(f"AI 分析失败，降级: {exc}", exc_info=True)
         return ApiResponse(data=ai_service.build_local_report(req.kind))
 
 
@@ -55,6 +55,6 @@ async def caption(
         )
         return ApiResponse(data=CaptionResponse(caption=text))
     except Exception as exc:  # noqa: BLE001 - 统一降级，不向上抛 5xx
-        logger.error(f"AI 文案生成失败，降级: {exc}")
+        logger.error(f"AI 文案生成失败，降级: {exc}", exc_info=True)
         caption = ai_service.build_local_caption(req.template, context)
         return ApiResponse(data=CaptionResponse(caption=caption))

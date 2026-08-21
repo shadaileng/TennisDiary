@@ -305,8 +305,8 @@ def find_ffmpeg() -> str | None:
         bundled = imageio_ffmpeg.get_ffmpeg_exe()
         if bundled and os.path.isfile(bundled):
             return bundled
-    except (ImportError, OSError):
-        pass
+    except (ImportError, OSError) as e:
+        log.debug(f"imageio_ffmpeg 探测失败: {e}")
     return None
 
 
