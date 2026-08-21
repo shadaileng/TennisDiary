@@ -3,9 +3,9 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 47-Admin |
-> | 文档版本 | v1.0.0 |
-> | 文档状态 | 📋 待执行 |
-> | 最后更新 | 2026-08-08 |
+> | 文档版本 | v1.1.0 |
+> | 文档状态 | ✅ 已完成 |
+> | 最后更新 | 2026-08-21 |
 > | 对应功能/内容 | 后台管理前端（Vite + Vue 3 + Tailwind CSS） |
 >
 > **变更历史**
@@ -13,6 +13,7 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-08 | v1.0.0 | 初版 |
+> | 2026-08-21 | v1.1.0 | 部署方案改为 Cloudflare Workers Pages/Assets 托管，修复 SPA 子路径白屏问题 |
 >
 > **关联文档**：[B2 后台管理API总纲](./43-B2-后台管理API总纲.md)
 
@@ -32,7 +33,7 @@
 | 状态管理 | Pinia 2 |
 | UI组件 | 纯 Tailwind CSS（无组件库） |
 | 登录方式 | 账号密码登录 + 微信扫码登录 |
-| 部署方式 | 独立部署（Nginx） |
+| 部署方式 | Cloudflare Workers Pages/Assets 托管（SPA 路由自动 fallback） |
 
 ## 三、目录结构
 
@@ -696,7 +697,31 @@ interface ImportMeta {
 
 ## 十、部署配置
 
-### 10.1 Nginx配置
+### 10.1 Cloudflare Workers 部署（推荐）
+
+```toml
+# wrangler.toml
+name = "tennis-diary-admin"
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+```
+
+**部署命令**：
+```bash
+cd admin
+pnpm build
+pnpm cf:deploy
+```
+
+或手动部署：
+```bash
+pnpm build && npx wrangler deploy
+```
+
+### 10.2 Nginx 部署（备用）
 
 ```nginx
 # nginx.conf
@@ -710,6 +735,7 @@ server {
     # Gzip压缩
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
 
     # Vue Router history模式
     location / {
@@ -828,14 +854,16 @@ tests/
 1. 实现MainLayout布局
 2. 实现Sidebar侧边栏
 3. 实现Header头部
-4. 实现登录页（账号密码+微信扫码）
+4. 实现登录页（账号密码登录）
 5. 实现路由守卫
+6. 实现Toast/Loading组件
 
 ### Phase Admin-3: 仪表盘（1-2天）
 
 1. 实现仪表盘页面
 2. 对接系统统计API
 3. 显示最近活动和系统状态
+4. 实现StatCard组件
 
 ### Phase Admin-4: 管理功能（3-4天）
 
@@ -861,10 +889,10 @@ tests/
 
 ### Phase Admin-7: 测试与部署（2-3天）
 
-1. 编写测试用例
-2. 配置Nginx
-3. 编写部署文档
-4. 优化和修复
+1. 配置Cloudflare Workers部署
+2. 编写CI/CD流程
+3. 优化和修复
+4. 文档完善
 
 ## 十四、时间估算
 
