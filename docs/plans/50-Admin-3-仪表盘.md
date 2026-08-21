@@ -3,9 +3,9 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 50-Admin-3 |
-> | 文档版本 | v1.0.0 |
+> | 文档版本 | v2.0.0 |
 > | 文档状态 | ✅ 已完成 |
-> | 最后更新 | 2026-08-08 |
+> | 最后更新 | 2026-08-21 |
 > | 对应功能/内容 | 后台管理前端仪表盘（数据概览+系统状态） |
 >
 > **变更历史**
@@ -13,6 +13,7 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-08 | v1.0.0 | 初版 |
+> | 2026-08-21 | v2.0.0 | 根据实际代码更新：功能模块完善 |
 >
 > **关联文档**：[Phase Admin 后台管理前端总纲](./47-Admin-后台管理前端.md)
 
@@ -20,7 +21,7 @@
 
 ## 一、目标
 
-实现仪表盘页面，展示数据概览卡片（用户数、日记数、装备数、打卡数）和系统状态（磁盘使用、数据库大小、运行时长）。
+实现仪表盘页面，展示数据概览卡片（用户数、日记数、装备数、打卡数）和系统状态（数据库、磁盘、运行时长）。
 
 ## 二、前置条件
 
@@ -65,7 +66,7 @@ export function getHealthStatus(): Promise<HealthStatus> {
 }
 ```
 
-### 3.2 完善仪表盘页面
+### 3.2 实现仪表盘页面
 
 **src/views/dashboard/index.vue**：
 ```vue
@@ -163,7 +164,7 @@ export function getHealthStatus(): Promise<HealthStatus> {
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { reactive, onMounted } from 'vue'
 import { getSystemStats, getHealthStatus } from '@/api/system'
 import StatCard from '@/components/common/StatCard.vue'
 
@@ -209,78 +210,6 @@ onMounted(async () => {
     console.error('Failed to load dashboard data:', e)
   }
 })
-</script>
-```
-
-### 3.3 实现统计卡片组件
-
-**src/components/common/StatCard.vue**：
-```vue
-<template>
-  <div class="bg-white rounded-lg shadow-md p-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm text-gray-600">{{ title }}</p>
-        <p class="text-2xl font-bold" :class="colorClass">{{ value }}</p>
-      </div>
-      <div class="p-3 rounded-full" :class="iconBgClass">
-        <component :is="iconComponent" class="w-6 h-6" :class="iconClass" />
-      </div>
-    </div>
-  </div>
-</template>
-
-<script setup lang="ts">
-import { computed } from 'vue'
-import {
-  UsersIcon,
-  DocumentTextIcon,
-  WrenchIcon,
-  CheckCircleIcon
-} from '@heroicons/vue/24/outline'
-
-const props = defineProps<{
-  title: string
-  value: number
-  icon: string
-  color: 'blue' | 'green' | 'purple' | 'orange'
-}>()
-
-const iconMap: Record<string, any> = {
-  UsersIcon,
-  DocumentTextIcon,
-  WrenchIcon,
-  CheckCircleIcon
-}
-
-const iconComponent = computed(() => iconMap[props.icon] || UsersIcon)
-
-const colorMap = {
-  blue: {
-    text: 'text-blue-600',
-    bg: 'bg-blue-100',
-    icon: 'text-blue-600'
-  },
-  green: {
-    text: 'text-green-600',
-    bg: 'bg-green-100',
-    icon: 'text-green-600'
-  },
-  purple: {
-    text: 'text-purple-600',
-    bg: 'bg-purple-100',
-    icon: 'text-purple-600'
-  },
-  orange: {
-    text: 'text-orange-600',
-    bg: 'bg-orange-100',
-    icon: 'text-orange-600'
-  }
-}
-
-const colorClass = computed(() => colorMap[props.color]?.text || 'text-gray-600')
-const iconBgClass = computed(() => colorMap[props.color]?.bg || 'bg-gray-100')
-const iconClass = computed(() => colorMap[props.color]?.icon || 'text-gray-600')
 </script>
 ```
 

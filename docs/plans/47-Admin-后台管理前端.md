@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 47-Admin |
-> | 文档版本 | v1.1.0 |
+> | 文档版本 | v2.0.0 |
 > | 文档状态 | ✅ 已完成 |
 > | 最后更新 | 2026-08-21 |
 > | 对应功能/内容 | 后台管理前端（Vite + Vue 3 + Tailwind CSS） |
@@ -13,7 +13,7 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-08-08 | v1.0.0 | 初版 |
-> | 2026-08-21 | v1.1.0 | 部署方案改为 Cloudflare Workers Pages/Assets 托管，修复 SPA 子路径白屏问题 |
+> | 2026-08-21 | v2.0.0 | 根据实际代码更新：技术栈升级、部署改为 Cloudflare Workers、功能模块完善 |
 >
 > **关联文档**：[B2 后台管理API总纲](./43-B2-后台管理API总纲.md)
 
@@ -28,12 +28,12 @@
 | 需求项 | 说明 |
 |--------|------|
 | 项目名称 | admin |
-| 技术栈 | Vite 5 + Vue 3.4 + TypeScript 5 |
+| 技术栈 | Vite 8 + Vue 3.5 + TypeScript 6 |
 | 路由管理 | Vue Router 4 |
-| 状态管理 | Pinia 2 |
+| 状态管理 | Pinia 4 |
 | UI组件 | 纯 Tailwind CSS（无组件库） |
-| 登录方式 | 账号密码登录 + 微信扫码登录 |
-| 部署方式 | Cloudflare Workers Pages/Assets 托管（SPA 路由自动 fallback） |
+| 登录方式 | 账号密码登录 |
+| 部署方式 | Cloudflare Workers Pages/Assets 托管（SPA 自动 fallback） |
 
 ## 三、目录结构
 
@@ -44,7 +44,7 @@ admin/
 ├── public/
 ├── src/
 │   ├── api/                  # API接口
-│   │   ├── index.ts          # axios实例
+│   │   ├── index.ts          # axios实例 + 拦截器
 │   │   ├── auth.ts           # 认证相关
 │   │   ├── users.ts          # 用户管理
 │   │   ├── roles.ts          # 角色管理
@@ -53,70 +53,52 @@ admin/
 │   │   ├── gears.ts          # 装备管理
 │   │   ├── weights.ts        # 体重管理
 │   │   ├── analyses.ts       # 分析管理
-│   │   └── system.ts         # 系统监控
+│   │   ├── checkins.ts       # 打卡管理
+│   │   ├── posts.ts          # 帖子管理
+│   │   ├── events.ts         # 事件管理
+│   │   ├── system.ts         # 系统监控
+│   │   └── config.ts         # 系统配置
 │   ├── assets/               # 静态资源
-│   │   └── logo.svg
 │   ├── components/           # 公共组件
 │   │   ├── layout/           # 布局组件
 │   │   │   ├── MainLayout.vue
 │   │   │   ├── Sidebar.vue
 │   │   │   ├── Header.vue
 │   │   │   └── Breadcrumb.vue
-│   │   ├── common/           # 通用组件
-│   │   │   ├── Button.vue
-│   │   │   ├── Input.vue
-│   │   │   ├── Select.vue
-│   │   │   ├── Table.vue
-│   │   │   ├── Modal.vue
-│   │   │   ├── Pagination.vue
-│   │   │   ├── Card.vue
-│   │   │   ├── Tag.vue
-│   │   │   ├── Switch.vue
-│   │   │   ├── Tabs.vue
-│   │   │   └── Loading.vue
-│   │   └── icons/            # 图标组件
-│   │       └── index.ts
+│   │   └── common/           # 通用组件
+│   │       ├── Table.vue
+│   │       ├── Modal.vue
+│   │       ├── Pagination.vue
+│   │       ├── StatCard.vue
+│   │       ├── Toast.vue
+│   │       └── Loading.vue
 │   ├── composables/          # 组合式函数
-│   │   ├── useAuth.ts        # 认证相关
-│   │   ├── useTable.ts       # 表格相关
-│   │   ├── useModal.ts       # 弹窗相关
-│   │   └── usePermission.ts  # 权限相关
+│   │   └── useActionLock.ts  # 操作锁（防重复提交）
 │   ├── router/               # 路由配置
 │   │   ├── index.ts
 │   │   └── routes.ts
 │   ├── stores/               # Pinia状态
+│   │   ├── index.ts
 │   │   ├── auth.ts           # 认证状态
-│   │   └── app.ts            # 应用状态
+│   │   ├── app.ts            # 应用状态
+│   │   └── toast.ts          # Toast状态
 │   ├── styles/               # 样式
-│   │   ├── main.css          # Tailwind CSS主样式
-│   │   └── variables.css     # CSS变量
+│   │   └── main.css          # Tailwind CSS主样式
 │   ├── types/                # TypeScript类型
-│   │   ├── api.ts            # API响应类型
-│   │   ├── model.ts          # 数据模型类型
-│   │   └── index.ts
+│   │   └── api.ts            # API响应类型
 │   ├── utils/                # 工具函数
-│   │   ├── request.ts        # HTTP请求封装
-│   │   ├── storage.ts        # 本地存储
-│   │   ├── format.ts         # 格式化工具
-│   │   └── validation.ts     # 表单验证
+│   │   └── date.ts           # 日期格式化（东八区）
 │   ├── views/                # 页面视图
 │   │   ├── login/
 │   │   │   └── index.vue
 │   │   ├── dashboard/
 │   │   │   └── index.vue
 │   │   ├── users/
-│   │   │   ├── index.vue
-│   │   │   └── components/
-│   │   │       └── UserDetail.vue
+│   │   │   └── index.vue
 │   │   ├── roles/
-│   │   │   ├── index.vue
-│   │   │   └── components/
-│   │   │       ├── RoleForm.vue
-│   │   │       └── PermissionTree.vue
+│   │   │   └── index.vue
 │   │   ├── admins/
-│   │   │   ├── index.vue
-│   │   │   └── components/
-│   │   │       └── AdminForm.vue
+│   │   │   └── index.vue
 │   │   ├── diaries/
 │   │   │   └── index.vue
 │   │   ├── gears/
@@ -127,19 +109,23 @@ admin/
 │   │   │   └── index.vue
 │   │   └── system/
 │   │       ├── health.vue
+│   │       ├── config.vue
 │   │       ├── logs.vue
-│   │       └── backups.vue
+│   │       ├── backups.vue
+│   │       └── event-logs.vue
 │   ├── App.vue
 │   └── main.ts
 ├── index.html
 ├── package.json
 ├── tailwind.config.js
 ├── tsconfig.json
+├── tsconfig.app.json
+├── tsconfig.node.json
 ├── vite.config.ts
-├── .env
-├── .env.development
-├── .env.production
-└── nginx.conf
+├── wrangler.toml             # Cloudflare Workers 部署配置
+├── Dockerfile                # Nginx 备用部署
+├── nginx.conf                # Nginx 配置
+└── .env
 ```
 
 ### 3.2 文件说明
@@ -149,10 +135,11 @@ admin/
 | `api/` | 按模块组织API接口，统一封装axios |
 | `components/common/` | 纯Tailwind CSS实现的通用组件 |
 | `components/layout/` | 布局组件（侧边栏、头部、主内容区） |
-| `composables/` | Vue 3组合式函数 |
+| `composables/` | Vue 3组合式函数（操作锁等） |
 | `router/` | 路由配置，支持权限校验 |
 | `stores/` | Pinia状态管理 |
 | `types/` | TypeScript类型定义 |
+| `utils/` | 工具函数（日期格式化等） |
 | `views/` | 页面视图，按功能模块分组 |
 
 ## 四、技术栈详情
@@ -162,21 +149,22 @@ admin/
 ```json
 {
   "dependencies": {
-    "vue": "^3.4.21",
-    "vue-router": "^4.3.0",
-    "pinia": "^2.1.7",
-    "axios": "^1.7.0",
-    "dayjs": "^1.11.0",
-    "@heroicons/vue": "^2.1.0"
+    "vue": "^3.5.40",
+    "vue-router": "^4.6.4",
+    "pinia": "^4.0.2",
+    "axios": "^1.19.0",
+    "dayjs": "^1.11.21",
+    "@heroicons/vue": "^2.2.0"
   },
   "devDependencies": {
-    "vite": "^5.4.0",
-    "typescript": "^5.5.0",
-    "vue-tsc": "^2.0.0",
-    "tailwindcss": "^3.4.0",
-    "postcss": "^8.4.0",
-    "autoprefixer": "^10.4.0",
-    "@vitejs/plugin-vue": "^5.0.0"
+    "vite": "^8.2.0",
+    "typescript": "~6.0.2",
+    "vue-tsc": "^3.3.8",
+    "tailwindcss": "^3.4.19",
+    "postcss": "^8.5.26",
+    "autoprefixer": "^10.5.4",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@cloudflare/workers-types": "^5.20260810.0"
   }
 }
 ```
@@ -185,15 +173,15 @@ admin/
 
 | 分类 | 技术 | 版本 |
 |------|------|------|
-| 构建工具 | Vite | ^5.4.0 |
-| 前端框架 | Vue 3 | ^3.4.21 |
-| 类型检查 | TypeScript | ^5.5.0 |
-| 路由 | Vue Router | ^4.3.0 |
-| 状态管理 | Pinia | ^2.1.7 |
-| 样式 | Tailwind CSS | ^3.4.0 |
-| HTTP请求 | Axios | ^1.7.0 |
-| 图标 | Heroicons | ^2.1.0 |
-| 日期处理 | Day.js | ^1.11.0 |
+| 构建工具 | Vite | ^8.2.0 |
+| 前端框架 | Vue 3 | ^3.5.40 |
+| 类型检查 | TypeScript | ~6.0.2 |
+| 路由 | Vue Router | ^4.6.4 |
+| 状态管理 | Pinia | ^4.0.2 |
+| 样式 | Tailwind CSS | ^3.4.19 |
+| HTTP请求 | Axios | ^1.19.0 |
+| 图标 | Heroicons | ^2.2.0 |
+| 日期处理 | Day.js | ^1.11.21 |
 
 ## 五、页面功能设计
 
@@ -201,8 +189,8 @@ admin/
 
 **功能**：
 - 账号密码登录
-- 微信扫码登录
 - 记住登录状态
+- 登录失败错误提示
 
 **布局**：
 ```
@@ -210,17 +198,10 @@ admin/
 │           Tennis Diary Admin            │
 ├─────────────────────────────────────────┤
 │  ┌─────────────────────────────────┐   │
-│  │  [Tab] 账号密码  微信扫码       │   │
-│  ├─────────────────────────────────┤   │
-│  │  账号密码登录:                   │   │
 │  │  [用户名] ___________________   │   │
 │  │  [密码]   ___________________   │   │
 │  │  [✓ 记住我]                     │   │
 │  │  [登录按钮]                     │   │
-│  ├─────────────────────────────────┤   │
-│  │  微信扫码登录:                   │   │
-│  │  [二维码区域]                   │   │
-│  │  请使用微信扫码登录             │   │
 │  └─────────────────────────────────┘   │
 └─────────────────────────────────────────┘
 ```
@@ -228,33 +209,15 @@ admin/
 ### 5.2 仪表盘 `/dashboard`
 
 **功能**：
-- 数据概览卡片（用户数、日记数、装备数、今日打卡）
-- 最近活动列表
-- 系统状态（磁盘、数据库、运行时长）
-
-**布局**：
-```
-┌─────────────────────────────────────────────────────────┐
-│  仪表盘                                                  │
-├─────────────┬─────────────┬─────────────┬───────────────┤
-│  用户总数   │  日记总数   │  装备总数   │  今日打卡     │
-│    128      │    456      │     89      │     12        │
-├─────────────┴─────────────┴─────────────┴───────────────┤
-│  ┌──────────────────────┬──────────────────────────────┐│
-│  │  最近活动            │  系统状态                    ││
-│  │  - 用户xxx创建了日记 │  磁盘使用: 45%              ││
-│  │  - 用户yyy上传了装备 │  数据库: 12.5MB             ││
-│  │  ...                 │  运行时长: 7天               ││
-│  └──────────────────────┴──────────────────────────────┘│
-└─────────────────────────────────────────────────────────┘
-```
+- 数据概览卡片（用户数、日记数、装备数、打卡数）
+- 系统状态（数据库、磁盘、运行时长）
+- 数据库信息（大小、各表数据量）
 
 ### 5.3 用户管理 `/users`
 
 **功能**：
-- 用户列表（分页、搜索、筛选）
+- 用户列表（分页）
 - 查看用户详情
-- 查看用户日记/装备等数据
 
 **列表字段**：
 | 字段 | 说明 |
@@ -263,7 +226,6 @@ admin/
 | 昵称 | 用户昵称 |
 | 头像 | 用户头像缩略图 |
 | 性别 | 性别 |
-| 日记数 | 该用户日记总数 |
 | 注册时间 | 创建时间 |
 | 操作 | 查看详情 |
 
@@ -275,16 +237,6 @@ admin/
 - 编辑角色（名称、描述、权限）
 - 删除角色（系统角色不可删除）
 
-**列表字段**：
-| 字段 | 说明 |
-|------|------|
-| 角色名 | 角色名称 |
-| 编码 | 角色编码 |
-| 描述 | 角色描述 |
-| 权限数 | 权限数量 |
-| 类型 | 系统/自定义 |
-| 操作 | 编辑/删除 |
-
 ### 5.5 管理员管理 `/admins`
 
 **功能**：
@@ -294,17 +246,6 @@ admin/
 - 启用/禁用
 - 重置密码
 - 删除管理员
-
-**列表字段**：
-| 字段 | 说明 |
-|------|------|
-| ID | 管理员ID |
-| 用户名 | 登录用户名 |
-| 昵称 | 显示昵称 |
-| 角色 | 所属角色 |
-| 状态 | 启用/禁用 |
-| 最后登录 | 最后登录时间 |
-| 操作 | 编辑/重置密码/禁用/删除 |
 
 ### 5.6 数据管理页面
 
@@ -350,20 +291,32 @@ admin/
 ### 5.7 系统监控页面
 
 #### 健康检查 `/system/health`
-- 系统状态
-- 数据库连接状态
-- 磁盘使用情况
-- 运行时长
+- 系统状态（状态、版本、运行时长）
+- 资源使用（数据库、磁盘）
+- AI 网关状态（AI评分、ffmpeg、MediaPipe、姿态模型）
+- AI 连接测试
+
+#### 系统配置 `/system/config`
+- 配置项概览（总数、可编辑、已覆盖）
+- AI 服务商管理（直选/自定义）
+- 分类配置卡片（按类别分组）
+- 配置项编辑/恢复默认
 
 #### 日志查看 `/system/logs`
-- 日志列表（支持按文件/级别/关键字筛选）
+- 日志列表（支持按级别/关键字筛选）
+- 分页加载
 - 实时刷新
-- 日志详情查看
 
 #### 备份管理 `/system/backups`
 - 备份列表
 - 创建备份
 - 恢复备份
+- 删除备份
+- 上传备份
+
+#### 事件日志 `/system/event-logs`
+- 事件日志列表
+- 分页加载
 
 ## 六、路由设计
 
@@ -371,8 +324,6 @@ admin/
 
 ```typescript
 // router/routes.ts
-import type { RouteRecordRaw } from 'vue-router'
-
 const routes: RouteRecordRaw[] = [
   {
     path: '/login',
@@ -447,6 +398,12 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '健康检查', permission: 'system:health' }
           },
           {
+            path: 'config',
+            name: 'Config',
+            component: () => import('@/views/system/config.vue'),
+            meta: { title: '系统配置', permission: 'system:config' }
+          },
+          {
             path: 'logs',
             name: 'Logs',
             component: () => import('@/views/system/logs.vue'),
@@ -457,6 +414,12 @@ const routes: RouteRecordRaw[] = [
             name: 'Backups',
             component: () => import('@/views/system/backups.vue'),
             meta: { title: '备份管理', permission: 'system:backup' }
+          },
+          {
+            path: 'event-logs',
+            name: 'EventLogs',
+            component: () => import('@/views/system/event-logs.vue'),
+            meta: { title: '事件日志', permission: 'system:logs' }
           }
         ]
       }
@@ -467,48 +430,6 @@ const routes: RouteRecordRaw[] = [
     redirect: '/dashboard'
   }
 ]
-
-export default routes
-```
-
-### 6.2 路由守卫
-
-```typescript
-// router/index.ts
-import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import routes from './routes'
-
-const router = createRouter({
-  history: createWebHistory(),
-  routes
-})
-
-router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore()
-  
-  // 需要认证的页面
-  if (to.meta.requiresAuth && !authStore.token) {
-    next({ name: 'Login', query: { redirect: to.fullPath } })
-    return
-  }
-  
-  // 已登录访问登录页，跳转首页
-  if (to.name === 'Login' && authStore.token) {
-    next({ name: 'Dashboard' })
-    return
-  }
-  
-  // 权限校验
-  if (to.meta.permission && !authStore.hasPermission(to.meta.permission as string)) {
-    next({ name: 'Dashboard' })
-    return
-  }
-  
-  next()
-})
-
-export default router
 ```
 
 ## 七、状态管理设计
@@ -517,31 +438,28 @@ export default router
 
 ```typescript
 // stores/auth.ts
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import type { AdminInfo } from '@/types'
-import { login, logout, getAdminInfo } from '@/api/auth'
-import { getToken, setToken, removeToken } from '@/utils/storage'
-
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(getToken())
+  const token = ref<string | null>(localStorage.getItem('admin_token'))
   const admin = ref<AdminInfo | null>(null)
   
   const isLoggedIn = computed(() => !!token.value)
   const permissions = computed(() => admin.value?.role?.permissions || [])
   
   async function doLogin(username: string, password: string) {
-    const res = await login({ username, password })
+    const res = await loginApi({ username, password })
     token.value = res.access_token
-    admin.value = res.admin
-    setToken(res.access_token)
+    localStorage.setItem('admin_token', res.access_token)
+    await fetchAdminInfo()
     return res
   }
   
   async function fetchAdminInfo() {
     if (!token.value) return
-    const res = await getAdminInfo()
-    admin.value = res
+    try {
+      admin.value = await getAdminInfo()
+    } catch {
+      removeToken()
+    }
   }
   
   function hasPermission(perm: string) {
@@ -549,36 +467,13 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.includes(perm)
   }
   
-  function doLogout() {
+  function removeToken() {
     token.value = null
     admin.value = null
-    removeToken()
+    localStorage.removeItem('admin_token')
   }
   
-  return { token, admin, isLoggedIn, permissions, doLogin, fetchAdminInfo, hasPermission, doLogout }
-})
-```
-
-### 7.2 应用状态
-
-```typescript
-// stores/app.ts
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-
-export const useAppStore = defineStore('app', () => {
-  const sidebarCollapsed = ref(false)
-  const loading = ref(false)
-  
-  function toggleSidebar() {
-    sidebarCollapsed.value = !sidebarCollapsed.value
-  }
-  
-  function setLoading(val: boolean) {
-    loading.value = val
-  }
-  
-  return { sidebarCollapsed, loading, toggleSidebar, setLoading }
+  return { token, admin, isLoggedIn, permissions, doLogin, fetchAdminInfo, hasPermission, removeToken }
 })
 ```
 
@@ -588,78 +483,43 @@ export const useAppStore = defineStore('app', () => {
 
 ```typescript
 // api/index.ts
-import axios from 'axios'
-import { useAuthStore } from '@/stores/auth'
-import { ElMessage } from 'element-plus' // 不使用，改用自定义toast
-
 const request = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   timeout: 15000
 })
 
+// 请求拦截器：添加 X-Auth-Token
 request.interceptors.request.use(config => {
   const authStore = useAuthStore()
   if (authStore.token) {
-    config.headers.Authorization = `Bearer ${authStore.token}`
+    config.headers['X-Auth-Token'] = authStore.token
   }
+  setGlobalLoading(true)
   return config
 })
 
+// 响应拦截器：统一错误处理
 request.interceptors.response.use(
-  response => response.data,
+  response => {
+    setGlobalLoading(false)
+    const res = response.data as ApiResponse<any>
+    if (res.code !== 0) {
+      const toast = useToastStore()
+      toast.error(res.message || '操作失败')
+      return Promise.reject(new Error(res.message))
+    }
+    return res.data
+  },
   error => {
-    const status = error.response?.status
-    const message = error.response?.data?.detail || '请求失败'
-    
+    setGlobalLoading(false)
+    // 401 自动跳转登录页
     if (status === 401) {
-      const authStore = useAuthStore()
-      authStore.doLogout()
+      authStore.removeToken()
       window.location.href = '/login'
     }
-    
-    return Promise.reject(new Error(message))
+    return Promise.reject(error)
   }
 )
-
-export default request
-```
-
-### 8.2 API模块示例
-
-```typescript
-// api/auth.ts
-import request from './index'
-import type { LoginRequest, LoginResponse, AdminInfo } from '@/types'
-
-export function login(data: LoginRequest): Promise<LoginResponse> {
-  return request.post('/api/admin/auth/login', data)
-}
-
-export function getAdminInfo(): Promise<AdminInfo> {
-  return request.get('/api/admin/auth/me')
-}
-
-export function updatePassword(data: { old_password: string; new_password: string }) {
-  return request.put('/api/admin/auth/password', data)
-}
-```
-
-```typescript
-// api/users.ts
-import request from './index'
-import type { UserListResponse, UserInfo } from '@/types'
-
-export function getUsers(params: { offset?: number; limit?: number }): Promise<UserListResponse> {
-  return request.get('/api/admin/users', { params })
-}
-
-export function getUser(userId: number): Promise<UserInfo> {
-  return request.get(`/api/admin/users/${userId}`)
-}
-
-export function deleteUser(userId: number) {
-  return request.delete(`/api/admin/users/${userId}`)
-}
 ```
 
 ## 九、环境变量配置
@@ -670,28 +530,17 @@ export function deleteUser(userId: number) {
 # .env
 VITE_APP_TITLE=Tennis Diary Admin
 VITE_APP_VERSION=1.0.0
-
-# .env.development
-VITE_API_BASE_URL=http://localhost:8000
-
-# .env.production
-VITE_API_BASE_URL=https://api.example.com
+VITE_API_BASE_URL=https://your-api-server.com
 ```
 
 ### 9.2 类型声明
 
 ```typescript
 // env.d.ts
-/// <reference types="vite/client" />
-
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL: string
   readonly VITE_APP_TITLE: string
   readonly VITE_APP_VERSION: string
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv
 }
 ```
 
@@ -764,81 +613,31 @@ server {
 }
 ```
 
-### 10.2 Docker配置（可选）
+## 十一、验收标准
 
-```dockerfile
-# Dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-## 十一、测试用例
-
-### 11.1 测试文件结构
-
-```
-tests/
-├── components/
-│   ├── Button.spec.ts
-│   ├── Table.spec.ts
-│   └── Modal.spec.ts
-├── views/
-│   ├── login.spec.ts
-│   ├── dashboard.spec.ts
-│   └── users.spec.ts
-├── stores/
-│   └── auth.spec.ts
-└── utils/
-    └── request.spec.ts
-```
-
-### 11.2 关键测试用例
-
-| 模块 | 测试用例 | 验证点 |
-|------|---------|--------|
-| 登录 | test_login_success | 登录成功跳转 |
-| 登录 | test_login_failed | 登录失败提示 |
-| 认证 | test_token_storage | token正确存储 |
-| 认证 | test_auto_logout | token过期自动登出 |
-| 权限 | test_permission_check | 权限校验正确 |
-| 用户列表 | test_fetch_users | 获取用户列表 |
-| 用户列表 | test_pagination | 分页功能正常 |
-
-## 十二、验收标准
-
-### 12.1 功能验收
+### 11.1 功能验收
 
 | 功能 | 验收标准 |
 |------|---------|
-| 登录 | 支持账号密码和微信扫码登录 |
+| 登录 | 支持账号密码登录 |
 | 仪表盘 | 正确显示数据概览和系统状态 |
 | 用户管理 | 列表分页、查看详情正常 |
 | 角色管理 | CRUD操作正常，系统角色保护 |
 | 管理员管理 | 创建/编辑/删除/重置密码正常 |
 | 数据管理 | 日记/装备/体重/分析列表正常 |
-| 系统监控 | 健康检查/日志/备份功能正常 |
+| 系统监控 | 健康检查/日志/备份/配置功能正常 |
 | 权限控制 | 无权限菜单隐藏，接口拦截正确 |
+| 部署 | Cloudflare Workers SPA路由正常 |
 
-### 12.2 代码质量验收
+### 11.2 代码质量验收
 
 | 检查项 | 标准 |
 |--------|------|
 | TypeScript | 无类型错误 |
-| ESLint | 无报错 |
-| 构建 | `npm run build` 成功 |
-| 测试 | 核心功能测试通过 |
+| 构建 | `pnpm build` 成功 |
+| 部署 | SPA子路径路由正常 |
 
-## 十三、实施步骤
+## 十二、实施步骤
 
 ### Phase Admin-1: 项目初始化（1-2天）
 
@@ -847,7 +646,6 @@ tests/
 3. 配置Tailwind CSS
 4. 配置Vue Router和Pinia
 5. 创建基础目录结构
-6. 实现通用组件（Button、Input、Table等）
 
 ### Phase Admin-2: 布局与登录（2-3天）
 
@@ -862,15 +660,14 @@ tests/
 
 1. 实现仪表盘页面
 2. 对接系统统计API
-3. 显示最近活动和系统状态
-4. 实现StatCard组件
+3. 显示系统状态和数据库信息
 
 ### Phase Admin-4: 管理功能（3-4天）
 
 1. 实现用户管理页面
 2. 实现角色管理页面
 3. 实现管理员管理页面
-4. 对接相关API
+4. 实现通用组件（Table、Pagination、Modal）
 
 ### Phase Admin-5: 数据管理（2-3天）
 
@@ -878,14 +675,14 @@ tests/
 2. 实现装备管理页面
 3. 实现体重管理页面
 4. 实现分析报告页面
-5. 对接相关API
 
-### Phase Admin-6: 系统监控（2-3天）
+### Phase Admin-6: 系统监控（3-4天）
 
-1. 实现健康检查页面
-2. 实现日志查看页面
-3. 实现备份管理页面
-4. 对接相关API
+1. 实现健康检查页面（含AI网关状态）
+2. 实现系统配置页面（服务商管理、配置编辑）
+3. 实现日志查看页面
+4. 实现备份管理页面
+5. 实现事件日志页面
 
 ### Phase Admin-7: 测试与部署（2-3天）
 
@@ -894,27 +691,15 @@ tests/
 3. 优化和修复
 4. 文档完善
 
-## 十四、时间估算
+## 十三、时间估算
 
 | 阶段 | 内容 | 预计时间 |
 |------|------|---------|
 | Phase Admin-1 | 项目初始化 + 路由 + 布局 | 1-2天 |
-| Phase Admin-2 | 登录页（账号密码+微信扫码） | 2-3天 |
-| Phase Admin-3 | 仪表盘 + 通用组件 | 1-2天 |
+| Phase Admin-2 | 登录页 + 组件 | 2-3天 |
+| Phase Admin-3 | 仪表盘 | 1-2天 |
 | Phase Admin-4 | 用户/角色/管理员管理 | 3-4天 |
 | Phase Admin-5 | 数据管理（日记/装备/体重等） | 2-3天 |
-| Phase Admin-6 | 系统监控（健康/日志/备份） | 2-3天 |
+| Phase Admin-6 | 系统监控（健康/配置/日志/备份） | 3-4天 |
 | Phase Admin-7 | 测试 + 部署配置 | 2-3天 |
-| **总计** | | **13-20天** |
-
-## 十五、提交规范
-
-```bash
-feat(admin): 初始化后台管理前端项目
-
-- 创建admin目录结构
-- 配置Vite + Vue 3 + TypeScript
-- 配置Tailwind CSS
-- 配置Vue Router和Pinia
-- 实现通用组件
-```
+| **总计** | | **14-21天** |
