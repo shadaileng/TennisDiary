@@ -28,6 +28,7 @@ def _admin_to_response(admin: Admin) -> AdminResponse:
         id=admin.id,
         username=admin.username,
         nickname=admin.nickname or "",
+        role_id=admin.role_id,
         role=role_resp,
         is_active=admin.is_active,
         last_login=admin.last_login,

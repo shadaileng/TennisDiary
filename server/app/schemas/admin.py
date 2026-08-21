@@ -79,6 +79,7 @@ class AdminResponse(BaseModel):
     id: int
     username: str
     nickname: str
+    role_id: int
     role: RoleResponse
     is_active: bool
     last_login: datetime | None = None
