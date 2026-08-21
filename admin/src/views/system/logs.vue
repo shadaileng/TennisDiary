@@ -73,7 +73,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { getLogs } from '@/api/system'
 
 const PAGE_SIZE = 500
@@ -84,8 +84,6 @@ const filters = reactive({
   level: '',
   keyword: ''
 })
-// 若翻过页，暂停自动刷新，避免打断查看历史
-let viewedOlder = false
 
 const fetchLogs = async (reset = true) => {
   try {
@@ -93,26 +91,20 @@ const fetchLogs = async (reset = true) => {
       level: filters.level || undefined,
       keyword: filters.keyword || undefined,
       limit: PAGE_SIZE,
-      offset: reset ? 0 : logs.value.length // 续载则跳过已加载的匹配数
+      offset: reset ? 0 : logs.value.length
     })
     logs.value = reset ? data.logs : [...logs.value, ...data.logs]
     hasMore.value = data.has_more
-    if (reset) viewedOlder = false
   } catch (e) {
     console.error('Failed to fetch logs:', e)
   }
 }
 
 const loadMore = () => {
-  viewedOlder = true
   fetchLogs(false)
 }
 
-let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   fetchLogs()
-  // 仅停留在最新页时自动刷新，避免打断历史查看
-  timer = setInterval(() => !viewedOlder && fetchLogs(), 10_000)
 })
-onUnmounted(() => clearInterval(timer))
 </script>
