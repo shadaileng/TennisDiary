@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin
 from app.core.database import get_db
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.checkin import Checkin
 from app.models.user import User
@@ -48,6 +49,7 @@ def list_checkins(
 
 
 @router.delete("/{checkin_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="checkin", resource_id_key="checkin_id")
 def delete_checkin(
     checkin_id: int,
     admin: Admin = Depends(get_current_admin),

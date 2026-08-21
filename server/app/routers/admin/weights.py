@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin
 from app.core.database import get_db
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.user import User
 from app.models.weight import WeightRecord
@@ -61,6 +62,7 @@ def get_weight(
 
 
 @router.delete("/{weight_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="weight", resource_id_key="weight_id")
 def delete_weight(
     weight_id: int,
     admin: Admin = Depends(get_current_admin),

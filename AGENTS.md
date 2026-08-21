@@ -205,6 +205,8 @@ cd admin && pnpm run type-check && pnpm run build
 | 97 | 小程序构建 Circular chunk 警告修复（request ↔ auth store 循环依赖解耦：`onSessionExpired` 回调注册替代静态导入） | ✅ |
 | 98 | 分享工坊分享图添加小程序码（`td-qr.png` 随包 + 三模板底部右下角二维码 + 左右标签 + 管线上下文注入 + Playwright 二维码像素断言） | ✅ |
 | 99 | 电子教练时间轴多段剪辑（剪映式轨道 + 固定播放头 + 放大镜缩放控件 + 开闭段多段流程 + 开放起点标记 + 击球瞬间自动跟随 + 服务端 ffmpeg 裁切拼接） | ✅ |
+| 101 | 后端日志细化与异常静默处理修复（全面审计 11 个文件 25+ 处异常处理：`pass` → log、`from None` → `from exc` + log、`exc_info=True`、`print()` → loguru） | ✅ |
+| 102 | 操作审计日志（中间件+装饰器架构，41端点全量装饰器含登录，独立审计库 `audit.db`，Admin 查询端点 + 前端审计日志页，13 测试通过，created_at 用 UTC Z 后缀消除时区依赖） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

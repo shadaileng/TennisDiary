@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 
@@ -31,6 +32,7 @@ def _resolve_avatar_abs_path(rel_path: str) -> str | None:
 
 
 @router.post("/avatar", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="upload")
 def upload_avatar(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.user import User
 from app.models.weight import WeightRecord
 from app.schemas.common import ApiResponse
@@ -44,6 +45,7 @@ def list_weights(
 
 
 @router.post("", response_model=ApiResponse[WeightResponse], status_code=status.HTTP_200_OK)
+@audit(action="CREATE", resource_type="weight")
 def create_weight(
     body: WeightCreate,
     db: Session = Depends(get_db),
@@ -69,6 +71,7 @@ def create_weight(
 
 
 @router.delete("/{weight_id}", response_model=ApiResponse[None], status_code=status.HTTP_200_OK)
+@audit(action="DELETE", resource_type="weight", resource_id_key="weight_id")
 def delete_weight(
     weight_id: int,
     db: Session = Depends(get_db),

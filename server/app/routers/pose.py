@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import pose_service
@@ -30,6 +31,7 @@ class PoseAnalyzeRequest(BaseModel):
 
 
 @router.post("/analyze", response_model=ApiResponse[dict])
+@audit(action="ANALYZE", resource_type="pose")
 def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_user)):
     """MediaPipe 姿态推理：逐帧输出 33 关键点 + 首个可测帧的三角度测量
 

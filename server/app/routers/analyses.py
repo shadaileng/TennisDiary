@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.analysis import Analysis
 from app.models.user import User
 from app.schemas.common import ApiResponse, PaginatedData
@@ -64,6 +65,7 @@ def _get_owned_analysis(db: Session, analysis_id: int, user: User) -> Analysis:
 
 
 @router.post("", response_model=ApiResponse[AnalysisResponse])
+@audit(action="CREATE", resource_type="analysis")
 def create_analysis(
     body: AnalysisCreate,
     db: Session = Depends(get_db),
@@ -125,6 +127,7 @@ def get_analysis(
 
 
 @router.delete("/{analysis_id}", response_model=ApiResponse[Any])
+@audit(action="DELETE", resource_type="analysis", resource_id_key="analysis_id")
 def delete_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),

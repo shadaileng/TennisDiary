@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_permission
 from app.core.database import get_db
 from app.core.permissions import PERMISSIONS
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.role import Role
 from app.schemas.admin import (
@@ -35,6 +36,7 @@ def list_roles(
 
 
 @router.post("", response_model=ApiResponse[RoleResponse])
+@audit(action="CREATE", resource_type="role")
 def create_role(
     body: RoleCreateRequest,
     admin: Admin = Depends(require_permission("roles:create")),
@@ -86,6 +88,7 @@ def get_role(
 
 
 @router.put("/{role_id}", response_model=ApiResponse[RoleResponse])
+@audit(action="UPDATE", resource_type="role", resource_id_key="role_id")
 def update_role(
     role_id: int,
     body: RoleUpdateRequest,
@@ -115,6 +118,7 @@ def update_role(
 
 
 @router.delete("/{role_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="role", resource_id_key="role_id")
 def delete_role(
     role_id: int,
     admin: Admin = Depends(require_permission("roles:delete")),

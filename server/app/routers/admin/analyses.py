@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin
 from app.core.database import get_db
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.analysis import Analysis
 from app.models.user import User
@@ -85,6 +86,7 @@ def get_analysis(
 
 
 @router.delete("/{analysis_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="analysis", resource_id_key="analysis_id")
 def delete_analysis(
     analysis_id: int,
     admin: Admin = Depends(get_current_admin),

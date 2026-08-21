@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from app.core.auth import get_current_user
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import video_service
@@ -43,6 +44,7 @@ def _is_video_file(filename: str, content_type: str | None) -> bool:
 
 
 @router.post("/upload", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="video")
 def upload_video(
     file: UploadFile = File(...),
     mode: Literal["single", "full"] = Form(default="single"),
@@ -83,7 +85,8 @@ def upload_video(
                 written += len(chunk)
             out.flush()
             os.fsync(out.fileno())
-    except Exception:
+    except Exception as exc:
+        log.warning(f"视频文件写入失败: path={abs_path} error={exc}")
         os.makedirs(abs_dir, exist_ok=True)
         if os.path.isfile(abs_path):
             os.unlink(abs_path)
@@ -136,8 +139,9 @@ def upload_video(
                 shutil.copy2(abs_path, keep_path)
                 kept = keep_path
             except OSError as copy_err:
-                log.warning(f"保留失败副本失败: {copy_err}"
-                            f" path={abs_path} exists={exists} size={size}")
+                log.warning(
+                    f"保留失败副本失败: {copy_err} path={abs_path} exists={exists} size={size}"
+                )
                 kept = ""
         log.error(
             f"视频处理失败: {exc} exc_type={type(exc).__name__} "

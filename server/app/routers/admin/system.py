@@ -23,10 +23,13 @@ from app.core.auth import get_current_admin
 from app.core.backup_meta import BACKUP_META_DB_NAME, get_backup_meta_db
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.logging import logger
+from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
 from app.schemas.common import ApiResponse
+
+log = get_logger("admin")
 
 router = APIRouter(prefix="/api/admin/system", tags=["admin-system"])
 
@@ -88,7 +91,8 @@ def system_health(
     try:
         total_size = sum(f.stat().st_size for f in data_dir.rglob("*") if f.is_file())
         disk_usage = f"{total_size / (1024 * 1024):.2f} MB"
-    except OSError:
+    except OSError as exc:
+        log.debug(f"获取目录大小失败: {exc}")
         disk_usage = "unknown"
 
     # 运行时长
@@ -139,7 +143,8 @@ def system_stats(
     db_path = Path(settings.DATA_DIR) / "tennis_diary.db"
     try:
         db_size = f"{db_path.stat().st_size / (1024 * 1024):.2f} MB"
-    except OSError:
+    except OSError as exc:
+        log.debug(f"获取数据库大小失败: {exc}")
         db_size = "unknown"
 
     return ApiResponse(
@@ -235,6 +240,7 @@ def _probe_ffmpeg() -> dict:
 
             ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
         except ImportError:
+            log.debug("imageio_ffmpeg 未安装，ffmpeg 探测失败")
             ffmpeg = None
     if not ffmpeg:
         return {"available": False, "version": ""}
@@ -243,7 +249,8 @@ def _probe_ffmpeg() -> dict:
         version = (proc.stdout or proc.stderr).decode(errors="replace").splitlines()
         first = version[0] if version else ""
         return {"available": True, "version": first}
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.debug(f"ffmpeg 版本探测失败: {exc}")
         return {"available": True, "version": ""}
 
 
@@ -371,7 +378,7 @@ def serve_admin_file(
     """
     path = _resolve_admin_file_path(filename)
     if path is None:
-        logger.warning("Admin 静态文件路径穿越被拒", filename=filename)
+        log.warning("Admin 静态文件路径穿越被拒", filename=filename)
         raise HTTPException(status_code=404, detail="文件不存在")
     if not path.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -402,7 +409,8 @@ def _pack_data_dir(backup_path: Path) -> None:
                 # 展开内容导致同一文件被多个目录层级重复打包
                 tar.add(item, arcname=arcname, recursive=False)
                 seen.add(arcname)
-            except OSError:
+            except OSError as exc:
+                log.warning(f"tar 打包跳过文件: path={item} error={exc}")
                 continue
 
 
@@ -418,6 +426,7 @@ def _resolve_backup(backup_id: str) -> Path:
 
 
 @router.post("/backup", response_model=ApiResponse[None])
+@audit(action="CREATE", resource_type="system")
 def backup_database(
     admin: Admin = Depends(get_current_admin),
     meta_db: Session = Depends(get_backup_meta_db),
@@ -500,6 +509,7 @@ def download_backup(
 
 
 @router.post("/backup/upload", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="system")
 def upload_backup(
     file: UploadFile = File(...),
     admin: Admin = Depends(get_current_admin),
@@ -554,6 +564,7 @@ def upload_backup(
 
 
 @router.delete("/backup/{backup_id}", response_model=ApiResponse[None])
+@audit(action="DELETE", resource_type="system", resource_id_key="backup_id")
 def delete_backup(
     backup_id: str,
     admin: Admin = Depends(get_current_admin),
@@ -587,6 +598,7 @@ def delete_backup(
 
 
 @router.post("/restore/{backup_id}", response_model=ApiResponse[None])
+@audit(action="UPDATE", resource_type="system", resource_id_key="backup_id")
 def restore_database(
     backup_id: str,
     admin: Admin = Depends(get_current_admin),

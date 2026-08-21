@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.diary import Diary
 from app.models.user import User
 from app.schemas.common import ApiResponse
@@ -62,6 +63,7 @@ def list_diaries(
 
 
 @router.post("", response_model=ApiResponse[DiaryResponse], status_code=status.HTTP_200_OK)
+@audit(action="CREATE", resource_type="diary")
 def create_diary(
     body: DiaryCreate,
     db: Session = Depends(get_db),
@@ -101,6 +103,7 @@ def get_diary(
 
 
 @router.put("/{diary_id}", response_model=ApiResponse[DiaryResponse])
+@audit(action="UPDATE", resource_type="diary", resource_id_key="diary_id")
 def update_diary(
     diary_id: int,
     body: DiaryUpdate,
@@ -136,6 +139,7 @@ def update_diary(
 
 
 @router.delete("/{diary_id}", response_model=ApiResponse[None], status_code=status.HTTP_200_OK)
+@audit(action="DELETE", resource_type="diary", resource_id_key="diary_id")
 def delete_diary(
     diary_id: int,
     db: Session = Depends(get_db),

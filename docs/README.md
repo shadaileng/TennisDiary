@@ -119,7 +119,9 @@ docs/
 │   ├── 96-小程序大满贯球场主题.md
 │   ├── 97-miniapp构建循环chunk警告修复.md
 │   ├── 98-分享工坊分享图添加小程序码.md
-│   └── 99-电子教练时间轴多段剪辑.md
+│   ├── 99-电子教练时间轴多段剪辑.md
+│   ├── 99-D-视频上传调试记录.md
+│   └── 102-操作审计日志.md
 ├── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -233,6 +235,9 @@ docs/
 | 97：miniapp 构建 Circular chunk 警告修复 | v1.0.0 | 方案 | `plans/97-miniapp构建循环chunk警告修复.md` | request ↔ auth store 循环依赖解耦（`onSessionExpired` 回调注册替代静态导入），消除构建警告 | ✅ 已完成 |
 | 98：分享工坊分享图添加小程序码 | v1.0.0 | 方案 | `plans/98-分享工坊分享图添加小程序码.md` | 三模板分享卡底部右下角添加微信小程序码（`td-qr.png` 随包 + 管线上下文注入 + 视觉回归） | ✅ 已完成 |
 | 99：电子教练时间轴多段剪辑 | v1.3.3 | 方案 | `plans/99-电子教练时间轴多段剪辑.md` | 剪映式时间轴（固定播放头 + 拖动轨道选帧 + 放大镜缩放 + 开闭段多段流程 + 开放起点标记 + 击球瞬间自动跟随） | ✅ 已完成 |
+| 99-D：视频上传调试记录 | v1.0.0 | 方案 | `plans/99-D-视频上传调试记录.md` | 电子教练视频上传调试：设备端「无法解析视频时长」根因排查与修复 | ✅ 已完成 |
+| 101：后端日志细化与异常静默处理修复 | v1.0.0 | 方案 | `plans/101-后端日志细化与异常静默处理修复.md` | 全面审计 11 个文件 25+ 处异常处理：`pass` → log、`from None` → `from exc` + log、`exc_info=True`、`print()` → loguru | ✅ 已完成 |
+| 102：操作审计日志 | v1.4.0 | 方案 | `plans/102-操作审计日志.md` | 全量写操作审计（Admin+小程序端41个端点含登录）+ 独立审计库 + 中间件+装饰器方案 + Admin前端页面 + 13测试 + created_at UTC Z 后缀 | ✅ 已完成 |
 
 ## 文档类型说明
 
@@ -348,6 +353,9 @@ docs/
 | 97-miniapp构建循环chunk警告修复 | 小程序前端 | ✅ 已完成 | 2026-08-19 | build:mp-weixin 通过，Circular chunk 警告消除；type-check 与改动前一致（8 项既有错误，无新增） |
 | 98-分享工坊分享图添加小程序码 | 小程序前端 | ✅ 已完成 | 2026-08-19 | share-canvas 13 用例 + components 8 用例通过；快照全量重建；build:mp-weixin 产物含 static/td-qr.png；type-check 无新增错误 |
 | 99-电子教练时间轴多段剪辑 | 小程序前端 / 后台 | ✅ 已完成 | 2026-08-20 | 后端 375 passed（含真实 ffmpeg 两段拼接）+ ruff 通过；miniapp type-check + build:mp-weixin 通过 |
+| 99-D-视频上传调试记录 | 小程序前端 / 后台排障 | ✅ 已完成 | 2026-08-20 | 修复设备端上传视频时长解析失败（Android 分片上传 Content-Length 问题） |
+| 101-后端日志细化与异常静默处理修复 | 后台 | ✅ 已完成 | 2026-08-21 | 11 文件修改 + ruff check/format 通过 + 126 tests passed |
+| 102-操作审计日志 | 后台/审计/Admin前端 | ✅ 已完成 | 2026-08-21 | 后端 13 测试通过 + ruff check/format 通过 + admin build 通过；41 端点全量装饰器含登录 + 独立审计库 + 中间件+装饰器架构 + Admin 查询端点 + 前端审计日志页 + created_at UTC Z 后缀 |
 
 ## 约定
 

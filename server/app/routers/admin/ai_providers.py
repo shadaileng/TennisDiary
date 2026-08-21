@@ -6,10 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import require_permission
 from app.core.database import get_db
+from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.schemas.admin import AiProviderRequest, ProviderModelsCheckRequest
 from app.schemas.common import ApiResponse
 from app.services import ai_provider_service
+
+log = get_logger("admin")
 
 router = APIRouter(prefix="/api/admin/config/providers", tags=["admin-ai-providers"])
 
@@ -26,6 +30,7 @@ def list_providers(
 
 
 @router.post("", response_model=ApiResponse[dict])
+@audit(action="CREATE", resource_type="ai_provider")
 def create_provider(
     req: AiProviderRequest,
     admin: Admin = Depends(require_permission("system:config")),
@@ -46,6 +51,7 @@ def create_provider(
 
 
 @router.put("/{provider_id}", response_model=ApiResponse[dict])
+@audit(action="UPDATE", resource_type="ai_provider", resource_id_key="provider_id")
 def update_provider(
     provider_id: int,
     req: AiProviderRequest,
@@ -68,6 +74,7 @@ def update_provider(
 
 
 @router.delete("/{provider_id}", response_model=ApiResponse[dict])
+@audit(action="DELETE", resource_type="ai_provider", resource_id_key="provider_id")
 def delete_provider(
     provider_id: int,
     admin: Admin = Depends(require_permission("system:config")),
@@ -142,7 +149,8 @@ async def check_models(
     if resp.status_code == 200:
         try:
             available = _extract_available_models(resp.json())
-        except ValueError:
+        except ValueError as exc:
+            log.debug(f"AI 服务商模型列表 JSON 解析失败: {exc}")
             available = []
         if available:
             results = [

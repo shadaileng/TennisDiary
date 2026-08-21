@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
+from app.middleware.audit import AuditMiddleware
 from app.middleware.logging import RequestLoggingMiddleware
 from app.routers import (
     ai,
@@ -28,6 +29,7 @@ from app.routers import events as user_events
 from app.routers.admin import admins as admin_admins
 from app.routers.admin import ai_providers as admin_ai_providers
 from app.routers.admin import analyses as admin_analyses
+from app.routers.admin import audit_logs as admin_audit_logs
 from app.routers.admin import auth as admin_auth
 from app.routers.admin import checkins as admin_checkins
 from app.routers.admin import config as admin_config
@@ -122,7 +124,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """未知异常处理（最外层 ServerErrorMiddleware 生成响应，绕过 CORSMiddleware，需补 CORS 头）"""
-    logger.error(f"未处理的异常: {exc}")
+    logger.error(f"未处理的异常: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
         content=ApiResponse(
@@ -166,6 +168,7 @@ app.include_router(admin_system.router)
 app.include_router(admin_config.router)
 app.include_router(admin_ai_providers.router)
 app.include_router(admin_events.router)
+app.include_router(admin_audit_logs.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(
@@ -178,6 +181,9 @@ app.add_middleware(
 
 # 请求日志中间件（实现日志分离）
 app.add_middleware(RequestLoggingMiddleware)
+
+# 审计中间件（记录所有写操作）
+app.add_middleware(AuditMiddleware)
 
 
 @app.get("/health")

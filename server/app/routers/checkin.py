@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.decorators.audit import audit
 from app.models.checkin import Checkin
 from app.models.user import User
 from app.schemas.common import ApiResponse
@@ -32,6 +33,7 @@ def list_checkins(
 
 
 @router.post("", response_model=ApiResponse[CheckinResponse], status_code=status.HTTP_200_OK)
+@audit(action="CREATE", resource_type="checkin")
 def create_checkin(
     body: CheckinCreate,
     db: Session = Depends(get_db),

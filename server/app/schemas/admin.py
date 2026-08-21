@@ -79,6 +79,7 @@ class AdminResponse(BaseModel):
     id: int
     username: str
     nickname: str
+    role_id: int
     role: RoleResponse
     is_active: bool
     last_login: datetime | None = None
@@ -328,3 +329,31 @@ class PostAdminResponse(BaseModel):
     user: dict | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ==================== 审计日志相关 ====================
+
+
+class AuditLogResponse(BaseModel):
+    """审计日志响应"""
+
+    id: int
+    source: str
+    admin_id: int | None = None
+    admin_username: str | None = None
+    user_id: int | None = None
+    user_nickname: str | None = None
+    action: str
+    resource_type: str
+    resource_id: str | None = None
+    description: str
+    request_body: str | None = None
+    request_path: str = ""
+    request_method: str = ""
+    response_code: int
+    response_success: bool
+    response_message: str
+    duration_ms: float
+    ip_address: str
+    user_agent: str
+    created_at: str

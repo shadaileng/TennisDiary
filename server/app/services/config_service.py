@@ -23,7 +23,10 @@ from app.core.config_registry import (
     find_config_item,
     list_categories,
 )
+from app.core.logging import get_logger
 from app.models.system_config import SystemConfig
+
+log = get_logger("config")
 
 MASK_PLACEHOLDER = "****"
 
@@ -164,8 +167,9 @@ def _validate_value(item, value: str) -> str:
     if vtype == VALUE_TYPE_INT:
         try:
             int(value)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail=f"{item.label} 必须是整数") from None
+        except (TypeError, ValueError) as exc:
+            log.debug(f"配置值校验失败 item={item.label} value={value}: {exc}")
+            raise HTTPException(status_code=400, detail=f"{item.label} 必须是整数") from exc
         return value.strip()
     if vtype == VALUE_TYPE_SELECT:
         if item.options and value not in item.options:
