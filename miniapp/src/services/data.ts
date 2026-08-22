@@ -201,6 +201,7 @@ export function analyzePose(
     saveSkeleton?: boolean
     duration?: number
     frameRate?: number
+    fullFrames?: boolean  // 是否逐帧生成骨架视频（null=自动判断）
   },
 ): Promise<PoseResult> {
   return post<PoseResult>(
@@ -211,6 +212,7 @@ export function analyzePose(
       save_skeleton: options?.saveSkeleton ?? false,
       duration: options?.duration,
       frame_rate: options?.frameRate,
+      full_frames: options?.fullFrames,
     },
     { timeout: 60000 },
   );

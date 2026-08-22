@@ -287,6 +287,42 @@ def _resolve_video_dir(video_url: str) -> tuple[str, str] | None:
     return os.path.dirname(candidate), base
 
 
+def _should_use_full_frames(
+    full_frames: bool | None,
+    save_skeleton: bool,
+    video_url: str | None,
+    duration: float | None,
+) -> bool:
+    """判断是否使用逐帧生成骨架视频
+
+    优先级：
+    1. 前端参数 full_frames=true  → 强制逐帧
+    2. 前端参数 full_frames=false → 强制抽样
+    3. 配置 pose.full_frames_enabled=false → 禁用自动，走抽样
+    4. duration ≤ pose.full_frames_threshold → 自动逐帧
+    5. 其他 → 抽样（7-8帧）
+    """
+    if not save_skeleton or not video_url:
+        return False
+
+    # 显式指定
+    if full_frames is True:
+        return True
+    if full_frames is False:
+        return False
+
+    # 检查配置是否启用
+    if not settings.POSE_FULL_FRAMES_ENABLED:
+        return False
+
+    # 自动判断：时长 ≤ 阈值
+    threshold = settings.POSE_FULL_FRAMES_THRESHOLD
+    if threshold > 0 and duration is not None and duration <= threshold:
+        return True
+
+    return False
+
+
 def _rel_url(abs_path: str) -> str:
     """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）"""
     return os.path.relpath(abs_path, settings.UPLOAD_DIR).replace(os.sep, "/")
@@ -466,6 +502,7 @@ def analyze_frames(
     save_skeleton: bool = False,
     duration: float | None = None,
     frame_rate: float | None = None,
+    full_frames: bool | None = None,
 ) -> dict:
     """逐帧推理编排，返回 {frames, metrics, detected, skeleton_*}
 
@@ -475,7 +512,97 @@ def analyze_frames(
     - skeleton_frames: 骨架帧相对 URL 数组（仅 save_skeleton + video_url 时）
     - skeleton_video_url: 骨架关键帧动画 mp4 相对 URL（ffmpeg 可用时）
     - skeleton_thumb: 封面骨架帧相对 URL（取首次可测帧，否则第一帧）
+    - full_frames: None=自动判断，true=强制逐帧，false=强制抽样
     """
+    # 判断是否使用逐帧生成
+    use_full = _should_use_full_frames(full_frames, save_skeleton, video_url, duration)
+
+    if use_full:
+        # 逐帧生成：从视频文件读取全部帧
+        return _analyze_full_frames(video_url, frame_rate)
+    else:
+        # 抽样生成：处理传入的 frames
+        return _analyze_sampled_frames(frames, video_url, save_skeleton, duration, frame_rate)
+
+
+def _analyze_full_frames(
+    video_url: str | None,
+    frame_rate: float | None,
+) -> dict:
+    """从视频文件逐帧读取并处理，生成骨架视频（帧数与原视频一致）"""
+    if not video_url:
+        raise ValueError("video_url 不能为空")
+
+    resolved = _resolve_video_dir(video_url)
+    if resolved is None:
+        raise ValueError("video_url 非法或不存在")
+    video_dir, base = resolved
+
+    video_path = os.path.join(video_dir, f"{base}.mp4")
+    if not os.path.isfile(video_path):
+        raise ValueError("视频文件不存在")
+
+    extracted_frames = extract_all_frames(video_path)
+    if not extracted_frames:
+        raise ValueError("未能从视频中抽取任何帧")
+
+    results: list[dict] = []
+    metrics = None
+    detected = False
+    skeleton_paths: list[str] = []
+    skeleton_rel: list[str] = []
+
+    for i, frame_bytes in enumerate(extracted_frames):
+        landmarks = detect_pose(frame_bytes)
+        if landmarks is None:
+            results.append({"landmarks": []})
+        else:
+            detected = True
+            results.append({"landmarks": landmarks})
+            if metrics is None:
+                metrics = measure_angles(landmarks)
+
+        # 生成骨架帧
+        if landmarks is not None:
+            sk_bytes = draw_skeleton(frame_bytes, landmarks)
+        else:
+            sk_bytes = frame_bytes
+        sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
+        with open(sk_path, "wb") as out:
+            out.write(sk_bytes)
+        skeleton_paths.append(sk_path)
+        skeleton_rel.append(_rel_url(sk_path))
+
+    # 编码骨架视频
+    skeleton_video_url = None
+    skeleton_thumb = skeleton_rel[0] if skeleton_rel else None
+
+    if skeleton_paths and frame_rate:
+        effective_fps = max(1.0, min(30.0, frame_rate))
+        out_name = f"{base}_skeleton.mp4"
+        out_path = os.path.join(video_dir, out_name)
+        encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
+        if encoded and os.path.isfile(out_path):
+            skeleton_video_url = _rel_url(out_path)
+
+    return {
+        "frames": results,
+        "metrics": metrics,
+        "detected": detected,
+        "skeleton_frames": skeleton_rel,
+        "skeleton_video_url": skeleton_video_url,
+        "skeleton_thumb": skeleton_thumb,
+    }
+
+
+def _analyze_sampled_frames(
+    frames: list[str],
+    video_url: str | None,
+    save_skeleton: bool,
+    duration: float | None,
+    frame_rate: float | None,
+) -> dict:
+    """处理抽样的帧（原有逻辑）"""
     results: list[dict] = []
     metrics = None
     detected = False

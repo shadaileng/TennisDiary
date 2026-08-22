@@ -310,7 +310,7 @@ class TestPoseAnalyzeFrameRate:
         received_kwargs = {}
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None
         ):
             received_kwargs["frame_rate"] = frame_rate
             return self.FAKE_RESULT
@@ -330,7 +330,7 @@ class TestPoseAnalyzeFrameRate:
         received_kwargs = {}
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None
         ):
             received_kwargs["frame_rate"] = frame_rate
             return self.FAKE_RESULT
@@ -349,7 +349,7 @@ class TestPoseAnalyzeFrameRate:
         received_kwargs = {}
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None
         ):
             received_kwargs.update(
                 {

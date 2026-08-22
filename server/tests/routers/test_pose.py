@@ -336,7 +336,7 @@ class TestPoseAnalyze:
         monkeypatch.setattr(
             pose_router.pose_service,
             "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None: (
+            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None: (
                 self.FAKE_RESULT
             ),
         )
@@ -355,7 +355,7 @@ class TestPoseAnalyze:
         monkeypatch.setattr(
             pose_router.pose_service,
             "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None: {
+            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None: {
                 "frames": [{"landmarks": []}],
                 "metrics": None,
                 "detected": False,
@@ -381,7 +381,7 @@ class TestPoseAnalyze:
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
 
-        def boom(frames, video_url=None, save_skeleton=False, duration=None):
+        def boom(frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None):
             raise pose_service.PoseUnavailableError("模型加载失败")
 
         monkeypatch.setattr(pose_router.pose_service, "analyze_frames", boom)
@@ -414,7 +414,7 @@ class TestPoseAnalyze:
         }
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None
         ):
             assert video_url == "videos/1/abc.mp4"
             assert save_skeleton is True
@@ -441,7 +441,7 @@ class TestPoseAnalyze:
         monkeypatch.setattr(
             pose_router.pose_service,
             "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None: (
+            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None: (
                 _throw(ValueError("video_url 非法或不存在"))
             ),
         )

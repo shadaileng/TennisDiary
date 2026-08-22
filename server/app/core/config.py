@@ -54,6 +54,10 @@ class Settings:
         f"{Path(__file__).resolve().parent.parent.parent}/models/pose_landmarker_lite.task",
     )
 
+    # 骨架视频逐帧生成配置
+    POSE_FULL_FRAMES_ENABLED: bool = os.getenv("POSE_FULL_FRAMES_ENABLED", "true").lower() == "true"
+    POSE_FULL_FRAMES_THRESHOLD: int = int(os.getenv("POSE_FULL_FRAMES_THRESHOLD", "3"))
+
     # 文件存储
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", f"{DATA_DIR}/uploads")
     MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "100"))

@@ -31,6 +31,10 @@ class PoseAnalyzeRequest(BaseModel):
     )
     duration: float | None = Field(default=None, description="视频时长（秒），骨架动画 fps 推算用")
     frame_rate: float | None = Field(default=None, description="视频帧率（fps），用于骨架动画编码")
+    full_frames: bool | None = Field(
+        default=None,
+        description="是否逐帧生成骨架视频（null=自动判断，true=强制逐帧，false=强制抽样）",
+    )
 
 
 class PoseVideoRequest(BaseModel):
@@ -64,6 +68,7 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
             save_skeleton=req.save_skeleton,
             duration=req.duration,
             frame_rate=req.frame_rate,
+            full_frames=req.full_frames,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
