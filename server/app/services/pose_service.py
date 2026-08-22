@@ -310,6 +310,113 @@ def find_ffmpeg() -> str | None:
     return None
 
 
+def extract_all_frames(video_path: str, width: int = 640) -> list[bytes]:
+    """从视频文件逐帧抽取所有帧，返回 JPEG bytes 列表"""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        return []
+
+    cmd = [
+        ffmpeg,
+        "-i",
+        video_path,
+        "-vf",
+        f"scale={width}:-1",
+        "-q:v",
+        "2",
+        "-f",
+        "image2pipe",
+        "-vcodec",
+        "mjpeg",
+        "pipe:1",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, timeout=300)
+    if proc.returncode != 0:
+        log.warning("逐帧抽取失败", rc=proc.returncode)
+        return []
+
+    # 分割 JPEG 帧（FFDFFD8 开头）
+    frames = []
+    data = proc.stdout
+    start = 0
+    while start < len(data):
+        # 查找下一个 JPEG SOI 标记
+        next_start = data.find(b"\xff\xd8", start + 1)
+        if next_start == -1:
+            frame = data[start:]
+        else:
+            frame = data[start:next_start]
+        if len(frame) > 100:  # 过滤碎片
+            frames.append(frame)
+        if next_start == -1:
+            break
+        start = next_start
+    return frames
+
+
+def analyze_video_file(
+    video_path: str,
+    video_url: str,
+    frame_rate: float | None = None,
+) -> dict:
+    """从视频文件逐帧读取并处理，生成骨架视频（帧数与原视频一致）
+
+    返回 {frames, metrics, detected, skeleton_video_url, skeleton_thumb}
+    """
+    frames = extract_all_frames(video_path)
+    if not frames:
+        raise ValueError("未能从视频中抽取任何帧")
+
+    video_dir = os.path.dirname(video_path)
+    base = os.path.splitext(os.path.basename(video_path))[0]
+
+    results: list[dict] = []
+    metrics = None
+    detected = False
+    skeleton_paths: list[str] = []
+
+    for i, frame_bytes in enumerate(frames):
+        landmarks = detect_pose(frame_bytes)
+        if landmarks is None:
+            results.append({"landmarks": []})
+        else:
+            detected = True
+            results.append({"landmarks": landmarks})
+            if metrics is None:
+                metrics = measure_angles(landmarks)
+
+        # 生成骨架帧
+        if landmarks is not None:
+            sk_bytes = draw_skeleton(frame_bytes, landmarks)
+        else:
+            sk_bytes = frame_bytes
+        sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
+        with open(sk_path, "wb") as out:
+            out.write(sk_bytes)
+        skeleton_paths.append(sk_path)
+
+    # 编码骨架视频（帧率 = 帧数 / 时长，确保播放时长与原视频一致）
+    skeleton_video_url = None
+    skeleton_thumb = _rel_url(skeleton_paths[0]) if skeleton_paths else None
+
+    if skeleton_paths and frame_rate:
+        # 用原视频帧率编码，帧数一致则播放时长一致
+        effective_fps = max(1.0, min(30.0, frame_rate))
+        out_name = f"{base}_skeleton.mp4"
+        out_path = os.path.join(video_dir, out_name)
+        encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
+        if encoded and os.path.isfile(out_path):
+            skeleton_video_url = _rel_url(out_path)
+
+    return {
+        "frames": results,
+        "metrics": metrics,
+        "detected": detected,
+        "skeleton_video_url": skeleton_video_url,
+        "skeleton_thumb": skeleton_thumb,
+    }
+
+
 def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) -> bool:
     """用 ffmpeg 将骨架帧序列编码为 H.264 mp4（微信可播）；失败返回 False 不抛错
 

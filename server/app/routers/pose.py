@@ -1,9 +1,12 @@
-"""姿态推理路由（POST /api/pose/analyze）"""
+"""姿态推理路由（POST /api/pose/analyze, POST /api/pose/video）"""
+
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.decorators.audit import audit
 from app.models.user import User
@@ -27,6 +30,13 @@ class PoseAnalyzeRequest(BaseModel):
         default=False, description="是否绘制骨架帧并落盘（skeleton_frames/video/thumb）"
     )
     duration: float | None = Field(default=None, description="视频时长（秒），骨架动画 fps 推算用")
+    frame_rate: float | None = Field(default=None, description="视频帧率（fps），用于骨架动画编码")
+
+
+class PoseVideoRequest(BaseModel):
+    """从视频文件直接生成骨架视频（帧数与原视频一致）"""
+
+    video_url: str = Field(description="源视频相对 UPLOAD_DIR 的路径")
     frame_rate: float | None = Field(default=None, description="视频帧率（fps），用于骨架动画编码")
 
 
@@ -75,5 +85,60 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
         frames=len(result["frames"]),
         detected=result["detected"],
         save_skeleton=req.save_skeleton,
+    )
+    return ApiResponse(data=result)
+
+
+@router.post("/video", response_model=ApiResponse[dict])
+@audit(action="ANALYZE_VIDEO", resource_type="pose")
+def analyze_video(req: PoseVideoRequest, current_user: User = Depends(get_current_user)):
+    """从视频文件逐帧读取并生成骨架视频（帧数与原视频一致）
+
+    - video_url: 视频相对 UPLOAD_DIR 的路径（如 videos/1/xxx_seg0.mp4）
+    - 返回: frames（每帧关键点）、metrics（角度测量）、skeleton_video_url（骨架视频）
+    - 适用于需要骨架视频帧数与原视频同步的场景
+    """
+    if not pose_service.is_available():
+        log.warning("姿态推理服务不可用：mediapipe 或模型缺失")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="姿态推理服务不可用：模型缺失或 mediapipe 未安装",
+        )
+
+    # 解析视频路径
+    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+    video_path = os.path.normpath(os.path.join(upload_dir, req.video_url))
+    if not video_path.startswith(upload_dir + os.sep) or not os.path.isfile(video_path):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="video_url 无效或文件不存在",
+        )
+
+    try:
+        result = pose_service.analyze_video_file(
+            video_path,
+            video_url=req.video_url,
+            frame_rate=req.frame_rate,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except PoseUnavailableError as exc:
+        log.error("姿态推理失败: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        log.error("姿态推理异常: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="姿态推理服务异常，请稍后重试",
+        ) from exc
+
+    log.info(
+        "视频姿态推理完成",
+        user_id=current_user.id,
+        frames=len(result["frames"]),
+        detected=result["detected"],
+        video_url=req.video_url,
     )
     return ApiResponse(data=result)
