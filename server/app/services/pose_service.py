@@ -211,6 +211,18 @@ def _decode_frame(frame: str) -> bytes:
         raise ValueError("帧数据不是有效的 base64") from exc
 
 
+def _load_frames_from_urls(frame_urls: list[str]) -> list[str]:
+    """从文件路径读取帧，返回 base64 dataURL 列表"""
+    frames = []
+    for url in frame_urls:
+        path = os.path.join(settings.UPLOAD_DIR, url)
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+            frames.append(f"data:image/jpeg;base64,{data}")
+    return frames
+
+
 def draw_skeleton(image_bytes: bytes, landmarks: list[dict]) -> bytes:
     """在帧上叠加绘制 Pose 骨架（对齐 Web drawSkeleton），返回新 JPEG bytes
 
@@ -497,12 +509,13 @@ def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) 
 
 
 def analyze_frames(
-    frames: list[str],
+    frames: list[str] | None = None,
     video_url: str | None = None,
     save_skeleton: bool = False,
     duration: float | None = None,
     frame_rate: float | None = None,
     full_frames: bool | None = None,
+    frame_urls: list[str] | None = None,
 ) -> dict:
     """逐帧推理编排，返回 {frames, metrics, detected, skeleton_*}
 
@@ -513,7 +526,14 @@ def analyze_frames(
     - skeleton_video_url: 骨架关键帧动画 mp4 相对 URL（ffmpeg 可用时）
     - skeleton_thumb: 封面骨架帧相对 URL（取首次可测帧，否则第一帧）
     - full_frames: None=自动判断，true=强制逐帧，false=强制抽样
+    - frame_urls: 帧文件相对路径数组（优先使用）
     """
+    # 优先使用 frame_urls
+    if frame_urls:
+        frames = _load_frames_from_urls(frame_urls)
+    if not frames:
+        raise ValueError("无有效帧数据")
+
     # 判断是否使用逐帧生成
     use_full = _should_use_full_frames(full_frames, save_skeleton, video_url, duration)
 

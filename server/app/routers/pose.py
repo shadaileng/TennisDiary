@@ -20,9 +20,14 @@ router = APIRouter(prefix="/api/pose", tags=["pose"])
 
 
 class PoseAnalyzeRequest(BaseModel):
-    """姿态推理请求：frames 为按时间顺序抽取的关键帧（base64/dataURL）"""
+    """姿态推理请求：优先使用 frame_urls（后端读文件），兼容 frames（前端直传）"""
 
-    frames: list[str] = Field(min_length=1, description="关键帧 base64/dataURL 数组")
+    frames: list[str] | None = Field(
+        default=None, description="关键帧 base64/dataURL 数组（兼容旧版）"
+    )
+    frame_urls: list[str] | None = Field(
+        default=None, description="帧文件相对路径数组（推荐，后端读文件）"
+    )
     video_url: str | None = Field(
         default=None, description="源视频相对 UPLOAD_DIR 的路径；save_skeleton 时用于落盘骨架帧"
     )
@@ -69,6 +74,7 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
             duration=req.duration,
             frame_rate=req.frame_rate,
             full_frames=req.full_frames,
+            frame_urls=req.frame_urls,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

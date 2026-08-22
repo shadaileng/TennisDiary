@@ -721,8 +721,8 @@ async function startAnalysis() {
     // 2. AI 六维评分 与 姿态测量 并行执行（Step 83：每次分析都跑姿态，含骨架绘制）
     progress.value = "教练正在分析动作与姿态（约 15-90 秒）…";
     const [aiResult, poseResult] = await Promise.allSettled([
-      analyzeSwing(uploaded.frames, kind.value, mode.value),
-      analyzePose(uploaded.frames, {
+      analyzeSwing(uploaded.frame_urls, kind.value, mode.value),
+      analyzePose(uploaded.frame_urls, {
         videoUrl: uploaded.video_url,
         saveSkeleton: true,
         duration: uploaded.duration,

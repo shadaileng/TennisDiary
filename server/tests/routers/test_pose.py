@@ -336,7 +336,7 @@ class TestPoseAnalyze:
         monkeypatch.setattr(
             pose_router.pose_service,
             "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None: (
+            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None, frame_urls=None: (
                 self.FAKE_RESULT
             ),
         )
@@ -355,7 +355,7 @@ class TestPoseAnalyze:
         monkeypatch.setattr(
             pose_router.pose_service,
             "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None: {
+            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None, frame_urls=None: {
                 "frames": [{"landmarks": []}],
                 "metrics": None,
                 "detected": False,
@@ -381,7 +381,7 @@ class TestPoseAnalyze:
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
 
-        def boom(frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None):
+        def boom(frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None, frame_urls=None):
             raise pose_service.PoseUnavailableError("模型加载失败")
 
         monkeypatch.setattr(pose_router.pose_service, "analyze_frames", boom)
@@ -394,12 +394,12 @@ class TestPoseAnalyze:
         assert response.status_code in (401, 403)
 
     def test_analyze_empty_frames(self, auth_client, monkeypatch):
-        """空 frames → 422 参数校验失败"""
+        """空 frames → 400 无有效帧数据"""
         from app.routers import pose as pose_router
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
         response = auth_client.post("/api/pose/analyze", json={"frames": []})
-        assert response.status_code == 422
+        assert response.status_code == 400
 
     def test_analyze_save_skeleton(self, auth_client, monkeypatch):
         """save_skeleton + video_url → 200 + 骨架三字段透传"""
@@ -414,7 +414,7 @@ class TestPoseAnalyze:
         }
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None
+            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None, frame_urls=None
         ):
             assert video_url == "videos/1/abc.mp4"
             assert save_skeleton is True
@@ -441,7 +441,7 @@ class TestPoseAnalyze:
         monkeypatch.setattr(
             pose_router.pose_service,
             "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None: (
+            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None, full_frames=None, frame_urls=None: (
                 _throw(ValueError("video_url 非法或不存在"))
             ),
         )

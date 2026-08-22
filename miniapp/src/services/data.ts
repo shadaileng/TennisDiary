@@ -181,11 +181,11 @@ function parseUploadError(raw: string): string {
 
 /** AI 六维评分（120s 超时，Key 存服务端，失败后端降级） */
 export function analyzeSwing(
-  frames: string[],
+  frameUrls: string[],
   kind: string,
   mode: "single" | "full",
 ): Promise<AnalysisReport> {
-  return post<AnalysisReport>("/ai/analyze", { frames, kind, mode }, { timeout: 120000 });
+  return post<AnalysisReport>("/ai/analyze", { frame_urls: frameUrls, kind, mode }, { timeout: 120000 });
 }
 
 /** AI 分享文案润色（30s 超时，Key 存服务端，失败后端降级为本地模板文案） */
@@ -195,7 +195,7 @@ export function generateCaption(template: string, style: string, text: string): 
 
 /** 姿态推理（33 关键点 + 角度测量 + 可选骨架落盘，60s 超时） */
 export function analyzePose(
-  frames: string[],
+  frameUrls: string[],
   options?: {
     videoUrl?: string
     saveSkeleton?: boolean
@@ -207,7 +207,7 @@ export function analyzePose(
   return post<PoseResult>(
     "/pose/analyze",
     {
-      frames,
+      frame_urls: frameUrls,
       video_url: options?.videoUrl,
       save_skeleton: options?.saveSkeleton ?? false,
       duration: options?.duration,

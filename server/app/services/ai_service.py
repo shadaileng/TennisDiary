@@ -4,8 +4,10 @@
 Key 只读服务端配置，不进入小程序包。
 """
 
+import base64
 import hashlib
 import json
+import os
 import re
 from datetime import datetime
 
@@ -23,6 +25,18 @@ from app.services.config_service import AIConfig
 DIMENSIONS = ["准备启动", "动力链", "击球时机", "随挥收拍", "拍面控制", "身体稳定"]
 
 AI_TIMEOUT_SECONDS = 120
+
+
+def _load_frames_from_urls(frame_urls: list[str]) -> list[str]:
+    """从文件路径读取帧，返回 base64 dataURL 列表"""
+    frames = []
+    for url in frame_urls:
+        path = os.path.join(settings.UPLOAD_DIR, url)
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+            frames.append(f"data:image/jpeg;base64,{data}")
+    return frames
 
 
 def _build_analyze_prompt(kind: str, mode: str) -> str:
@@ -151,10 +165,11 @@ def extract_json(text: str) -> dict:
 
 
 async def analyze_swing(
-    frames: list[str],
+    frames: list[str] | None,
     kind: str,
     mode: str = "single",
     ai_config: AIConfig | None = None,
+    frame_urls: list[str] | None = None,
 ) -> dict:
     """AI 动作分析：frames 为按时间顺序抽取的关键帧，返回六维报告
 
@@ -167,6 +182,13 @@ async def analyze_swing(
             base_url=settings.AI_BASE_URL,
             model=settings.AI_MODEL,
         )
+
+    # 优先使用 frame_urls
+    if frame_urls:
+        frames = _load_frames_from_urls(frame_urls)
+    if not frames:
+        raise ValueError("无有效帧数据")
+
     prompt = _build_analyze_prompt(kind, mode)
     text = await chat_vision(frames, prompt, ai_config, max_tokens=2500)
     report = extract_json(text)

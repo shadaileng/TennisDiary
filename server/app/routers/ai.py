@@ -30,7 +30,9 @@ async def analyze(
         return ApiResponse(data=ai_service.build_local_report(req.kind))
 
     try:
-        report = await ai_service.analyze_swing(req.frames, req.kind, req.mode, ai_config)
+        report = await ai_service.analyze_swing(
+            req.frames, req.kind, req.mode, ai_config, frame_urls=req.frame_urls
+        )
         return ApiResponse(data=report)
     except Exception as exc:  # noqa: BLE001 - 统一降级，不向上抛 5xx
         logger.error(f"AI 分析失败，降级: {exc}", exc_info=True)
