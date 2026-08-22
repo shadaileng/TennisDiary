@@ -196,7 +196,7 @@ import {
 import type { AnalysisKind, AnalysisPose, AnalysisReport } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
-import { isUserCancel, isRuntimePermissionDenied } from "@/utils/privacy";
+import { isUserCancel, isRuntimePermissionDenied, isPrivacyScopeError } from "@/utils/privacy";
 
 const { themeStyle, themeBg } = useThemeStyle();
 
@@ -331,17 +331,41 @@ function resetTimelineBits() {
 function chooseVideo() {
   const traceId = createTraceId();
   logInfo("选择视频", { trace_id: traceId }, "choose_video", traceId);
-  uni.chooseVideo({
-    // 不传 maxDuration：微信选择器硬上限 60s，传入会前置报错；相册长片由下方 180s 预检查兜底
+
+  // iOS 兼容：使用 chooseMedia 替代已废弃的 chooseVideo，
+  // 避免 iOS 端 chooseVideo 不触发 success/fail 导致无限转圈
+  let finished = false;
+  const timeout = setTimeout(() => {
+    if (!finished) {
+      finished = true;
+      logError("选择视频超时", { trace_id: traceId }, "choose_video_timeout", undefined, traceId);
+      uni.showToast({ title: "选择视频超时，请重试", icon: "none" });
+    }
+  }, 15000);
+
+  uni.chooseMedia({
+    count: 1,
+    mediaType: ["video"],
     sourceType: ["album", "camera"],
     success: (res) => {
-      const dur = Number(res.duration) || 0;
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+
+      const file = res.tempFiles?.[0];
+      if (!file || !file.tempFilePath) {
+        logError("选择视频返回为空", { trace_id: traceId }, "choose_video_empty", undefined, traceId);
+        uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
+        return;
+      }
+
+      const dur = Number(file.duration) || 0;
       if (dur > UPLOAD_MAX) {
         uni.showToast({ title: `视频 ${Math.round(dur)}s 超过 3 分钟，请先在相册裁剪`, icon: "none" });
         logInfo("视频超长被拒", { trace_id: traceId, duration: dur }, "choose_video_too_long", traceId);
         return;
       }
-      videoPath.value = res.tempFilePath;
+      videoPath.value = file.tempFilePath;
       videoDuration.value = dur;
       hitTime.value = 0;
       resetSegments();
@@ -352,15 +376,28 @@ function chooseVideo() {
       logInfo("视频选择成功", { trace_id: traceId, duration: dur }, "choose_video_success", traceId);
     },
     fail: (err) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+
       console.error("[chooseVideo] 失败", err);
       if (isUserCancel(err)) {
         logInfo("用户取消选择视频", { trace_id: traceId }, "choose_video_cancel", traceId);
       } else if (isRuntimePermissionDenied(err)) {
         logError("选择视频权限被拒绝", { trace_id: traceId, error: err.errMsg }, "choose_video_denied", undefined, traceId);
         uni.showToast({ title: "需要授权使用相册/相机功能", icon: "none" });
+      } else if (isPrivacyScopeError(err)) {
+        logError("隐私声明未配置", { trace_id: traceId, error: err.errMsg }, "choose_video_privacy", undefined, traceId);
+        uni.showToast({ title: "隐私权限未配置，请联系开发者", icon: "none" });
       } else {
         logError("选择视频失败", { trace_id: traceId, error: err.errMsg }, "choose_video_failed", undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
+      }
+    },
+    complete: () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeout);
       }
     },
   });

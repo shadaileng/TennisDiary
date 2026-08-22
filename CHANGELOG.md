@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.69.2] - 2026-08-22
+
+### Fixed
+
+- 小程序：iOS 端电子教练选择视频转圈兼容性修复（103）：`uni.chooseVideo` → `uni.chooseMedia` 迁移（已废弃 API 替换），`mediaType: ['video']` 避免 iOS mix 模式 bug，新增 15 秒选择超时检测防止无限转圈，增强隐私声明未配置错误提示。
+
 ## [1.69.1] - 2026-08-22
 
 ### Fixed
