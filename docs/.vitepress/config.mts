@@ -139,6 +139,7 @@ export default defineConfig({
             { text: '99-D：视频上传调试记录', link: '/plans/99-D-视频上传调试记录' },
             { text: '100：hit_time 裁剪后时间基准修复', link: '/plans/100-hit-time裁剪后时间基准修复' },
             { text: '103：小程序 iOS 端 chooseVideo 选择视频转圈兼容性修复', link: '/plans/103-小程序iOS端chooseVideo选择视频转圈兼容性修复' },
+            { text: '104：微信内容安全API集成', link: '/plans/104-微信内容安全API集成' },
           ],
         },
         {

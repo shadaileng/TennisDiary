@@ -2,6 +2,7 @@
 
 import io
 import os
+from unittest.mock import patch
 
 from app.core.config import settings
 
@@ -13,7 +14,8 @@ class TestUploadAvatar:
         # 最小 1x1 PNG 头部，仅用于验证存储与扩展名校验
         return b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + b"\x00" * 8
 
-    def test_upload_avatar_success(self, auth_client):
+    @patch("app.routers.upload.check_image_sync", return_value=True)
+    def test_upload_avatar_success(self, _mock_check, auth_client):
         """上传合法 png → 返回 url"""
         response = auth_client.post(
             "/api/upload/avatar",
@@ -48,7 +50,8 @@ class TestUploadAvatar:
 class TestDownloadAvatar:
     """测试 GET /api/upload/avatar/{user_id}/{filename}（公开访问，无需鉴权）"""
 
-    def test_download_own_avatar_success(self, auth_client):
+    @patch("app.routers.upload.check_image_sync", return_value=True)
+    def test_download_own_avatar_success(self, _mock_check, auth_client):
         """先上传再下载自己的头像 → 200"""
         up = auth_client.post(
             "/api/upload/avatar",

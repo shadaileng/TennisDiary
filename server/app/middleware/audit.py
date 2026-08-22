@@ -16,6 +16,11 @@ from starlette.responses import Response
 from app.services.audit_service import log_action
 
 
+_AUDIT_EXCLUDE_PATHS: set[str] = {
+    "/api/events",
+}
+
+
 class AuditMiddleware(BaseHTTPMiddleware):
     """自动审计所有写操作（POST/PUT/DELETE）
 
@@ -29,6 +34,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         # 只审计写操作
         if request.method not in ("POST", "PUT", "DELETE"):
+            return await call_next(request)
+
+        # 排除高频/无需审计的路径
+        if request.url.path in _AUDIT_EXCLUDE_PATHS:
             return await call_next(request)
 
         # 缓存 body（解决消费冲突）

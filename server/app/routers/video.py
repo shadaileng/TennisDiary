@@ -15,6 +15,7 @@ from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import video_service
+from app.services.content_security import check_media_sync
 from app.services.video_service import (
     FfmpegUnavailableError,
     InvalidCutError,
@@ -160,6 +161,25 @@ def upload_video(
     working_path = result.get("working_path") or abs_path
     rel_video = os.path.relpath(working_path, settings.UPLOAD_DIR).replace(os.sep, "/")
     result["video_url"] = rel_video
+
+    # 异步内容安全检查（不阻断上传流程）
+    try:
+        media_result = check_media_sync(abs_path, str(current_user.id), media_type=3)
+        if media_result.get("errcode"):
+            log.warning(
+                "视频内容安全检查 API 返回错误",
+                user_id=current_user.id,
+                errcode=media_result["errcode"],
+            )
+        else:
+            log.info(
+                "视频内容安全检查已提交",
+                user_id=current_user.id,
+                trace_id=media_result.get("trace_id", ""),
+            )
+    except Exception as exc:
+        log.error("视频安全检查异常: %s", exc, exc_info=True)
+
     log.info(
         "视频抽帧完成",
         user_id=current_user.id,

@@ -42,9 +42,11 @@ def _resolve_safe_path(filename: str) -> str | None:
 
 
 def _owned(filename: str, user: User) -> bool:
-    """归属校验：仅允许访问 videos/{current_user_id}/ 下的文件"""
+    """归属校验：仅允许访问 videos/{current_user_id}/ 或 gears/{current_user_id}/ 下的文件"""
     parts = filename.split("/")
-    return len(parts) >= 3 and parts[0] == "videos" and parts[1] == str(user.id)
+    if len(parts) < 3:
+        return False
+    return parts[0] in ("videos", "gears") and parts[1] == str(user.id)
 
 
 @router.get("/{filename:path}", response_class=FileResponse)

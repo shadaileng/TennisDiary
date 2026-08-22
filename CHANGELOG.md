@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.69.3] - 2026-08-22
+
+### Fixed
+
+- 后端：装备图片上传改用服务端文件存储（base64→URL），新增 `/api/upload/gear-image` 端点（含 `imgSecCheck`）；`media.py` `_owned()` 支持 `gears/` 路径；`decorators/audit.py` 修复 `current_user` 提取（审计日志不再 `user_id=None`）。
+- 前端：装备表单/列表图片改用 `resolveUploadUrl()` 显示；`choosePhoto()` 错误传播修复 + `onPickPhoto` 错误提示。
+
 ## [1.69.2] - 2026-08-22
 
 ### Fixed

@@ -114,6 +114,7 @@ export function maskMiddle(value: string | number, keep = 4): string {
 /**
  * 将后端返回的上传文件相对 url 转为可展示的完整 URL。
  * - 头像 `avatars/<user_id>/<uuid>.<ext>` → `/api/upload/avatar/<user_id>/<uuid>.<ext>`
+ * - 装备图片 `gears/<user_id>/<uuid>.<ext>` → `/api/upload/gear-image` (需token)
  * - 视频/帧/骨架 `videos/<user_id>/<file>` → `/api/media/videos/<user_id>/<file>?token=`
  *   （小程序 <image>/<video> 无法携带自定义头，媒体组件需 query 传 token）
  * - 绝对地址（http/data）原样返回
@@ -124,6 +125,11 @@ export function resolveUploadUrl(url: string): string {
   const parts = url.split("/");
   if (parts[0] === "avatars" && parts[1] && parts.length >= 3) {
     return `${BASE_URL}${API_PREFIX}/upload/avatar/${parts[1]}/${parts.slice(2).join("/")}`;
+  }
+  if (parts[0] === "gears" && parts[1] && parts.length >= 3) {
+    const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
+    const sep = token ? `?token=${encodeURIComponent(token)}` : "";
+    return `${BASE_URL}${API_PREFIX}/media/${url}${sep}`;
   }
   if (parts[0] === "videos" && parts[1] && parts.length >= 3) {
     const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
@@ -136,14 +142,44 @@ export function resolveUploadUrl(url: string): string {
 // ==================== 图片 ====================
 
 /**
- * 选择一张图片并压缩为 dataURL（供 photo 字段存储）。
+ * 上传装备封面图片到服务器。
  *
- * 流程：uni.chooseMedia 选图 → uni.compressImage 压缩 → getFileSystemManager
- * 读 base64 → 拼 `data:image/jpeg;base64,` 前缀。
+ * @param filePath 临时文件路径
+ * @returns 服务器相对路径 URL，失败返回空字符串
+ */
+export function uploadGearImage(filePath: string): Promise<string> {
+  const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${BASE_URL}${API_PREFIX}/upload/gear-image`,
+      filePath,
+      name: "file",
+      header: token ? { "X-Auth-Token": token } : {},
+      success: (res) => {
+        try {
+          const data = JSON.parse(res.data as string);
+          if (data.code === 0 && data.data?.url) {
+            resolve(data.data.url);
+          } else {
+            reject(new Error(data.message || "上传失败"));
+          }
+        } catch {
+          reject(new Error("解析响应失败"));
+        }
+      },
+      fail: (err) => reject(new Error(err.errMsg || "上传失败")),
+    });
+  });
+}
+
+/**
+ * 选择一张图片并上传到服务器（供 photo 字段存储）。
+ *
+ * 流程：uni.chooseMedia 选图 → uni.compressImage 压缩 → 上传到服务器。
  * 用户取消选择时返回空字符串。
  */
 export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     uni.chooseMedia({
       count: 1,
       mediaType: ["image"],
@@ -160,23 +196,15 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
           compressedWidth: maxW,
           success: (cres) => {
             const target = cres.tempFilePath || tempPath;
-            uni.getFileSystemManager().readFile({
-              filePath: target,
-              encoding: "base64",
-              success: (fres) => {
-                resolve(`data:image/jpeg;base64,${fres.data}`);
-              },
-              fail: () => resolve(`data:image/jpeg;base64,`),
-            });
+            uploadGearImage(target)
+              .then((url) => resolve(url))
+              .catch((err) => reject(err));
           },
           fail: () => {
-            // 压缩失败时退化为原路径 base64
-            uni.getFileSystemManager().readFile({
-              filePath: tempPath,
-              encoding: "base64",
-              success: (fres) => resolve(`data:image/jpeg;base64,${fres.data}`),
-              fail: () => resolve(""),
-            });
+            // 压缩失败时直接上传原图
+            uploadGearImage(tempPath)
+              .then((url) => resolve(url))
+              .catch((err) => reject(err));
           },
         });
       },

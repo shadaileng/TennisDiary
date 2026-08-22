@@ -10,7 +10,7 @@
           :class="form.photo ? 'photo-upload--has-photo' : ''"
           @tap="onPickPhoto"
         >
-          <image v-if="form.photo" :src="form.photo" mode="aspectFill" class="photo-upload-img" />
+          <image v-if="form.photo" :src="resolveUploadUrl(form.photo)" mode="aspectFill" class="photo-upload-img" />
           <view v-else class="photo-upload-placeholder">
             <text class="photo-upload-icon">📷</text>
             <text class="photo-upload-hint">点击上传封面图</text>
@@ -95,7 +95,7 @@ import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useGearStore, useSettingsStore } from "@/stores";
 import { getGear } from "@/services/data";
-import { GEAR_CATEGORIES, choosePhoto, safeNavigateBack, todayStr } from "@/utils";
+import { GEAR_CATEGORIES, choosePhoto, resolveUploadUrl, safeNavigateBack, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const gearStore = useGearStore();
@@ -173,7 +173,9 @@ async function onPickPhoto() {
       logInfo("用户取消选择照片或选择失败", { trace_id: traceId }, "gear_photo_cancel", traceId);
     }
   } catch (e) {
-    logError("选择装备照片失败", { trace_id: traceId, error: (e as Error).message }, "gear_photo_failed", undefined, traceId);
+    const msg = (e as Error).message || "上传失败";
+    logError("选择装备照片失败", { trace_id: traceId, error: msg }, "gear_photo_failed", undefined, traceId);
+    uni.showToast({ title: msg, icon: "none" });
   }
 }
 

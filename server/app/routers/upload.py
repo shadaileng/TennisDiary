@@ -1,4 +1,4 @@
-"""头像上传相关路由"""
+"""文件上传相关路由（头像 + 装备封面）"""
 
 import os
 import uuid
@@ -12,14 +12,16 @@ from app.core.logging import get_logger
 from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
+from app.services.content_security import ContentSecurityError, check_image_sync
 
 log = get_logger("user")
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
-# 允许的图片扩展名 -> 子目录
-_ALLOWED_EXT = {".jpg": "images", ".jpeg": "images", ".png": "images", ".webp": "images"}
+# 允许的图片扩展名
+_ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 _AVATAR_DIR = "avatars"
+_GEAR_DIR = "gears"
 
 
 def _resolve_avatar_abs_path(rel_path: str) -> str | None:
@@ -61,6 +63,24 @@ def upload_avatar(
         while chunk := file.file.read(1024 * 1024):
             out.write(chunk)
 
+    # 内容安全检查
+    try:
+        check_image_sync(abs_path, str(current_user.id))
+    except ContentSecurityError:
+        os.unlink(abs_path)
+        log.warning("头像内容安全检查不通过", user_id=current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="头像内容可能包含违规信息，请检查后重试",
+        ) from None
+    except Exception as exc:
+        os.unlink(abs_path)
+        log.error("头像安全检查异常: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="内容安全检查失败，请稍后重试",
+        ) from None
+
     log.info("头像上传成功", user_id=current_user.id, path=rel_path)
     return ApiResponse(data={"url": rel_path.replace(os.sep, "/")})
 
@@ -74,3 +94,56 @@ def download_avatar(user_id: int, filename: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
     return FileResponse(abs_path)
+
+
+@router.post("/gear-image", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="upload")
+def upload_gear_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """上传装备封面图片，返回可用于 <image> 展示的相对 URL
+
+    - 仅接受 jpg/jpeg/png/webp 图片
+    - 存储到 UPLOAD_DIR/gears/<user_id>/<uuid>.<ext>
+    - 返回 {"url": "gears/<user_id>/<uuid>.<ext>"}
+    """
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _ALLOWED_EXT:
+        log.warning("装备图片上传拒绝：非法扩展名", user_id=current_user.id, ext=ext)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 jpg/jpeg/png/webp 图片"
+        )
+
+    rel_dir = os.path.join(_GEAR_DIR, str(current_user.id))
+    abs_dir = os.path.abspath(os.path.join(settings.UPLOAD_DIR, rel_dir))
+    os.makedirs(abs_dir, exist_ok=True)
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    rel_path = os.path.join(rel_dir, filename)
+    abs_path = os.path.join(abs_dir, filename)
+
+    with open(abs_path, "wb") as out:
+        while chunk := file.file.read(1024 * 1024):
+            out.write(chunk)
+
+    # 内容安全检查
+    try:
+        check_image_sync(abs_path, str(current_user.id))
+    except ContentSecurityError:
+        os.unlink(abs_path)
+        log.warning("装备图片内容安全检查不通过", user_id=current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片内容可能包含违规信息，请检查后重试",
+        ) from None
+    except Exception as exc:
+        os.unlink(abs_path)
+        log.error("装备图片安全检查异常: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="内容安全检查失败，请稍后重试",
+        ) from None
+
+    log.info("装备图片上传成功", user_id=current_user.id, path=rel_path)
+    return ApiResponse(data={"url": rel_path.replace(os.sep, "/")})
