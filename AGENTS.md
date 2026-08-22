@@ -1,15 +1,29 @@
-# AGENTS — AI 协作者指南
+# AGENTS — AI 协作者强制指南
 
-本文档面向在此项目中工作的 AI 协作者，提供项目上下文和协作规范。
+本文件定义**不可绕过的协作红线**与编码规范。改动代码前先读完「核心约束」，执行每一步时对照对应规则。
 
-## 项目概览
+---
+
+## 核心约束（每次动手前必检）
+
+1. **绝不 `git push`**。只能 `commit`，推送必须由人类手动执行。
+2. **绝不后台自启服务**（`nohup`/`&`/`subprocess.Popen` 等）。服务由人类启动。
+3. **提交前必须跑验证**。后端 `ruff check` + `ruff format` + `pytest`；前端 `type-check` + `build`。任一失败/有变更 → **先修复，禁止提交**。
+4. **改共享响应模型前，先 `grep` 全量构造点**，确认新增/必填字段在每处都已传入；优先用工厂函数或 `model_validate`。
+5. **异常日志**用 `%s` 风格，**禁止** `f"...{exc}"` 拼接（会触发 loguru 二次 `.format()` 崩溃，掩盖真实错误）。
+
+> 任何一条被违反，都是事故。宁可停下询问人类，也不要绕过。
+
+---
+
+## 一、项目概览
 
 - **项目名称**：Tennis Diary（网球日记）
 - **目标**：将 Tennis Diary Web 版（React PWA）迁移为微信小程序（uni-app + FastAPI）
 - **方案文档**：`docs/plans/` 目录，编号 `{序号}-{标题}.md`
 - **参考源码**：`docs/reference/tennis-diary/`（原 Web 版，不纳入版本管理）
 
-## 技术栈
+## 二、技术栈
 
 | 端 | 技术 |
 |---|---|
@@ -19,7 +33,7 @@
 | Node 运行时 | **≥ 22.12（建议 24 LTS）**，根目录 `.nvmrc` 固定 `24` |
 | 文档 | VitePress |
 
-## 项目结构
+## 三、项目结构
 
 ```
 workspace/
@@ -36,9 +50,58 @@ workspace/
 └── pnpm-workspace.yaml
 ```
 
-## 工作流程
+---
 
-### TDD 模式
+## 四、协作红线（强制执行）
+
+以下规则违反即可能导致线上事故或团队协作破坏，**禁止绕过**。
+
+### 4.1 禁止自动推送（git push）
+
+AI 协作者**只能提交（commit），不能推送（push）**。所有推送必须由人类确认后手动执行：
+
+- 禁止运行 `git push`、`git push --force` 或任何带网络写操作的命令
+- 禁止使用 `--force` 参数推送
+- 禁止推送到任何远程分支（dev / master / main 等）
+- 如需部署，应提示人类手动触发 CI/CD 或运行部署脚本
+
+### 4.2 禁止自动后台启动服务
+
+所有服务必须由人类手动启动/停止：
+
+- 后端开发：`pnpm server:dev`（前台运行，Ctrl+C 停止）
+- 前端开发：`pnpm admin:dev` / `cd miniapp && pnpm dev`
+- 启动前如需杀端口：`python scripts/start-server.py`（仅杀进程，不启动服务）
+
+禁止使用 `nohup`、`&`、`subprocess.Popen`、`start /B` 等方式后台常驻服务；禁止在代码中调用 `os.system`、`subprocess.call` 等自动拉起服务的命令。
+
+### 4.3 提交前验证
+
+修改后端代码后，提交前必须依次执行：
+
+```bash
+cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q
+```
+
+- `ruff check` 有 error 时禁止提交，先修复
+- `ruff format` 有变更时先格式化再提交
+- `pytest` 有失败时禁止提交，先修复
+
+修改前端代码后，提交前必须依次执行：
+
+```bash
+cd miniapp && pnpm run type-check && pnpm run build:mp-weixin
+# 或
+cd admin && pnpm run type-check && pnpm run build
+```
+
+**违反上述任一验证规则的代码禁止提交。**
+
+---
+
+## 五、协作流程
+
+### 5.1 TDD 模式
 
 1. **写方案文档**：`docs/plans/{编号}-{标题}.md`
 2. **RED**：写测试，确认失败
@@ -46,7 +109,7 @@ workspace/
 4. **REFACTOR**：优化结构，保持测试通过
 5. **完成**：方案状态 `📋` → `✅`
 
-### 常用命令
+### 5.2 常用命令
 
 ```bash
 # 后端
@@ -60,7 +123,7 @@ cd miniapp && pnpm build:mp-weixin     # 构建小程序
 cd admin && pnpm build                 # 构建管理端
 ```
 
-### 提交规范
+### 5.3 提交规范
 
 ```
 <type>(<scope>): <中文描述>
@@ -70,43 +133,13 @@ cd admin && pnpm build                 # 构建管理端
 - `fix`：修复（自动 bump 修订号）
 - `docs` / `chore`：文档 / 依赖配置
 
-禁止 `git add .`，禁止无意义消息（`wip`、`tmp`）。
+禁止 `git add .`，禁止无意义消息（`wip`、`tmp`）。提交前验证见 [4.3 提交前验证](#43-提交前验证)。
 
-**提交前验证（强制执行）**：
+---
 
-修改后端代码后，提交前必须依次执行：
-```bash
-cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q
-```
-- `ruff check` 有 error 时禁止提交，先修复
-- `ruff format` 有变更时先格式化再提交
-- `pytest` 有失败时禁止提交，先修复
+## 六、编码规范
 
-修改前端代码后，提交前必须依次执行：
-```bash
-cd miniapp && pnpm run type-check && pnpm run build:mp-weixin
-```
-或
-```bash
-cd admin && pnpm run type-check && pnpm run build
-```
-
-**违反此规则的代码禁止提交。**
-
-### 服务启动规则
-
-**禁止 agent 自动后台启动服务。** 所有服务必须由人类手动启动/停止：
-
-- 后端开发：`pnpm server:dev`（前台运行，Ctrl+C 停止）
-- 前端开发：`pnpm admin:dev` / `cd miniapp && pnpm dev`
-- 启动前如需杀端口：`python scripts/start-server.py`（仅杀进程，不启动服务）
-
-禁止使用 `nohup`、`&`、`subprocess.Popen`、`start /B` 等方式在后台常驻服务。
-禁止在代码中调用 `os.system`、`subprocess.call` 等自动拉起服务的命令。
-
-## 编码规范
-
-### 后端
+### 6.1 后端
 
 - ORM：SQLAlchemy 声明式，继承 `app.core.database.Base`
 - Schema：Pydantic models，定义在 `app/schemas/`
@@ -114,7 +147,16 @@ cd admin && pnpm run type-check && pnpm run build
 - 鉴权：所有数据接口依赖 `get_current_user`
 - 启动：`cd server && uv run uvicorn app.main:app --reload`
 
-### 前端
+#### 共享响应模型变更规则（强制）
+
+修改 `app/schemas/` 中**被多处引用**的响应模型（如 `AdminResponse`、各 `XxxAdminResponse`）时，必须遵守：
+
+1. **改动字段前先全量检索构造点**：`grep "<ModelName>"` 找出所有 `ModelName(...)` 手写构造与 `model_validate` 调用点，逐一核对新增/必填字段是否都已传入。
+2. **优先用工厂函数或 `model_validate`**，而非在各路由重复手写字段构造。新增必填字段时，工厂函数只需改一处，避免散落各处的 `ModelName(id=..., ...)` 漏改导致 `ValidationError` → 500。参考 `app/routers/admin/admins.py` 的 `_admin_to_response`。
+3. **异常日志禁止对异常对象用 f-string 拼接**：`logger.error(f"未处理的异常: {exc}")` 会因异常 `str()` 含 `{}` 触发 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误。一律使用 `%s` 风格：`logger.error("未处理的异常: %s", exc, exc_info=True)`。
+4. 修改后必须运行该模型的全部相关测试（`pytest tests/routers/admin/test_auth.py` 等），确认无 `ValidationError` 后再提交。
+
+### 6.2 前端
 
 - Vue 3 Composition API + `<script setup>`
 - 状态管理：Pinia
@@ -122,9 +164,11 @@ cd admin && pnpm run type-check && pnpm run build
 - 组件：Tailwind 自定义组件（`src/components/`）
 - 环境变量：运行期 `VITE_*`，构建期非 `VITE_` 前缀（`vite.config.ts` 插件注入）
 
-## API 规范
+---
 
-### 统一响应格式
+## 七、API 规范
+
+### 7.1 统一响应格式
 
 ```json
 // 成功
@@ -136,20 +180,22 @@ cd admin && pnpm run type-check && pnpm run build
 
 **错误码**：0=成功 | 10000-19999=认证授权 | 20000-29999=参数校验 | 30000-39999=业务逻辑 | 50000-59999=服务器错误
 
-### 鉴权
+### 7.2 鉴权
 
 - 登录：`POST /api/auth/login`，接收 `wx.login` code，返回 JWT
 - 请求头：`X-Auth-Token: <jwt>`（魔搭网关占用 `Authorization`，统一改用自定义头）
 - 有效期：30 天
 
-### 端点概览
+### 7.3 端点概览
 
 详见 `docs/plans/` 中各方案文档，或启动服务后访问 `/docs`（Swagger）。
 
 - **用户端**：`/api/auth/*`、`/api/diaries`、`/api/gears`、`/api/weights`、`/api/checkin`、`/api/stats`、`/api/files/*`、`/api/upload/*`、`/api/events`
 - **管理端**：`/api/admin/auth/*`、`/api/admin/roles`、`/api/admin/admins`、`/api/admin/users`、`/api/admin/diaries`、`/api/admin/gears`、`/api/admin/weights`、`/api/admin/checkins`、`/api/admin/analyses`、`/api/admin/posts`、`/api/admin/system/*`、`/api/admin/events`
 
-## 项目进度
+---
+
+## 八、项目进度
 
 | 阶段 | 内容 | 状态 |
 |------|------|:----:|
@@ -212,17 +258,9 @@ cd admin && pnpm run type-check && pnpm run build
 
 详细进度与方案索引见 `docs/plans/` 目录。
 
-## 注意事项
+---
 
-> **⚠️ 第一规则：禁止自动推送（git push）**
->
-> AI 协作者**只能提交（commit）**，**不能推送（push）**。所有推送操作必须由人类确认后手动执行。
-> - 禁止运行 `git push`、`git push --force` 或任何带网络写操作的命令
-> - 禁止使用 `--force` 参数推送
-> - 禁止推送到任何远程分支（包括 dev、master、main）
-> - 如需部署，应提示人类手动触发 CI/CD 或运行部署脚本
->
-> 违反此规则可能导致意外覆盖远程分支、破坏团队协作流程。
+## 九、注意事项
 
 - **Node ≥ 22.12**：低于此版本 `@weapp-tailwindcss/postcss` 无法 `require()` ESM 包
 - **config.py 路径**：`Path(__file__).resolve().parent.parent.parent / ".env"`（向上三级到 `server/`）

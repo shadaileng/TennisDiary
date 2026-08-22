@@ -251,7 +251,8 @@ const pose = computed(() => detail.value?.pose ?? null)
 const fileUrl = (p?: string | null): string => {
   if (!p) return ''
   if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:')) return p
-  return `/api/admin/system/files/${p}`
+  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+  return `${baseURL}/api/admin/system/files/${p}`
 }
 
 

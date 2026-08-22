@@ -32,6 +32,7 @@ DEBUG_VIDEO = Path(
 )
 
 HAS_POSE = pose_service.mediapipe_available() and pose_service.find_model() is not None
+HAS_VIDEO = DEBUG_VIDEO.exists()  # 调试素材（参考源码，不入库）；缺失时整体跳过
 
 
 def _effective_ai_config():
@@ -64,6 +65,7 @@ def pipeline():
     return {"video": vres, "pose": pres}
 
 
+@pytest.mark.skipif(not HAS_VIDEO, reason="调试素材缺失（参考视频不入库）")
 def test_forehand_video_processed(pipeline):
     vres = pipeline["video"]
     logger.info(f"video.duration={vres['duration']} fps={vres['frame_rate']} mode={vres['mode']}")
@@ -76,6 +78,7 @@ def test_forehand_video_processed(pipeline):
 
 
 @pytest.mark.skipif(not HAS_POSE, reason="mediapipe 或姿态模型不可用")
+@pytest.mark.skipif(not HAS_VIDEO, reason="调试素材缺失（参考视频不入库）")
 def test_forehand_pose_inference(pipeline):
     pres = pipeline["pose"]
     assert len(pres["frames"]) == len(pipeline["video"]["frames"])
@@ -88,6 +91,7 @@ def test_forehand_pose_inference(pipeline):
         logger.warning("未检测到人 → 检查视频是否含清晰单人")
 
 
+@pytest.mark.skipif(not HAS_VIDEO, reason="调试素材缺失（参考视频不入库）")
 def test_forehand_ai_report(pipeline):
     ai_config = _effective_ai_config()
     frames = pipeline["video"]["frames"]
