@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.69.1] - 2026-08-22
+
+### Fixed
+
+- 后端：修复 `AdminResponse` 缺失 `role_id` 导致管理员登录 `/api/admin/auth/login` 返回 500（`ValidationError`）；同时修复全局异常处理器 `logger.error(f"...{exc}")` 的 f-string 拼接触发 loguru 二次 `.format()` 崩溃、掩盖真实错误，改为 `%s` 风格；并增强 `test_admin_login_success`/`test_get_admin_info` 对 `role_id` 与 `role` 的断言。
+- 管理端：分析详情文件 URL 增加 `VITE_API_BASE_URL` 前缀，兼容非同源部署。
+- 测试：`test_forehand_debug_pipeline` 在参考视频素材缺失（不入库）时整体跳过，避免干净环境误报失败。
+
 ## [1.69.0] - 2026-08-21
 
 ### Added
