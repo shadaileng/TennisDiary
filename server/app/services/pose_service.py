@@ -392,14 +392,18 @@ def analyze_frames(
         landmarks = detect_pose(image_bytes)
         if landmarks is None:
             results.append({"landmarks": []})
-            continue
-        detected = True
-        results.append({"landmarks": landmarks})
-        if metrics is None:
-            metrics = measure_angles(landmarks)
-            metrics_sk_idx = sk_idx
+        else:
+            detected = True
+            results.append({"landmarks": landmarks})
+            if metrics is None:
+                metrics = measure_angles(landmarks)
+                metrics_sk_idx = sk_idx
+        # 所有帧都生成骨架帧：有人绘制骨架，无人使用原图
         if save_skeleton and video_dir is not None:
-            sk_bytes = draw_skeleton(image_bytes, landmarks)
+            if landmarks is not None:
+                sk_bytes = draw_skeleton(image_bytes, landmarks)
+            else:
+                sk_bytes = image_bytes  # 无人检测时使用原图
             sk_path = os.path.join(video_dir, f"{base}_sk{sk_idx:04d}.jpg")
             with open(sk_path, "wb") as out:
                 out.write(sk_bytes)
