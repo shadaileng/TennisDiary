@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.66.11] - 2026-08-22
+
+### Fixed
+
+- 小程序：移除电子教练选择视频的 15 秒超时限制，避免大视频在系统相册压缩时误报"选择视频超时"。
+
 ## [1.69.3] - 2026-08-22
 
 ### Fixed

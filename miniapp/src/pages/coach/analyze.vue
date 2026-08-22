@@ -332,16 +332,9 @@ function chooseVideo() {
   const traceId = createTraceId();
   logInfo("选择视频", { trace_id: traceId }, "choose_video", traceId);
 
-  // iOS 兼容：使用 chooseMedia 替代已废弃的 chooseVideo，
-  // 避免 iOS 端 chooseVideo 不触发 success/fail 导致无限转圈
+  // 已使用 chooseMedia 替代已废弃的 chooseVideo，无需超时兜底；
+  // 大视频在系统相册选择/压缩时可能耗时较长，固定超时会导致误报。
   let finished = false;
-  const timeout = setTimeout(() => {
-    if (!finished) {
-      finished = true;
-      logError("选择视频超时", { trace_id: traceId }, "choose_video_timeout", undefined, traceId);
-      uni.showToast({ title: "选择视频超时，请重试", icon: "none" });
-    }
-  }, 15000);
 
   uni.chooseMedia({
     count: 1,
@@ -350,7 +343,6 @@ function chooseVideo() {
     success: (res) => {
       if (finished) return;
       finished = true;
-      clearTimeout(timeout);
 
       const file = res.tempFiles?.[0];
       if (!file || !file.tempFilePath) {
@@ -378,7 +370,6 @@ function chooseVideo() {
     fail: (err) => {
       if (finished) return;
       finished = true;
-      clearTimeout(timeout);
 
       console.error("[chooseVideo] 失败", err);
       if (isUserCancel(err)) {
@@ -395,10 +386,7 @@ function chooseVideo() {
       }
     },
     complete: () => {
-      if (!finished) {
-        finished = true;
-        clearTimeout(timeout);
-      }
+      finished = true;
     },
   });
 }
