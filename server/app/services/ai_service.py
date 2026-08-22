@@ -29,9 +29,10 @@ AI_TIMEOUT_SECONDS = 120
 
 def _load_frames_from_urls(frame_urls: list[str]) -> list[str]:
     """从文件路径读取帧，返回 base64 dataURL 列表"""
+    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
     frames = []
     for url in frame_urls:
-        path = os.path.join(settings.UPLOAD_DIR, url)
+        path = os.path.normpath(os.path.join(upload_dir, url))
         if os.path.isfile(path):
             with open(path, "rb") as f:
                 data = base64.b64encode(f.read()).decode()
