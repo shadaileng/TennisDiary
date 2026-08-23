@@ -451,7 +451,7 @@ def process_video(
         with open(frame_path, "wb") as out:
             out.write(frame)
         rel_frame = os.path.relpath(frame_path, settings.UPLOAD_DIR).replace(os.sep, "/")
-        frame_urls.append(f"videos/{rel_frame}")
+        frame_urls.append(rel_frame)
 
     return {
         "frames": [_to_data_url(f) for f in frames],
