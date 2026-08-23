@@ -740,8 +740,8 @@ async function startAnalysis() {
 
     // === 端点2+3: AI六维评分 与 姿态测量 并行 ===
     progress.value = "教练正在分析动作与姿态（约 15-90 秒）…";
-    logInfo("AI分析开始", { trace_id: traceId, type: "swing" }, undefined, "ai_swing_start", traceId);
-    logInfo("姿态分析开始", { trace_id: traceId, type: "pose" }, undefined, "ai_pose_start", traceId);
+    logInfo("AI分析开始", { trace_id: traceId, type: "swing", kind: kind.value, mode: mode.value }, undefined, "ai_swing_start", traceId);
+    logInfo("姿态分析开始", { trace_id: traceId, type: "pose", kind: kind.value, mode: mode.value, duration: uploaded.duration, frame_rate: uploaded.frame_rate }, undefined, "ai_pose_start", traceId);
 
     const tAi = Date.now();
     const tPose = Date.now();
@@ -804,7 +804,7 @@ async function startAnalysis() {
 
     // === 端点4: 落库 ===
     progress.value = "保存分析结果…";
-    logInfo("分析落库开始", { trace_id: traceId }, undefined, "analysis_create_start", traceId);
+    logInfo("分析落库开始", { trace_id: traceId, date: todayStr(), kind: kind.value, mode: mode.value, score: enrichedReport.score || 0, ntrp: enrichedReport.ntrp }, undefined, "analysis_create_start", traceId);
     const tCreate = Date.now();
     let analysis: any;
     try {

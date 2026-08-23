@@ -63,7 +63,7 @@ export const useGearStore = defineStore("gear", {
     async create(body: GearCreate): Promise<Gear> {
       const traceId = createTraceId();
       try {
-        logInfo("添加装备", { trace_id: traceId, category: body.category, name: body.name }, undefined, "gear_create", traceId);
+        logInfo("添加装备", { trace_id: traceId, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling, photo: body.photo }, undefined, "gear_create", traceId);
         const g = await createGear(body);
         this.gears = [g, ...this.gears];
         logInfo("装备添加成功", { trace_id: traceId, gear_id: g.id, category: g.category, name: g.name }, undefined, "gear_created", traceId);
@@ -78,7 +78,7 @@ export const useGearStore = defineStore("gear", {
     async update(id: number, body: GearUpdate): Promise<Gear> {
       const traceId = createTraceId();
       try {
-        logInfo("编辑装备", { trace_id: traceId, gear_id: id, category: body.category, name: body.name }, undefined, "gear_update", traceId);
+        logInfo("编辑装备", { trace_id: traceId, gear_id: id, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling }, undefined, "gear_update", traceId);
         const g = await updateGear(id, body);
         this.gears = this.gears.map((x) => (x.id === id ? g : x));
         logInfo("装备更新成功", { trace_id: traceId, gear_id: id, category: g.category, name: g.name }, undefined, "gear_updated", traceId);
