@@ -776,6 +776,7 @@ async function startAnalysis() {
       logInfo("姿态分析成功", {
         trace_id: traceId, duration_ms: poseDuration,
         detected: poseResult.value.detected, has_skeleton: !!poseResult.value.skeleton_video_url,
+        metrics: poseResult.value.metrics ? { elbowAngle: poseResult.value.metrics.elbowAngle, kneeAngle: poseResult.value.metrics.kneeAngle, trunkLean: poseResult.value.metrics.trunkLean } : null,
       }, undefined, "ai_pose_success", traceId);
     } else {
       logError("姿态分析失败", {

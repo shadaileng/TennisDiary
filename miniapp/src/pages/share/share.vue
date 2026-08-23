@@ -267,15 +267,16 @@ async function regenerate() {
 
   const traceId = createTraceId();
   regenerating.value = true;
+  const originalText = caption.value;
   try {
-    const res = await generateCaption(tpl.value, style.value, caption.value);
-    caption.value = res.caption || caption.value;
-    logInfo("润色分享文案", { trace_id: traceId, template: tpl.value, style: style.value }, undefined, "share_caption_ai", traceId);
+    const res = await generateCaption(tpl.value, style.value, originalText);
+    caption.value = res.caption || originalText;
+    logInfo("润色分享文案", { trace_id: traceId, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai", traceId);
     uni.showToast({ title: "已润色文案", icon: "none" });
   } catch (e) {
     const pipe = buildContext(tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
     caption.value = genCaption(pipe);
-    logError("文案润色失败，降级本地模板", { trace_id: traceId, error: (e as Error).message, template: tpl.value }, undefined, "share_caption_ai_failed", undefined, traceId);
+    logError("文案润色失败，降级本地模板", { trace_id: traceId, error: (e as Error).message, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai_failed", undefined, traceId);
     uni.showToast({ title: "润色失败，已用模板文案", icon: "none" });
   } finally {
     regenerating.value = false;

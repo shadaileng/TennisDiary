@@ -343,7 +343,7 @@ onShow(() => {
   getStats()
     .then((s) => {
       stats.value = s;
-      logInfo("统计数据加载成功", { trace_id: traceId }, undefined, "stats_loaded", traceId);
+      logInfo("统计数据加载成功", { trace_id: traceId, total_sessions: s.total_sessions, total_duration: s.total_duration, total_cost: s.total_cost, total_gears: s.total_gears }, undefined, "stats_loaded", traceId);
     })
     .catch((e) => {
       logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "stats_load_failed", undefined, traceId);

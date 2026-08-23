@@ -162,7 +162,7 @@ export function uploadVideo(
         }
       },
       fail: (err) => {
-        logError("视频上传失败", { error: err.errMsg || "未知错误" }, undefined, "video_upload_failed", undefined, createTraceId());
+        logError("视频上传失败", { error: err.errMsg || "未知错误", filePath, mode: formData.mode, kind: formData.kind }, undefined, "video_upload_failed", undefined, createTraceId());
         reject(new Error(err.errMsg || "视频上传失败"));
       },
     });

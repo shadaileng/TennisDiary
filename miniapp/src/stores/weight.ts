@@ -57,13 +57,13 @@ export const useWeightStore = defineStore("weight", {
     async create(body: WeightCreate): Promise<WeightRecord> {
       const traceId = createTraceId();
       try {
-        logInfo("记录体重", { trace_id: traceId, date: body.date, weight: body.weight }, undefined, "weight_create", traceId);
+        logInfo("记录体重", { trace_id: traceId, date: body.date, weight: body.weight, bust: body.bust, waist: body.waist, hip: body.hip }, undefined, "weight_create", traceId);
         const w = await createWeight(body);
         this.weights = [w, ...this.weights];
-        logInfo("体重记录成功", { trace_id: traceId, weight_id: w.id }, undefined, "weight_created", traceId);
+        logInfo("体重记录成功", { trace_id: traceId, weight_id: w.id, weight: w.weight }, undefined, "weight_created", traceId);
         return w;
       } catch (e) {
-        logError("体重记录失败", { trace_id: traceId, error: (e as Error).message }, undefined, "weight_create_failed", undefined, traceId);
+        logError("体重记录失败", { trace_id: traceId, error: (e as Error).message, date: body.date, weight: body.weight }, undefined, "weight_create_failed", undefined, traceId);
         throw e;
       }
     },

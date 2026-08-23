@@ -165,7 +165,7 @@ async function loadStats() {
   logInfo("加载统计总览", { trace_id: traceId }, undefined, "mine_stats_load", traceId);
   try {
     stats.value = await getStats();
-    logInfo("统计总览加载成功", { trace_id: traceId }, undefined, "mine_stats_loaded", traceId);
+    logInfo("统计总览加载成功", { trace_id: traceId, total_sessions: stats.value?.total_sessions, total_duration: stats.value?.total_duration, total_analyses: stats.value?.total_analyses }, undefined, "mine_stats_loaded", traceId);
   } catch (e) {
     stats.value = null;
     logError("统计总览加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "mine_stats_load_failed", undefined, traceId);
