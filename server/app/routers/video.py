@@ -2,7 +2,6 @@
 
 import json
 import os
-import shutil
 import uuid
 from typing import Literal
 
@@ -112,10 +111,6 @@ def upload_video(
             ) from exc
 
     try:
-        # 在调用 process_video 前保存一份原始上传文件，防止处理过程中文件消失无法排查
-        backup_path = os.path.join(abs_dir, f"_debug_{uuid.uuid4().hex}{ext}")
-        shutil.copy2(abs_path, backup_path)
-        log.info(f"上传文件已备份: {backup_path} size={os.path.getsize(backup_path)}")
         result = video_service.process_video(abs_path, mode, hit_time, cuts=parsed_cuts)
     except VideoTooLongError as exc:
         _safe_unlink(abs_path)
@@ -132,21 +127,9 @@ def upload_video(
     except Exception as exc:
         exists = os.path.isfile(abs_path)
         size = os.path.getsize(abs_path) if exists else -1
-        kept = ""
-        if isinstance(exc, ValueError):
-            # 保留失败副本便于排查上传字节问题（定位后清理）
-            try:
-                keep_path = os.path.join(abs_dir, f"_debug_{uuid.uuid4().hex}{ext}")
-                shutil.copy2(abs_path, keep_path)
-                kept = keep_path
-            except OSError as copy_err:
-                log.warning(
-                    f"保留失败副本失败: {copy_err} path={abs_path} exists={exists} size={size}"
-                )
-                kept = ""
         log.error(
             f"视频处理失败: {exc} exc_type={type(exc).__name__} "
-            f"path={abs_path} exists={exists} size={size} kept={kept}"
+            f"path={abs_path} exists={exists} size={size}"
         )
         _safe_unlink(abs_path)
         # ValueError 类（如"无法解析视频时长"）消息面向用户，直接透出便于定位问题
