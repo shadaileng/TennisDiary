@@ -85,14 +85,14 @@ export const useAuthStore = defineStore("auth", {
     async login() {
       const traceId = createTraceId();
       try {
-        logInfo("开始登录", { trace_id: traceId }, "login_start", traceId);
+        logInfo("开始登录", { trace_id: traceId }, undefined, "login_start", traceId);
         const code = await getLoginCode();
         const result = await loginApi({ code });
         this.setAuth(result.access_token, result.user);
-        logInfo("登录成功", { trace_id: traceId, is_new: result.is_new }, "login_success", traceId);
+        logInfo("登录成功", { trace_id: traceId, is_new: result.is_new }, undefined, "login_success", traceId);
         return result.user;
       } catch (e) {
-        logError("登录失败", { trace_id: traceId, error: (e as Error).message }, "login_failed", undefined, traceId);
+        logError("登录失败", { trace_id: traceId, error: (e as Error).message }, undefined, "login_failed", undefined, traceId);
         throw e;
       }
     },
@@ -100,7 +100,7 @@ export const useAuthStore = defineStore("auth", {
     /** 资料更新后同步本地 user 缓存 */
     updateUser(user: User) {
       const traceId = createTraceId();
-      logInfo("更新个人资料", { trace_id: traceId }, "profile_update", traceId);
+      logInfo("更新个人资料", { trace_id: traceId, user_id: user.id, nickname: user.nickname }, undefined, "profile_update", traceId);
       this.user = user;
       uni.setStorageSync(USER_KEY, JSON.stringify(user));
     },
@@ -118,7 +118,7 @@ export const useAuthStore = defineStore("auth", {
       try {
         await this.login();
       } catch (e) {
-        logError("静默续登失败", { error: (e as Error).message }, "ensure_login_failed", undefined, createTraceId());
+        logError("静默续登失败", { error: (e as Error).message }, undefined, "ensure_login_failed", undefined, createTraceId());
         console.error("静默登录失败", e);
         this.logout();
       }

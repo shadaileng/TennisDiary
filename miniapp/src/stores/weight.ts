@@ -46,7 +46,7 @@ export const useWeightStore = defineStore("weight", {
       try {
         this.weights = await getWeights();
       } catch (e) {
-        logError("体重列表加载失败", { error: (e as Error).message }, "weight_list_load_failed", undefined, createTraceId());
+        logError("体重列表加载失败", { error: (e as Error).message }, undefined, "weight_list_load_failed", undefined, createTraceId());
         console.error("[weight] 拉取体重记录失败", e);
       } finally {
         this.loading = false;
@@ -57,13 +57,13 @@ export const useWeightStore = defineStore("weight", {
     async create(body: WeightCreate): Promise<WeightRecord> {
       const traceId = createTraceId();
       try {
-        logInfo("记录体重", { trace_id: traceId, date: body.date, weight: body.weight }, "weight_create", traceId);
+        logInfo("记录体重", { trace_id: traceId, date: body.date, weight: body.weight }, undefined, "weight_create", traceId);
         const w = await createWeight(body);
         this.weights = [w, ...this.weights];
-        logInfo("体重记录成功", { trace_id: traceId, weight_id: w.id }, "weight_created", traceId);
+        logInfo("体重记录成功", { trace_id: traceId, weight_id: w.id }, undefined, "weight_created", traceId);
         return w;
       } catch (e) {
-        logError("体重记录失败", { trace_id: traceId, error: (e as Error).message }, "weight_create_failed", undefined, traceId);
+        logError("体重记录失败", { trace_id: traceId, error: (e as Error).message }, undefined, "weight_create_failed", undefined, traceId);
         throw e;
       }
     },
@@ -72,12 +72,12 @@ export const useWeightStore = defineStore("weight", {
     async remove(id: number) {
       const traceId = createTraceId();
       try {
-        logInfo("删除体重记录", { trace_id: traceId, weight_id: id }, "weight_delete", traceId);
+        logInfo("删除体重记录", { trace_id: traceId, weight_id: id }, undefined, "weight_delete", traceId);
         await deleteWeight(id);
         this.weights = this.weights.filter((x) => x.id !== id);
-        logInfo("体重记录删除成功", { trace_id: traceId, weight_id: id }, "weight_deleted", traceId);
+        logInfo("体重记录删除成功", { trace_id: traceId, weight_id: id }, undefined, "weight_deleted", traceId);
       } catch (e) {
-        logError("体重记录删除失败", { trace_id: traceId, weight_id: id, error: (e as Error).message }, "weight_delete_failed", undefined, traceId);
+        logError("体重记录删除失败", { trace_id: traceId, weight_id: id, error: (e as Error).message }, undefined, "weight_delete_failed", undefined, traceId);
         throw e;
       }
     },

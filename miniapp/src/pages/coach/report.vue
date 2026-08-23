@@ -171,20 +171,22 @@ onLoad(async (query) => {
     return;
   }
   const traceId = createTraceId();
-  logInfo("加载分析报告", { trace_id: traceId, analysis_id: id }, "report_load", traceId);
+  logInfo("加载分析报告", { trace_id: traceId, analysis_id: id }, undefined, "report_load", traceId);
   try {
     analysis.value = await getAnalysis(id);
-    logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, "report_loaded", traceId);
+    logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, undefined, "report_loaded", traceId);
   } catch (e) {
-    logError("分析报告加载失败", { trace_id: traceId, analysis_id: id, error: (e as Error).message }, "report_load_failed", undefined, traceId);
+    logError("分析报告加载失败", { trace_id: traceId, analysis_id: id, error: (e as Error).message }, undefined, "report_load_failed", undefined, traceId);
     uni.showToast({ title: "报告加载失败", icon: "none" });
   }
 });
 
+
+
 function confirmRemove() {
   if (!analysis.value) return;
   const traceId = createTraceId();
-  logInfo("删除分析报告", { trace_id: traceId, analysis_id: analysis.value.id }, "analysis_delete", traceId);
+  logInfo("删除分析报告", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_delete", traceId);
   uni.showModal({
     title: "删除分析",
     content: "确定删除这条分析记录？",
@@ -193,12 +195,12 @@ function confirmRemove() {
       if (!res.confirm || !analysis.value) return;
       try {
         await deleteAnalysis(analysis.value.id);
-        logInfo("分析报告删除成功", { trace_id: traceId, analysis_id: analysis.value.id }, "analysis_deleted", traceId);
+        logInfo("分析报告删除成功", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_deleted", traceId);
         uni.showToast({ title: "已删除", icon: "success" });
         setTimeout(() => safeNavigateBack("/pages/coach/coach"), 600);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "删除失败";
-        logError("分析报告删除失败", { trace_id: traceId, analysis_id: analysis.value.id, error: msg }, "analysis_delete_failed", undefined, traceId);
+        logError("分析报告删除失败", { trace_id: traceId, analysis_id: analysis.value.id, error: msg }, undefined, "analysis_delete_failed", undefined, traceId);
         uni.showToast({ title: msg, icon: "none" });
       }
     },

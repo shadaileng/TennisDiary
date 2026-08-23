@@ -203,7 +203,19 @@
             </div>
             <div>
               <span class="text-sm font-medium text-gray-500">操作链路</span>
-              <p class="mt-1 text-sm text-gray-900 font-mono">{{ selectedEvent.trace_id || '--' }}</p>
+              <div class="mt-1 flex items-center gap-2">
+                <p class="text-sm text-gray-900 font-mono truncate">{{ selectedEvent.trace_id || '--' }}</p>
+                <button
+                  v-if="selectedEvent.trace_id"
+                  @click="copyToClipboard(selectedEvent.trace_id)"
+                  class="inline-flex items-center justify-center w-6 h-6 text-gray-400 hover:text-olive-600 hover:bg-olive-50 rounded transition-colors"
+                  title="复制链路ID"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div>
               <span class="text-sm font-medium text-gray-500">业务动作</span>
@@ -255,6 +267,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast 提示 -->
+    <transition name="fade">
+      <div v-if="toastMessage" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg shadow-lg z-50">
+        {{ toastMessage }}
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -324,6 +343,30 @@ const resolveAvatarUrl = (url: string): string => {
   return `${baseURL}/api/upload/${path}`
 }
 
+const copyToClipboard = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast('已复制到剪贴板')
+  } catch {
+    // 降级方案：使用 textarea 复制
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    showToast('已复制到剪贴板')
+  }
+}
+
+const toastMessage = ref('')
+const showToast = (msg: string) => {
+  toastMessage.value = msg
+  setTimeout(() => { toastMessage.value = '' }, 2000)
+}
+
 const fetchEvents = async () => {
   try {
     const res = await getEventLogs({
@@ -354,3 +397,14 @@ const resetFilters = () => {
 
 onMounted(fetchEvents)
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>

@@ -169,11 +169,17 @@ export function createTraceId(): string {
 }
 
 /** 记录信息事件（批量上报） */
-export function logInfo(message: string, extra?: Record<string, any>, action?: string, traceId?: string): void {
+export function logInfo(
+  message: string,
+  extra?: Record<string, any>,
+  type?: EventType,
+  action?: string,
+  traceId?: string,
+): void {
   const currentTraceId = traceId || createTraceId();
   pendingBatch.push({
     level: "info",
-    type: "business",
+    type: type || "business",
     traceId: currentTraceId,
     action,
     message,
@@ -183,11 +189,17 @@ export function logInfo(message: string, extra?: Record<string, any>, action?: s
 }
 
 /** 记录警告事件（批量上报，≥5 条立即触发） */
-export function logWarn(message: string, extra?: Record<string, any>, action?: string, traceId?: string): void {
+export function logWarn(
+  message: string,
+  extra?: Record<string, any>,
+  type?: EventType,
+  action?: string,
+  traceId?: string,
+): void {
   const currentTraceId = traceId || createTraceId();
   pendingBatch.push({
     level: "warn",
-    type: "business",
+    type: type || "business",
     traceId: currentTraceId,
     action,
     message,
@@ -205,6 +217,7 @@ export function logWarn(message: string, extra?: Record<string, any>, action?: s
 export function logError(
   message: string,
   extra?: Record<string, any>,
+  type?: EventType,
   action?: string,
   stack?: string,
   traceId?: string,
@@ -212,7 +225,7 @@ export function logError(
   const currentTraceId = traceId || createTraceId();
   flushOne({
     level: "error",
-    type: "business",
+    type: type || "business",
     traceId: currentTraceId,
     action,
     message,

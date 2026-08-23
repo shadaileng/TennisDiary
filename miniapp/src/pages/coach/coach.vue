@@ -69,14 +69,14 @@ const analyses = ref<Analysis[]>([]);
 
 onShow(async () => {
   const traceId = createTraceId();
-  logInfo("加载历史分析", { trace_id: traceId }, "analyses_load", traceId);
+  logInfo("加载历史分析", { trace_id: traceId }, undefined, "analyses_load", traceId);
   try {
     const data = await getAnalyses();
     analyses.value = data.items || [];
-    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, "analyses_loaded", traceId);
+    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, undefined, "analyses_loaded", traceId);
   } catch (e) {
     analyses.value = [];
-    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, "analyses_load_failed", undefined, traceId);
+    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "analyses_load_failed", undefined, traceId);
   }
 });
 

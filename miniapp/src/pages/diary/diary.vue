@@ -107,7 +107,6 @@ import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";
 import type { Diary } from "@/types";
-
 const authStore = useAuthStore();
 const diaryStore = useDiaryStore();
 const settingsStore = useSettingsStore();

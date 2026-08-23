@@ -112,7 +112,6 @@ import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { GEAR_CATEGORIES, fmtMoney, resolveUploadUrl } from "@/utils";
 import type { Gear } from "@/types";
-
 const authStore = useAuthStore();
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();

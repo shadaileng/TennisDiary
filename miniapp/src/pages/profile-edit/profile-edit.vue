@@ -142,18 +142,48 @@ async function handleAvatarChangeH5() {
 
 async function uploadAndSaveAvatar(tempUrl: string) {
   const traceId = createTraceId();
-  logInfo("上传头像", { trace_id: traceId }, "avatar_upload", traceId);
+  const t0 = Date.now();
+
+  logInfo("头像更新开始", { trace_id: traceId }, undefined, "avatar_update_start", traceId);
+
+  // 端点1: 上传头像文件
+  logInfo("头像上传开始", { trace_id: traceId }, undefined, "avatar_upload_start", traceId);
+  const tUpload = Date.now();
+  let url: string;
   try {
-    const url = await uploadAvatar(tempUrl);
+    url = await uploadAvatar(tempUrl);
+    logInfo("头像上传成功", {
+      trace_id: traceId, duration_ms: Date.now() - tUpload, avatar_url: url,
+    }, undefined, "avatar_upload_success", traceId);
+  } catch (err: any) {
+    logError("头像上传失败", {
+      trace_id: traceId, duration_ms: Date.now() - tUpload, error: err?.message,
+    }, undefined, "avatar_upload_failed", undefined, traceId);
+    throw err;
+  }
+
+  // 端点2: 保存头像URL到用户资料
+  logInfo("保存头像资料开始", { trace_id: traceId }, undefined, "profile_save_avatar_start", traceId);
+  const tSave = Date.now();
+  try {
     avatarUrl.value = resolveUploadUrl(url);
     const result = await updateProfile({ avatar_url: url });
     authStore.updateUser(result.user);
-    logInfo("头像上传成功", { trace_id: traceId }, "avatar_uploaded", traceId);
-    uni.showToast({ title: "头像已更新", icon: "success" });
+    logInfo("保存头像资料成功", {
+      trace_id: traceId, duration_ms: Date.now() - tSave,
+    }, undefined, "profile_save_avatar_success", traceId);
   } catch (err: any) {
-    logError("头像上传失败", { trace_id: traceId, error: err?.message }, "avatar_upload_failed", undefined, traceId);
-    uni.showToast({ title: err?.message || "更换失败", icon: "none" });
+    logError("保存头像资料失败", {
+      trace_id: traceId, duration_ms: Date.now() - tSave, error: err?.message,
+    }, undefined, "profile_save_avatar_failed", undefined, traceId);
+    throw err;
   }
+
+  // 整体成功
+  logInfo("头像更新完成", {
+    trace_id: traceId, total_duration_ms: Date.now() - t0,
+  }, undefined, "avatar_update_success", traceId);
+  uni.showToast({ title: "头像已更新", icon: "success" });
 }
 
 /** 昵称失焦保存（空值忽略） */
@@ -176,7 +206,7 @@ async function saveField(payload: Record<string, unknown>, successMsg: string) {
 
 function doLogout() {
   const traceId = createTraceId();
-  logInfo("准备退出登录", { trace_id: traceId }, "logout_start", traceId);
+  logInfo("准备退出登录", { trace_id: traceId }, undefined, "logout_start", traceId);
   uni.showModal({
     title: "确认退出",
     content: "退出登录后记录仍保留在本地。",
@@ -184,7 +214,7 @@ function doLogout() {
     success: (res) => {
       if (!res.confirm) return;
       authStore.logout();
-      logInfo("退出登录成功", { trace_id: traceId }, "logout", traceId);
+      logInfo("退出登录成功", { trace_id: traceId }, undefined, "logout", traceId);
       uni.showToast({ title: "已退出", icon: "success" });
       setTimeout(() => uni.switchTab({ url: "/pages/mine/mine" }), 300);
     },

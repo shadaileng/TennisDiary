@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.69.4] - 2026-08-23
+
+### Fixed
+
+- 小程序：埋点上报优化（107）：新增 `type` 参数支持网络/业务事件分类；`request.ts` 网络错误标记为 `network` 类型；电子教练分析流程拆分为 4 个端点级事件（video_upload/ai_swing/ai_pose/analysis_create）共享同一 traceId；头像更新/分享数据加载增加链路追踪；修复 11 处缺失 trace_id 的日志调用；补全 profile_update/diary_create 业务参数；移除无意义的页面浏览事件。
+- 管理端：事件日志详情弹窗增加 trace_id 一键复制按钮（剪贴板 API + textarea 降级 + toast 提示）。
+
 ## [1.66.11] - 2026-08-22
 
 ### Fixed

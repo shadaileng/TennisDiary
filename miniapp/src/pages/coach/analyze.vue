@@ -314,6 +314,8 @@ onMounted(() => {
   videoCtx = uni.createVideoContext("swingVideo");
 });
 
+
+
 // ============ 模式切换 ============
 function setMode(m: Mode) {
   mode.value = m;
@@ -330,7 +332,7 @@ function resetTimelineBits() {
 // ============ 选择视频 ============
 function chooseVideo() {
   const traceId = createTraceId();
-  logInfo("选择视频", { trace_id: traceId }, "choose_video", traceId);
+  logInfo("选择视频", { trace_id: traceId }, undefined, "choose_video", traceId);
 
   // 已使用 chooseMedia 替代已废弃的 chooseVideo，无需超时兜底；
   // 大视频在系统相册选择/压缩时可能耗时较长，固定超时会导致误报。
@@ -346,7 +348,7 @@ function chooseVideo() {
 
       const file = res.tempFiles?.[0];
       if (!file || !file.tempFilePath) {
-        logError("选择视频返回为空", { trace_id: traceId }, "choose_video_empty", undefined, traceId);
+        logError("选择视频返回为空", { trace_id: traceId }, undefined, "choose_video_empty", undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
         return;
       }
@@ -354,7 +356,7 @@ function chooseVideo() {
       const dur = Number(file.duration) || 0;
       if (dur > UPLOAD_MAX) {
         uni.showToast({ title: `视频 ${Math.round(dur)}s 超过 3 分钟，请先在相册裁剪`, icon: "none" });
-        logInfo("视频超长被拒", { trace_id: traceId, duration: dur }, "choose_video_too_long", traceId);
+        logInfo("视频超长被拒", { trace_id: traceId, duration: dur }, undefined, "choose_video_too_long", traceId);
         return;
       }
       videoPath.value = file.tempFilePath;
@@ -365,7 +367,7 @@ function chooseVideo() {
       pps.value = TRACK_PPS;
       zoomInitialized = false;
       measureBar();
-      logInfo("视频选择成功", { trace_id: traceId, duration: dur }, "choose_video_success", traceId);
+      logInfo("视频选择成功", { trace_id: traceId, duration: dur }, undefined, "choose_video_success", traceId);
     },
     fail: (err) => {
       if (finished) return;
@@ -373,15 +375,15 @@ function chooseVideo() {
 
       console.error("[chooseVideo] 失败", err);
       if (isUserCancel(err)) {
-        logInfo("用户取消选择视频", { trace_id: traceId }, "choose_video_cancel", traceId);
+        logInfo("用户取消选择视频", { trace_id: traceId }, undefined, "choose_video_cancel", traceId);
       } else if (isRuntimePermissionDenied(err)) {
-        logError("选择视频权限被拒绝", { trace_id: traceId, error: err.errMsg }, "choose_video_denied", undefined, traceId);
+        logError("选择视频权限被拒绝", { trace_id: traceId, error: err.errMsg }, undefined, "choose_video_denied", undefined, traceId);
         uni.showToast({ title: "需要授权使用相册/相机功能", icon: "none" });
       } else if (isPrivacyScopeError(err)) {
-        logError("隐私声明未配置", { trace_id: traceId, error: err.errMsg }, "choose_video_privacy", undefined, traceId);
+        logError("隐私声明未配置", { trace_id: traceId, error: err.errMsg }, undefined, "choose_video_privacy", undefined, traceId);
         uni.showToast({ title: "隐私权限未配置，请联系开发者", icon: "none" });
       } else {
-        logError("选择视频失败", { trace_id: traceId, error: err.errMsg }, "choose_video_failed", undefined, traceId);
+        logError("选择视频失败", { trace_id: traceId, error: err.errMsg }, undefined, "choose_video_failed", undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
       }
     },
@@ -669,17 +671,15 @@ function clearHitTime() {
 async function startAnalysis() {
   if (analyzing.value || !videoPath.value) return;
   const traceId = createTraceId();
-  logInfo("开始AI分析", { trace_id: traceId, mode: mode.value, kind: kind.value }, "analysis_started", traceId);
+  const t0 = Date.now();
 
   const dur = videoDuration.value;
   if (!trimmed.value) {
     if (dur <= 0) {
-      // 时长未加载（chooseVideo/loadedmetadata 均未就绪）时不能盲目放行，否则会让用户撞上后端"整片超限"报错
       uni.showToast({ title: "视频时长未加载，请稍候或重新选择视频后在时间轴截取片段", icon: "none" });
       return;
     }
     if (dur > modeLimit.value) {
-      // modeLimit 现与整片上传上限一致：此分支仅在选择器时长校验被绕过时兜底
       uni.showToast({ title: `视频超过 ${UPLOAD_MAX} 秒上限，请先在相册裁剪后再上传`, icon: "none" });
       return;
     }
@@ -697,10 +697,9 @@ async function startAnalysis() {
       formData.cuts = JSON.stringify(
         segments.value.map((s) => ({ start: round2(s.start), end: round2(s.end) })),
       );
-      logInfo("携带裁剪片段上传", { trace_id: traceId, cuts: formData.cuts }, "analysis_with_cuts", traceId);
     }
 
-    // 0. 检查视频文件是否存在（临时文件可能已被系统回收）
+    // 0. 检查视频文件是否存在
     const fs = uni.getFileSystemManager();
     const fileExists = await new Promise<boolean>((resolve) => {
       fs.access({
@@ -714,12 +713,39 @@ async function startAnalysis() {
       throw new Error("视频文件已失效，请重新选择");
     }
 
-    // 1. 上传 + 抽帧（75-2，含裁切拼接）
-    progress.value = "上传视频并抽取关键帧…";
-    const uploaded = await uploadVideo(videoPath.value, formData);
+    // === 整体入口 ===
+    logInfo("开始AI分析", {
+      trace_id: traceId, mode: mode.value, kind: kind.value,
+      has_cuts: !!formData.cuts, video_duration: videoDuration.value,
+      segment_count: segments.value.length,
+    }, undefined, "analysis_started", traceId);
 
-    // 2. AI 六维评分 与 姿态测量 并行执行（Step 83：每次分析都跑姿态，含骨架绘制）
+    // === 端点1: 视频上传 + 抽帧 ===
+    progress.value = "上传视频并抽取关键帧…";
+    logInfo("视频上传开始", { trace_id: traceId }, undefined, "video_upload_start", traceId);
+    const tUpload = Date.now();
+    let uploaded: any;
+    try {
+      uploaded = await uploadVideo(videoPath.value, formData);
+      logInfo("视频上传成功", {
+        trace_id: traceId, duration_ms: Date.now() - tUpload,
+        video_url: uploaded.video_url, frame_count: uploaded.frame_urls?.length,
+      }, undefined, "video_upload_success", traceId);
+    } catch (e) {
+      logError("视频上传失败", {
+        trace_id: traceId, duration_ms: Date.now() - tUpload, error: String(e),
+      }, undefined, "video_upload_failed", undefined, traceId);
+      throw e;
+    }
+
+    // === 端点2+3: AI六维评分 与 姿态测量 并行 ===
     progress.value = "教练正在分析动作与姿态（约 15-90 秒）…";
+    logInfo("AI分析开始", { trace_id: traceId, type: "swing" }, undefined, "ai_swing_start", traceId);
+    logInfo("姿态分析开始", { trace_id: traceId, type: "pose" }, undefined, "ai_pose_start", traceId);
+
+    const tAi = Date.now();
+    const tPose = Date.now();
+
     const [aiResult, poseResult] = await Promise.allSettled([
       analyzeSwing(uploaded.frame_urls, kind.value, mode.value),
       analyzePose(uploaded.frame_urls, {
@@ -729,6 +755,33 @@ async function startAnalysis() {
         frameRate: uploaded.frame_rate,
       }),
     ]);
+
+    const aiDuration = Date.now() - tAi;
+    const poseDuration = Date.now() - tPose;
+
+    // AI分析结果上报
+    if (aiResult.status === "fulfilled") {
+      logInfo("AI分析成功", {
+        trace_id: traceId, duration_ms: aiDuration,
+        score: aiResult.value.score, ntrp: aiResult.value.ntrp,
+      }, undefined, "ai_swing_success", traceId);
+    } else {
+      logError("AI分析失败", {
+        trace_id: traceId, duration_ms: aiDuration, error: String(aiResult.reason),
+      }, undefined, "ai_swing_failed", undefined, traceId);
+    }
+
+    // 姿态分析结果上报
+    if (poseResult.status === "fulfilled") {
+      logInfo("姿态分析成功", {
+        trace_id: traceId, duration_ms: poseDuration,
+        detected: poseResult.value.detected, has_skeleton: !!poseResult.value.skeleton_video_url,
+      }, undefined, "ai_pose_success", traceId);
+    } else {
+      logError("姿态分析失败", {
+        trace_id: traceId, duration_ms: poseDuration, error: String(poseResult.reason),
+      }, undefined, "ai_pose_failed", undefined, traceId);
+    }
 
     const report =
       aiResult.status === "fulfilled" ? aiResult.value : ({} as AnalysisReport);
@@ -743,31 +796,62 @@ async function startAnalysis() {
           }
         : null;
 
-    // 姿态测量追加进摘要，提升列表/报告可读性
     const enrichedReport = { ...report };
     if (pose?.metrics) {
       enrichedReport.summary = `${report.summary || ""} 姿态：肘角 ${Math.round(pose.metrics.elbowAngle)}° · 膝角 ${Math.round(pose.metrics.kneeAngle)}° · 躯干倾斜 ${Math.round(pose.metrics.trunkLean)}°`;
     }
 
-    // 3. 落库（75-4，封面优先用骨架标注帧）
-    const analysis = await createAnalysis({
-      date: todayStr(),
-      kind: kind.value,
-      mode: mode.value,
-      score: enrichedReport.score || 0,
-      summary: enrichedReport.summary,
-      ntrp: enrichedReport.ntrp,
-      report: enrichedReport,
-      thumb: pose?.skeleton_thumb || uploaded.thumbnail,
-      video_url: uploaded.video_url,
-      pose: pose ?? undefined,
-    });
+    // === 端点4: 落库 ===
+    progress.value = "保存分析结果…";
+    logInfo("分析落库开始", { trace_id: traceId }, undefined, "analysis_create_start", traceId);
+    const tCreate = Date.now();
+    let analysis: any;
+    try {
+      analysis = await createAnalysis({
+        date: todayStr(),
+        kind: kind.value,
+        mode: mode.value,
+        score: enrichedReport.score || 0,
+        summary: enrichedReport.summary,
+        ntrp: enrichedReport.ntrp,
+        report: enrichedReport,
+        thumb: pose?.skeleton_thumb || uploaded.thumbnail,
+        video_url: uploaded.video_url,
+        pose: pose ?? undefined,
+      });
+      logInfo("分析落库成功", {
+        trace_id: traceId, duration_ms: Date.now() - tCreate, analysis_id: analysis.id,
+      }, undefined, "analysis_create_success", traceId);
+    } catch (e) {
+      logError("分析落库失败", {
+        trace_id: traceId, duration_ms: Date.now() - tCreate, error: String(e),
+      }, undefined, "analysis_create_failed", undefined, traceId);
+      throw e;
+    }
+
+    // === 整体出口 ===
+    const totalDuration = Date.now() - t0;
+    logInfo("AI分析完成", {
+      trace_id: traceId, analysis_id: analysis.id,
+      mode: mode.value, kind: kind.value,
+      steps: {
+        upload: { duration_ms: Date.now() - tUpload },
+        ai: { duration_ms: aiDuration },
+        pose: { duration_ms: poseDuration },
+        create: { duration_ms: Date.now() - tCreate },
+      },
+      total_duration_ms: totalDuration,
+    }, undefined, "analysis_completed", traceId);
 
     uni.redirectTo({ url: `/pages/coach/report?id=${analysis.id}` });
-    logInfo("AI分析完成", { trace_id: traceId, analysis_id: analysis.id, kind: kind.value, mode: mode.value, has_pose: !!pose }, "analysis_completed", traceId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "分析失败，请重试";
-    logError("AI分析失败", { trace_id: traceId, error: msg, kind: kind.value, mode: mode.value }, "analysis_failed", undefined, traceId);
+    const totalDuration = Date.now() - t0;
+    logError("AI分析失败", {
+      trace_id: traceId, error: msg,
+      mode: mode.value, kind: kind.value,
+      total_duration_ms: totalDuration,
+    }, undefined, "analysis_failed", undefined, traceId);
     uni.showToast({ title: msg, icon: "none" });
   } finally {
     analyzing.value = false;

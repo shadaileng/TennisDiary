@@ -257,6 +257,7 @@ cd admin && pnpm build                 # 构建管理端
 | 104 | 微信内容安全API集成（`imgSecCheck`/`mediaCheckAsync` + 装备图片 base64→URL 迁移 + gear-image 端点 + 审计装饰器修复） | 🚧 进行中 |
 | 105 | 骨架视频逐帧生成条件分支（`full_frames` 参数 + 配置阈值 + 自动判断，短视频 ≤3秒自动逐帧生成） | ✅ |
 | 106 | 帧引用传递优化（前端改传 `frame_urls` 替代 `frames` base64，传输量从 4.2MB 降至 600B） | ✅ |
+| 107 | 小程序埋点上报优化（事件链路端点级追踪 + 参数补全 + 网络类型分类 + Admin trace_id 复制） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

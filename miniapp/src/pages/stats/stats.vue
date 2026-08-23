@@ -337,16 +337,16 @@ onShow(() => {
     statsLoading.value = false;
     return;
   }
-  logInfo("加载统计数据", { trace_id: traceId }, "stats_load", traceId);
+  logInfo("加载统计数据", { trace_id: traceId }, undefined, "stats_load", traceId);
   weightStore.fetchList();
   statsLoading.value = true;
   getStats()
     .then((s) => {
       stats.value = s;
-      logInfo("统计数据加载成功", { trace_id: traceId }, "stats_loaded", traceId);
+      logInfo("统计数据加载成功", { trace_id: traceId }, undefined, "stats_loaded", traceId);
     })
     .catch((e) => {
-      logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, "stats_load_failed", undefined, traceId);
+      logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "stats_load_failed", undefined, traceId);
       console.error("[stats] 拉取统计数据失败", e);
     })
     .finally(() => {

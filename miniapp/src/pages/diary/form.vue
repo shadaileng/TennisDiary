@@ -217,7 +217,7 @@ onLoad(async (query) => {
   editingId.value = Number(id);
   uni.setNavigationBarTitle({ title: "编辑日记" });
   const traceId = createTraceId();
-  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, "diary_detail_load", traceId);
+  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, undefined, "diary_detail_load", traceId);
   try {
     const d = await getDiary(editingId.value);
     form.date = d.date;
@@ -230,7 +230,7 @@ onLoad(async (query) => {
     form.gears = d.gears.map((g) => ({ name: g.name, feeling: g.feeling }));
     form.notes = d.notes || "";
   } catch (e) {
-    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, "diary_detail_load_failed", undefined, traceId);
+    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, undefined, "diary_detail_load_failed", undefined, traceId);
     uni.showToast({ title: "日记加载失败", icon: "none" });
   }
 });
