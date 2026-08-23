@@ -101,6 +101,9 @@
         </view>
         <text v-if="form.gears.length === 0" class="form-hint">球馆 / 球拍 / 穿搭及使用体验</text>
         <view v-for="(g, i) in form.gears" :key="i" class="form-gear-row">
+          <view v-if="gearStore.gears.length > 0" class="form-gear-select" @tap="showGearPicker(i)">
+            <text class="form-gear-select-text">📋 从已有装备选择</text>
+          </view>
           <view class="form-gear-fields">
             <input
               class="field-input"
@@ -158,7 +161,7 @@ import { onLoad } from "@dcloudio/uni-app";
 import EmojiScale from "@/components/EmojiScale.vue";
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useDiaryStore } from "@/stores";
+import { useDiaryStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
 import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
@@ -166,6 +169,7 @@ import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import type { SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
+const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
 const { themeStyle, themeBg } = useThemeStyle();
 
@@ -212,6 +216,9 @@ const costTotalText = computed(() =>
 );
 
 onLoad(async (query) => {
+  // 加载装备列表
+  gearStore.fetchList();
+
   const id = query?.id;
   if (!id) return;
   editingId.value = Number(id);
@@ -265,6 +272,20 @@ function onCostAmount(i: number, e: any) {
 
 function addGear() {
   form.gears.push({ name: "", feeling: "" });
+}
+
+function showGearPicker(i: number) {
+  const names = gearStore.gears.map((g) => g.name);
+  if (names.length === 0) {
+    uni.showToast({ title: "暂无装备，请手动输入", icon: "none" });
+    return;
+  }
+  uni.showActionSheet({
+    itemList: names,
+    success: (res) => {
+      form.gears[i].name = names[res.tapIndex];
+    },
+  });
 }
 
 function removeGear(i: number) {
@@ -514,6 +535,20 @@ function confirmRemove() {
   align-items: flex-start;
   gap: $space-sm;
   margin-bottom: $space-sm;
+}
+
+.form-gear-select {
+  background-color: var(--color-page-bg, #F2F2EF);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin-bottom: $space-sm;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-gear-select-text {
+  font-size: 13px;
+  color: $color-olive-light;
 }
 
 .form-gear-fields {

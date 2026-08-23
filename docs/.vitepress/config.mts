@@ -140,6 +140,10 @@ export default defineConfig({
             { text: '100：hit_time 裁剪后时间基准修复', link: '/plans/100-hit-time裁剪后时间基准修复' },
             { text: '103：小程序 iOS 端 chooseVideo 选择视频转圈兼容性修复', link: '/plans/103-小程序iOS端chooseVideo选择视频转圈兼容性修复' },
             { text: '104：微信内容安全API集成', link: '/plans/104-微信内容安全API集成' },
+            { text: '105：骨架视频逐帧生成条件分支', link: '/plans/105-骨架视频逐帧生成条件分支' },
+            { text: '106：帧引用传递优化', link: '/plans/106-帧引用传递优化' },
+            { text: '107：小程序埋点上报优化', link: '/plans/107-小程序埋点上报优化' },
+            { text: '108：日记装备关联选择与手写', link: '/plans/108-日记装备关联选择与手写' },
           ],
         },
         {
