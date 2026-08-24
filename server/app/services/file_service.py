@@ -132,11 +132,12 @@ def get_or_create_file(
     )
 
     if existing and existing.ref_count > 0:
-        # 秒传：复用物理文件路径，创建新记录
+        # 秒传：复用物理文件路径，创建新记录（自动处理 original_name 唯一）
+        unique_name = ensure_unique_name(db, user_id, original_name)
         new_record = File(
             user_id=user_id,
             md5=md5,
-            original_name=original_name,
+            original_name=unique_name,
             rel_path=existing.rel_path,  # 复用路径
             size_bytes=existing.size_bytes,
             mime_type=existing.mime_type,
@@ -149,11 +150,12 @@ def get_or_create_file(
         existing.ref_count += 1
         return new_record, True
 
-    # 正常上传：创建新记录
+    # 正常上传：创建新记录（自动处理 original_name 唯一）
+    unique_name = ensure_unique_name(db, user_id, original_name)
     new_record = File(
         user_id=user_id,
         md5=md5,
-        original_name=original_name,
+        original_name=unique_name,
         rel_path=rel_path,
         size_bytes=size_bytes,
         mime_type=mime_type,
