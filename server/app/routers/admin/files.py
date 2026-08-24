@@ -11,7 +11,13 @@ from app.core.logging import get_logger
 from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.file import File
-from app.schemas.admin_file import AdminFileListResponse, AdminFileResponse, DerivedFileInfo
+from app.schemas.admin_file import (
+    AdminFileListResponse,
+    AdminFileResponse,
+    DerivedFileInfo,
+    RegisterFilesRequest,
+    ScanResultResponse,
+)
 from app.schemas.common import ApiResponse
 from app.services import file_service
 
@@ -198,3 +204,79 @@ def cleanup_files(
     db.commit()
     log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id)
     return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
+
+
+@router.post("/scan", response_model=ApiResponse[ScanResultResponse])
+@audit(action="SCAN", resource_type="file_scan")
+def scan_orphan_files(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """扫描 uploads 目录，返回未在 File 表中注册的孤立文件列表"""
+    result = file_service.scan_orphan_files(db)
+    log.info(
+        "Admin 扫描孤立文件",
+        admin_id=admin.id,
+        total=result["total_files"],
+        orphan=result["orphan_files"],
+    )
+    return ApiResponse(data=ScanResultResponse(**result))
+
+
+@router.post("/register", response_model=ApiResponse[dict])
+@audit(action="REGISTER", resource_type="file_register")
+def register_files(
+    body: RegisterFilesRequest,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """将选中的文件注册到 File 表"""
+    registered = file_service.register_orphan_files(
+        db,
+        rel_paths=body.files,
+        default_user_id=body.default_user_id,
+    )
+    db.commit()
+    log.info(
+        "Admin 注册孤立文件",
+        admin_id=admin.id,
+        count=len(registered),
+        paths=body.files[:5],  # 只记录前5个
+    )
+    return ApiResponse(
+        data={"registered": len(registered)},
+        message=f"成功注册 {len(registered)} 个文件",
+    )
+
+
+@router.post("/register-all", response_model=ApiResponse[dict])
+@audit(action="REGISTER_ALL", resource_type="file_register")
+def register_all_files(
+    default_user_id: int = Query(0, description="默认用户 ID（路径无法推断时使用）"),
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """一键注册所有未注册文件"""
+    # 先扫描
+    scan_result = file_service.scan_orphan_files(db)
+    orphan_paths = [o["rel_path"] for o in scan_result["orphans"]]
+
+    if not orphan_paths:
+        return ApiResponse(data={"registered": 0}, message="没有发现未注册的文件")
+
+    # 批量注册
+    registered = file_service.register_orphan_files(
+        db,
+        rel_paths=orphan_paths,
+        default_user_id=default_user_id,
+    )
+    db.commit()
+    log.info(
+        "Admin 一键注册所有孤立文件",
+        admin_id=admin.id,
+        count=len(registered),
+    )
+    return ApiResponse(
+        data={"registered": len(registered)},
+        message=f"成功注册 {len(registered)} 个文件",
+    )

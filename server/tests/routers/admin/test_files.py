@@ -257,3 +257,160 @@ class TestAdminFileStats:
         assert "avatar" in by_source
         assert "video_frame" in by_source
         assert by_source["avatar"]["count"] >= 1
+
+
+class TestAdminFileListFilterByType:
+    """GET /api/admin/files?business_type=xxx"""
+
+    def test_list_filter_by_business_type(self, auth_client, test_db):
+        """按业务类型筛选"""
+        uid = _next_uid()
+        _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=f"biz-gear-{uid}.jpg",
+            business_type="gear",
+            business_id=100,
+        )
+        _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=f"biz-analysis-{uid}.jpg",
+            business_type="analysis",
+            business_id=200,
+        )
+        resp = auth_client.get("/api/admin/files?business_type=gear")
+        assert resp.status_code == 200
+        items = resp.json()["data"]["items"]
+        assert all(i["business_type"] == "gear" for i in items)
+
+
+class TestAdminFileStatsOrphan:
+    """GET /api/admin/files/stats/summary - orphan_files 统计"""
+
+    def test_stats_includes_orphan_files(self, auth_client, test_db):
+        """统计中包含引用计数为0的文件数"""
+        uid = _next_uid()
+        # 创建一个引用计数为0的文件
+        record = _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=f"orphan-{uid}.jpg",
+        )
+        record.ref_count = 0
+        record.deleted_at = time.time()
+        test_db.commit()
+
+        resp = auth_client.get("/api/admin/files/stats/summary")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        # 存在统计中
+        assert "total_count" in data
+        assert "total_size_bytes" in data
+
+
+class TestAdminFileScan:
+    """POST /api/admin/files/scan"""
+
+    def test_scan_finds_orphan_files(self, auth_client, test_db):
+        """扫描返回未注册文件列表"""
+        uid = _next_uid()
+        # 创建一个未注册的文件
+        rel = f"scan-test-{uid}/orphan.jpg"
+        _write_file(rel, b"orphan-content")
+
+        resp = auth_client.post("/api/admin/files/scan")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert "total_files" in data
+        assert "registered_files" in data
+        assert "orphan_files" in data
+        assert "orphans" in data
+
+    def test_scan_excludes_registered_files(self, auth_client, test_db):
+        """已注册文件不在未注册列表中"""
+        uid = _next_uid()
+        rel = f"scan-registered-{uid}.jpg"
+        _write_file(rel, b"registered-content")
+        _insert_file(test_db, user_id=uid, rel_path=rel)
+
+        resp = auth_client.post("/api/admin/files/scan")
+        assert resp.status_code == 200
+        orphans = resp.json()["data"]["orphans"]
+        assert rel not in [o["rel_path"] for o in orphans]
+
+    def test_scan_inferred_user_id(self, auth_client, test_db):
+        """路径能正确推断 user_id"""
+        uid = _next_uid()
+        rel = f"avatars/{uid}/test-scan.jpg"
+        _write_file(rel, b"scan-content")
+
+        resp = auth_client.post("/api/admin/files/scan")
+        assert resp.status_code == 200
+        orphans = resp.json()["data"]["orphans"]
+        matching = [o for o in orphans if o["rel_path"] == rel]
+        assert len(matching) == 1
+        assert matching[0]["inferred_user_id"] == uid
+
+
+class TestAdminFileRegister:
+    """POST /api/admin/files/register"""
+
+    def test_register_single_file(self, auth_client, test_db):
+        """注册单个文件成功，File 表有记录"""
+        uid = _next_uid()
+        rel = f"register-test-{uid}.jpg"
+        _write_file(rel, b"register-content")
+
+        resp = auth_client.post(
+            "/api/admin/files/register",
+            json={"files": [rel], "default_user_id": uid},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["registered"] == 1
+
+        # 验证 File 记录已创建
+        from app.models.file import File
+
+        record = test_db.query(File).filter(File.rel_path == rel).first()
+        assert record is not None
+        assert record.user_id == uid
+
+    def test_register_multiple_files(self, auth_client, test_db):
+        """批量注册多个文件成功"""
+        uid = _next_uid()
+        paths = [f"batch-register-{uid}/{i}.jpg" for i in range(3)]
+        for p in paths:
+            _write_file(p, f"content-{p}".encode())
+
+        resp = auth_client.post(
+            "/api/admin/files/register",
+            json={"files": paths, "default_user_id": uid},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["registered"] == 3
+
+    def test_register_nonexistent_file(self, auth_client, test_db):
+        """注册不存在的文件被跳过"""
+        resp = auth_client.post(
+            "/api/admin/files/register",
+            json={"files": ["nonexistent-file.jpg"], "default_user_id": 1},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["registered"] == 0
+
+
+class TestAdminFileRegisterAll:
+    """POST /api/admin/files/register-all"""
+
+    def test_register_all_files(self, auth_client, test_db):
+        """一键注册所有未注册文件"""
+        uid = _next_uid()
+        # 创建几个未注册的文件
+        for i in range(2):
+            rel = f"register-all-test-{uid}/{i}.jpg"
+            _write_file(rel, f"content-{i}".encode())
+
+        resp = auth_client.post("/api/admin/files/register-all")
+        assert resp.status_code == 200
+        assert resp.json()["data"]["registered"] >= 2

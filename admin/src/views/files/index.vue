@@ -21,6 +21,13 @@
           class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
+          @click="confirmScan"
+          :disabled="scanning"
+          class="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors whitespace-nowrap disabled:opacity-50"
+        >
+          {{ scanning ? '扫描中...' : '扫描孤立文件' }}
+        </button>
+        <button
           @click="confirmCleanup"
           class="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors whitespace-nowrap"
         >
@@ -178,12 +185,168 @@
         </div>
       </div>
     </div>
+
+    <!-- 扫描结果弹窗 -->
+    <div v-if="scanResult" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div class="absolute inset-0 bg-black/50" @click="scanResult = null" />
+      <div
+        class="relative bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        <!-- 弹窗头部 -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-800">扫描结果</h2>
+          <button
+            @click="scanResult = null"
+            class="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 弹窗内容 -->
+        <div class="flex-1 overflow-y-auto px-6 py-4">
+          <!-- 统计信息 -->
+          <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-blue-50 rounded-lg p-4 text-center">
+              <p class="text-2xl font-bold text-blue-600">{{ scanResult.total_files }}</p>
+              <p class="text-sm text-gray-600">总文件</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 text-center">
+              <p class="text-2xl font-bold text-green-600">{{ scanResult.registered_files }}</p>
+              <p class="text-sm text-gray-600">已注册</p>
+            </div>
+            <div class="bg-orange-50 rounded-lg p-4 text-center">
+              <p class="text-2xl font-bold text-orange-600">{{ scanResult.orphan_files }}</p>
+              <p class="text-sm text-gray-600">未注册</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center">
+              <p class="text-2xl font-bold text-purple-600">{{ formatSize(scanResult.total_orphan_size) }}</p>
+              <p class="text-sm text-gray-600">未注册大小</p>
+            </div>
+          </div>
+
+          <!-- 未注册文件列表 -->
+          <div v-if="scanResult.orphans.length > 0">
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-sm font-medium text-gray-700">
+                未注册文件列表
+              </h3>
+              <div class="flex gap-2">
+                <button
+                  @click="toggleSelectAll"
+                  class="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300"
+                >
+                  {{ selectedOrphans.length === scanResult.orphans.length ? '取消全选' : '全选' }}
+                </button>
+                <button
+                  @click="confirmRegisterSelected"
+                  :disabled="selectedOrphans.length === 0"
+                  class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                >
+                  纳入管理 ({{ selectedOrphans.length }})
+                </button>
+              </div>
+            </div>
+
+            <div class="border rounded-lg overflow-hidden">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-4 py-2 text-left w-10">
+                      <input
+                        type="checkbox"
+                        :checked="selectedOrphans.length === scanResult.orphans.length"
+                        @change="toggleSelectAll"
+                        class="rounded"
+                      />
+                    </th>
+                    <th class="px-4 py-2 text-left">文件路径</th>
+                    <th class="px-4 py-2 text-right">大小</th>
+                    <th class="px-4 py-2 text-left">修改时间</th>
+                    <th class="px-4 py-2 text-center">用户</th>
+                    <th class="px-4 py-2 text-center">来源</th>
+                    <th class="px-4 py-2 text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  <tr
+                    v-for="orphan in scanResult.orphans"
+                    :key="orphan.rel_path"
+                    class="hover:bg-gray-50"
+                  >
+                    <td class="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        :value="orphan.rel_path"
+                        v-model="selectedOrphans"
+                        class="rounded"
+                      />
+                    </td>
+                    <td class="px-4 py-2 font-mono text-xs break-all">{{ orphan.rel_path }}</td>
+                    <td class="px-4 py-2 text-right text-gray-600">{{ formatSize(orphan.size_bytes) }}</td>
+                    <td class="px-4 py-2 text-gray-600">{{ formatTs(orphan.modified_at) }}</td>
+                    <td class="px-4 py-2 text-center">{{ orphan.inferred_user_id || '--' }}</td>
+                    <td class="px-4 py-2 text-center text-gray-600">{{ orphan.inferred_source }}</td>
+                    <td class="px-4 py-2 text-center">
+                      <button
+                        @click="confirmRegisterSingle(orphan.rel_path)"
+                        class="text-blue-600 hover:text-blue-800"
+                      >
+                        纳入
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div v-else class="text-center py-8 text-gray-500">
+            没有发现未注册的文件
+          </div>
+        </div>
+
+        <!-- 弹窗底部 -->
+        <div class="flex justify-end px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <button
+            @click="confirmRegisterAll"
+            class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors mr-3"
+          >
+            一键纳入所有
+          </button>
+          <button
+            @click="scanResult = null"
+            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { getFiles, getFileStats, deleteFile, cleanupFiles, type AdminFile, type FileStats } from '@/api/files'
+import {
+  getFiles,
+  getFileStats,
+  deleteFile,
+  cleanupFiles,
+  scanOrphanFiles,
+  registerFiles,
+  registerAllFiles,
+  type AdminFile,
+  type FileStats,
+  type ScanResultResponse
+} from '@/api/files'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
@@ -207,6 +370,11 @@ const filterSource = ref('')
 const filterUserId = ref('')
 const selectedFile = ref<AdminFile | null>(null)
 const stats = ref<FileStats>({ total_count: 0, total_size_bytes: 0, by_source: {} })
+
+// 扫描相关状态
+const scanning = ref(false)
+const scanResult = ref<ScanResultResponse | null>(null)
+const selectedOrphans = ref<string[]>([])
 
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B'
@@ -262,6 +430,84 @@ const confirmCleanup = async () => {
       await fetchStats()
     } catch (e) {
       console.error('Failed to cleanup files:', e)
+    }
+  }
+}
+
+// 扫描相关函数
+const confirmScan = async () => {
+  scanning.value = true
+  try {
+    const result = await scanOrphanFiles()
+    scanResult.value = result
+    selectedOrphans.value = []
+  } catch (e) {
+    console.error('Failed to scan files:', e)
+    alert('扫描失败，请稍后重试')
+  } finally {
+    scanning.value = false
+  }
+}
+
+const toggleSelectAll = () => {
+  if (!scanResult.value) return
+  if (selectedOrphans.value.length === scanResult.value.orphans.length) {
+    selectedOrphans.value = []
+  } else {
+    selectedOrphans.value = scanResult.value.orphans.map((o) => o.rel_path)
+  }
+}
+
+const confirmRegisterSelected = async () => {
+  if (selectedOrphans.value.length === 0) return
+  if (confirm(`确定要将 ${selectedOrphans.value.length} 个文件纳入管理吗？`)) {
+    try {
+      const res = await registerFiles(selectedOrphans.value)
+      alert(`成功注册 ${res.registered} 个文件`)
+      scanResult.value = null
+      await fetchFiles()
+      await fetchStats()
+    } catch (e) {
+      console.error('Failed to register files:', e)
+      alert('注册失败，请稍后重试')
+    }
+  }
+}
+
+const confirmRegisterSingle = async (relPath: string) => {
+  if (confirm(`确定要将文件 ${relPath} 纳入管理吗？`)) {
+    try {
+      const res = await registerFiles([relPath])
+      alert(`成功注册 ${res.registered} 个文件`)
+      // 更新扫描结果
+      if (scanResult.value) {
+        scanResult.value.orphans = scanResult.value.orphans.filter(
+          (o) => o.rel_path !== relPath
+        )
+        scanResult.value.orphan_files = scanResult.value.orphans.length
+        scanResult.value.registered_files += 1
+        selectedOrphans.value = selectedOrphans.value.filter((p) => p !== relPath)
+      }
+      await fetchFiles()
+      await fetchStats()
+    } catch (e) {
+      console.error('Failed to register file:', e)
+      alert('注册失败，请稍后重试')
+    }
+  }
+}
+
+const confirmRegisterAll = async () => {
+  if (confirm('确定要将所有未注册文件纳入管理吗？')) {
+    try {
+      const res = await registerAllFiles()
+      alert(`成功注册 ${res.registered} 个文件`)
+      scanResult.value = null
+      await fetchFiles()
+      await fetchStats()
+    } catch (e) {
+      console.error('Failed to register all files:', e)
+      alert('注册失败，请稍后重试')
     }
   }
 }

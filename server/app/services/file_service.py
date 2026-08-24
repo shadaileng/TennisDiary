@@ -325,3 +325,126 @@ def cleanup_orphan_files(db: Session, days: int = 30) -> int:
         db.delete(record)
 
     return cleaned
+
+
+# ==================== 文件扫描 ====================
+
+
+def _infer_upload_source(rel_path: str) -> str:
+    """从路径推断上传来源"""
+    parts = rel_path.split("/")
+    if len(parts) < 2:
+        return "other"
+
+    prefix = parts[0].lower()
+    if prefix == "avatars":
+        return "avatar"
+    elif prefix == "gears":
+        return "gear_image"
+    elif prefix == "videos":
+        return "video"
+    elif prefix in ("analyses", "frames"):
+        return "video_frame"
+    elif prefix == "images":
+        return "gear_image"
+    return "other"
+
+
+def _infer_user_id(rel_path: str) -> int | None:
+    """从路径推断用户 ID（如 avatars/1/xxx.jpg → 1）"""
+    parts = rel_path.split("/")
+    if len(parts) >= 2 and parts[1].isdigit():
+        return int(parts[1])
+    return None
+
+
+def scan_orphan_files(db: Session) -> dict:
+    """扫描 uploads 目录，返回未在 File 表中注册的文件列表"""
+    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+    registered_paths = {
+        r[0] for r in db.query(File.rel_path).filter(File.deleted_at.is_(None)).all()
+    }
+
+    orphans = []
+    total_files = 0
+    total_orphan_size = 0
+
+    for root, _dirs, files in os.walk(upload_dir):
+        for filename in files:
+            total_files += 1
+            abs_path = os.path.join(root, filename)
+            rel_path = os.path.relpath(abs_path, upload_dir).replace(os.sep, "/")
+
+            if rel_path not in registered_paths:
+                try:
+                    stat = os.stat(abs_path)
+                    orphan_size = stat.st_size
+                    total_orphan_size += orphan_size
+                    orphans.append(
+                        {
+                            "rel_path": rel_path,
+                            "size_bytes": orphan_size,
+                            "modified_at": stat.st_mtime,
+                            "inferred_user_id": _infer_user_id(rel_path),
+                            "inferred_source": _infer_upload_source(rel_path),
+                        }
+                    )
+                except (OSError, ValueError) as exc:
+                    log.warning("扫描文件失败: %s error=%s", rel_path, exc)
+
+    return {
+        "total_files": total_files,
+        "registered_files": total_files - len(orphans),
+        "orphan_files": len(orphans),
+        "orphans": orphans,
+        "total_orphan_size": total_orphan_size,
+    }
+
+
+def register_orphan_files(
+    db: Session,
+    rel_paths: list[str],
+    default_user_id: int = 0,
+) -> list[File]:
+    """将孤立文件批量注册到 File 表"""
+    registered = []
+
+    for rel_path in rel_paths:
+        abs_path = rel_path_to_abs(rel_path)
+
+        # 检查文件是否存在
+        if not os.path.isfile(abs_path):
+            log.warning("文件不存在，跳过: %s", rel_path)
+            continue
+
+        # 检查是否已注册
+        existing = (
+            db.query(File).filter(File.rel_path == rel_path, File.deleted_at.is_(None)).first()
+        )
+        if existing:
+            log.info("文件已注册，跳过: %s", rel_path)
+            continue
+
+        # 计算 MD5
+        md5 = compute_md5_from_path(abs_path)
+        size = get_file_size(abs_path)
+
+        # 推断 user_id 和 upload_source
+        user_id = _infer_user_id(rel_path) or default_user_id
+        upload_source = _infer_upload_source(rel_path)
+
+        record = File(
+            user_id=user_id,
+            md5=md5 or "",
+            original_name=os.path.basename(rel_path),
+            rel_path=rel_path,
+            size_bytes=size,
+            upload_source=upload_source,
+            ref_count=1,
+            created_at=time.time(),
+        )
+        db.add(record)
+        registered.append(record)
+        log.info("注册孤立文件: %s user_id=%d source=%s", rel_path, user_id, upload_source)
+
+    return registered

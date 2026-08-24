@@ -39,6 +39,22 @@ export interface FileStats {
   by_source: Record<string, { count: number; size_bytes: number }>
 }
 
+export interface OrphanFileInfo {
+  rel_path: string
+  size_bytes: number
+  modified_at: number
+  inferred_user_id: number | null
+  inferred_source: string
+}
+
+export interface ScanResultResponse {
+  total_files: number
+  registered_files: number
+  orphan_files: number
+  orphans: OrphanFileInfo[]
+  total_orphan_size: number
+}
+
 export function getFiles(params: {
   offset?: number
   limit?: number
@@ -63,4 +79,16 @@ export function deleteFile(fileId: number) {
 
 export function cleanupFiles(days: number = 30): Promise<{ cleaned: number }> {
   return request.post('/api/admin/files/cleanup', null, { params: { days } })
+}
+
+export function scanOrphanFiles(): Promise<ScanResultResponse> {
+  return request.post('/api/admin/files/scan')
+}
+
+export function registerFiles(files: string[], defaultUserId: number = 0): Promise<{ registered: number }> {
+  return request.post('/api/admin/files/register', { files, default_user_id: defaultUserId })
+}
+
+export function registerAllFiles(defaultUserId: number = 0): Promise<{ registered: number }> {
+  return request.post('/api/admin/files/register-all', null, { params: { default_user_id: defaultUserId } })
 }

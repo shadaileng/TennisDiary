@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.71.0] - 2026-08-24
+
+### Added
+
+- 文件扫描功能（110）：Admin 文件管理新增扫描 uploads 目录功能，可发现未在 File 表中注册的孤立文件；支持批量/单个/一键"纳入管理"操作，自动推断 user_id 和 upload_source；前端新增扫描按钮与扫描结果弹窗。7 个新测试通过。
+
 ## [1.70.0] - 2026-08-24
 
 ### Added
