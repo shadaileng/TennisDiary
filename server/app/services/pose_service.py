@@ -337,8 +337,10 @@ def _should_use_full_frames(
 
 
 def _rel_url(abs_path: str) -> str:
-    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）"""
-    return os.path.relpath(abs_path, settings.UPLOAD_DIR).replace(os.sep, "/")
+    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）- 使用 file_service"""
+    from app.services.file_service import abs_path_to_rel
+
+    return abs_path_to_rel(abs_path)
 
 
 def find_ffmpeg() -> str | None:

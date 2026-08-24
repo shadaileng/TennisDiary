@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     UserUpdate,
     UserUpdateResponse,
 )
+from app.services import file_service
 from app.services.wx_service import code_to_openid
 
 log = get_logger("user")
@@ -76,9 +77,18 @@ def update_me(
     db: Session = Depends(get_db),
 ):
     """更新当前用户资料（昵称/头像），仅更新传入字段"""
-    for key, value in body.model_dump(exclude_unset=True).items():
+    update_data = body.model_dump(exclude_unset=True)
+
+    # 如果头像更新，递减旧头像的引用计数
+    if "avatar" in update_data and update_data["avatar"] != current_user.avatar:
+        old_avatar = current_user.avatar
+        if old_avatar:
+            file_service.decrement_ref_count(db, current_user.id, old_avatar)
+
+    for key, value in update_data.items():
         if value is not None:
             setattr(current_user, key, value)
+
     db.commit()
     db.refresh(current_user)
     log.info("用户资料更新", user_id=current_user.id)

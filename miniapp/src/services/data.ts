@@ -1,7 +1,5 @@
 import { del, get, post, put } from "./request";
-
-import { API_PREFIX, BASE_URL } from "@/config";
-import { STORAGE_KEYS } from "@/constants/storage";
+import { uploadRaw } from "@/utils/upload";
 
 import type {
   Analysis,
@@ -23,12 +21,7 @@ import type {
   WeightCreate,
   WeightRecord,
 } from "@/types";
-import { createTraceId, logError } from "@/utils/eventLogger";
-
-/** 读取本地 token（uploadFile 需手动携带 X-Auth-Token） */
-function getToken(): string {
-  return (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
-}
+import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 /**
  * 业务数据 API 封装
@@ -136,47 +129,46 @@ export function getStats(): Promise<Stats> {
 
 // ==================== 电子教练（视频/AI/姿态/分析） ====================
 
-/** 上传视频并抽帧（multipart 直传后端，75-2 抽帧 + Step99 裁剪拼接） */
+/** 上传视频并抽帧（uploadRaw 直传后端，75-2 抽帧 + Step99 裁剪拼接） */
 export function uploadVideo(
   filePath: string,
   formData: { mode: string; kind: string; hit_time?: string; cuts?: string },
 ): Promise<VideoUploadResult> {
-  return new Promise((resolve, reject) => {
-    uni.uploadFile({
-      url: `${BASE_URL}${API_PREFIX}/video/upload`,
-      filePath,
-      name: "file",
-      formData,
-      timeout: 120000,
-      header: { "X-Auth-Token": getToken() },
-      success: (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const parsed = JSON.parse(res.data as string) as { data?: VideoUploadResult };
-            resolve(parsed.data as VideoUploadResult);
-          } catch {
-            reject(new Error("上传响应解析失败"));
-          }
-        } else {
-          reject(new Error(parseUploadError(res.data as string)));
-        }
-      },
-      fail: (err) => {
-        logError("视频上传失败", { error: err.errMsg || "未知错误", filePath, mode: formData.mode, kind: formData.kind, hit_time: formData.hit_time, cuts: formData.cuts }, undefined, "video_upload_failed", undefined, createTraceId());
-        reject(new Error(err.errMsg || "视频上传失败"));
-      },
-    });
-  });
-}
-
-/** 解析上传失败响应 detail */
-function parseUploadError(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw) as { detail?: string; message?: string };
-    return parsed.detail || parsed.message || "视频上传失败";
-  } catch {
-    return "视频上传失败";
-  }
+  const traceId = createTraceId();
+  return uploadRaw<VideoUploadResult>({
+    path: "/video/upload",
+    filePath,
+    formData: { ...formData },
+    timeout: 120000,
+    onSuccess: (result, durationMs) => {
+      logInfo(
+        "视频上传成功",
+        { video_url: result.video_url, mirage: result.mirage, duration_ms: durationMs },
+        "business",
+        "video_upload_success",
+        traceId,
+      );
+    },
+    onMirage: (result, durationMs) => {
+      logInfo(
+        "视频秒传",
+        { video_url: result.video_url, duration_ms: durationMs },
+        "business",
+        "video_upload_mirage",
+        traceId,
+      );
+    },
+    onFailed: (error, durationMs) => {
+      logError(
+        "视频上传失败",
+        { error: error.message, filePath, mode: formData.mode, kind: formData.kind, hit_time: formData.hit_time, cuts: formData.cuts, duration_ms: durationMs },
+        undefined,
+        "video_upload_failed",
+        undefined,
+        traceId,
+      );
+    },
+  }) as Promise<VideoUploadResult>;
 }
 
 /** AI 六维评分（120s 超时，Key 存服务端，失败后端降级） */

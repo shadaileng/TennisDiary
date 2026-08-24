@@ -1,0 +1,66 @@
+import request from './index'
+
+export interface DerivedFileInfo {
+  id: number
+  rel_path: string
+  upload_source: string
+  business_type: string | null
+  business_id: number | null
+  size_bytes: number
+  mime_type: string
+}
+
+export interface AdminFile {
+  id: number
+  user_id: number
+  md5: string
+  original_name: string
+  rel_path: string
+  size_bytes: number
+  mime_type: string
+  upload_source: string
+  ref_count: number
+  business_type: string | null
+  business_id: number | null
+  created_at: number
+  derived_files: DerivedFileInfo[]
+}
+
+export interface FileListResponse {
+  items: AdminFile[]
+  total: number
+  offset: number
+  limit: number
+}
+
+export interface FileStats {
+  total_count: number
+  total_size_bytes: number
+  by_source: Record<string, { count: number; size_bytes: number }>
+}
+
+export function getFiles(params: {
+  offset?: number
+  limit?: number
+  user_id?: number
+  upload_source?: string
+  business_type?: string
+}): Promise<FileListResponse> {
+  return request.get('/api/admin/files', { params })
+}
+
+export function getFile(fileId: number): Promise<AdminFile> {
+  return request.get(`/api/admin/files/${fileId}`)
+}
+
+export function getFileStats(): Promise<FileStats> {
+  return request.get('/api/admin/files/stats/summary')
+}
+
+export function deleteFile(fileId: number) {
+  return request.delete(`/api/admin/files/${fileId}`)
+}
+
+export function cleanupFiles(days: number = 30): Promise<{ cleaned: number }> {
+  return request.post('/api/admin/files/cleanup', null, { params: { days } })
+}

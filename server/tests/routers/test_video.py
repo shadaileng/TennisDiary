@@ -6,7 +6,7 @@ import subprocess
 import pytest
 
 from app.schemas.common import ErrorCode
-from app.services import video_service
+from app.services import file_service, video_service
 from app.services.video_service import (
     FfmpegUnavailableError,
     InvalidCutError,
@@ -166,7 +166,7 @@ class TestProcessVideoLimits:
             "extract_frames",
             lambda path, times, **kw: [b"\xff\xd8f" + bytes([i]) for i in range(len(times))],
         )
-        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setattr(file_service.settings, "UPLOAD_DIR", str(tmp_path))
         result = video_service.process_video(str(video_path), "single", 2.0)
         assert result["duration"] == 8.0
         assert result["frame_rate"] == 30.0
@@ -264,7 +264,7 @@ class TestProcessVideoTrim:
         original = video_dir / "test.mp4"
         original.write_bytes(b"fake-video")
 
-        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setattr(file_service.settings, "UPLOAD_DIR", str(tmp_path))
         # 裁剪后重新探测统一返回 30，仅验证流程与标志
         monkeypatch.setattr(video_service, "probe_duration", lambda p: 30.0)
         monkeypatch.setattr(video_service, "find_ffmpeg", lambda: "/usr/bin/ffmpeg")

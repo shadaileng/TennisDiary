@@ -11,7 +11,6 @@ import re
 import shutil
 import subprocess
 
-from app.core.config import settings
 from app.core.logging import get_logger
 
 log = get_logger("user")
@@ -450,7 +449,9 @@ def process_video(
         frame_path = os.path.join(video_dir, frame_name)
         with open(frame_path, "wb") as out:
             out.write(frame)
-        rel_frame = os.path.relpath(frame_path, settings.UPLOAD_DIR).replace(os.sep, "/")
+        from app.services.file_service import abs_path_to_rel
+
+        rel_frame = abs_path_to_rel(frame_path)
         frame_urls.append(rel_frame)
 
     return {

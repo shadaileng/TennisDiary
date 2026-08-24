@@ -15,7 +15,6 @@ from starlette.responses import Response
 
 from app.services.audit_service import log_action
 
-
 _AUDIT_EXCLUDE_PATHS: set[str] = {
     "/api/events",
 }

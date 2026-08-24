@@ -163,6 +163,7 @@ export default defineConfig({
             { text: '86：Admin 静态文件端点移除认证', link: '/plans/86-Admin静态文件端点移除认证' },
             { text: '87：Admin 时间显示统一东八区', link: '/plans/87-Admin时间显示统一东八区' },
             { text: '102：操作审计日志', link: '/plans/102-操作审计日志' },
+            { text: '109：文件管理系统', link: '/plans/109-文件管理系统' },
           ],
         },
         {

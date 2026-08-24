@@ -360,12 +360,11 @@ _ADMIN_MEDIA_TYPES = {
 
 
 def _resolve_admin_file_path(filename: str) -> Path | None:
-    """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None"""
-    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
-    candidate = os.path.normpath(os.path.join(upload_dir, filename))
-    if candidate != upload_dir and not candidate.startswith(upload_dir + os.sep):
-        return None
-    return Path(candidate)
+    """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None（使用 file_service）"""
+    from app.services.file_service import resolve_safe_path
+
+    abs_path = resolve_safe_path(filename)
+    return Path(abs_path) if abs_path else None
 
 
 @router.get("/files/{filename:path}", response_class=FileResponse)

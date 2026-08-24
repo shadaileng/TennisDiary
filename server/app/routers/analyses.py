@@ -15,6 +15,7 @@ from app.models.analysis import Analysis
 from app.models.user import User
 from app.schemas.common import ApiResponse, PaginatedData
 from app.schemas.schemas import AnalysisCreate, AnalysisResponse
+from app.services import file_service
 
 log = get_logger("user")
 
@@ -71,7 +72,7 @@ def create_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """落库分析报告：AI 分析成功后调用，供历史回看"""
+    """落库分析报告：AI 分析成功后调用，供历史回看（同时注册所有关联文件到 File 表）"""
     analysis = Analysis(
         user_id=current_user.id,
         date=body.date,
@@ -88,6 +89,37 @@ def create_analysis(
         created_at=time.time(),
     )
     db.add(analysis)
+    db.flush()  # 获取 analysis.id
+
+    # 收集所有需要注册的文件路径
+    files_to_register = []
+    if body.thumb:
+        files_to_register.append(body.thumb)
+    if body.video_url:
+        files_to_register.append(body.video_url)
+    if body.highlights and isinstance(body.highlights, list):
+        files_to_register.extend(body.highlights)
+    # 骨架产物（从 pose JSON 提取）
+    if body.pose and isinstance(body.pose, dict):
+        skeleton_frames = body.pose.get("skeleton_frames") or []
+        files_to_register.extend(skeleton_frames)
+        skeleton_video = body.pose.get("skeleton_video_url")
+        if skeleton_video:
+            files_to_register.append(skeleton_video)
+        skeleton_thumb = body.pose.get("skeleton_thumb")
+        if skeleton_thumb:
+            files_to_register.append(skeleton_thumb)
+
+    # 批量注册文件
+    if files_to_register:
+        file_service.register_ai_files(
+            db=db,
+            user_id=current_user.id,
+            paths=files_to_register,
+            business_type="analysis",
+            business_id=analysis.id,
+        )
+
     db.commit()
     db.refresh(analysis)
     log.info("分析报告落库成功", user_id=current_user.id, analysis_id=analysis.id)
@@ -133,8 +165,12 @@ def delete_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除分析报告"""
+    """删除分析报告（同时递减所有关联文件引用计数：视频、帧、骨架产物）"""
     analysis = _get_owned_analysis(db, analysis_id, current_user)
+
+    # 递减所有关联文件的引用计数
+    file_service.decrement_analysis_files(db, analysis)
+
     db.delete(analysis)
     db.commit()
     log.info("删除分析报告成功", user_id=current_user.id, analysis_id=analysis_id)

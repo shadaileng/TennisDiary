@@ -91,7 +91,7 @@ class TestAnalyze:
 
         monkeypatch.setattr(settings, "AI_API_KEY", "sk-test")
 
-        async def fake_analyze_swing(frames, kind, mode, ai_config):
+        async def fake_analyze_swing(frames, kind, mode, ai_config, frame_urls=None):
             return self.FULL_REPORT
 
         monkeypatch.setattr(ai_router.ai_service, "analyze_swing", fake_analyze_swing)
@@ -115,7 +115,7 @@ class TestAnalyze:
 
         captured = {}
 
-        async def fake_analyze_swing(frames, kind, mode, ai_config):
+        async def fake_analyze_swing(frames, kind, mode, ai_config, frame_urls=None):
             captured["model"] = ai_config.model
             captured["base_url"] = ai_config.base_url
             captured["api_key"] = ai_config.api_key
@@ -141,7 +141,7 @@ class TestAnalyze:
         """AI 调用异常 → 200 + score=0 降级报告"""
         from app.routers import ai as ai_router
 
-        async def boom(frames, kind, mode, ai_config):
+        async def boom(frames, kind, mode, ai_config, frame_urls=None):
             raise RuntimeError("ai call failed")
 
         monkeypatch.setattr(ai_router.ai_service, "analyze_swing", boom)

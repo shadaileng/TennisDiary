@@ -8,6 +8,7 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
+import { uploadFile } from "@/utils/upload";
 
 import type { CostItem } from "@/types";
 
@@ -142,34 +143,20 @@ export function resolveUploadUrl(url: string): string {
 // ==================== 图片 ====================
 
 /**
- * 上传装备封面图片到服务器。
- *
- * @param filePath 临时文件路径
- * @returns 服务器相对路径 URL，失败返回空字符串
+ * 上传装备封面图片到服务器，返回相对路径。
+ * 内部使用 uploadFile 统一上传工具，事件钩子由调用方按需注入。
  */
-export function uploadGearImage(filePath: string): Promise<string> {
-  const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
-  return new Promise((resolve, reject) => {
-    uni.uploadFile({
-      url: `${BASE_URL}${API_PREFIX}/upload/gear-image`,
-      filePath,
-      name: "file",
-      header: token ? { "X-Auth-Token": token } : {},
-      success: (res) => {
-        try {
-          const data = JSON.parse(res.data as string);
-          if (data.code === 0 && data.data?.url) {
-            resolve(data.data.url);
-          } else {
-            reject(new Error(data.message || "上传失败"));
-          }
-        } catch {
-          reject(new Error("解析响应失败"));
-        }
-      },
-      fail: (err) => reject(new Error(err.errMsg || "上传失败")),
-    });
-  });
+export function uploadGearImage(
+  filePath: string,
+  hooks?: { onSuccess?: (url: string, durationMs: number) => void; onFailed?: (error: Error, durationMs: number) => void; onMirage?: (url: string, durationMs: number) => void },
+): Promise<string> {
+  return uploadFile({
+    path: "/upload/gear-image",
+    filePath,
+    onSuccess: (data, durationMs) => hooks?.onSuccess?.(data.url as string, durationMs),
+    onFailed: (error, durationMs) => hooks?.onFailed?.(error, durationMs),
+    onMirage: (data, durationMs) => hooks?.onMirage?.(data.url as string, durationMs),
+  }).then((r) => r.url);
 }
 
 /**

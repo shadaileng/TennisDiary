@@ -62,6 +62,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '分析报告', icon: 'ChartBarIcon', permission: 'analyses:list' }
       },
       {
+        path: 'files',
+        name: 'Files',
+        component: () => import('@/views/files/index.vue'),
+        meta: { title: '文件管理', icon: 'FolderIcon', permission: 'system:health' }
+      },
+      {
         path: 'system',
         name: 'System',
         redirect: '/system/health',

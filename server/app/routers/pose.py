@@ -1,17 +1,14 @@
 """姿态推理路由（POST /api/pose/analyze, POST /api/pose/video）"""
 
-import os
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
-from app.services import pose_service
+from app.services import file_service, pose_service
 from app.services.pose_service import PoseUnavailableError
 
 log = get_logger("user")
@@ -79,12 +76,12 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
-        log.error(f"姿态推理失败: {exc}", exc_info=True)
+        log.error("姿态推理失败: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except Exception as exc:
-        log.error(f"姿态推理异常: {exc}", exc_info=True)
+        log.error("姿态推理异常: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="姿态推理服务异常，请稍后重试",
@@ -116,10 +113,9 @@ def analyze_video(req: PoseVideoRequest, current_user: User = Depends(get_curren
             detail="姿态推理服务不可用：模型缺失或 mediapipe 未安装",
         )
 
-    # 解析视频路径
-    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
-    video_path = os.path.normpath(os.path.join(upload_dir, req.video_url))
-    if not video_path.startswith(upload_dir + os.sep) or not os.path.isfile(video_path):
+    # 使用 file_service 解析视频路径
+    video_path = file_service.resolve_safe_path(req.video_url)
+    if video_path is None or not file_service.file_exists(video_path):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="video_url 无效或文件不存在",

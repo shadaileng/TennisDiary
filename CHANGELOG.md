@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.70.0] - 2026-08-24
+
+### Added
+
+- 文件管理系统（109）：独立 File 模型 + MD5 秒传 + ref_count 引用计数 + 软删除联动 + Admin 文件管理 API + 小程序统一上传工具 uploadRaw/uploadFile + Admin 文件管理页 + 约束修复（移除 md5 UNIQUE → 新增 original_name UNIQUE）
+
 ## [1.69.4] - 2026-08-23
 
 ### Fixed

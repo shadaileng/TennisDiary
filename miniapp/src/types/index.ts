@@ -226,6 +226,7 @@ export interface VideoUploadResult {
   video_url: string // 视频文件相对路径
   trimmed?: boolean // 是否服务端裁剪拼接
   segments?: { start: number; end: number }[] // 裁剪片段列表（拼接后）
+  mirage?: boolean // 是否秒传（上传工具注入）
 }
 
 /** 姿态关键点（BlazePose 33 项之一） */

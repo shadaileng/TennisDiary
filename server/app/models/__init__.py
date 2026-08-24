@@ -10,6 +10,7 @@ from app.models.analysis import Analysis
 from app.models.checkin import Checkin
 from app.models.diary import Diary
 from app.models.event_log import EventLog
+from app.models.file import File
 from app.models.gear import Gear
 from app.models.post import Post
 from app.models.role import Role
@@ -24,6 +25,7 @@ __all__ = [
     "Checkin",
     "Diary",
     "EventLog",
+    "File",
     "Gear",
     "Post",
     "Role",
