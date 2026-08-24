@@ -8,7 +8,7 @@
 
 ### Added
 
-- 文件管理系统（109）：独立 File 模型 + MD5 秒传 + ref_count 引用计数 + 软删除联动 + Admin 文件管理 API + 小程序统一上传工具 uploadRaw/uploadFile + Admin 文件管理页 + 约束修复（移除 md5 UNIQUE → 新增 original_name UNIQUE）
+- 文件管理系统（109）：后端新增独立 File 模型 + MD5 秒传 + ref_count 引用计数 + 软删除联动，统一路径工具到 file_service.py；新增 Admin 文件管理 API（list/detail/stats/delete/cleanup）+ Admin 文件管理前端页；小程序统一上传工具 uploadRaw/uploadFile + 事件钩子，重构 uploadAvatar/uploadGearImage/uploadVideo 三个函数；约束修复（移除 md5 UNIQUE → 新增 original_name UNIQUE，秒传恢复为新建独立记录 + 复用物理路径 + 原记录 ref_count 递增）。430 测试通过。
 
 ## [1.69.4] - 2026-08-23
 
