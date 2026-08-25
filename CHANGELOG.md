@@ -4,6 +4,32 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.74.0] - 2026-08-25
+
+### Added
+
+- 多选删除可清除文件（113）：Admin 文件管理列表支持多选并批量删除「可清除」文件（usage_status≠in_use）。公共 Table 组件增强（`columns` 支持 width/align/className，内置 `selectable` 多选列、`rowSelectable` 谓词、`selection-change` 事件、`clearSelection` 暴露方法，8 个使用页零影响）；后端抽出 `file_service.soft_delete_file` 复用单条删除逻辑，新增 `POST /api/admin/files/batch-delete` 返回 `{deleted, skipped, disk_removed, errors}`（空列表返回 400）；前端「批量删除 (N)」按钮仅对可清除文件可选。4 个后端测试通过。
+
+## [1.73.0] - 2026-08-25
+
+### Added
+
+- 立即清理孤儿文件（112）：Admin 扫描弹窗新增「立即清理」按钮，物理删除选中的孤儿文件（未在 File 表中注册的文件）。`file_service.cleanup_orphan_paths(rel_paths)` 物理删除并返回成功数；`POST /api/admin/files/cleanup-orphans` 接受 `CleanupOrphansRequest{files}`，带审计日志。
+
+### Fixed
+
+- 修复文件统计「可清除」计数恒为 0：原用 `ref_count<=0` 聚合，但秒传机制使所有文件 `ref_count>=1`，改为逐条调用 `classify_file_usage` 计数，与列表端点逻辑一致（本地实测 in_use=65 / unreferenced=121）。
+
+## [1.72.0] - 2026-08-25
+
+### Added
+
+- 文件使用标记（111）：基于数据库引用核查标记文件「使用中 / 可清除」。新增 `file_service.classify_file_usage(db, file_record) -> (usage_status, usage_reason)`，按优先级判定：已软删→marked_deleted；ref_count<=0→unreferenced；business_type+business_id 精确路径匹配→in_use/unreferenced；否则按 upload_source 主动查业务表（avatar→User、gear_image→Gear、video/video_frame/skeleton→Analysis）推断；均无引用→unreferenced。`AdminFileResponse`/`OrphanFileInfo` 新增 `usage_status`/`usage_reason`；Admin 列表/统计/扫描弹窗展示状态徽标 + 按状态客户端过滤。24 个后端测试通过。
+
+### Fixed
+
+- 修正 `classify_file_usage` 逻辑：移除 `business_id=None` 硬截断，改为按 `upload_source` 主动查业务表推断，使未绑定 business_id 的新上传文件（头像/装备图/视频）也能正确分类为「使用中」而非一律「可清除」。
+
 ## [1.71.0] - 2026-08-24
 
 ### Added
