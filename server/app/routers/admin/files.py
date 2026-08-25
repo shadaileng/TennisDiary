@@ -26,9 +26,12 @@ log = get_logger("admin")
 router = APIRouter(prefix="/api/admin/files", tags=["admin-files"])
 
 
-def _file_to_response(file_record: File, db: Session) -> AdminFileResponse:
+def _file_to_response(
+    file_record: File,
+    db: Session,
+    classifications: dict | None = None,
+) -> AdminFileResponse:
     """将 File ORM 转换为 AdminFileResponse，包含派生文件查询"""
-    # 查询派生文件（相同 business_type + business_id 的其他文件）
     derived_files = []
     if file_record.business_type and file_record.business_id:
         derived_records = (
@@ -54,6 +57,11 @@ def _file_to_response(file_record: File, db: Session) -> AdminFileResponse:
             for d in derived_records
         ]
 
+    if classifications and file_record.id in classifications:
+        usage_status, usage_reason = classifications[file_record.id]
+    else:
+        usage_status, usage_reason = file_service.classify_file_usage(db, file_record)
+
     return AdminFileResponse(
         id=file_record.id,
         user_id=file_record.user_id,
@@ -68,13 +76,8 @@ def _file_to_response(file_record: File, db: Session) -> AdminFileResponse:
         business_id=file_record.business_id,
         created_at=file_record.created_at,
         derived_files=derived_files,
-        **dict(
-            zip(
-                ["usage_status", "usage_reason"],
-                file_service.classify_file_usage(db, file_record),
-                strict=True,
-            )
-        ),
+        usage_status=usage_status,
+        usage_reason=usage_reason,
     )
 
 
@@ -102,15 +105,16 @@ def list_files(
     # usage_status 是实时计算的，无法用 SQL WHERE，需在 Python 中筛选
     if usage_status:
         all_files = query.order_by(File.created_at.desc()).all()
+        classifications = file_service.bulk_classify_files(db, all_files)
         matched = [
             f for f in all_files
-            if file_service.classify_file_usage(db, f)[0] == usage_status
+            if classifications.get(f.id, ("", ""))[0] == usage_status
         ]
         total = len(matched)
         paginated = matched[offset : offset + limit]
         return ApiResponse(
             data=AdminFileListResponse(
-                items=[_file_to_response(f, db) for f in paginated],
+                items=[_file_to_response(f, db, classifications) for f in paginated],
                 total=total,
                 offset=offset,
                 limit=limit,

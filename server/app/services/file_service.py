@@ -584,3 +584,124 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
             return "unreferenced", "验证异常"
 
     return "unreferenced", "未绑定业务记录"
+
+
+def bulk_classify_files(db: Session, files: list[File]) -> dict[int, tuple[str, str]]:
+    """批量分类文件状态，预加载业务数据避免 N+1 查询。
+
+    返回 {file_id: (status, reason)}。
+    """
+    user_ids = set()
+    gear_ids = set()
+    analysis_ids = set()
+    video_user_ids = set()
+
+    for f in files:
+        if f.business_type == "user" and f.business_id:
+            user_ids.add(f.business_id)
+        elif f.business_type == "gear" and f.business_id:
+            gear_ids.add(f.business_id)
+        elif f.business_type == "analysis" and f.business_id:
+            analysis_ids.add(f.business_id)
+        if f.upload_source == "avatar":
+            user_ids.add(f.user_id)
+        if f.upload_source == "gear_image":
+            video_user_ids.add(f.user_id)
+        if f.upload_source in ("video", "video_frame", "skeleton"):
+            video_user_ids.add(f.user_id)
+
+    users = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        if user_ids else {}
+    )
+    gears = (
+        {g.id: g for g in db.query(Gear).filter(Gear.id.in_(gear_ids)).all()}
+        if gear_ids else {}
+    )
+    analyses = (
+        {a.id: a for a in db.query(Analysis).filter(Analysis.id.in_(analysis_ids)).all()}
+        if analysis_ids else {}
+    )
+    video_analyses: dict[int, list[Analysis]] = {}
+    if video_user_ids:
+        for a in db.query(Analysis).filter(Analysis.user_id.in_(video_user_ids)).all():
+            video_analyses.setdefault(a.user_id, []).append(a)
+
+    def _check_analysis(a: Analysis | None, rel: str) -> bool:
+        if a is None:
+            return False
+        return bool(
+            (a.video_url and rel in a.video_url)
+            or (a.thumb and rel in a.thumb)
+            or (a.highlights and rel in (a.highlights or ""))
+            or (a.pose and rel in (a.pose or ""))
+        )
+
+    result: dict[int, tuple[str, str]] = {}
+    for f in files:
+        rel = f.rel_path
+        bt = f.business_type
+        bid = f.business_id
+        src = f.upload_source
+        uid = f.user_id
+
+        if f.deleted_at is not None:
+            result[f.id] = ("marked_deleted", "已标记删除，待物理清理")
+            continue
+
+        if f.ref_count <= 0:
+            result[f.id] = ("unreferenced", "引用计数归零")
+            continue
+
+        if bt is not None and bid is not None:
+            if bt == "user":
+                user = users.get(bid)
+                if user and user.avatar_url == rel:
+                    result[f.id] = ("in_use", "用户头像引用有效")
+                else:
+                    result[f.id] = ("unreferenced", "用户头像引用已失效")
+                continue
+            if bt == "gear":
+                gear = gears.get(bid)
+                if gear and gear.photo == rel:
+                    result[f.id] = ("in_use", "装备图片引用有效")
+                else:
+                    result[f.id] = ("unreferenced", "装备记录引用已失效")
+                continue
+            if bt == "analysis":
+                analysis = analyses.get(bid)
+                if _check_analysis(analysis, rel):
+                    result[f.id] = ("in_use", "分析报告引用有效")
+                else:
+                    result[f.id] = ("unreferenced", "分析报告引用已失效")
+                continue
+            result[f.id] = ("unreferenced", f"未知业务类型 {bt}")
+            continue
+
+        if src == "avatar":
+            user = users.get(uid)
+            if user and user.avatar_url == rel:
+                result[f.id] = ("in_use", "用户头像引用有效")
+            else:
+                result[f.id] = ("unreferenced", "用户头像引用已失效")
+            continue
+
+        if src == "gear_image":
+            gear_match = any(g.user_id == uid and g.photo == rel for g in gears.values())
+            if gear_match:
+                result[f.id] = ("in_use", "装备图片引用有效")
+            else:
+                result[f.id] = ("unreferenced", "装备记录引用已失效")
+            continue
+
+        if src in ("video", "video_frame", "skeleton"):
+            matched = any(_check_analysis(a, rel) for a in video_analyses.get(uid, []))
+            if matched:
+                result[f.id] = ("in_use", "分析报告引用有效")
+            else:
+                result[f.id] = ("unreferenced", "分析报告引用已失效")
+            continue
+
+        result[f.id] = ("unreferenced", "未绑定业务记录")
+
+    return result
