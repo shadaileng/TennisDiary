@@ -146,7 +146,7 @@
             </div>
             <div>
               <span class="text-sm font-medium text-gray-500">原始文件名</span>
-              <p class="mt-1 text-sm text-gray-900">{{ selectedFile.original_name || '--' }}</p>
+              <p class="mt-1 text-sm text-gray-900 break-all">{{ selectedFile.original_name || '--' }}</p>
             </div>
             <div>
               <span class="text-sm font-medium text-gray-500">大小</span>
