@@ -427,7 +427,7 @@ import { formatTs } from '@/utils/date'
 const columns = [
   { key: 'id', title: 'ID', width: 70 },
   { key: 'user_id', title: '用户', width: 56 },
-  { key: 'original_name', title: '文件名', width: 180, wrap: true },
+  { key: 'original_name', title: '文件名', width: 120, wrap: true },
   { key: 'size_bytes', title: '大小', width: 80 },
   { key: 'upload_source', title: '来源', width: 80 },
   { key: 'usage_status', title: '使用状态', width: 90 },
