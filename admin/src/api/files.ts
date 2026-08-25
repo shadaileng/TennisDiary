@@ -67,6 +67,7 @@ export function getFiles(params: {
   user_id?: number
   upload_source?: string
   business_type?: string
+  usage_status?: string
 }): Promise<FileListResponse> {
   return request.get('/api/admin/files', { params })
 }

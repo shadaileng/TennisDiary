@@ -70,7 +70,7 @@
     <Table
       ref="tableRef"
       :columns="columns"
-      :data="filteredFiles"
+      :data="files"
       :row-clickable="true"
       :selectable="true"
       row-key="id"
@@ -404,7 +404,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import {
   getFiles,
   getFileStats,
@@ -453,11 +453,6 @@ const onSelectionChange = (rows: AdminFile[]) => {
   selectedFiles.value = rows
 }
 
-const filteredFiles = computed(() => {
-  if (!filterUsageStatus.value) return files.value
-  return files.value.filter((f) => f.usage_status === filterUsageStatus.value)
-})
-
 // 扫描相关状态
 const scanning = ref(false)
 const scanResult = ref<ScanResultResponse | null>(null)
@@ -477,6 +472,7 @@ const fetchFiles = async () => {
     const params: Record<string, unknown> = { offset, limit: pageSize.value }
     if (filterSource.value) params.upload_source = filterSource.value
     if (filterUserId.value) params.user_id = Number(filterUserId.value)
+    if (filterUsageStatus.value) params.usage_status = filterUsageStatus.value
     const res = await getFiles(params)
     files.value = res.items
     total.value = res.total

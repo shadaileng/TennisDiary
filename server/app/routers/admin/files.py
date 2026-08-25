@@ -85,10 +85,11 @@ def list_files(
     user_id: int | None = Query(None, description="按用户 ID 过滤"),
     upload_source: str | None = Query(None, description="按上传来源过滤"),
     business_type: str | None = Query(None, description="按业务类型过滤"),
+    usage_status: str | None = Query(None, description="按使用状态过滤（实时计算）"),
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """文件管理列表（支持按用户/来源/业务类型过滤）"""
+    """文件管理列表（支持按用户/来源/业务类型/使用状态过滤）"""
     query = db.query(File).filter(File.deleted_at.is_(None))
 
     if user_id is not None:
@@ -97,6 +98,24 @@ def list_files(
         query = query.filter(File.upload_source == upload_source)
     if business_type:
         query = query.filter(File.business_type == business_type)
+
+    # usage_status 是实时计算的，无法用 SQL WHERE，需在 Python 中筛选
+    if usage_status:
+        all_files = query.order_by(File.created_at.desc()).all()
+        matched = [
+            f for f in all_files
+            if file_service.classify_file_usage(db, f)[0] == usage_status
+        ]
+        total = len(matched)
+        paginated = matched[offset : offset + limit]
+        return ApiResponse(
+            data=AdminFileListResponse(
+                items=[_file_to_response(f, db) for f in paginated],
+                total=total,
+                offset=offset,
+                limit=limit,
+            )
+        )
 
     total = query.count()
     files = query.order_by(File.created_at.desc()).offset(offset).limit(limit).all()
