@@ -161,6 +161,70 @@ class TestClassifyFileUsage:
         assert status == "unreferenced"
         assert "未绑定业务记录" in reason
 
+    def test_user_source_infer_in_use(self, test_engine, test_db):
+        uid = 1100
+        rel = f"avatars/{uid}/pic.jpg"
+        test_db.add(User(id=uid, openid=f"oid_{uid}", avatar_url=rel))
+        test_db.commit()
+        # business_type=None, upload_source="avatar" → 走 upload_source 推断
+        rec = _insert_file(
+            test_db, user_id=uid, rel_path=rel,
+            business_type=None, upload_source="avatar", business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "in_use"
+        assert "头像引用有效" in reason
+
+    def test_user_source_infer_unreferenced(self, test_engine, test_db):
+        uid = 1101
+        rel = f"avatars/{uid}/pic.jpg"
+        # 没有对应的 User 记录
+        rec = _insert_file(
+            test_db, user_id=uid, rel_path=rel,
+            business_type=None, upload_source="avatar", business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "unreferenced"
+        assert "头像引用已失效" in reason
+
+    def test_gear_source_infer_in_use(self, test_engine, test_db):
+        uid = 2100
+        rel = f"gears/{uid}/ball.jpg"
+        test_db.add(Gear(id=300, user_id=uid, photo=rel))
+        test_db.commit()
+        rec = _insert_file(
+            test_db, user_id=uid, rel_path=rel,
+            business_type=None, upload_source="gear_image", business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "in_use"
+        assert "装备图片引用有效" in reason
+
+    def test_video_source_infer_in_use(self, test_engine, test_db):
+        uid = 3100
+        aid = 700
+        rel = f"videos/{uid}/{aid}.mp4"
+        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", video_url=rel))
+        test_db.commit()
+        rec = _insert_file(
+            test_db, user_id=uid, rel_path=rel,
+            business_type=None, upload_source="video", business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "in_use"
+        assert "分析报告引用有效" in reason
+
+    def test_unknown_source_no_business_id(self, test_engine, test_db):
+        uid = 4100
+        rel = f"unknown/{uid}/x.jpg"
+        rec = _insert_file(
+            test_db, user_id=uid, rel_path=rel,
+            business_type=None, upload_source="other", business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "unreferenced"
+        assert "未绑定业务记录" in reason
+
     def test_user_in_use(self, test_engine, test_db):
         uid = 1000
         rel = f"avatars/{uid}/pic.jpg"

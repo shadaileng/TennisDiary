@@ -472,53 +472,95 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
     判定顺序（优先级从高到低）：
     1. 已软删 → marked_deleted
     2. 引用计数归零 → unreferenced
-    3. 无 business_id → unreferenced
-    4. 按 business_type 精确匹配业务表中的 rel_path
-       - user：User.avatar_url == rel_path
-       - gear：Gear.photo == rel_path
-       - analysis：video_url / thumb / highlights / pose 任一包含 rel_path
-       - 其他：unreferenced（保守不猜）
-    5. 无法验证类型（未知 business_type 但 business_id 非空）→ unreferenced
+    3. 有 business_type + business_id → 按业务类型查对应表做路径匹配
+    4. 无 business_id → 按 upload_source 推断应查的业务表做兜底匹配
+    5. 以上均不匹配 → unreferenced
     """
     if file_record.deleted_at is not None:
         return "marked_deleted", "已标记删除，待物理清理"
     if file_record.ref_count <= 0:
         return "unreferenced", "引用计数已归零"
-    if file_record.business_id is None:
-        return "unreferenced", "未绑定业务记录"
 
     rel = file_record.rel_path
     bt = file_record.business_type
     bid = file_record.business_id
+    src = file_record.upload_source
+    uid = file_record.user_id
 
-    try:
-        if bt == "user":
-            user = db.query(User).filter(User.id == bid).first()
-            if user is not None and user.avatar_url == rel:
+    # 步骤 3：business_type + business_id 精确匹配
+    if bt is not None and bid is not None:
+        try:
+            if bt == "user":
+                user = db.query(User).filter(User.id == bid).first()
+                if user is not None and user.avatar_url == rel:
+                    return "in_use", "用户头像引用有效"
+                return "unreferenced", "用户头像引用已失效"
+
+            if bt == "gear":
+                gear = db.query(Gear).filter(Gear.id == bid).first()
+                if gear is not None and gear.photo == rel:
+                    return "in_use", "装备图片引用有效"
+                return "unreferenced", "装备记录引用已失效"
+
+            if bt == "analysis":
+                analysis = db.query(Analysis).filter(Analysis.id == bid).first()
+                if analysis is not None:
+                    if analysis.video_url and rel in analysis.video_url:
+                        return "in_use", "分析报告引用有效"
+                    if analysis.thumb and rel in analysis.thumb:
+                        return "in_use", "分析报告引用有效"
+                    if analysis.highlights and rel in (analysis.highlights or ""):
+                        return "in_use", "分析报告引用有效"
+                    if analysis.pose and rel in (analysis.pose or ""):
+                        return "in_use", "分析报告引用有效"
+                return "unreferenced", "分析报告引用已失效"
+        except Exception as exc:
+            log.warning("classify_file_usage 业务表查询异常: %s", exc, exc_info=True)
+            return "unreferenced", "验证异常"
+
+        if bt:
+            return "unreferenced", f"未知业务类型 {bt}"
+
+    # 步骤 4：upload_source 推断兜底（business_type=None 的文件）
+    if src == "avatar":
+        try:
+            user = db.query(User).filter(User.id == uid, User.avatar_url == rel).first()
+            if user is not None:
                 return "in_use", "用户头像引用有效"
             return "unreferenced", "用户头像引用已失效"
+        except Exception as exc:
+            log.warning("classify_file_usage avatar 查询异常: %s", exc, exc_info=True)
+            return "unreferenced", "验证异常"
 
-        if bt == "gear":
-            gear = db.query(Gear).filter(Gear.id == bid).first()
-            if gear is not None and gear.photo == rel:
+    if src == "gear_image":
+        try:
+            gear = db.query(Gear).filter(Gear.user_id == uid, Gear.photo == rel).first()
+            if gear is not None:
                 return "in_use", "装备图片引用有效"
             return "unreferenced", "装备记录引用已失效"
+        except Exception as exc:
+            log.warning("classify_file_usage gear_image 查询异常: %s", exc, exc_info=True)
+            return "unreferenced", "验证异常"
 
-        if bt == "analysis":
-            analysis = db.query(Analysis).filter(Analysis.id == bid).first()
-            if analysis is not None:
-                if analysis.video_url and rel in analysis.video_url:
+    if src in ("video", "video_frame", "skeleton"):
+        try:
+            analyses = (
+                db.query(Analysis)
+                .filter(Analysis.user_id == uid)
+                .all()
+            )
+            for a in analyses:
+                if a.video_url and rel in a.video_url:
                     return "in_use", "分析报告引用有效"
-                if analysis.thumb and rel in analysis.thumb:
+                if a.thumb and rel in a.thumb:
                     return "in_use", "分析报告引用有效"
-                if analysis.highlights and rel in (analysis.highlights or ""):
+                if a.highlights and rel in (a.highlights or ""):
                     return "in_use", "分析报告引用有效"
-                if analysis.pose and rel in (analysis.pose or ""):
+                if a.pose and rel in (a.pose or ""):
                     return "in_use", "分析报告引用有效"
             return "unreferenced", "分析报告引用已失效"
-    except Exception as exc:
-        log.warning("classify_file_usage 异常: %s", exc, exc_info=True)
+        except Exception as exc:
+            log.warning("classify_file_usage video 查询异常: %s", exc, exc_info=True)
+            return "unreferenced", "验证异常"
 
-    if bt:
-        return "unreferenced", f"未知业务类型 {bt}"
     return "unreferenced", "未绑定业务记录"
