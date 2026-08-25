@@ -68,6 +68,13 @@ def _file_to_response(file_record: File, db: Session) -> AdminFileResponse:
         business_id=file_record.business_id,
         created_at=file_record.created_at,
         derived_files=derived_files,
+        **dict(
+            zip(
+                ["usage_status", "usage_reason"],
+                file_service.classify_file_usage(db, file_record),
+                strict=True,
+            )
+        ),
     )
 
 
@@ -129,6 +136,9 @@ def file_stats(
     total_count = db.query(File).filter(File.deleted_at.is_(None)).count()
     total_size = db.query(func.sum(File.size_bytes)).filter(File.deleted_at.is_(None)).scalar() or 0
 
+    marked_deleted = db.query(File).filter(File.deleted_at.isnot(None)).count()
+    unreferenced = db.query(File).filter(File.ref_count <= 0, File.deleted_at.is_(None)).count()
+
     # 按来源分组统计
     source_stats = (
         db.query(File.upload_source, func.count(File.id), func.sum(File.size_bytes))
@@ -146,6 +156,8 @@ def file_stats(
             "total_count": total_count,
             "total_size_bytes": total_size,
             "by_source": by_source,
+            "marked_deleted_count": marked_deleted,
+            "unreferenced_count": unreferenced,
         }
     )
 

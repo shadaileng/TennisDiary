@@ -24,6 +24,8 @@ export interface AdminFile {
   business_id: number | null
   created_at: number
   derived_files: DerivedFileInfo[]
+  usage_status: string
+  usage_reason: string
 }
 
 export interface FileListResponse {
@@ -37,6 +39,8 @@ export interface FileStats {
   total_count: number
   total_size_bytes: number
   by_source: Record<string, { count: number; size_bytes: number }>
+  marked_deleted_count?: number
+  unreferenced_count?: number
 }
 
 export interface OrphanFileInfo {
@@ -45,6 +49,8 @@ export interface OrphanFileInfo {
   modified_at: number
   inferred_user_id: number | null
   inferred_source: string
+  usage_status: string
+  usage_reason: string
 }
 
 export interface ScanResultResponse {

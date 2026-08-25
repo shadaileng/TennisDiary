@@ -14,6 +14,16 @@
           <option value="video_frame">视频帧</option>
           <option value="skeleton">骨架文件</option>
         </select>
+        <select
+          v-model="filterUsageStatus"
+          class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">全部状态</option>
+          <option value="in_use">使用中</option>
+          <option value="unreferenced">可清除·引用失效</option>
+          <option value="marked_deleted">可清除·已软删</option>
+          <option value="orphan">可清除·孤儿</option>
+        </select>
         <input
           v-model="filterUserId"
           type="number"
@@ -37,7 +47,7 @@
     </div>
 
     <!-- 统计卡片 -->
-    <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-5 gap-4 mb-6">
       <StatCard title="文件总数" :value="stats.total_count" icon="DocumentTextIcon" color="blue" />
       <StatCard
         title="总大小(MB)"
@@ -47,11 +57,22 @@
       />
       <StatCard title="头像" :value="stats.by_source?.avatar?.count || 0" icon="UsersIcon" color="green" />
       <StatCard title="视频" :value="stats.by_source?.video?.count || 0" icon="WrenchIcon" color="orange" />
+      <StatCard title="可清除" :value="(stats.marked_deleted_count || 0) + (stats.unreferenced_count || 0)" icon="DocumentTextIcon" color="orange" />
     </div>
 
-    <Table :columns="columns" :data="files" :row-clickable="true" @row-click="viewFile">
+    <Table :columns="columns" :data="filteredFiles" :row-clickable="true" @row-click="viewFile">
       <template #cell-size_bytes="{ value }">
         {{ formatSize(value) }}
+      </template>
+
+      <template #cell-usage_status="{ row }">
+        <span
+          :class="usageBadgeClass(row.usage_status)"
+          :title="row.usage_reason"
+          class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+        >
+          {{ usageBadgeLabel(row.usage_status) }}
+        </span>
       </template>
 
       <template #cell-ref_count="{ row }">
@@ -131,6 +152,21 @@
                 "
               >
                 {{ selectedFile.ref_count }}
+              </p>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">使用状态</span>
+              <p class="mt-1 text-sm">
+                <span
+                  :class="usageBadgeClass(selectedFile.usage_status)"
+                  :title="selectedFile.usage_reason"
+                  class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                >
+                  {{ usageBadgeLabel(selectedFile.usage_status) }}
+                </span>
+                <span v-if="selectedFile.usage_reason" class="ml-2 text-gray-500 text-xs">
+                  — {{ selectedFile.usage_reason }}
+                </span>
               </p>
             </div>
             <div>
@@ -272,6 +308,7 @@
                     <th class="px-4 py-2 text-left">修改时间</th>
                     <th class="px-4 py-2 text-center">用户</th>
                     <th class="px-4 py-2 text-center">来源</th>
+                    <th class="px-4 py-2 text-center">状态</th>
                     <th class="px-4 py-2 text-center">操作</th>
                   </tr>
                 </thead>
@@ -294,6 +331,15 @@
                     <td class="px-4 py-2 text-gray-600">{{ formatTs(orphan.modified_at) }}</td>
                     <td class="px-4 py-2 text-center">{{ orphan.inferred_user_id || '--' }}</td>
                     <td class="px-4 py-2 text-center text-gray-600">{{ orphan.inferred_source }}</td>
+                    <td class="px-4 py-2 text-center">
+                      <span
+                        :class="usageBadgeClass(orphan.usage_status)"
+                        :title="orphan.usage_reason"
+                        class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                      >
+                        {{ usageBadgeLabel(orphan.usage_status) }}
+                      </span>
+                    </td>
                     <td class="px-4 py-2 text-center">
                       <button
                         @click="confirmRegisterSingle(orphan.rel_path)"
@@ -334,7 +380,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import {
   getFiles,
   getFileStats,
@@ -358,6 +404,7 @@ const columns = [
   { key: 'original_name', title: '文件名' },
   { key: 'size_bytes', title: '大小' },
   { key: 'upload_source', title: '来源' },
+  { key: 'usage_status', title: '使用状态' },
   { key: 'ref_count', title: '引用' },
   { key: 'created_at', title: '上传时间' }
 ]
@@ -367,9 +414,15 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const filterSource = ref('')
+const filterUsageStatus = ref('')
 const filterUserId = ref('')
 const selectedFile = ref<AdminFile | null>(null)
 const stats = ref<FileStats>({ total_count: 0, total_size_bytes: 0, by_source: {} })
+
+const filteredFiles = computed(() => {
+  if (!filterUsageStatus.value) return files.value
+  return files.value.filter((f) => f.usage_status === filterUsageStatus.value)
+})
 
 // 扫描相关状态
 const scanning = ref(false)
@@ -396,6 +449,26 @@ const fetchFiles = async () => {
   } catch (e) {
     console.error('Failed to fetch files:', e)
   }
+}
+
+const usageBadgeLabel = (status: string): string => {
+  const map: Record<string, string> = {
+    in_use: '使用中',
+    unreferenced: '可清除',
+    marked_deleted: '可清除',
+    orphan: '可清除·孤儿',
+  }
+  return map[status] || status
+}
+
+const usageBadgeClass = (status: string): string => {
+  const map: Record<string, string> = {
+    in_use: 'bg-green-100 text-green-700',
+    unreferenced: 'bg-orange-100 text-orange-700',
+    marked_deleted: 'bg-gray-200 text-gray-600',
+    orphan: 'bg-red-100 text-red-700',
+  }
+  return map[status] || 'bg-gray-100 text-gray-600'
 }
 
 const fetchStats = async () => {
@@ -513,6 +586,11 @@ const confirmRegisterAll = async () => {
 }
 
 watch([filterSource, filterUserId], () => {
+  currentPage.value = 1
+  fetchFiles()
+})
+
+watch(filterUsageStatus, () => {
   currentPage.value = 1
   fetchFiles()
 })

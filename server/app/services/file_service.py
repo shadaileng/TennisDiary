@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.models.analysis import Analysis
 from app.models.file import File
+from app.models.gear import Gear
+from app.models.user import User
 
 log = get_logger("user")
 
@@ -387,6 +390,8 @@ def scan_orphan_files(db: Session) -> dict:
                             "modified_at": stat.st_mtime,
                             "inferred_user_id": _infer_user_id(rel_path),
                             "inferred_source": _infer_upload_source(rel_path),
+                            "usage_status": "orphan",
+                            "usage_reason": "磁盘孤儿，未注册到文件表",
                         }
                     )
                 except (OSError, ValueError) as exc:
@@ -448,3 +453,61 @@ def register_orphan_files(
         log.info("注册孤立文件: %s user_id=%d source=%s", rel_path, user_id, upload_source)
 
     return registered
+
+
+def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
+    """根据业务表实际引用核查，返回 (usage_status, usage_reason)。
+
+    判定顺序（优先级从高到低）：
+    1. 已软删 → marked_deleted
+    2. 引用计数归零 → unreferenced
+    3. 无 business_id → unreferenced
+    4. 按 business_type 精确匹配业务表中的 rel_path
+       - user：User.avatar_url == rel_path
+       - gear：Gear.photo == rel_path
+       - analysis：video_url / thumb / highlights / pose 任一包含 rel_path
+       - 其他：unreferenced（保守不猜）
+    5. 无法验证类型（未知 business_type 但 business_id 非空）→ unreferenced
+    """
+    if file_record.deleted_at is not None:
+        return "marked_deleted", "已标记删除，待物理清理"
+    if file_record.ref_count <= 0:
+        return "unreferenced", "引用计数已归零"
+    if file_record.business_id is None:
+        return "unreferenced", "未绑定业务记录"
+
+    rel = file_record.rel_path
+    bt = file_record.business_type
+    bid = file_record.business_id
+
+    try:
+        if bt == "user":
+            user = db.query(User).filter(User.id == bid).first()
+            if user is not None and user.avatar_url == rel:
+                return "in_use", "用户头像引用有效"
+            return "unreferenced", "用户头像引用已失效"
+
+        if bt == "gear":
+            gear = db.query(Gear).filter(Gear.id == bid).first()
+            if gear is not None and gear.photo == rel:
+                return "in_use", "装备图片引用有效"
+            return "unreferenced", "装备记录引用已失效"
+
+        if bt == "analysis":
+            analysis = db.query(Analysis).filter(Analysis.id == bid).first()
+            if analysis is not None:
+                if analysis.video_url and rel in analysis.video_url:
+                    return "in_use", "分析报告引用有效"
+                if analysis.thumb and rel in analysis.thumb:
+                    return "in_use", "分析报告引用有效"
+                if analysis.highlights and rel in (analysis.highlights or ""):
+                    return "in_use", "分析报告引用有效"
+                if analysis.pose and rel in (analysis.pose or ""):
+                    return "in_use", "分析报告引用有效"
+            return "unreferenced", "分析报告引用已失效"
+    except Exception as exc:
+        log.warning("classify_file_usage 异常: %s", exc, exc_info=True)
+
+    if bt:
+        return "unreferenced", f"未知业务类型 {bt}"
+    return "unreferenced", "未绑定业务记录"

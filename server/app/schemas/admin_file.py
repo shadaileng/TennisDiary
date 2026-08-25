@@ -3,6 +3,22 @@
 from pydantic import BaseModel, Field
 
 
+class FileUsageStatus:
+    """文件使用状态常量（纯字符串集合，不依赖枚举类，保持与 str 字段兼容）。
+
+    取值含义：
+    - in_use：使用中（业务记录仍引用该文件）
+    - unreferenced：引用失效（业务记录不存在或不再引用，可清除）
+    - marked_deleted：已软删（deleted_at 非空，等待物理清理，可清除）
+    - orphan：磁盘孤儿（文件在磁盘但 File 表无记录）
+    """
+
+    IN_USE = "in_use"
+    UNREFERENCED = "unreferenced"
+    MARKED_DELETED = "marked_deleted"
+    ORPHAN = "orphan"
+
+
 class DerivedFileInfo(BaseModel):
     """关联文件信息（derived files）"""
 
@@ -33,6 +49,8 @@ class AdminFileResponse(BaseModel):
     derived_files: list[DerivedFileInfo] = Field(
         default_factory=list, description="关联的派生文件列表"
     )
+    usage_status: str = Field(description="使用状态：in_use/unreferenced/marked_deleted/orphan")
+    usage_reason: str = Field(default="", description="使用状态原因说明")
 
 
 class AdminFileListResponse(BaseModel):
@@ -52,6 +70,10 @@ class OrphanFileInfo(BaseModel):
     modified_at: float = Field(description="最后修改时间戳")
     inferred_user_id: int | None = Field(default=None, description="推断的用户 ID")
     inferred_source: str = Field(default="other", description="推断的上传来源")
+    usage_status: str = Field(
+        default=FileUsageStatus.ORPHAN, description="使用状态（孤儿固定为 orphan）"
+    )
+    usage_reason: str = Field(default="磁盘孤儿，未注册到文件表", description="使用状态原因说明")
 
 
 class ScanResultResponse(BaseModel):
