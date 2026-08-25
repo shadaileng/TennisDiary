@@ -330,6 +330,17 @@ def cleanup_orphan_files(db: Session, days: int = 30) -> int:
     return cleaned
 
 
+def cleanup_orphan_paths(rel_paths: list[str]) -> int:
+    """物理删除指定相对路径的文件（不查 DB），返回成功删除的数量"""
+    cleaned = 0
+    for rel_path in rel_paths:
+        abs_path = rel_path_to_abs(rel_path)
+        if safe_unlink(abs_path):
+            cleaned += 1
+            log.info("清理孤儿文件: %s", rel_path)
+    return cleaned
+
+
 # ==================== 文件扫描 ====================
 
 

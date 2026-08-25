@@ -98,3 +98,7 @@ export function registerFiles(files: string[], defaultUserId: number = 0): Promi
 export function registerAllFiles(defaultUserId: number = 0): Promise<{ registered: number }> {
   return request.post('/api/admin/files/register-all', null, { params: { default_user_id: defaultUserId } })
 }
+
+export function cleanupOrphanFiles(files: string[]): Promise<{ cleaned: number }> {
+  return request.post('/api/admin/files/cleanup-orphans', { files })
+}

@@ -288,6 +288,13 @@
                 >
                   纳入管理 ({{ selectedOrphans.length }})
                 </button>
+                <button
+                  @click="confirmCleanupSelected"
+                  :disabled="selectedOrphans.length === 0"
+                  class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                >
+                  立即清理 ({{ selectedOrphans.length }})
+                </button>
               </div>
             </div>
 
@@ -389,6 +396,7 @@ import {
   scanOrphanFiles,
   registerFiles,
   registerAllFiles,
+  cleanupOrphanFiles,
   type AdminFile,
   type FileStats,
   type ScanResultResponse
@@ -543,6 +551,22 @@ const confirmRegisterSelected = async () => {
     } catch (e) {
       console.error('Failed to register files:', e)
       alert('注册失败，请稍后重试')
+    }
+  }
+}
+
+const confirmCleanupSelected = async () => {
+  if (selectedOrphans.value.length === 0) return
+  if (confirm(`确定要立即删除选中的 ${selectedOrphans.value.length} 个孤儿文件吗？此操作不可恢复。`)) {
+    try {
+      const res = await cleanupOrphanFiles(selectedOrphans.value)
+      alert(`清理完成，共删除 ${res.cleaned} 个文件`)
+      scanResult.value = null
+      await fetchFiles()
+      await fetchStats()
+    } catch (e) {
+      console.error('Failed to cleanup orphans:', e)
+      alert('清理失败，请稍后重试')
     }
   }
 }

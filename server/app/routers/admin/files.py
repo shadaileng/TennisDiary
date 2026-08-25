@@ -14,6 +14,7 @@ from app.models.file import File
 from app.schemas.admin_file import (
     AdminFileListResponse,
     AdminFileResponse,
+    CleanupOrphansRequest,
     DerivedFileInfo,
     RegisterFilesRequest,
     ScanResultResponse,
@@ -215,6 +216,18 @@ def cleanup_files(
     cleaned = file_service.cleanup_orphan_files(db, days=days)
     db.commit()
     log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id)
+    return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
+
+
+@router.post("/cleanup-orphans", response_model=ApiResponse[dict])
+@audit(action="DELETE", resource_type="file_cleanup_orphans")
+def cleanup_orphan_files(
+    body: CleanupOrphansRequest,
+    admin: Admin = Depends(get_current_admin),
+):
+    """物理删除指定的孤儿文件（不在 File 表中注册的文件）"""
+    cleaned = file_service.cleanup_orphan_paths(body.files)
+    log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id, paths=body.files[:5])
     return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
 
 

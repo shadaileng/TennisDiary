@@ -91,3 +91,9 @@ class RegisterFilesRequest(BaseModel):
 
     files: list[str] = Field(description="要注册的文件相对路径列表")
     default_user_id: int = Field(default=0, description="默认用户 ID（路径无法推断时使用）")
+
+
+class CleanupOrphansRequest(BaseModel):
+    """清理孤儿文件请求"""
+
+    files: list[str] = Field(description="要删除的孤儿文件相对路径列表")
