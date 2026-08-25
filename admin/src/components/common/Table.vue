@@ -16,11 +16,16 @@
             v-for="column in columns"
             :key="column.key"
             :style="widthStyle(column.width)"
-            :class="['px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider', alignClass(column.align), column.headerClass]"
+            :class="[
+            'px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider',
+            alignClass(column.align),
+            column.wrap ? 'whitespace-normal' : 'whitespace-nowrap',
+            column.headerClass,
+          ]"
           >
             {{ column.title }}
           </th>
-          <th v-if="$slots.actions" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th v-if="$slots.actions" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
             操作
           </th>
         </tr>
@@ -49,13 +54,18 @@
             v-for="column in columns"
             :key="column.key"
             :style="widthStyle(column.width)"
-            :class="['px-6 py-4 whitespace-nowrap text-sm text-gray-900', alignClass(column.align), column.className]"
+            :class="[
+              'px-4 py-4 text-sm text-gray-900',
+              column.wrap ? 'whitespace-normal break-words' : 'whitespace-nowrap',
+              alignClass(column.align),
+              column.className,
+            ]"
           >
             <slot :name="'cell-' + column.key" :row="row" :value="row[column.key]">
               {{ row[column.key] }}
             </slot>
           </td>
-          <td v-if="$slots.actions" class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
+          <td v-if="$slots.actions" class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
             <slot name="actions" :row="row" />
           </td>
         </tr>
@@ -77,6 +87,7 @@ type Column = {
   title: string
   width?: string | number
   align?: 'left' | 'center' | 'right'
+  wrap?: boolean
   className?: string
   headerClass?: string
 }

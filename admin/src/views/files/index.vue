@@ -426,13 +426,13 @@ import { formatTs } from '@/utils/date'
 
 const columns = [
   { key: 'id', title: 'ID', width: 70 },
-  { key: 'user_id', title: '用户', width: 80 },
-  { key: 'original_name', title: '文件名' },
-  { key: 'size_bytes', title: '大小', width: 110 },
-  { key: 'upload_source', title: '来源', width: 110 },
-  { key: 'usage_status', title: '使用状态', width: 120 },
-  { key: 'ref_count', title: '引用', width: 80 },
-  { key: 'created_at', title: '上传时间', width: 160 }
+  { key: 'user_id', title: '用户', width: 56 },
+  { key: 'original_name', title: '文件名', wrap: true },
+  { key: 'size_bytes', title: '大小', width: 80 },
+  { key: 'upload_source', title: '来源', width: 80 },
+  { key: 'usage_status', title: '使用状态', width: 90 },
+  { key: 'ref_count', title: '引用', width: 56 },
+  { key: 'created_at', title: '上传时间', width: 120 }
 ]
 
 const files = ref<AdminFile[]>([])
