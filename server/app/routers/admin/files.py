@@ -131,14 +131,21 @@ def file_stats(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """文件统计摘要（总数、总大小、按来源分组）"""
+    """文件统计摘要（总数、总大小、按来源分组 + 使用状态计数）"""
     from sqlalchemy import func
 
     total_count = db.query(File).filter(File.deleted_at.is_(None)).count()
     total_size = db.query(func.sum(File.size_bytes)).filter(File.deleted_at.is_(None)).scalar() or 0
 
+    # marked_deleted：已软删等待物理清理
     marked_deleted = db.query(File).filter(File.deleted_at.isnot(None)).count()
-    unreferenced = db.query(File).filter(File.ref_count <= 0, File.deleted_at.is_(None)).count()
+
+    # unreferenced：通过 classify 逐条判定（stats 低频调用，可接受 N 次查询）
+    unreferenced_count = 0
+    for f in db.query(File).filter(File.deleted_at.is_(None)).all():
+        status, _ = file_service.classify_file_usage(db, f)
+        if status != "in_use":
+            unreferenced_count += 1
 
     # 按来源分组统计
     source_stats = (
@@ -158,7 +165,7 @@ def file_stats(
             "total_size_bytes": total_size,
             "by_source": by_source,
             "marked_deleted_count": marked_deleted,
-            "unreferenced_count": unreferenced,
+            "unreferenced_count": unreferenced_count,
         }
     )
 
