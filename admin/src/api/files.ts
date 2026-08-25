@@ -83,6 +83,15 @@ export function deleteFile(fileId: number) {
   return request.delete(`/api/admin/files/${fileId}`)
 }
 
+export function batchDeleteFiles(fileIds: number[]): Promise<{
+  deleted: number
+  skipped: number
+  disk_removed: number
+  errors: string[]
+}> {
+  return request.post('/api/admin/files/batch-delete', { file_ids: fileIds })
+}
+
 export function cleanupFiles(days: number = 30): Promise<{ cleaned: number }> {
   return request.post('/api/admin/files/cleanup', null, { params: { days } })
 }

@@ -97,3 +97,9 @@ class CleanupOrphansRequest(BaseModel):
     """清理孤儿文件请求"""
 
     files: list[str] = Field(description="要删除的孤儿文件相对路径列表")
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除文件请求（按 File 记录 ID）"""
+
+    file_ids: list[int] = Field(description="要删除的文件 ID 列表")

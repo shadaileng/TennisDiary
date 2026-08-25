@@ -43,6 +43,13 @@
         >
           清理孤儿文件
         </button>
+        <button
+          v-if="selectedFiles.length > 0"
+          @click="confirmBatchDelete"
+          class="px-3 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition-colors whitespace-nowrap"
+        >
+          批量删除 ({{ selectedFiles.length }})
+        </button>
       </div>
     </div>
 
@@ -60,7 +67,17 @@
       <StatCard title="可清除" :value="(stats.marked_deleted_count || 0) + (stats.unreferenced_count || 0)" icon="DocumentTextIcon" color="orange" />
     </div>
 
-    <Table :columns="columns" :data="filteredFiles" :row-clickable="true" @row-click="viewFile">
+    <Table
+      ref="tableRef"
+      :columns="columns"
+      :data="filteredFiles"
+      :row-clickable="true"
+      :selectable="true"
+      row-key="id"
+      :row-selectable="isClearable"
+      @row-click="viewFile"
+      @selection-change="onSelectionChange"
+    >
       <template #cell-size_bytes="{ value }">
         {{ formatSize(value) }}
       </template>
@@ -392,6 +409,7 @@ import {
   getFiles,
   getFileStats,
   deleteFile,
+  batchDeleteFiles,
   cleanupFiles,
   scanOrphanFiles,
   registerFiles,
@@ -407,14 +425,14 @@ import StatCard from '@/components/common/StatCard.vue'
 import { formatTs } from '@/utils/date'
 
 const columns = [
-  { key: 'id', title: 'ID' },
-  { key: 'user_id', title: '用户' },
+  { key: 'id', title: 'ID', width: 70 },
+  { key: 'user_id', title: '用户', width: 80 },
   { key: 'original_name', title: '文件名' },
-  { key: 'size_bytes', title: '大小' },
-  { key: 'upload_source', title: '来源' },
-  { key: 'usage_status', title: '使用状态' },
-  { key: 'ref_count', title: '引用' },
-  { key: 'created_at', title: '上传时间' }
+  { key: 'size_bytes', title: '大小', width: 110 },
+  { key: 'upload_source', title: '来源', width: 110 },
+  { key: 'usage_status', title: '使用状态', width: 120 },
+  { key: 'ref_count', title: '引用', width: 80 },
+  { key: 'created_at', title: '上传时间', width: 160 }
 ]
 
 const files = ref<AdminFile[]>([])
@@ -426,6 +444,14 @@ const filterUsageStatus = ref('')
 const filterUserId = ref('')
 const selectedFile = ref<AdminFile | null>(null)
 const stats = ref<FileStats>({ total_count: 0, total_size_bytes: 0, by_source: {} })
+const selectedFiles = ref<AdminFile[]>([])
+const tableRef = ref<InstanceType<typeof Table> | null>(null)
+
+const isClearable = (file: AdminFile): boolean => file.usage_status !== 'in_use'
+
+const onSelectionChange = (rows: AdminFile[]) => {
+  selectedFiles.value = rows
+}
 
 const filteredFiles = computed(() => {
   if (!filterUsageStatus.value) return files.value
@@ -499,6 +525,23 @@ const confirmDelete = async (file: AdminFile) => {
       await fetchStats()
     } catch (e) {
       console.error('Failed to delete file:', e)
+    }
+  }
+}
+
+const confirmBatchDelete = async () => {
+  if (selectedFiles.value.length === 0) return
+  const count = selectedFiles.value.length
+  if (confirm(`确定要删除选中的 ${count} 个可清除文件吗？此操作会软删文件记录并释放物理存储，不可恢复。`)) {
+    try {
+      const res = await batchDeleteFiles(selectedFiles.value.map((f) => f.id))
+      alert(`删除完成：成功 ${res.deleted} 个，跳过 ${res.skipped} 个，物理清理 ${res.disk_removed} 个`)
+      tableRef.value?.clearSelection()
+      await fetchFiles()
+      await fetchStats()
+    } catch (e) {
+      console.error('Failed to batch delete files:', e)
+      alert('批量删除失败，请稍后重试')
     }
   }
 }

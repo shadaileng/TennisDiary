@@ -1,7 +1,5 @@
 """Admin 文件管理路由"""
 
-import time
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -14,6 +12,7 @@ from app.models.file import File
 from app.schemas.admin_file import (
     AdminFileListResponse,
     AdminFileResponse,
+    BatchDeleteRequest,
     CleanupOrphansRequest,
     DerivedFileInfo,
     RegisterFilesRequest,
@@ -182,24 +181,7 @@ def delete_file(
     if file_record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
-    # 递减引用计数
-    file_record.ref_count = max(0, file_record.ref_count - 1)
-    removed_disk = False
-    if file_record.ref_count <= 0:
-        file_record.deleted_at = time.time()
-        # 仅当无其他有效记录共享同一物理文件时才删除磁盘文件（秒传复用场景）
-        shared = (
-            db.query(File)
-            .filter(
-                File.rel_path == file_record.rel_path,
-                File.id != file_record.id,
-                File.deleted_at.is_(None),
-            )
-            .first()
-        )
-        if shared is None:
-            abs_path = file_service.rel_path_to_abs(file_record.rel_path)
-            removed_disk = file_service.safe_unlink(abs_path)
+    removed_disk = file_service.soft_delete_file(db, file_record)
 
     db.commit()
     log.info(
@@ -210,6 +192,57 @@ def delete_file(
         removed_disk=removed_disk,
     )
     return ApiResponse(message="删除成功")
+
+
+@router.post("/batch-delete", response_model=ApiResponse[dict])
+@audit(action="DELETE", resource_type="file", resource_id_key="file_ids")
+def batch_delete_files(
+    body: BatchDeleteRequest,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """批量删除文件（软删；复用单条删除的引用递减与物理清理逻辑）"""
+    deleted = 0
+    skipped = 0
+    disk_removed = 0
+    errors: list[str] = []
+
+    if not body.file_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file_ids 不能为空")
+
+    for file_id in body.file_ids:
+        file_record = db.query(File).filter(File.id == file_id, File.deleted_at.is_(None)).first()
+        if file_record is None:
+            skipped += 1
+            errors.append(f"文件不存在或已删除: {file_id}")
+            continue
+        try:
+            removed = file_service.soft_delete_file(db, file_record)
+            deleted += 1
+            if removed:
+                disk_removed += 1
+        except Exception as exc:
+            log.error("批量删除文件失败: %s", exc, exc_info=True)
+            errors.append(f"删除失败: {file_id}")
+            continue
+
+    db.commit()
+    log.info(
+        "Admin 批量删除文件",
+        admin_id=admin.id,
+        deleted=deleted,
+        skipped=skipped,
+        disk_removed=disk_removed,
+    )
+    return ApiResponse(
+        data={
+            "deleted": deleted,
+            "skipped": skipped,
+            "disk_removed": disk_removed,
+            "errors": errors,
+        },
+        message=f"删除完成：成功 {deleted} 个，跳过 {skipped} 个",
+    )
 
 
 @router.post("/cleanup", response_model=ApiResponse[dict])

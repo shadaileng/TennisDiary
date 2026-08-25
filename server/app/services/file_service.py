@@ -225,6 +225,30 @@ def decrement_ref_count(db: Session, user_id: int, rel_path: str) -> int:
     return 1
 
 
+def soft_delete_file(db: Session, file_record: File) -> bool:
+    """软删单条文件记录；引用归零且无其他有效记录共享物理文件时一并删除磁盘文件。
+
+    返回是否物理删除磁盘文件。
+    """
+    file_record.ref_count = max(0, file_record.ref_count - 1)
+    removed_disk = False
+    if file_record.ref_count <= 0:
+        file_record.deleted_at = time.time()
+        # 仅当无其他有效记录共享同一物理文件时才删除磁盘文件（秒传复用场景）
+        shared = (
+            db.query(File)
+            .filter(
+                File.rel_path == file_record.rel_path,
+                File.id != file_record.id,
+                File.deleted_at.is_(None),
+            )
+            .first()
+        )
+        if shared is None:
+            removed_disk = safe_unlink(rel_path_to_abs(file_record.rel_path))
+    return removed_disk
+
+
 def decrement_analysis_files(db: Session, analysis) -> int:
     """递减 Analysis 关联的所有文件（含骨架产物）的引用计数"""
     import json
@@ -544,11 +568,7 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
 
     if src in ("video", "video_frame", "skeleton"):
         try:
-            analyses = (
-                db.query(Analysis)
-                .filter(Analysis.user_id == uid)
-                .all()
-            )
+            analyses = db.query(Analysis).filter(Analysis.user_id == uid).all()
             for a in analyses:
                 if a.video_url and rel in a.video_url:
                     return "in_use", "分析报告引用有效"
