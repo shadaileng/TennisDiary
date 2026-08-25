@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.74.1] - 2026-08-25
+
+### Fixed
+
+- Admin 表格宽度优化：移除 `min-w-full` 防止表格挤压侧边栏；新增 `table-layout: fixed` 真正固定列宽（`width` 从最小宽度升级为固定宽度）；支持 `wrap` 列属性，长文本无空格文件名改用 `word-break: break-all` 强制换行；其他列固定宽度、文件名列自适应填满剩余空间。公共 Table 组件增强（`columns` 新增 `wrap`/`align`/`headerClass`/`className` 属性），8 个使用页零影响。
+
 ## [1.74.0] - 2026-08-25
 
 ### Added
