@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white rounded-lg shadow-md overflow-hidden">
-    <table class="min-w-full divide-y divide-gray-200">
+    <table class="divide-y divide-gray-200">
       <thead class="bg-gray-50">
         <tr>
           <th v-if="selectable" class="px-4 py-3 w-12 text-left">
