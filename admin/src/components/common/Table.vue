@@ -56,7 +56,7 @@
             :style="widthStyle(column.width)"
             :class="[
               'px-4 py-4 text-sm text-gray-900',
-              column.wrap ? 'whitespace-normal break-words' : 'whitespace-nowrap',
+              column.wrap ? 'whitespace-normal break-all' : 'whitespace-nowrap',
               alignClass(column.align),
               column.className,
             ]"
