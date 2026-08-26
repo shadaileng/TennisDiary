@@ -422,6 +422,16 @@
     </div>
   </div>
 
+  <!-- 下载进度条 -->
+  <DownloadProgress
+    :visible="downloading"
+    :file-name="downloadFileName"
+    :downloaded="downloaded"
+    :total="downloadTotal"
+    :done="downloadDone"
+    @cancel="cancelDownload"
+  />
+
   <!-- 文件预览 -->
   <FilePreview
     v-if="previewInfo"
@@ -456,6 +466,7 @@ import {
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
+import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
 import { formatTs } from '@/utils/date'
 
@@ -548,14 +559,69 @@ const fetchStats = async () => {
   }
 }
 
+// 下载相关状态
+const downloading = ref(false)
+const downloadFileName = ref('')
+const downloaded = ref(0)
+const downloadTotal = ref(0)
+const downloadDone = ref(false)
+let abortController: AbortController | null = null
+
 const viewFile = (file: AdminFile) => {
   selectedFile.value = file
 }
 
-const startDownload = (file: AdminFile) => {
+const startDownload = async (file: AdminFile) => {
+  if (downloading.value) return
+  downloading.value = true
+  downloadFileName.value = file.original_name || file.rel_path
+  downloaded.value = 0
+  downloadTotal.value = file.size_bytes
+  downloadDone.value = false
+  abortController = new AbortController()
+
+  const CHUNK_SIZE = 1024 * 1024
+  const total = file.size_bytes
+  const chunks: Blob[] = []
   const token = localStorage.getItem('admin_token')
-  const url = getDownloadUrl(file.id) + (token ? `?token=${encodeURIComponent(token)}` : '')
-  window.open(url, '_blank')
+
+  try {
+    for (let start = 0; start < total; start += CHUNK_SIZE) {
+      const end = Math.min(start + CHUNK_SIZE - 1, total - 1)
+      const resp = await fetch(getDownloadUrl(file.id), {
+        headers: {
+          Range: `bytes=${start}-${end}`,
+          ...(token ? { 'X-Auth-Token': token } : {}),
+        },
+        signal: abortController.signal,
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const blob = await resp.blob()
+      chunks.push(blob)
+      downloaded.value = Math.min(start + CHUNK_SIZE, total)
+    }
+    const blob = new Blob(chunks)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.original_name || 'download'
+    a.click()
+    URL.revokeObjectURL(url)
+    downloadDone.value = true
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') {
+      console.error('Download failed:', e)
+      alert('下载失败，请稍后重试')
+    }
+  } finally {
+    downloading.value = false
+    abortController = null
+  }
+}
+
+const cancelDownload = () => {
+  abortController?.abort()
+  downloading.value = false
 }
 
 const openPreview = async (file: AdminFile) => {
