@@ -422,15 +422,19 @@
     </div>
   </div>
 
-  <!-- 下载进度条 -->
-  <DownloadProgress
-    :visible="downloading"
-    :file-name="downloadFileName"
-    :downloaded="downloaded"
-    :total="downloadTotal"
-    :done="downloadDone"
-    @cancel="cancelDownload"
-  />
+  <!-- 下载提示 -->
+  <Teleport to="body">
+    <div
+      v-if="downloading"
+      class="fixed bottom-4 right-4 z-[60] bg-white rounded-lg shadow-xl border border-gray-200 px-4 py-3 flex items-center gap-3"
+    >
+      <svg class="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <span class="text-sm text-gray-700 truncate max-w-[200px]">{{ downloadFileName }}</span>
+    </div>
+  </Teleport>
 
   <!-- 文件预览 -->
   <FilePreview
@@ -466,7 +470,6 @@ import {
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
-import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
 import { formatTs } from '@/utils/date'
 
@@ -562,72 +565,23 @@ const fetchStats = async () => {
 // 下载相关状态
 const downloading = ref(false)
 const downloadFileName = ref('')
-const downloaded = ref(0)
-const downloadTotal = ref(0)
-const downloadDone = ref(false)
-let abortController: AbortController | null = null
 
 const viewFile = (file: AdminFile) => {
   selectedFile.value = file
 }
 
-const startDownload = async (file: AdminFile) => {
+const startDownload = (file: AdminFile) => {
   if (downloading.value) return
   downloading.value = true
   downloadFileName.value = file.original_name || file.rel_path
-  downloaded.value = 0
-  downloadTotal.value = file.size_bytes
-  downloadDone.value = false
-  abortController = new AbortController()
 
-  const CHUNK_SIZE = 1024 * 1024
-  const total = file.size_bytes
-  const chunks: Blob[] = []
   const token = localStorage.getItem('admin_token')
+  const url = getDownloadUrl(file.id) + (token ? `?token=${encodeURIComponent(token)}` : '')
+  window.open(url, '_blank')
 
-  try {
-    for (let start = 0; start < total; start += CHUNK_SIZE) {
-      const end = Math.min(start + CHUNK_SIZE - 1, total - 1)
-      const resp = await fetch(getDownloadUrl(file.id), {
-        headers: {
-          Range: `bytes=${start}-${end}`,
-          ...(token ? { 'X-Auth-Token': token } : {}),
-        },
-        signal: abortController.signal,
-      })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const blob = await resp.blob()
-      chunks.push(blob)
-      downloaded.value = Math.min(start + CHUNK_SIZE, total)
-    }
-    const blob = new Blob(chunks)
-    const url = URL.createObjectURL(blob)
-
-    await new Promise<void>((resolve) => {
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.original_name || 'download'
-      a.click()
-      setTimeout(resolve, 1000)
-    }).then(() => {
-      URL.revokeObjectURL(url)
-    })
-
-    downloadDone.value = true
-  } catch (e) {
-    if ((e as Error).name !== 'AbortError') {
-      console.error('Download failed:', e)
-      alert('下载失败，请稍后重试')
-    }
-  } finally {
+  setTimeout(() => {
     downloading.value = false
-    abortController = null
-  }
-}
-
-const cancelDownload = () => {
-  abortController?.abort()
-  downloading.value = false
+  }, 3000)
 }
 
 const openPreview = async (file: AdminFile) => {
