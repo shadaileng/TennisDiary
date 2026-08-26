@@ -99,7 +99,7 @@
       </template>
 
       <template #cell-created_at="{ value }">
-        {{ formatTs(value) }}
+        {{ formatTsShort(value) }}
       </template>
 
       <template #actions="{ row }">
@@ -468,7 +468,7 @@ import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
-import { formatTs } from '@/utils/date'
+import { formatTs, formatTsShort } from '@/utils/date'
 
 const columns = [
   { key: 'id', title: 'ID', width: 48 },
