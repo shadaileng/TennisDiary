@@ -422,20 +422,6 @@
     </div>
   </div>
 
-  <!-- 下载提示 -->
-  <Teleport to="body">
-    <div
-      v-if="downloading"
-      class="fixed bottom-4 right-4 z-[60] bg-white rounded-lg shadow-xl border border-gray-200 px-4 py-3 flex items-center gap-3"
-    >
-      <svg class="animate-spin h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
-      <span class="text-sm text-gray-700 truncate max-w-[200px]">{{ downloadFileName }}</span>
-    </div>
-  </Teleport>
-
   <!-- 文件预览 -->
   <FilePreview
     v-if="previewInfo"
@@ -445,6 +431,16 @@
     :url="previewInfo.preview_url"
     :mime-type="previewInfo.mime_type"
     :size-bytes="previewInfo.size_bytes"
+  />
+
+  <!-- 流式下载进度条 -->
+  <DownloadProgress
+    :visible="dl.visible"
+    :file-name="dl.fileName"
+    :downloaded="dl.downloaded"
+    :total="dl.total"
+    :done="dl.done"
+    @cancel="cancelDownload"
   />
 </template>
 
@@ -471,6 +467,7 @@ import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
+import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import { formatTs } from '@/utils/date'
 
 const columns = [
@@ -562,26 +559,77 @@ const fetchStats = async () => {
   }
 }
 
-// 下载相关状态
-const downloading = ref(false)
-const downloadFileName = ref('')
-
 const viewFile = (file: AdminFile) => {
   selectedFile.value = file
 }
 
-const startDownload = (file: AdminFile) => {
-  if (downloading.value) return
-  downloading.value = true
-  downloadFileName.value = file.original_name || file.rel_path
+// 流式下载状态
+const dl = ref({ visible: false, fileName: '', downloaded: 0, total: 0, done: false })
+let dlAbort: AbortController | null = null
 
+const startDownload = async (file: AdminFile) => {
+  const fileName = file.original_name || file.rel_path
   const token = localStorage.getItem('admin_token')
-  const url = getDownloadUrl(file.id) + (token ? `?token=${encodeURIComponent(token)}` : '')
-  window.open(url, '_blank')
+  const url = getDownloadUrl(file.id)
 
-  setTimeout(() => {
-    downloading.value = false
-  }, 3000)
+  // Chromium: showSaveFilePicker 流式写入磁盘（零内存）
+  if (typeof window.showSaveFilePicker === 'function') {
+    let fileHandle: FileSystemFileHandle
+    try {
+      fileHandle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: '文件', accept: { 'application/octet-stream': [] } }],
+      })
+    } catch {
+      return // 用户取消选择
+    }
+
+    dl.value = { visible: true, fileName, downloaded: 0, total: file.size_bytes, done: false }
+    dlAbort = new AbortController()
+
+    try {
+      const resp = await fetch(url, {
+        headers: { 'X-Auth-Token': token || '' },
+        signal: dlAbort.signal,
+      })
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+
+      const writable = await fileHandle.createWritable()
+      const reader = resp.body!.getReader()
+      const contentLength = Number(resp.headers.get('Content-Length') || file.size_bytes)
+      dl.value = { ...dl.value, total: contentLength }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        await writable.write(value)
+        dl.value = { ...dl.value, downloaded: dl.value.downloaded + value.length }
+      }
+
+      await writable.close()
+      dl.value = { ...dl.value, done: true }
+      setTimeout(() => { dl.value.visible = false }, 2000)
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      console.error('Download failed:', e)
+      dl.value.visible = false
+    } finally {
+      dlAbort = null
+    }
+  } else {
+    // 非 Chromium fallback：<a> 标签原生下载
+    const a = document.createElement('a')
+    a.href = url + (token ? `?token=${encodeURIComponent(token)}` : '')
+    a.download = fileName
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+}
+
+const cancelDownload = () => {
+  dlAbort?.abort()
+  dl.value.visible = false
 }
 
 const openPreview = async (file: AdminFile) => {

@@ -4,6 +4,18 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.75.2] - 2026-08-26
+
+### Added
+
+- Admin 文件流式下载（114）：Chromium 浏览器使用 `showSaveFilePicker` + `WritableStream` 实现零内存流式写入磁盘 + `DownloadProgress` 进度条（文件名/已下载/总大小/百分比/取消按钮），非 Chromium 浏览器自动 fallback 到 `<a>` 标签原生下载。
+
+## [1.75.1] - 2026-08-26
+
+### Fixed
+
+- Admin 文件下载 MP4 另存为卡死修复（114）：Chrome 对 `video/mp4` 自动发送 Range 请求尝试预览，与另存为对话框并发导致 UI 线程死锁。修复方案：删除 Range 分片逻辑，改用 `StreamingResponse` 强制 `Content-Type: application/octet-stream` + `Content-Disposition: attachment`，阻止 Chrome 视频预览行为。前端下载改用 `<a>` 标签替代 `window.open`。12 个后端测试通过。
+
 ## [1.75.0] - 2026-08-26
 
 ### Added

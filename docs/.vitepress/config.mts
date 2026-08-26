@@ -166,6 +166,7 @@ export default defineConfig({
             { text: '109：文件管理系统', link: '/plans/109-文件管理系统' },
             { text: '110：文件扫描功能', link: '/plans/110-文件扫描功能' },
             { text: '111：文件使用标记（基于数据库引用核查）', link: '/plans/111-文件使用标记' },
+            { text: '114：Admin 文件预览与下载', link: '/plans/114-文件预览与下载' },
           ],
         },
         {
