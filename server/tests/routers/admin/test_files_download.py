@@ -134,6 +134,91 @@ class TestDownloadFile:
         )
         assert resp.status_code == 416
 
+    def test_download_binary_integrity(self, auth_client, test_db):
+        """下载的二进制内容必须与原文件完全一致"""
+        import hashlib
+
+        content = os.urandom(1024 * 64)  # 64KB 随机二进制
+        uid = _next_uid()
+        rec = _insert_file(test_db, user_id=uid, size_bytes=len(content))
+        _write_file(rec.rel_path, content)
+
+        resp = auth_client.get(f"/api/admin/files/{rec.id}/download")
+        assert resp.status_code == 200
+        assert len(resp.content) == len(content)
+        assert hashlib.md5(resp.content).hexdigest() == hashlib.md5(content).hexdigest()
+
+    def test_download_content_length_matches(self, auth_client, test_db):
+        """Content-Length 必须等于文件大小"""
+        content = b"x" * 5000
+        uid = _next_uid()
+        rec = _insert_file(test_db, user_id=uid, size_bytes=len(content))
+        _write_file(rec.rel_path, content)
+
+        resp = auth_client.get(f"/api/admin/files/{rec.id}/download")
+        assert resp.status_code == 200
+        assert int(resp.headers.get("content-length", 0)) == len(content)
+
+    def test_download_range_chunks_reassemble(self, auth_client, test_db):
+        """分片下载后拼接必须与原文件一致（模拟前端分片逻辑）"""
+        content = os.urandom(1024 * 100)  # 100KB 随机二进制
+        uid = _next_uid()
+        rec = _insert_file(test_db, user_id=uid, size_bytes=len(content))
+        _write_file(rec.rel_path, content)
+
+        chunk_size = 1024 * 32  # 32KB 分片
+        assembled = b""
+        for start in range(0, len(content), chunk_size):
+            end = min(start + chunk_size - 1, len(content) - 1)
+            resp = auth_client.get(
+                f"/api/admin/files/{rec.id}/download",
+                headers={"Range": f"bytes={start}-{end}"},
+            )
+            assert resp.status_code == 206
+            assembled += resp.content
+
+        assert len(assembled) == len(content)
+        assert assembled == content
+
+    def test_download_no_range_returns_full(self, auth_client, test_db):
+        """无 Range 头时返回完整文件"""
+        content = b"full-content-12345"
+        uid = _next_uid()
+        rec = _insert_file(test_db, user_id=uid, size_bytes=len(content))
+        _write_file(rec.rel_path, content)
+
+        resp = auth_client.get(f"/api/admin/files/{rec.id}/download")
+        assert resp.status_code == 200
+        assert resp.content == content
+        assert "content-range" not in resp.headers
+
+    def test_download_content_type(self, auth_client, test_db):
+        """下载的 Content-Type 必须与 mime_type 一致"""
+        content = b"<html></html>"
+        uid = _next_uid()
+        rec = _insert_file(
+            test_db, user_id=uid, mime_type="text/html", size_bytes=len(content)
+        )
+        _write_file(rec.rel_path, content)
+
+        resp = auth_client.get(f"/api/admin/files/{rec.id}/download")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers.get("content-type", "")
+
+    def test_download_filename_in_header(self, auth_client, test_db):
+        """Content-Disposition 必须包含原始文件名"""
+        content = b"data"
+        uid = _next_uid()
+        rec = _insert_file(
+            test_db, user_id=uid, original_name="test-file.mp4", size_bytes=len(content)
+        )
+        _write_file(rec.rel_path, content)
+
+        resp = auth_client.get(f"/api/admin/files/{rec.id}/download")
+        assert resp.status_code == 200
+        cd = resp.headers.get("content-disposition", "")
+        assert "test-file.mp4" in cd
+
 
 class TestPreviewFile:
     """GET /api/admin/files/{id}/preview"""
