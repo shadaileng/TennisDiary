@@ -602,11 +602,17 @@ const startDownload = async (file: AdminFile) => {
     }
     const blob = new Blob(chunks)
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = file.original_name || 'download'
-    a.click()
-    URL.revokeObjectURL(url)
+
+    await new Promise<void>((resolve) => {
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.original_name || 'download'
+      a.click()
+      setTimeout(resolve, 1000)
+    }).then(() => {
+      URL.revokeObjectURL(url)
+    })
+
     downloadDone.value = true
   } catch (e) {
     if ((e as Error).name !== 'AbortError') {
