@@ -43,8 +43,9 @@
         <!-- 底部 -->
         <div class="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white">
           <span class="text-sm text-gray-500">{{ formatSize(sizeBytes) }}</span>
-          <a
-            :href="downloadUrl"
+          <button
+            type="button"
+            @click="emit('download', props.fileId)"
             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors"
           >
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -52,7 +53,7 @@
                 d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             下载
-          </a>
+          </button>
         </div>
       </div>
     </div>
@@ -61,7 +62,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getDownloadUrl } from '@/api/files'
 
 const props = defineProps<{
   visible: boolean
@@ -74,6 +74,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void
+  (e: 'download', fileId: number): void
 }>()
 
 const close = () => emit('update:visible', false)
@@ -81,8 +82,6 @@ const close = () => emit('update:visible', false)
 const isImage = computed(() => props.mimeType?.startsWith('image/'))
 const isVideo = computed(() => props.mimeType?.startsWith('video/'))
 const isAudio = computed(() => props.mimeType?.startsWith('audio/'))
-
-const downloadUrl = computed(() => getDownloadUrl(props.fileId))
 
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B'

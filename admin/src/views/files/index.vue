@@ -431,6 +431,7 @@
     :url="previewInfo.preview_url"
     :mime-type="previewInfo.mime_type"
     :size-bytes="previewInfo.size_bytes"
+    @download="onPreviewDownload"
   />
 
   <!-- 流式下载进度条 -->
@@ -457,25 +458,25 @@ import {
   registerAllFiles,
   cleanupOrphanFiles,
   getPreviewInfo,
-  getDownloadUrl,
   type AdminFile,
+  type PreviewInfo,
   type FileStats,
   type ScanResultResponse,
-  type PreviewInfo
 } from '@/api/files'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
 import DownloadProgress from '@/components/common/DownloadProgress.vue'
+import { downloadAdminFile } from '@/utils/download'
 import { formatTs } from '@/utils/date'
 
 const columns = [
   { key: 'id', title: 'ID', width: 48 },
   { key: 'user_id', title: '用户', width: 40 },
   { key: 'original_name', title: '文件名', wrap: true },
-  { key: 'size_bytes', title: '大小', width: 64 },
-  { key: 'upload_source', title: '来源', width: 64 },
+  { key: 'size_bytes', title: '大小', width: 100 },
+  { key: 'upload_source', title: '来源', width: 90 },
   { key: 'usage_status', title: '状态', width: 64 },
   { key: 'ref_count', title: '引用', width: 40 },
   { key: 'created_at', title: '上传时间', width: 170 }
@@ -569,61 +570,27 @@ let dlAbort: AbortController | null = null
 
 const startDownload = async (file: AdminFile) => {
   const fileName = file.original_name || file.rel_path
-  const token = localStorage.getItem('admin_token')
-  const url = getDownloadUrl(file.id)
+  dl.value = { visible: true, fileName, downloaded: 0, total: file.size_bytes, done: false }
+  dlAbort = new AbortController()
 
-  // Chromium: showSaveFilePicker 流式写入磁盘（零内存）
-  if (typeof window.showSaveFilePicker === 'function') {
-    let fileHandle: FileSystemFileHandle
-    try {
-      fileHandle = await window.showSaveFilePicker({
-        suggestedName: fileName,
-        types: [{ description: '文件', accept: { 'application/octet-stream': [] } }],
-      })
-    } catch {
-      return // 用户取消选择
-    }
-
-    dl.value = { visible: true, fileName, downloaded: 0, total: file.size_bytes, done: false }
-    dlAbort = new AbortController()
-
-    try {
-      const resp = await fetch(url, {
-        headers: { 'X-Auth-Token': token || '' },
+  try {
+    await downloadAdminFile(
+      { id: file.id, fileName, sizeBytes: file.size_bytes },
+      {
         signal: dlAbort.signal,
-      })
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-
-      const writable = await fileHandle.createWritable()
-      const reader = resp.body!.getReader()
-      const contentLength = Number(resp.headers.get('Content-Length') || file.size_bytes)
-      dl.value = { ...dl.value, total: contentLength }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        await writable.write(value)
-        dl.value = { ...dl.value, downloaded: dl.value.downloaded + value.length }
-      }
-
-      await writable.close()
-      dl.value = { ...dl.value, done: true }
-      setTimeout(() => { dl.value.visible = false }, 2000)
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return
-      console.error('Download failed:', e)
-      dl.value.visible = false
-    } finally {
-      dlAbort = null
-    }
-  } else {
-    // 非 Chromium fallback：<a> 标签原生下载
-    const a = document.createElement('a')
-    a.href = url + (token ? `?token=${encodeURIComponent(token)}` : '')
-    a.download = fileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+        onProgress: (downloaded, total) => {
+          dl.value = { ...dl.value, downloaded, total }
+        },
+      },
+    )
+    dl.value = { ...dl.value, done: true }
+    setTimeout(() => { dl.value.visible = false }, 2000)
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return
+    console.error('Download failed:', e)
+    dl.value.visible = false
+  } finally {
+    dlAbort = null
   }
 }
 
@@ -640,6 +607,16 @@ const openPreview = async (file: AdminFile) => {
   } catch (e) {
     console.error('Failed to load preview:', e)
   }
+}
+
+const onPreviewDownload = (fileId: number) => {
+  const info = previewInfo.value
+  if (!info || info.id !== fileId) return
+  startDownload({
+    id: info.id,
+    original_name: info.original_name,
+    size_bytes: info.size_bytes,
+  } as AdminFile)
 }
 
 const confirmDelete = async (file: AdminFile) => {
