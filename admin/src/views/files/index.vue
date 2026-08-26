@@ -103,7 +103,11 @@
       </template>
 
       <template #actions="{ row }">
-        <button @click="confirmDelete(row)" class="text-red-600 hover:text-red-800">删除</button>
+        <div class="flex items-center gap-2">
+          <button @click="openPreview(row)" class="text-blue-600 hover:text-blue-800">预览</button>
+          <button @click="startDownload(row)" class="text-green-600 hover:text-green-800">下载</button>
+          <button @click="confirmDelete(row)" class="text-red-600 hover:text-red-800">删除</button>
+        </div>
       </template>
     </Table>
 
@@ -228,7 +232,23 @@
         </div>
 
         <!-- 弹窗底部 -->
-        <div class="flex justify-end px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <div class="flex justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+          <div class="flex gap-2">
+            <button
+              v-if="selectedFile"
+              @click="openPreview(selectedFile)"
+              class="px-3 py-2 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 transition-colors"
+            >
+              预览
+            </button>
+            <button
+              v-if="selectedFile"
+              @click="startDownload(selectedFile)"
+              class="px-3 py-2 bg-green-500 text-white text-sm rounded-md hover:bg-green-600 transition-colors"
+            >
+              下载
+            </button>
+          </div>
           <button
             @click="selectedFile = null"
             class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
@@ -401,6 +421,27 @@
       </div>
     </div>
   </div>
+
+  <!-- 下载进度条 -->
+  <DownloadProgress
+    :visible="downloading"
+    :file-name="downloadFileName"
+    :downloaded="downloaded"
+    :total="downloadTotal"
+    :done="downloadDone"
+    @cancel="cancelDownload"
+  />
+
+  <!-- 文件预览 -->
+  <FilePreview
+    v-if="previewInfo"
+    v-model:visible="previewVisible"
+    :file-id="previewInfo.id"
+    :file-name="previewInfo.original_name"
+    :url="previewInfo.preview_url"
+    :mime-type="previewInfo.mime_type"
+    :size-bytes="previewInfo.size_bytes"
+  />
 </template>
 
 <script setup lang="ts">
@@ -415,24 +456,29 @@ import {
   registerFiles,
   registerAllFiles,
   cleanupOrphanFiles,
+  getPreviewInfo,
+  getDownloadUrl,
   type AdminFile,
   type FileStats,
-  type ScanResultResponse
+  type ScanResultResponse,
+  type PreviewInfo
 } from '@/api/files'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
+import DownloadProgress from '@/components/common/DownloadProgress.vue'
+import FilePreview from '@/components/common/FilePreview.vue'
 import { formatTs } from '@/utils/date'
 
 const columns = [
-  { key: 'id', title: 'ID', width: 70 },
-  { key: 'user_id', title: '用户', width: 56 },
+  { key: 'id', title: 'ID', width: 56 },
+  { key: 'user_id', title: '用户', width: 48 },
   { key: 'original_name', title: '文件名', wrap: true },
-  { key: 'size_bytes', title: '大小', width: 80 },
-  { key: 'upload_source', title: '来源', width: 80 },
-  { key: 'usage_status', title: '使用状态', width: 90 },
-  { key: 'ref_count', title: '引用', width: 56 },
-  { key: 'created_at', title: '上传时间', width: 120 }
+  { key: 'size_bytes', title: '大小', width: 72 },
+  { key: 'upload_source', title: '来源', width: 72 },
+  { key: 'usage_status', title: '状态', width: 72 },
+  { key: 'ref_count', title: '引用', width: 48 },
+  { key: 'created_at', title: '上传时间', width: 110 }
 ]
 
 const files = ref<AdminFile[]>([])
@@ -457,6 +503,18 @@ const onSelectionChange = (rows: AdminFile[]) => {
 const scanning = ref(false)
 const scanResult = ref<ScanResultResponse | null>(null)
 const selectedOrphans = ref<string[]>([])
+
+// 下载相关状态
+const downloading = ref(false)
+const downloadFileName = ref('')
+const downloaded = ref(0)
+const downloadTotal = ref(0)
+const downloadDone = ref(false)
+let abortController: AbortController | null = null
+
+// 预览相关状态
+const previewVisible = ref(false)
+const previewInfo = ref<PreviewInfo | null>(null)
 
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B'
@@ -511,6 +569,64 @@ const fetchStats = async () => {
 
 const viewFile = (file: AdminFile) => {
   selectedFile.value = file
+}
+
+const startDownload = async (file: AdminFile) => {
+  if (downloading.value) return
+  downloading.value = true
+  downloadFileName.value = file.original_name || file.rel_path
+  downloaded.value = 0
+  downloadTotal.value = file.size_bytes
+  downloadDone.value = false
+  abortController = new AbortController()
+
+  const CHUNK_SIZE = 1024 * 1024
+  const total = file.size_bytes
+  const chunks: Blob[] = []
+
+  try {
+    for (let start = 0; start < total; start += CHUNK_SIZE) {
+      const end = Math.min(start + CHUNK_SIZE - 1, total - 1)
+      const resp = await fetch(getDownloadUrl(file.id), {
+        headers: { Range: `bytes=${start}-${end}` },
+        signal: abortController.signal,
+      })
+      const blob = await resp.blob()
+      chunks.push(blob)
+      downloaded.value = Math.min(start + CHUNK_SIZE, total)
+    }
+    const blob = new Blob(chunks)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.original_name || 'download'
+    a.click()
+    URL.revokeObjectURL(url)
+    downloadDone.value = true
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') {
+      console.error('Download failed:', e)
+      alert('下载失败，请稍后重试')
+    }
+  } finally {
+    downloading.value = false
+    abortController = null
+  }
+}
+
+const cancelDownload = () => {
+  abortController?.abort()
+  downloading.value = false
+}
+
+const openPreview = async (file: AdminFile) => {
+  try {
+    const info = await getPreviewInfo(file.id)
+    previewInfo.value = info
+    previewVisible.value = true
+  } catch (e) {
+    console.error('Failed to load preview:', e)
+  }
 }
 
 const confirmDelete = async (file: AdminFile) => {

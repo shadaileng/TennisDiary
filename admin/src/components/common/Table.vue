@@ -25,7 +25,7 @@
           >
             {{ column.title }}
           </th>
-          <th v-if="$slots.actions" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th v-if="$slots.actions" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[140px]">
             操作
           </th>
         </tr>
