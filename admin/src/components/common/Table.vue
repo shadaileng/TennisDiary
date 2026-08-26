@@ -25,7 +25,7 @@
           >
             {{ column.title }}
           </th>
-          <th v-if="$slots.actions" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[140px]">
+          <th v-if="$slots.actions" class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[120px]">
             操作
           </th>
         </tr>
@@ -65,7 +65,7 @@
               {{ row[column.key] }}
             </slot>
           </td>
-          <td v-if="$slots.actions" class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
+          <td v-if="$slots.actions" class="px-2 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
             <slot name="actions" :row="row" />
           </td>
         </tr>

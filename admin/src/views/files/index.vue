@@ -471,14 +471,14 @@ import FilePreview from '@/components/common/FilePreview.vue'
 import { formatTs } from '@/utils/date'
 
 const columns = [
-  { key: 'id', title: 'ID', width: 56 },
-  { key: 'user_id', title: '用户', width: 48 },
+  { key: 'id', title: 'ID', width: 48 },
+  { key: 'user_id', title: '用户', width: 40 },
   { key: 'original_name', title: '文件名', wrap: true },
-  { key: 'size_bytes', title: '大小', width: 72 },
-  { key: 'upload_source', title: '来源', width: 72 },
-  { key: 'usage_status', title: '状态', width: 72 },
-  { key: 'ref_count', title: '引用', width: 48 },
-  { key: 'created_at', title: '上传时间', width: 110 }
+  { key: 'size_bytes', title: '大小', width: 64 },
+  { key: 'upload_source', title: '来源', width: 64 },
+  { key: 'usage_status', title: '状态', width: 64 },
+  { key: 'ref_count', title: '引用', width: 40 },
+  { key: 'created_at', title: '上传时间', width: 90 }
 ]
 
 const files = ref<AdminFile[]>([])
