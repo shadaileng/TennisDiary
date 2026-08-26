@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.75.0] - 2026-08-26
+
+### Added
+
+- Admin 文件预览与分片下载（114）：新增 `GET /{file_id}/download` 端点，支持 Range 请求头实现分片下载（206 Partial Content），前端 1MB 分片 + 右下角进度条（文件名/百分比/已下载/总大小/取消按钮）；新增 `GET /{file_id}/preview` 端点返回 mime_type + preview_url，前端预览弹窗按类型渲染 img/video/audio，不支持的格式提示。表格行操作和详情弹窗底部均增加「预览」「下载」按钮。10 个后端测试通过。
+
 ## [1.74.2] - 2026-08-26
 
 ### Fixed

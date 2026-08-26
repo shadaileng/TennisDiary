@@ -112,3 +112,20 @@ export function registerAllFiles(defaultUserId: number = 0): Promise<{ registere
 export function cleanupOrphanFiles(files: string[]): Promise<{ cleaned: number }> {
   return request.post('/api/admin/files/cleanup-orphans', { files })
 }
+
+export interface PreviewInfo {
+  id: number
+  mime_type: string
+  rel_path: string
+  size_bytes: number
+  original_name: string
+  preview_url: string
+}
+
+export function getPreviewInfo(fileId: number): Promise<PreviewInfo> {
+  return request.get(`/api/admin/files/${fileId}/preview`)
+}
+
+export function getDownloadUrl(fileId: number): string {
+  return `/api/admin/files/${fileId}/download`
+}
