@@ -1,6 +1,11 @@
 """Admin 文件管理路由"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import mimetypes
+import os
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_admin
@@ -367,4 +372,121 @@ def register_all_files(
     return ApiResponse(
         data={"registered": len(registered)},
         message=f"成功注册 {len(registered)} 个文件",
+    )
+
+
+# ==================== 下载 & 预览 ====================
+
+_RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
+
+
+def _parse_range(range_header: str, file_size: int) -> tuple[int, int]:
+    """解析 Range 头，返回 (start, end) 闭区间"""
+    m = _RANGE_RE.match(range_header)
+    if not m:
+        raise HTTPException(status_code=416, detail="Range 格式无效")
+    start_s, end_s = m.group(1), m.group(2)
+    if start_s:
+        start = int(start_s)
+        end = int(end_s) if end_s else file_size - 1
+    elif end_s:
+        start = file_size - int(end_s)
+        end = file_size - 1
+    else:
+        raise HTTPException(status_code=416, detail="Range 格式无效")
+    if start < 0 or end >= file_size or start > end:
+        raise HTTPException(status_code=416, detail="Range 超出文件范围")
+    return start, end
+
+
+@router.get("/{file_id}/download")
+def download_file(
+    file_id: int,
+    request: Request,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """分片下载文件（支持 Range 请求头，返回 206 Partial Content）"""
+    file_record = db.query(File).filter(File.id == file_id).first()
+    if file_record is None:
+        raise HTTPException(status_code=404, detail="文件记录不存在")
+
+    abs_path = file_service.resolve_safe_path(file_record.rel_path)
+    if abs_path is None or not os.path.isfile(abs_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    file_size = os.path.getsize(abs_path)
+    filename = file_record.original_name or os.path.basename(abs_path)
+    media_type = (
+        file_record.mime_type
+        or mimetypes.guess_type(filename)[0]
+        or "application/octet-stream"
+    )
+
+    range_header = request.headers.get("range")
+    if range_header:
+        start, end = _parse_range(range_header, file_size)
+        content_length = end - start + 1
+
+        def _iter_range():
+            with open(abs_path, "rb") as f:
+                f.seek(start)
+                remaining = content_length
+                while remaining > 0:
+                    chunk = f.read(min(8192, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        return StreamingResponse(
+            _iter_range(),
+            status_code=206,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Content-Length": str(content_length),
+                "Accept-Ranges": "bytes",
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+            media_type=media_type,
+        )
+
+    return FileResponse(
+        abs_path,
+        media_type=media_type,
+        filename=filename,
+    )
+
+
+@router.get("/{file_id}/preview")
+def preview_file(
+    file_id: int,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """获取文件预览信息（mime_type + rel_path + size_bytes），前端据此构造预览 URL"""
+    file_record = db.query(File).filter(File.id == file_id).first()
+    if file_record is None:
+        raise HTTPException(status_code=404, detail="文件记录不存在")
+
+    abs_path = file_service.resolve_safe_path(file_record.rel_path)
+    if abs_path is None or not os.path.isfile(abs_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    mime_type = file_record.mime_type
+    if not mime_type:
+        guessed = mimetypes.guess_type(
+            file_record.original_name or file_record.rel_path
+        )[0]
+        mime_type = guessed or "application/octet-stream"
+
+    return ApiResponse(
+        data={
+            "id": file_record.id,
+            "mime_type": mime_type,
+            "rel_path": file_record.rel_path,
+            "size_bytes": file_record.size_bytes,
+            "original_name": file_record.original_name,
+            "preview_url": f"/api/admin/system/files/{file_record.rel_path}",
+        }
     )
