@@ -417,6 +417,11 @@ def download_file(
 
     file_size = os.path.getsize(abs_path)
     filename = file_record.original_name or os.path.basename(abs_path)
+    # 兜底：若文件名无扩展名，从 rel_path 推断
+    if "." not in os.path.basename(filename):
+        ext = os.path.splitext(file_record.rel_path)[1]
+        if ext:
+            filename = filename + ext
     media_type = (
         file_record.mime_type
         or mimetypes.guess_type(filename)[0]
