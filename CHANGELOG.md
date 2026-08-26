@@ -4,6 +4,18 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.74.2] - 2026-08-26
+
+### Fixed
+
+- 文件统计「可清除」计数修复：仅统计 `unreferenced` 状态文件，排除已软删的 `marked_deleted`（删除不可逆文件后计数保持不变）。
+- 文件列表「可清除」状态筛选：前端将 `filterUsageStatus` 传给后端 `usage_status` 参数，由后端实时分类后筛选+分页，修复之前 client-side 过滤当前页数据导致筛选结果为空的问题。
+- 文件详情弹窗文件名换行：原始文件名添加 `break-all`，长文件名按字符换行不再撑开弹窗。
+
+### Performance
+
+- usage_status 筛选批量分类：新增 `bulk_classify_files` 预加载全部用户/装备/分析记录，一次分类所有文件，避免 N+1 逐条查询（109 个文件从 ~110 次查询降至 ~5 次）。
+
 ## [1.74.1] - 2026-08-25
 
 ### Fixed
