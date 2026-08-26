@@ -580,22 +580,11 @@ const startDownload = async (file: AdminFile) => {
   downloadDone.value = false
   abortController = new AbortController()
 
-  const CHUNK_SIZE = 1024 * 1024
-  const total = file.size_bytes
-  const chunks: Blob[] = []
-
   try {
-    for (let start = 0; start < total; start += CHUNK_SIZE) {
-      const end = Math.min(start + CHUNK_SIZE - 1, total - 1)
-      const resp = await fetch(getDownloadUrl(file.id), {
-        headers: { Range: `bytes=${start}-${end}` },
-        signal: abortController.signal,
-      })
-      const blob = await resp.blob()
-      chunks.push(blob)
-      downloaded.value = Math.min(start + CHUNK_SIZE, total)
-    }
-    const blob = new Blob(chunks)
+    const resp = await fetch(getDownloadUrl(file.id), {
+      signal: abortController.signal,
+    })
+    const blob = await resp.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
