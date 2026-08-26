@@ -99,7 +99,7 @@
       </template>
 
       <template #cell-created_at="{ value }">
-        {{ formatTsShort(value) }}
+        {{ formatTs(value) }}
       </template>
 
       <template #actions="{ row }">
@@ -468,7 +468,7 @@ import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
-import { formatTs, formatTsShort } from '@/utils/date'
+import { formatTs } from '@/utils/date'
 
 const columns = [
   { key: 'id', title: 'ID', width: 48 },
@@ -478,7 +478,7 @@ const columns = [
   { key: 'upload_source', title: '来源', width: 64 },
   { key: 'usage_status', title: '状态', width: 64 },
   { key: 'ref_count', title: '引用', width: 40 },
-  { key: 'created_at', title: '上传时间', width: 90 }
+  { key: 'created_at', title: '上传时间', width: 130 }
 ]
 
 const files = ref<AdminFile[]>([])

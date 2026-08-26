@@ -55,7 +55,7 @@
             :key="column.key"
             :style="widthStyle(column.width)"
             :class="[
-              'px-4 py-4 text-sm text-gray-900',
+              'px-4 py-4 text-sm text-gray-900 overflow-hidden',
               column.wrap ? 'whitespace-normal break-all' : 'whitespace-nowrap',
               alignClass(column.align),
               column.className,
