@@ -17,7 +17,7 @@
             :key="column.key"
             :style="widthStyle(column.width)"
             :class="[
-            'px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider',
+            'px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-center',
             alignClass(column.align),
             column.wrap ? 'whitespace-normal' : 'whitespace-nowrap',
             column.headerClass,
