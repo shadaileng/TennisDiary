@@ -6,9 +6,10 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_admin
+from app.core.auth import ADMIN_JWT_ALGORITHM, ADMIN_JWT_SECRET, get_current_admin
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.decorators.audit import audit
@@ -403,10 +404,30 @@ def _parse_range(range_header: str, file_size: int) -> tuple[int, int]:
 def download_file(
     file_id: int,
     request: Request,
-    admin: Admin = Depends(get_current_admin),
+    token: str | None = Query(None, description="可选 token 查询参数（供 window.open 使用）"),
     db: Session = Depends(get_db),
 ):
     """分片下载文件（支持 Range 请求头，返回 206 Partial Content）"""
+    # 手动鉴权：优先 header，回退 query 参数
+    from app.models.admin import Admin as AdminModel
+
+    header_token = request.headers.get("X-Auth-Token")
+    jwt_token = header_token or token
+    if not jwt_token:
+        raise HTTPException(status_code=401, detail="未登录")
+    try:
+        payload = jwt.decode(jwt_token, ADMIN_JWT_SECRET, algorithms=[ADMIN_JWT_ALGORITHM])
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail="无效的 token") from exc
+    if payload.get("type") != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    sub = payload.get("sub")
+    if not sub or not sub.startswith("admin:"):
+        raise HTTPException(status_code=401, detail="无效的 token")
+    admin_id = int(sub.split(":")[1])
+    admin = db.query(AdminModel).filter(AdminModel.id == admin_id).first()
+    if admin is None or not admin.is_active:
+        raise HTTPException(status_code=401, detail="管理员不存在或已禁用")
     file_record = db.query(File).filter(File.id == file_id).first()
     if file_record is None:
         raise HTTPException(status_code=404, detail="文件记录不存在")

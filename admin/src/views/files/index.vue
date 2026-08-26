@@ -422,16 +422,6 @@
     </div>
   </div>
 
-  <!-- 下载进度条 -->
-  <DownloadProgress
-    :visible="downloading"
-    :file-name="downloadFileName"
-    :downloaded="downloaded"
-    :total="downloadTotal"
-    :done="downloadDone"
-    @cancel="cancelDownload"
-  />
-
   <!-- 文件预览 -->
   <FilePreview
     v-if="previewInfo"
@@ -466,7 +456,6 @@ import {
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import StatCard from '@/components/common/StatCard.vue'
-import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
 import { formatTs } from '@/utils/date'
 
@@ -503,14 +492,6 @@ const onSelectionChange = (rows: AdminFile[]) => {
 const scanning = ref(false)
 const scanResult = ref<ScanResultResponse | null>(null)
 const selectedOrphans = ref<string[]>([])
-
-// 下载相关状态
-const downloading = ref(false)
-const downloadFileName = ref('')
-const downloaded = ref(0)
-const downloadTotal = ref(0)
-const downloadDone = ref(false)
-let abortController: AbortController | null = null
 
 // 预览相关状态
 const previewVisible = ref(false)
@@ -571,43 +552,10 @@ const viewFile = (file: AdminFile) => {
   selectedFile.value = file
 }
 
-const startDownload = async (file: AdminFile) => {
-  if (downloading.value) return
-  downloading.value = true
-  downloadFileName.value = file.original_name || file.rel_path
-  downloaded.value = 0
-  downloadTotal.value = file.size_bytes
-  downloadDone.value = false
-  abortController = new AbortController()
-
-  try {
-    const token = localStorage.getItem('admin_token')
-    const resp = await fetch(getDownloadUrl(file.id), {
-      signal: abortController.signal,
-      headers: token ? { 'X-Auth-Token': token } : {},
-    })
-    const blob = await resp.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = file.original_name || 'download'
-    a.click()
-    URL.revokeObjectURL(url)
-    downloadDone.value = true
-  } catch (e) {
-    if ((e as Error).name !== 'AbortError') {
-      console.error('Download failed:', e)
-      alert('下载失败，请稍后重试')
-    }
-  } finally {
-    downloading.value = false
-    abortController = null
-  }
-}
-
-const cancelDownload = () => {
-  abortController?.abort()
-  downloading.value = false
+const startDownload = (file: AdminFile) => {
+  const token = localStorage.getItem('admin_token')
+  const url = getDownloadUrl(file.id) + (token ? `?token=${encodeURIComponent(token)}` : '')
+  window.open(url, '_blank')
 }
 
 const openPreview = async (file: AdminFile) => {
