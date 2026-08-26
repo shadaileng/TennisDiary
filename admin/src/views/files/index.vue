@@ -478,7 +478,7 @@ const columns = [
   { key: 'upload_source', title: '来源', width: 64 },
   { key: 'usage_status', title: '状态', width: 64 },
   { key: 'ref_count', title: '引用', width: 40 },
-  { key: 'created_at', title: '上传时间', width: 130 }
+  { key: 'created_at', title: '上传时间', width: 200 }
 ]
 
 const files = ref<AdminFile[]>([])
