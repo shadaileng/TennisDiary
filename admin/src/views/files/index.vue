@@ -581,8 +581,10 @@ const startDownload = async (file: AdminFile) => {
   abortController = new AbortController()
 
   try {
+    const token = localStorage.getItem('admin_token')
     const resp = await fetch(getDownloadUrl(file.id), {
       signal: abortController.signal,
+      headers: token ? { 'X-Auth-Token': token } : {},
     })
     const blob = await resp.blob()
     const url = URL.createObjectURL(blob)
