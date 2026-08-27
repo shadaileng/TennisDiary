@@ -15,6 +15,7 @@ venv/
 .pytest_cache/
 htmlcov/
 .coverage
+.testmondata
 
 # MediaPipe 姿态模型（约 5.7MB 二进制，不纳入仓库；用 scripts/download-pose-model.sh 下载）
 models/

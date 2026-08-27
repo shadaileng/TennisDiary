@@ -16,8 +16,10 @@ uv run ruff format --check . || {
     exit 1
 }
 
-echo "==> [3/3] pytest 测试（并行 -n auto 加速）"
-uv run pytest -v -n auto
+echo "==> [3/3] pytest 测试（testmon 只跑受影响用例 + 并行加速）"
+# testmon 基于上次覆盖率仅重跑被改动代码影响的用例（首次/大改会跑全量以重建缓存）；
+# 全量并行测试交由 CI（.github/workflows/test-server.yml）执行，与提交门禁解耦。
+uv run pytest -v -n auto --testmon
 
 echo ""
 echo "✅ 全部验证通过（ruff check + ruff format + pytest）"

@@ -1,0 +1,40 @@
+name: Test Server
+
+on:
+  push:
+    branches: [dev, master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/test-server.yml'
+  pull_request:
+    branches: [dev, master]
+    paths:
+      - 'server/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --no-install-project
+
+      - name: Lint & format check
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Run full tests (parallel)
+        run: uv run pytest -v -n auto
