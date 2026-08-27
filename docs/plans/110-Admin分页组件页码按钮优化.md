@@ -8,7 +8,7 @@
 > | 最后更新 | 2026-08-26 |
 > | 对应功能/内容 | Admin 公共 Pagination 组件分页按钮优化（页码 + 省略号） |
 >
-> **关联文档**：[Table.vue](../../admin/src/components/common/Table.vue) · [Pagination.vue](../../admin/src/components/common/Pagination.vue)
+> **关联文档**：`admin/src/components/common/Pagination.vue`（Admin 公共分页组件，页码 + 省略号实现）
 
 # 110：Admin 分页组件页码按钮优化
 
