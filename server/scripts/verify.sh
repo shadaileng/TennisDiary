@@ -16,8 +16,8 @@ uv run ruff format --check . || {
     exit 1
 }
 
-echo "==> [3/3] pytest 测试"
-uv run pytest -v
+echo "==> [3/3] pytest 测试（并行 -n auto 加速）"
+uv run pytest -v -n auto
 
 echo ""
 echo "✅ 全部验证通过（ruff check + ruff format + pytest）"
