@@ -40,7 +40,8 @@ def _write_file(rel_path: str, content: bytes = b"orphan-content") -> str:
     return rel_path
 
 
-def _make_admin_client(test_engine):
+@pytest.fixture(scope="function")
+def admin_client(test_engine):
     from jose import jwt as _jwt
 
     from app.core.auth import ADMIN_JWT_ALGORITHM, ADMIN_JWT_SECRET
@@ -101,7 +102,7 @@ def test_engine():
 
 
 class TestCleanupOrphans:
-    def test_cleanup_orphan_files(self, test_engine, tmp_path, monkeypatch):
+    def test_cleanup_orphan_files(self, admin_client, tmp_path, monkeypatch):
         from app.core.config import settings
 
         data_dir = tmp_path / "data"
@@ -111,7 +112,7 @@ class TestCleanupOrphans:
         monkeypatch.setattr(settings, "UPLOAD_DIR", str(upload_dir))
         monkeypatch.setattr(settings, "LOG_DIR", str(data_dir / "logs"))
 
-        client = next(_make_admin_client(test_engine))
+        client = admin_client
 
         # 创建两个孤儿文件
         rel1 = "orphan-cleanup/a.jpg"
@@ -154,7 +155,7 @@ class TestCleanupOrphans:
         assert not os.path.exists(abs1)
         assert not os.path.exists(abs2)
 
-    def test_cleanup_empty_list(self, test_engine, tmp_path, monkeypatch):
+    def test_cleanup_empty_list(self, admin_client, tmp_path, monkeypatch):
         from app.core.config import settings
 
         data_dir = tmp_path / "data"
@@ -164,13 +165,13 @@ class TestCleanupOrphans:
         monkeypatch.setattr(settings, "UPLOAD_DIR", str(upload_dir))
         monkeypatch.setattr(settings, "LOG_DIR", str(data_dir / "logs"))
 
-        client = next(_make_admin_client(test_engine))
+        client = admin_client
 
         resp = client.post("/api/admin/files/cleanup-orphans", json={"files": []})
         assert resp.status_code == 200
         assert resp.json()["data"]["cleaned"] == 0
 
-    def test_cleanup_skips_nonexistent(self, test_engine, tmp_path, monkeypatch):
+    def test_cleanup_skips_nonexistent(self, admin_client, tmp_path, monkeypatch):
         from app.core.config import settings
 
         data_dir = tmp_path / "data"
@@ -180,7 +181,7 @@ class TestCleanupOrphans:
         monkeypatch.setattr(settings, "UPLOAD_DIR", str(upload_dir))
         monkeypatch.setattr(settings, "LOG_DIR", str(data_dir / "logs"))
 
-        client = next(_make_admin_client(test_engine))
+        client = admin_client
 
         # 清理一个不存在的文件，应返回 cleaned=0 不报错
         resp = client.post(
