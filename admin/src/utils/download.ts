@@ -1,7 +1,5 @@
-import { getDownloadUrl } from '@/api/files'
-
 export interface DownloadFileInput {
-  id: number
+  url: string
   fileName: string
   sizeBytes: number
 }
@@ -9,6 +7,7 @@ export interface DownloadFileInput {
 export interface DownloadOptions {
   onProgress?: (downloaded: number, total: number) => void
   signal?: AbortSignal
+  token?: string
 }
 
 /**
@@ -20,8 +19,8 @@ export async function downloadAdminFile(
   file: DownloadFileInput,
   options: DownloadOptions = {},
 ): Promise<void> {
-  const token = localStorage.getItem('admin_token') || ''
-  const url = getDownloadUrl(file.id)
+  const token = options.token ?? localStorage.getItem('admin_token') ?? ''
+  const url = file.url
 
   if (typeof window.showSaveFilePicker === 'function') {
     let handle: FileSystemFileHandle

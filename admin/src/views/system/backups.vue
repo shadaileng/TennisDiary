@@ -107,12 +107,23 @@
       </table>
     </div>
   </div>
+
+  <!-- 流式下载进度条 -->
+  <DownloadProgress
+    :visible="dl.visible"
+    :file-name="dl.fileName"
+    :downloaded="dl.downloaded"
+    :total="dl.total"
+    :done="dl.done"
+    @cancel="cancelDownload"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import axios from 'axios'
 import { formatIso } from '@/utils/date'
+import { downloadAdminFile } from '@/utils/download'
+import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import {
   createBackup as createBackupApi,
   getBackups,
@@ -128,6 +139,10 @@ const backups = ref<Backup[]>([])
 const creating = ref(false)
 const uploading = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+
+// 流式下载进度条
+const dl = ref({ visible: false, fileName: '', downloaded: 0, total: 0, done: false })
+let dlAbort: AbortController | null = null
 
 const triggerUpload = () => {
   fileInput.value?.click()
@@ -175,24 +190,36 @@ const createBackup = async () => {
 }
 
 const download = async (backup: Backup) => {
-  // 二进制下载需绕过 request 拦截器（其假设响应为 ApiResponse JSON）
   const base = import.meta.env.VITE_API_BASE_URL
   const url = `${base}/api/admin/system/backup/download/${encodeURIComponent(backup.name)}`
+  dl.value = { visible: true, fileName: backup.name, downloaded: 0, total: 0, done: false }
+  dlAbort = new AbortController()
   try {
-    const res = await axios.get(url, {
-      responseType: 'blob',
-      headers: { 'X-Auth-Token': authStore.token || '' }
-    })
-    const blobUrl = URL.createObjectURL(res.data)
-    const a = document.createElement('a')
-    a.href = blobUrl
-    a.download = backup.name
-    a.click()
-    URL.revokeObjectURL(blobUrl)
+    await downloadAdminFile(
+      { url, fileName: backup.name, sizeBytes: 0 },
+      {
+        token: authStore.token || undefined,
+        signal: dlAbort.signal,
+        onProgress: (received, total) => {
+          dl.value = { ...dl.value, downloaded: received, total }
+        },
+      },
+    )
+    dl.value = { ...dl.value, done: true }
+    setTimeout(() => { dl.value.visible = false }, 2000)
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return
     console.error('Failed to download backup:', e)
     alert('下载失败')
+    dl.value.visible = false
+  } finally {
+    dlAbort = null
   }
+}
+
+const cancelDownload = () => {
+  dlAbort?.abort()
+  dl.value.visible = false
 }
 
 const restore = async (backup: Backup) => {

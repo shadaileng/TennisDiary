@@ -458,6 +458,7 @@ import {
   registerAllFiles,
   cleanupOrphanFiles,
   getPreviewInfo,
+  getDownloadUrl,
   type AdminFile,
   type PreviewInfo,
   type FileStats,
@@ -575,7 +576,7 @@ const startDownload = async (file: AdminFile) => {
 
   try {
     await downloadAdminFile(
-      { id: file.id, fileName, sizeBytes: file.size_bytes },
+      { url: getDownloadUrl(file.id), fileName, sizeBytes: file.size_bytes },
       {
         signal: dlAbort.signal,
         onProgress: (downloaded, total) => {

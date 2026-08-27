@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.75.3] - 2026-08-26
+
+### Added
+
+- Admin 备份下载进度条：备份管理页下载复用 `downloadAdminFile` 的 `onProgress` 回调驱动 `DownloadProgress` 进度条（文件名/已下载/总大小/百分比/取消），与文件管理页下载体验一致。
+
 ## [1.75.2] - 2026-08-26
 
 ### Added
