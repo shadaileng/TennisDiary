@@ -80,12 +80,16 @@ AI 协作者**只能提交（commit），不能推送（push）**。所有推送
 修改后端代码后，提交前必须依次执行：
 
 ```bash
-cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q
+cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast
 ```
+
+> 提交门禁仅跑 `fast` 轻量子集（纯函数/模型/校验，不依赖 DB 与 TestClient，秒级）。
+> 全量集成测试由 CI（`.github/workflows/test-server.yml`，`pytest -n auto`）在 push/PR 时并行执行。
+> 本地想跑全量：`uv run pytest -n auto`；只跑受影响用例：`uv run pytest --testmon -n auto`。
 
 - `ruff check` 有 error 时禁止提交，先修复
 - `ruff format` 有变更时先格式化再提交
-- `pytest` 有失败时禁止提交，先修复
+- `pytest -m fast` 有失败时禁止提交，先修复（全量失败由 CI 拦截）
 
 修改前端代码后，提交前必须依次执行：
 

@@ -4,8 +4,12 @@ import os
 import shutil
 import tempfile
 
+import pytest
+
 from app.core.config import settings
 from app.core.dirs import ensure_dirs
+
+pytestmark = pytest.mark.fast
 
 
 class TestEnsureDirs:

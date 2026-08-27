@@ -38,6 +38,9 @@ dev = [
 env = [
     "APP_ENV=test",
 ]
+markers = [
+    "fast: 轻量单测（纯函数/模型/校验，不依赖 DB 与 TestClient），用于提交门禁快速校验",
+]
 
 [tool.ruff]
 line-length = 100

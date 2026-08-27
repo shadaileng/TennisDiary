@@ -16,10 +16,11 @@ uv run ruff format --check . || {
     exit 1
 }
 
-echo "==> [3/3] pytest 测试（testmon 只跑受影响用例 + 并行加速）"
-# testmon 基于上次覆盖率仅重跑被改动代码影响的用例（首次/大改会跑全量以重建缓存）；
-# 全量并行测试交由 CI（.github/workflows/test-server.yml）执行，与提交门禁解耦。
-uv run pytest -v -n auto --testmon
+echo "==> [3/3] pytest 测试（提交门禁：仅跑 fast 轻量子集，全量由 CI 并行执行）"
+# 门禁沙箱为单核且工作区不持久，testmon/并行均无法加速，故仅运行标记为 fast 的
+# 纯函数/模型/校验类用例（不依赖 DB 与 TestClient），秒级完成；
+# 全量集成测试交由 CI（.github/workflows/test-server.yml，pytest -n auto）执行。
+uv run pytest -v -n auto -m fast
 
 echo ""
 echo "✅ 全部验证通过（ruff check + ruff format + pytest）"

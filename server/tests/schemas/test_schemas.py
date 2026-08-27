@@ -40,6 +40,8 @@ from app.schemas.schemas import (
     WeightResponse,
 )
 
+pytestmark = pytest.mark.fast
+
 # ==================== 认证 ====================
 
 
