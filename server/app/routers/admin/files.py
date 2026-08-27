@@ -112,10 +112,7 @@ def list_files(
     if usage_status:
         all_files = query.order_by(File.created_at.desc()).all()
         classifications = file_service.bulk_classify_files(db, all_files)
-        matched = [
-            f for f in all_files
-            if classifications.get(f.id, ("", ""))[0] == usage_status
-        ]
+        matched = [f for f in all_files if classifications.get(f.id, ("", ""))[0] == usage_status]
         total = len(matched)
         paginated = matched[offset : offset + limit]
         return ApiResponse(
@@ -444,9 +441,7 @@ def download_file(
         if ext:
             filename = filename + ext
     media_type = (
-        file_record.mime_type
-        or mimetypes.guess_type(filename)[0]
-        or "application/octet-stream"
+        file_record.mime_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
     )
 
     range_header = request.headers.get("range")
@@ -501,9 +496,7 @@ def preview_file(
 
     mime_type = file_record.mime_type
     if not mime_type:
-        guessed = mimetypes.guess_type(
-            file_record.original_name or file_record.rel_path
-        )[0]
+        guessed = mimetypes.guess_type(file_record.original_name or file_record.rel_path)[0]
         mime_type = guessed or "application/octet-stream"
 
     return ApiResponse(

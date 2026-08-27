@@ -196,9 +196,7 @@ class TestDownloadFile:
         """下载的 Content-Type 必须与 mime_type 一致"""
         content = b"<html></html>"
         uid = _next_uid()
-        rec = _insert_file(
-            test_db, user_id=uid, mime_type="text/html", size_bytes=len(content)
-        )
+        rec = _insert_file(test_db, user_id=uid, mime_type="text/html", size_bytes=len(content))
         _write_file(rec.rel_path, content)
 
         resp = auth_client.get(f"/api/admin/files/{rec.id}/download")

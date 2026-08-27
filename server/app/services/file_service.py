@@ -611,16 +611,15 @@ def bulk_classify_files(db: Session, files: list[File]) -> dict[int, tuple[str, 
             video_user_ids.add(f.user_id)
 
     users = (
-        {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
-        if user_ids else {}
+        {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()} if user_ids else {}
     )
     gears = (
-        {g.id: g for g in db.query(Gear).filter(Gear.id.in_(gear_ids)).all()}
-        if gear_ids else {}
+        {g.id: g for g in db.query(Gear).filter(Gear.id.in_(gear_ids)).all()} if gear_ids else {}
     )
     analyses = (
         {a.id: a for a in db.query(Analysis).filter(Analysis.id.in_(analysis_ids)).all()}
-        if analysis_ids else {}
+        if analysis_ids
+        else {}
     )
     video_analyses: dict[int, list[Analysis]] = {}
     if video_user_ids:

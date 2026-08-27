@@ -168,8 +168,12 @@ class TestClassifyFileUsage:
         test_db.commit()
         # business_type=None, upload_source="avatar" → 走 upload_source 推断
         rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel,
-            business_type=None, upload_source="avatar", business_id=None,
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="avatar",
+            business_id=None,
         )
         status, reason = file_service.classify_file_usage(test_db, rec)
         assert status == "in_use"
@@ -180,8 +184,12 @@ class TestClassifyFileUsage:
         rel = f"avatars/{uid}/pic.jpg"
         # 没有对应的 User 记录
         rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel,
-            business_type=None, upload_source="avatar", business_id=None,
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="avatar",
+            business_id=None,
         )
         status, reason = file_service.classify_file_usage(test_db, rec)
         assert status == "unreferenced"
@@ -193,8 +201,12 @@ class TestClassifyFileUsage:
         test_db.add(Gear(id=300, user_id=uid, photo=rel))
         test_db.commit()
         rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel,
-            business_type=None, upload_source="gear_image", business_id=None,
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="gear_image",
+            business_id=None,
         )
         status, reason = file_service.classify_file_usage(test_db, rec)
         assert status == "in_use"
@@ -207,8 +219,12 @@ class TestClassifyFileUsage:
         test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", video_url=rel))
         test_db.commit()
         rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel,
-            business_type=None, upload_source="video", business_id=None,
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="video",
+            business_id=None,
         )
         status, reason = file_service.classify_file_usage(test_db, rec)
         assert status == "in_use"
@@ -218,8 +234,12 @@ class TestClassifyFileUsage:
         uid = 4100
         rel = f"unknown/{uid}/x.jpg"
         rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel,
-            business_type=None, upload_source="other", business_id=None,
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="other",
+            business_id=None,
         )
         status, reason = file_service.classify_file_usage(test_db, rec)
         assert status == "unreferenced"

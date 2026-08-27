@@ -13,13 +13,18 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from jose import JWTError, jwt
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_admin
+from app.core.auth import (
+    ADMIN_JWT_ALGORITHM,
+    ADMIN_JWT_SECRET,
+    get_current_admin,
+)
 from app.core.backup_meta import BACKUP_META_DB_NAME, get_backup_meta_db
 from app.core.config import settings
 from app.core.database import get_db
@@ -500,9 +505,30 @@ def list_backups(
 @router.get("/backup/download/{backup_id}", response_class=FileResponse)
 def download_backup(
     backup_id: str,
-    admin: Admin = Depends(get_current_admin),
+    request: Request,
+    token: str | None = Query(None, description="可选 token 查询参数（供 window.open 使用）"),
+    db: Session = Depends(get_db),
 ):
-    """下载备份文件"""
+    """下载备份文件（手动鉴权：优先 header，回退 query 参数）"""
+    from app.models.admin import Admin as AdminModel
+
+    header_token = request.headers.get("X-Auth-Token")
+    jwt_token = header_token or token
+    if not jwt_token:
+        raise HTTPException(status_code=401, detail="未登录")
+    try:
+        payload = jwt.decode(jwt_token, ADMIN_JWT_SECRET, algorithms=[ADMIN_JWT_ALGORITHM])
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail="无效的 token") from exc
+    if payload.get("type") != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    sub = payload.get("sub")
+    if not sub or not sub.startswith("admin:"):
+        raise HTTPException(status_code=401, detail="无效的 token")
+    admin_id = int(sub.split(":")[1])
+    admin = db.query(AdminModel).filter(AdminModel.id == admin_id).first()
+    if admin is None or not admin.is_active:
+        raise HTTPException(status_code=401, detail="管理员不存在或已禁用")
     backup_path = _resolve_backup(backup_id)
     return FileResponse(backup_path, media_type="application/gzip", filename=backup_path.name)
 
