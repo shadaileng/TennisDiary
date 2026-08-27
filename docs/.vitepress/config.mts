@@ -195,6 +195,7 @@ export default defineConfig({
             { text: '84：骨架视频多帧修复', link: '/plans/84-骨架视频多帧修复' },
              { text: '85：骨骼视频帧率自适应绘制', link: '/plans/85-骨骼视频帧率自适应绘制' },
              { text: '101：后端日志细化与异常静默处理修复', link: '/plans/101-后端日志细化与异常静默处理修复' },
+             { text: '115：pytest 测试提速方案', link: '/plans/115-pytest测试提速方案' },
 ],
         },
         {

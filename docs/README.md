@@ -211,6 +211,7 @@ docs/
 | 65：Server 部署方案（魔搭创空间） | v1.1.0 | 方案 | `plans/65-Server部署方案-ModelScope-创空间.md` | 魔搭创空间 Docker 免费托管部署（当前启用） | ✅ 已完成 |
 | 67：Cloudflare Workers 代理 ModelScope 方案 | v1.0.0 | 方案 | `plans/67-Cloudflare-Workers-代理-ModelScope-方案.md` | Worker 反向代理解决魔搭 CORS 预检 + `X-Auth-Token` 透传 | ✅ 已完成 |
 | 73：测试体系引入 `.env.test` 实现环境隔离 | v1.0.0 | 方案 | `plans/73-测试体系引入-env-test实现环境隔离.md` | 测试配置环境隔离（pytest-env + 环境感知加载 + `data_test/` 落盘隔离） | ✅ 已完成 |
+| 115：pytest 测试提速方案 | v1.0.0 | 方案 | `plans/115-pytest测试提速方案.md` | 内存库 StaticPool + session 级 client + xdist 并行 + testmon + fast 分层门禁 + 全量 CI | ✅ 已完成 |
 | 74：日志查看倒序分页优化 | v1.0.0 | 方案 | `plans/74-日志查看倒序分页优化.md` | Admin 日志查看倒序读取 + 游标分页（解决只能看最早 500 条） | ✅ 已完成 |
 | 75-B2：AI 网关三件套总纲 | v1.0.0 | 方案 | `plans/75-B2-AI网关三件套总纲.md` | Phase B2 AI 网关三件套（AI 评分 + 视频抽帧 + 姿态推理）及 Phase 4/5/6 衔接计划 | 📋 待执行 |
 | 75-B2-Admin：Admin 同步 AI 网关功能 | v1.1.0 | 方案 | `plans/75-B2-Admin同步AI网关功能.md` | Admin 同步三件套：分析报告管理增强 + AI 网关状态监控 + Admin 静态文件服务 | ✅ 已完成 |
@@ -330,6 +331,7 @@ docs/
 | 65-Server部署方案-ModelScope-创空间 | Server 部署 | ✅ 已完成（当前启用） | 2026-08-09 | 2026-08-09 |
 | 67-Cloudflare-Workers-代理-ModelScope-方案 | 前端跨域代理 | ✅ 已完成 | 2026-08-10 | 2026-08-10 |
 | 73-测试体系引入-env-test实现环境隔离 | 测试与工程优化 | ✅ 已完成 | 2026-08-13 | 2026-08-13 |
+| 115-pytest测试提速方案 | 测试与工程优化 | ✅ 已完成 | 2026-08-27 | 2026-08-27 |
 | 74-日志查看倒序分页优化 | 后台管理端优化 | ✅ 已完成 | 2026-08-13 | 2026-08-13 |
 | 75-B2-AI网关三件套总纲 | Phase B2 AI 网关三件套 | 📋 待执行 | - | - |
 | 75-B2-Admin同步AI网关功能 | Phase B2 AI 网关三件套（Admin 侧） | ✅ 已完成 | 2026-08-13 | 19 新增用例 + 全量 202 passed，ruff 通过，admin build 通过 |
