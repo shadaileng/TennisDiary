@@ -12,24 +12,13 @@ from fastapi.responses import FileResponse
 
 from app.core.auth import get_current_user_media
 from app.core.logging import get_logger
+from app.core.mime import EXTENSION_MIME
 from app.models.user import User
 from app.services import file_service
 
 log = get_logger("user")
 
 router = APIRouter(prefix="/api/media", tags=["media"])
-
-# 媒体类型表（jpeg/png/gif/webp/mp4/mov/pdf）
-_MEDIA_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".mp4": "video/mp4",
-    ".mov": "video/quicktime",
-    ".pdf": "application/pdf",
-}
 
 
 @router.get("/{filename:path}", response_class=FileResponse)
@@ -53,5 +42,5 @@ def serve_media(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
     ext = os.path.splitext(filename)[1].lower()
-    media_type = _MEDIA_TYPES.get(ext, "application/octet-stream")
+    media_type = EXTENSION_MIME.get(ext, "application/octet-stream")
     return FileResponse(abs_path, media_type=media_type)

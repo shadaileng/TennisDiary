@@ -12,6 +12,8 @@ import hashlib
 import os
 import time
 
+import pytest
+
 from app.core.config import settings
 from app.models.file import File
 
@@ -414,3 +416,77 @@ class TestAdminFileRegisterAll:
         resp = auth_client.post("/api/admin/files/register-all")
         assert resp.status_code == 200
         assert resp.json()["data"]["registered"] >= 2
+
+
+def _write_real_mp4(rel_path: str) -> None:
+    """用系统 ffmpeg 生成一段极小真实 mp4 到 UPLOAD_DIR 下 rel_path"""
+    import subprocess
+
+    from app.services import video_service
+
+    ffmpeg = video_service.find_ffmpeg()
+    if ffmpeg is None:
+        pytest.skip("ffmpeg 未安装，跳过真实 mp4 探测测试")
+    abs_path = os.path.join(os.path.abspath(settings.UPLOAD_DIR), rel_path)
+    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+    subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=64x64:d=0.2",
+            "-pix_fmt",
+            "yuv420p",
+            abs_path,
+        ],
+        capture_output=True,
+        timeout=60,
+        check=True,
+    )
+
+
+class TestAdminFileRepairMime:
+    """文件修复 + 预览兜底（Step 116）：确保 mp4 不会被当成 audio"""
+
+    def test_preview_fallback_mp4_empty_mime(self, auth_client, test_db):
+        """mime_type 为空的 mp4 记录，预览端点兜底返回 video/mp4（不依赖 mimetypes）"""
+        uid = _next_uid()
+        rel = f"videos/{uid}/sample.mp4"
+        _write_real_mp4(rel)
+        rec = _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            mime_type="",  # 模拟上传时客户端未带 Content-Type 的存量空值
+            upload_source="video",
+        )
+        resp = auth_client.get(f"/api/admin/files/{rec.id}/preview")
+        assert resp.status_code == 200
+        assert resp.json()["data"]["mime_type"] == "video/mp4"
+
+    def test_repair_fixes_empty_mime_mp4(self, auth_client, test_db):
+        """repair 端点扫描并修正空 mime_type 的 mp4 记录为 video/mp4"""
+        uid = _next_uid()
+        rel = f"videos/{uid}/repair.mp4"
+        _write_real_mp4(rel)
+        rec = _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            mime_type="",
+            upload_source="video",
+        )
+        resp = auth_client.post("/api/admin/files/repair", json={"only_empty": True})
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["repaired"] >= 1
+        test_db.refresh(rec)
+        assert rec.mime_type == "video/mp4"
+
+    def test_repair_requires_admin(self, client, test_db):
+        """未登录调用 repair → 401/403（清除模块级 auth_client 残留的 token 头）"""
+        client.headers.pop("X-Auth-Token", None)
+        resp = client.post("/api/admin/files/repair", json={"only_empty": True})
+        assert resp.status_code in (401, 403)

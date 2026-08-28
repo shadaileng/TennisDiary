@@ -7,24 +7,13 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import EXTENSION_MIME
 from app.models.user import User
 from app.services import file_service
 
 log = get_logger("user")
 
 router = APIRouter(prefix="/api/files", tags=["files"])
-
-# 扩展名 -> content-type 映射（仅常用类型，其余回退 octet-stream）
-_MEDIA_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".mp4": "video/mp4",
-    ".mov": "video/quicktime",
-    ".pdf": "application/pdf",
-}
 
 
 @router.get("/{filename:path}")
@@ -49,6 +38,6 @@ def download_file(
     import os
 
     ext = os.path.splitext(abs_path)[1].lower()
-    media_type = _MEDIA_TYPES.get(ext, "application/octet-stream")
+    media_type = EXTENSION_MIME.get(ext, "application/octet-stream")
     log.info("文件下载成功", user_id=current_user.id, filename=filename)
     return FileResponse(abs_path, media_type=media_type)

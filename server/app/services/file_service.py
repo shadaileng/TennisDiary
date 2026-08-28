@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
+from app.core.mime import detect_mime_type
 from app.models.analysis import Analysis
 from app.models.file import File
 from app.models.gear import Gear
@@ -168,6 +169,77 @@ def get_or_create_file(
     )
     db.add(new_record)
     return new_record, False
+
+
+def repair_file_mime_types(
+    db: Session,
+    only_empty: bool = True,
+    upload_source: str | None = None,
+) -> dict:
+    """扫描 File 表，按物理文件重新探测并修正 mime_type（Step 116 文件修复功能）
+
+    默认仅处理 mime_type 为空/可疑的记录；可按 upload_source 过滤。
+    返回统计：扫描数、修正数、未变数、跳过数（无物理文件）、明细。
+    """
+    query = db.query(File).filter(File.deleted_at.is_(None))
+    if upload_source:
+        query = query.filter(File.upload_source == upload_source)
+    records = query.all()
+
+    scanned = 0
+    repaired = 0
+    unchanged = 0
+    skipped = 0
+    details: list[dict] = []
+
+    for rec in records:
+        if only_empty and rec.mime_type:
+            continue
+        scanned += 1
+        abs_path = resolve_safe_path(rec.rel_path)
+        if not abs_path or not os.path.isfile(abs_path):
+            skipped += 1
+            details.append(
+                {
+                    "id": rec.id,
+                    "rel_path": rec.rel_path,
+                    "action": "skipped",
+                    "reason": "物理文件缺失",
+                }
+            )
+            continue
+        detected = detect_mime_type(abs_path, rec.upload_source or "")
+        if detected != rec.mime_type:
+            details.append(
+                {
+                    "id": rec.id,
+                    "rel_path": rec.rel_path,
+                    "action": "repaired",
+                    "old": rec.mime_type or "",
+                    "new": detected,
+                }
+            )
+            rec.mime_type = detected
+            repaired += 1
+        else:
+            unchanged += 1
+
+    if repaired:
+        db.commit()
+        log.info(
+            "文件 MIME 修复完成",
+            scanned=scanned,
+            repaired=repaired,
+            unchanged=unchanged,
+            skipped=skipped,
+        )
+    return {
+        "scanned": scanned,
+        "repaired": repaired,
+        "unchanged": unchanged,
+        "skipped": skipped,
+        "details": details,
+    }
 
 
 def ensure_unique_name(db: Session, user_id: int, original_name: str) -> str:

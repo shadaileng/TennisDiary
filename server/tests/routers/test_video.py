@@ -5,6 +5,7 @@ import subprocess
 
 import pytest
 
+from app.models.file import File
 from app.schemas.common import ErrorCode
 from app.services import file_service, video_service
 from app.services.video_service import (
@@ -497,3 +498,47 @@ class TestVideoUpload:
         assert response.status_code == 400
         assert response.json()["code"] == ErrorCode.INVALID_REQUEST
         assert "无法解析视频时长" in response.json()["message"]
+
+    def test_upload_stores_video_mime(self, auth_client, data_dir, test_db, monkeypatch):
+        """上传视频后 File 记录的 mime_type == video/mp4（Step 116：服务端 ffprobe 探测落库）"""
+        from app.routers import video as video_router
+
+        monkeypatch.setattr(
+            video_router.video_service,
+            "process_video",
+            lambda path, mode, hit_time, cuts=None: {"frames": [], "duration": 8.0},
+        )
+        # 生成一段极小的真实 mp4，确保 ffprobe 能识别为视频流
+        ffmpeg = video_service.find_ffmpeg()
+        if ffmpeg is None:
+            pytest.skip("ffmpeg 未安装，跳过真实视频 MIME 探测测试")
+        mp4_path = data_dir / "real.mp4"
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=blue:s=64x64:d=0.2",
+                "-pix_fmt",
+                "yuv420p",
+                str(mp4_path),
+            ],
+            capture_output=True,
+            timeout=60,
+            check=True,
+        )
+        files = {"file": ("swing.mp4", mp4_path.read_bytes(), "video/mp4")}
+        response = auth_client.post(
+            "/api/video/upload", files=files, data={"mode": "single", "hit_time": "0.1"}
+        )
+        assert response.status_code == 200
+        rec = (
+            test_db.query(File)
+            .filter(File.original_name == "swing.mp4")
+            .order_by(File.id.desc())
+            .first()
+        )
+        assert rec is not None
+        assert rec.mime_type == "video/mp4"

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import detect_media_mime
 from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
@@ -94,6 +95,10 @@ def upload_video(
         size_bytes=size_bytes,
         mime_type=file.content_type or "",
     )
+    db.commit()
+    # 非秒传时文件已落盘，秒传时复用已有路径；用 ffprobe 探测真实类型覆盖
+    # 客户端可能缺失/错误的 Content-Type，保证 mime_type 正确（如 video/mp4）
+    file_record.mime_type = detect_media_mime(abs_path)
     db.commit()
 
     # 如果不是秒传，写入物理文件

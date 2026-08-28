@@ -29,6 +29,7 @@ from app.core.backup_meta import BACKUP_META_DB_NAME, get_backup_meta_db
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import EXTENSION_MIME
 from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
@@ -352,18 +353,7 @@ async def ai_connect_test(
     )
 
 
-# 静态文件服务允许的媒体类型（与用户端 files.py 一致，Admin 端内联一份）
-_ADMIN_MEDIA_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".mp4": "video/mp4",
-    ".mov": "video/quicktime",
-}
-
-
+# 静态文件服务允许的媒体类型（与用户端 files.py 一致，复用共享 EXTENSION_MIME）
 def _resolve_admin_file_path(filename: str) -> Path | None:
     """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None（使用 file_service）"""
     from app.services.file_service import resolve_safe_path
@@ -386,7 +376,7 @@ def serve_admin_file(
         raise HTTPException(status_code=404, detail="文件不存在")
     if not path.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
-    media_type = _ADMIN_MEDIA_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
+    media_type = EXTENSION_MIME.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
     return FileResponse(path, media_type=media_type or "application/octet-stream")
 
 

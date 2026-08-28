@@ -1,17 +1,18 @@
 """Admin 文件管理路由"""
 
-import mimetypes
 import os
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
 from jose import JWTError, jwt
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.auth import ADMIN_JWT_ALGORITHM, ADMIN_JWT_SECRET, get_current_admin
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import EXTENSION_MIME
 from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.file import File
@@ -441,7 +442,9 @@ def download_file(
         if ext:
             filename = filename + ext
     media_type = (
-        file_record.mime_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        file_record.mime_type
+        or EXTENSION_MIME.get(os.path.splitext(filename)[1].lower())
+        or "application/octet-stream"
     )
 
     range_header = request.headers.get("range")
@@ -496,8 +499,13 @@ def preview_file(
 
     mime_type = file_record.mime_type
     if not mime_type:
-        guessed = mimetypes.guess_type(file_record.original_name or file_record.rel_path)[0]
-        mime_type = guessed or "application/octet-stream"
+        # 确定性扩展名映射兜底：避免 mimetypes.guess_type 在不同镜像把 .mp4 解析成 audio/mp4
+        mime_type = (
+            EXTENSION_MIME.get(
+                os.path.splitext(file_record.original_name or file_record.rel_path)[1].lower()
+            )
+            or "application/octet-stream"
+        )
 
     return ApiResponse(
         data={
@@ -509,3 +517,33 @@ def preview_file(
             "preview_url": f"/api/admin/system/files/{file_record.rel_path}",
         }
     )
+
+
+class RepairRequest(BaseModel):
+    """文件修复请求：扫描并修正 mime_type"""
+
+    only_empty: bool = True
+    upload_source: str | None = None
+
+
+@router.post("/repair", response_model=ApiResponse[dict])
+@audit(action="REPAIR", resource_type="file")
+def repair_files(
+    body: RepairRequest,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """扫描 File 表，按物理文件真实类型重新探测并修正 mime_type（Step 116）
+
+    默认仅修正 mime_type 为空的记录；传 only_empty=false 则全量校验。
+    """
+    result = file_service.repair_file_mime_types(
+        db, only_empty=body.only_empty, upload_source=body.upload_source
+    )
+    log.info(
+        "Admin 修复文件 MIME 类型",
+        admin_id=admin.id,
+        scanned=result["scanned"],
+        repaired=result["repaired"],
+    )
+    return ApiResponse(data=result)

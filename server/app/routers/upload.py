@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import detect_image_mime
 from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse
@@ -71,6 +72,10 @@ def upload_avatar(
         mime_type=file.content_type or "",
     )
     db.commit()
+    # 文件已落盘：用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
+    if not is_mirage:
+        file_record.mime_type = detect_image_mime(abs_path)
+        db.commit()
 
     # 如果不是秒传，写入物理文件
     if not is_mirage:
@@ -183,6 +188,10 @@ def upload_gear_image(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="文件写入失败，请稍后重试",
             ) from exc
+
+        # 文件已落盘：用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
+        file_record.mime_type = detect_image_mime(abs_path)
+        db.commit()
 
         # 内容安全检查
         try:

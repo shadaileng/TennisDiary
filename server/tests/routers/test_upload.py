@@ -5,6 +5,7 @@ import os
 from unittest.mock import patch
 
 from app.core.config import settings
+from app.models.file import File
 
 
 class TestUploadAvatar:
@@ -29,6 +30,20 @@ class TestUploadAvatar:
         # 文件已落盘
         abs_path = os.path.join(settings.UPLOAD_DIR, data["url"].replace("/", os.sep))
         assert os.path.isfile(abs_path)
+
+    @patch("app.routers.upload.check_image_sync", return_value=True)
+    def test_upload_avatar_stores_image_mime(self, _mock_check, auth_client, test_db):
+        """上传头像后 File 记录的 mime_type 为正确的 image/png（Step 116：不再为空）"""
+        response = auth_client.post(
+            "/api/upload/avatar",
+            files={"file": ("avatar.png", io.BytesIO(self._png_bytes()), "image/png")},
+        )
+        assert response.status_code == 200
+        url = response.json()["data"]["url"]
+        rec = test_db.query(File).filter(File.rel_path == url).first()
+        assert rec is not None
+        # 即便客户端未带 Content-Type，也应落正确类型
+        assert rec.mime_type == "image/png"
 
     def test_upload_avatar_reject_extension(self, auth_client):
         """非法扩展名（非图片）→ 400"""

@@ -38,6 +38,13 @@
           {{ scanning ? '扫描中...' : '扫描孤立文件' }}
         </button>
         <button
+          @click="confirmRepair"
+          :disabled="repairing"
+          class="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors whitespace-nowrap disabled:opacity-50"
+        >
+          {{ repairing ? '修复中...' : '修复文件类型' }}
+        </button>
+        <button
           @click="confirmCleanup"
           class="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm hover:bg-orange-600 transition-colors whitespace-nowrap"
         >
@@ -422,6 +429,89 @@
     </div>
   </div>
 
+  <!-- 修复结果弹窗 -->
+  <div v-if="repairResult" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" @click="repairResult = null" />
+    <div
+      class="relative bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+    >
+      <!-- 弹窗头部 -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">文件类型修复结果</h2>
+        <button
+          @click="repairResult = null"
+          class="text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- 弹窗内容 -->
+      <div class="flex-1 overflow-y-auto px-6 py-4">
+        <!-- 统计信息 -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+          <div class="bg-blue-50 rounded-lg p-4 text-center">
+            <p class="text-2xl font-bold text-blue-600">{{ repairResult.scanned }}</p>
+            <p class="text-sm text-gray-600">已扫描</p>
+          </div>
+          <div class="bg-green-50 rounded-lg p-4 text-center">
+            <p class="text-2xl font-bold text-green-600">{{ repairResult.repaired }}</p>
+            <p class="text-sm text-gray-600">已修正</p>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 text-center">
+            <p class="text-2xl font-bold text-gray-600">{{ repairResult.unchanged }}</p>
+            <p class="text-sm text-gray-600">无需修正</p>
+          </div>
+          <div class="bg-orange-50 rounded-lg p-4 text-center">
+            <p class="text-2xl font-bold text-orange-600">{{ repairResult.skipped }}</p>
+            <p class="text-sm text-gray-600">跳过（无文件）</p>
+          </div>
+        </div>
+
+        <!-- 修正明细 -->
+        <div v-if="repairResult.details.length > 0">
+          <h3 class="text-sm font-medium text-gray-700 mb-3">修正明细</h3>
+          <div class="border rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left">ID</th>
+                  <th class="px-4 py-2 text-left">文件路径</th>
+                  <th class="px-4 py-2 text-left">原类型</th>
+                  <th class="px-4 py-2 text-left">修正为</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                <tr v-for="d in repairResult.details" :key="d.id" class="hover:bg-gray-50">
+                  <td class="px-4 py-2">{{ d.id }}</td>
+                  <td class="px-4 py-2 font-mono text-xs break-all">{{ d.rel_path }}</td>
+                  <td class="px-4 py-2 text-gray-600">{{ d.old || '(空)' }}</td>
+                  <td class="px-4 py-2 text-green-600 font-medium">{{ d.new }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div v-else class="text-center py-8 text-gray-500">
+          没有需要修正的文件类型
+        </div>
+      </div>
+
+      <!-- 弹窗底部 -->
+      <div class="flex justify-end px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <button
+          @click="repairResult = null"
+          class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 文件预览 -->
   <FilePreview
     v-if="previewInfo"
@@ -459,10 +549,12 @@ import {
   cleanupOrphanFiles,
   getPreviewInfo,
   getDownloadUrl,
+  repairFiles,
   type AdminFile,
   type PreviewInfo,
   type FileStats,
   type ScanResultResponse,
+  type RepairResult,
 } from '@/api/files'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -505,6 +597,10 @@ const onSelectionChange = (rows: AdminFile[]) => {
 const scanning = ref(false)
 const scanResult = ref<ScanResultResponse | null>(null)
 const selectedOrphans = ref<string[]>([])
+
+// 修复相关状态
+const repairing = ref(false)
+const repairResult = ref<RepairResult | null>(null)
 
 // 预览相关状态
 const previewVisible = ref(false)
@@ -673,6 +769,23 @@ const confirmScan = async () => {
     alert('扫描失败，请稍后重试')
   } finally {
     scanning.value = false
+  }
+}
+
+// 修复相关函数（Step 116：扫描在库文件并修正 mime_type）
+const confirmRepair = async () => {
+  if (!confirm('确定要扫描并修复文件类型（mime_type）吗？仅修正为空或错误的记录。')) return
+  repairing.value = true
+  try {
+    const result = await repairFiles(true)
+    repairResult.value = result
+    await fetchFiles()
+    await fetchStats()
+  } catch (e) {
+    console.error('Failed to repair files:', e)
+    alert('修复失败，请稍后重试')
+  } finally {
+    repairing.value = false
   }
 }
 

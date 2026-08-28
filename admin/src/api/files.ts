@@ -129,3 +129,27 @@ export function getPreviewInfo(fileId: number): Promise<PreviewInfo> {
 export function getDownloadUrl(fileId: number): string {
   return `/api/admin/files/${fileId}/download`
 }
+
+export interface RepairResultDetail {
+  id: number
+  rel_path: string
+  action: string
+  reason?: string
+  old?: string
+  new?: string
+}
+
+export interface RepairResult {
+  scanned: number
+  repaired: number
+  unchanged: number
+  skipped: number
+  details: RepairResultDetail[]
+}
+
+export function repairFiles(onlyEmpty: boolean = true, uploadSource?: string): Promise<RepairResult> {
+  return request.post('/api/admin/files/repair', {
+    only_empty: onlyEmpty,
+    upload_source: uploadSource ?? null,
+  })
+}
