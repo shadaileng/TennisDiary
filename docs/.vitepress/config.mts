@@ -144,6 +144,7 @@ export default defineConfig({
             { text: '106：帧引用传递优化', link: '/plans/106-帧引用传递优化' },
             { text: '107：小程序埋点上报优化', link: '/plans/107-小程序埋点上报优化' },
             { text: '108：日记装备关联选择与手写', link: '/plans/108-日记装备关联选择与手写' },
+            { text: '118：分析流水线重构与视频信息表', link: '/plans/118-分析流水线重构与视频信息表' },
           ],
         },
         {
@@ -166,7 +167,13 @@ export default defineConfig({
             { text: '109：文件管理系统', link: '/plans/109-文件管理系统' },
             { text: '110：文件扫描功能', link: '/plans/110-文件扫描功能' },
             { text: '111：文件使用标记（基于数据库引用核查）', link: '/plans/111-文件使用标记' },
+            { text: '110：Admin 分页组件页码按钮优化', link: '/plans/110-Admin分页组件页码按钮优化' },
+
             { text: '114：Admin 文件预览与下载', link: '/plans/114-文件预览与下载' },
+            { text: '116：文件类型探测与修复', link: '/plans/116-文件类型探测与修复' },
+
+            { text: '117：原视频信息表与衍生文件登记（已归档）', link: '/plans/117-原视频信息表与衍生文件登记' },
+
           ],
         },
         {
