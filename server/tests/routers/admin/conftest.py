@@ -5,7 +5,6 @@ import os
 import tempfile
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -97,8 +96,8 @@ def test_meta_db():
 
 
 @pytest.fixture(scope="module")
-def client(test_db, test_meta_db):
-    """注入测试数据库的 TestClient"""
+def client(test_db, test_meta_db, _app_client):
+    """注入测试数据库的 TestClient（复用 session 级 _app_client，避免重复打开 TestClient 上下文）"""
 
     def override_get_db():
         yield test_db
@@ -106,11 +105,12 @@ def client(test_db, test_meta_db):
     def override_get_backup_meta_db():
         yield test_meta_db
 
+    saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_backup_meta_db] = override_get_backup_meta_db
-    with TestClient(app) as c:
-        yield c
+    yield _app_client
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)
 
 
 @pytest.fixture(scope="module")

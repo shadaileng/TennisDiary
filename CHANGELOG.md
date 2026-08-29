@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.0] - 2026-08-29
+
+### Added
+
+- 电子教练分析流水线重构（118）：点击即建 analysis_id，上传/AI评分/姿态三步携带 analysis_id 分步更新同一分析记录；新增 `analysis_video_info` 表登记原视频/裁剪/播放短片/骨架衍生文件；播放短片纳入文件管理，分类边界对齐（原片/抽帧为 unreferenced）；小程序 `startAnalysis` 改为 init→upload→(AI+姿态)→finalize 五步流水线。
+
 ## [1.75.3] - 2026-08-26
 
 ### Added

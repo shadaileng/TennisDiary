@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -14,7 +15,12 @@ from app.decorators.audit import audit
 from app.models.analysis import Analysis
 from app.models.user import User
 from app.schemas.common import ApiResponse, PaginatedData
-from app.schemas.schemas import AnalysisCreate, AnalysisResponse
+from app.schemas.schemas import (
+    AnalysisCreate,
+    AnalysisInitRequest,
+    AnalysisResponse,
+    AnalysisUpdate,
+)
 from app.services import file_service
 
 log = get_logger("user")
@@ -51,6 +57,7 @@ def analysis_to_response(analysis: Analysis) -> AnalysisResponse:
         highlights=highlights if isinstance(highlights, list) else None,
         video_url=analysis.video_url,
         pose=pose if isinstance(pose, dict) else None,
+        status=analysis.status,
         created_at=analysis.created_at,
     )
 
@@ -63,6 +70,29 @@ def _get_owned_analysis(db: Session, analysis_id: int, user: User) -> Analysis:
     if analysis is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分析报告不存在")
     return analysis
+
+
+@router.post("/init", response_model=ApiResponse[dict])
+@audit(action="INIT", resource_type="analysis")
+def init_analysis(
+    body: AnalysisInitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """分析初始化（118 流水线步骤1）：仅建 Analysis 占位记录，返回 analysis_id"""
+    analysis = Analysis(
+        user_id=current_user.id,
+        date=body.date,
+        kind=body.kind,
+        mode=body.mode,
+        status="processing",
+        created_at=time.time(),
+    )
+    db.add(analysis)
+    db.flush()
+    db.refresh(analysis)
+    log.info("分析记录初始化成功", user_id=current_user.id, analysis_id=analysis.id)
+    return ApiResponse(data={"id": analysis.id})
 
 
 @router.post("", response_model=ApiResponse[AnalysisResponse])
@@ -78,6 +108,7 @@ def create_analysis(
         date=body.date,
         kind=body.kind,
         mode=body.mode,
+        status="completed",
         score=body.score,
         summary=body.summary,
         ntrp=body.ntrp,
@@ -155,6 +186,39 @@ def get_analysis(
 ):
     """分析报告详情（含完整六维报告结构化 JSON）"""
     analysis = _get_owned_analysis(db, analysis_id, current_user)
+    return ApiResponse(data=analysis_to_response(analysis))
+
+
+@router.put("/{analysis_id}", response_model=ApiResponse[AnalysisResponse])
+@audit(action="UPDATE", resource_type="analysis", resource_id_key="analysis_id")
+def finalize_analysis(
+    analysis_id: int,
+    body: AnalysisUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """分析收尾（118 流水线步骤5）：置 status=completed 并返回完整记录。
+    幂等：重复调用安全；仅当 video_url 非空才真正完成（否则保留 processing 孤儿）。
+    """
+    analysis = _get_owned_analysis(db, analysis_id, current_user)
+    if body.status == "completed":
+        # 仅当 video_url 非空（步骤2 已产出可播放内容）才真正完成；
+        # 否则保留 processing 孤儿记录（符合"不加清理"约定）。
+        if analysis.video_url:
+            stmt = sa_update(Analysis).where(Analysis.id == analysis_id).values(status="completed")
+            db.execute(stmt)
+            db.commit()
+            db.refresh(analysis)
+            log.info("分析记录已收尾", user_id=current_user.id, analysis_id=analysis_id)
+        else:
+            db.commit()
+            log.warning(
+                "分析记录 video_url 为空，保留 processing 孤儿",
+                user_id=current_user.id,
+                analysis_id=analysis_id,
+            )
+    else:
+        db.commit()
     return ApiResponse(data=analysis_to_response(analysis))
 
 

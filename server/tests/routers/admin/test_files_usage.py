@@ -19,7 +19,6 @@ import tempfile
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -91,8 +90,8 @@ def test_db(test_engine):
 
 
 @pytest.fixture(scope="function")
-def auth_client(test_engine, test_db):
-    """带 mock 用户和 admin token 的 TestClient"""
+def auth_client(test_engine, test_db, _app_client):
+    """带 mock 用户和 admin token 的 TestClient（复用 session 级 _app_client）"""
     from jose import jwt as _jwt
 
     from app.core.auth import ADMIN_JWT_ALGORITHM, ADMIN_JWT_SECRET
@@ -126,15 +125,19 @@ def auth_client(test_engine, test_db):
         ADMIN_JWT_SECRET,
         algorithm=ADMIN_JWT_ALGORITHM,
     )
-    headers = {"X-Auth-Token": token}
 
+    saved_overrides = dict(app.dependency_overrides)
+    saved_headers = dict(_app_client.headers)
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_current_user_media] = override_get_current_user_media
     app.dependency_overrides[get_current_admin] = override_get_current_admin
-    client = TestClient(app, headers=headers)
-    yield client
+    _app_client.headers["X-Auth-Token"] = token
+    yield _app_client
+    _app_client.headers.clear()
+    _app_client.headers.update(saved_headers)
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved_overrides)
 
 
 # ==================== classify_file_usage 单元测试 ====================
@@ -212,7 +215,8 @@ class TestClassifyFileUsage:
         assert status == "in_use"
         assert "装备图片引用有效" in reason
 
-    def test_video_source_infer_in_use(self, test_engine, test_db):
+    def test_video_source_non_consumed(self, test_engine, test_db):
+        """原片 video 不被小程序直接消费 → 直接 unreferenced（118 §5.8）"""
         uid = 3100
         aid = 700
         rel = f"videos/{uid}/{aid}.mp4"
@@ -227,8 +231,46 @@ class TestClassifyFileUsage:
             business_id=None,
         )
         status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "unreferenced"
+        assert "不被小程序直接消费" in reason
+
+    def test_video_playback_source_in_use(self, test_engine, test_db):
+        """播放短片 video_playback 被 Analysis.video_url 引用 → in_use（118 §5.8）"""
+        uid = 3101
+        aid = 701
+        rel = f"videos/{uid}/{aid}_working.mp4"
+        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", video_url=rel))
+        test_db.commit()
+        rec = _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="video_playback",
+            business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
         assert status == "in_use"
         assert "分析报告引用有效" in reason
+
+    def test_video_frame_source_non_consumed(self, test_engine, test_db):
+        """抽帧帧图 video_frame 不被小程序直接消费 → unreferenced（118 §5.8）"""
+        uid = 3102
+        aid = 702
+        rel = f"videos/{uid}/{aid}_f0.jpg"
+        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", highlights=rel))
+        test_db.commit()
+        rec = _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            business_type=None,
+            upload_source="video_frame",
+            business_id=None,
+        )
+        status, reason = file_service.classify_file_usage(test_db, rec)
+        assert status == "unreferenced"
+        assert "不被小程序直接消费" in reason
 
     def test_unknown_source_no_business_id(self, test_engine, test_db):
         uid = 4100

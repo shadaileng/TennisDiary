@@ -8,7 +8,8 @@ class FileUsageStatus:
 
     取值含义：
     - in_use：使用中（业务记录仍引用该文件）
-    - unreferenced：引用失效（业务记录不存在或不再引用，可清除）
+    - unreferenced：引用失效（业务记录不存在或不再引用；或不被小程序直接消费
+      （原视频整片/抽帧帧图），可清除）
     - marked_deleted：已软删（deleted_at 非空，等待物理清理，可清除）
     - orphan：磁盘孤儿（文件在磁盘但 File 表无记录）
     """

@@ -178,6 +178,9 @@ class AnalyzeRequest(BaseModel):
     mode: Literal["single", "full"] = Field(
         default="single", description="single=单次挥拍 / full=综合分析"
     )
+    analysis_id: int | None = Field(
+        default=None, description="关联分析记录 ID（118 流水线：分步更新同一行）"
+    )
 
 
 class DimensionScore(BaseModel):
@@ -215,10 +218,27 @@ class AnalysisCreate(BaseModel):
     pose: dict | None = None
 
 
+class AnalysisInitRequest(BaseModel):
+    """分析初始化请求（118 流水线步骤1）：仅建记录占位，返回 analysis_id"""
+
+    date: str = Field(description="分析日期 YYYY-MM-DD")
+    kind: str = Field(default="综合", description="击球类型")
+    mode: str = Field(default="single", description="single / full")
+
+
+class AnalysisUpdate(BaseModel):
+    """分析更新请求（118 流水线步骤5 finalize）：仅置状态"""
+
+    status: Literal["completed"] | None = Field(
+        default=None, description="置 completed 收尾；最终是否落库由后端按 video_url 判定"
+    )
+
+
 class AnalysisResponse(AnalysisCreate):
     id: int
     user_id: int
     created_at: float
+    status: str = "processing"
 
     model_config = {"from_attributes": True}
 

@@ -7,6 +7,7 @@
 from app.models.admin import Admin
 from app.models.ai_provider import AiProvider
 from app.models.analysis import Analysis
+from app.models.analysis_video_info import AnalysisVideoInfo
 from app.models.checkin import Checkin
 from app.models.diary import Diary
 from app.models.event_log import EventLog
@@ -22,6 +23,7 @@ __all__ = [
     "Admin",
     "AiProvider",
     "Analysis",
+    "AnalysisVideoInfo",
     "Checkin",
     "Diary",
     "EventLog",

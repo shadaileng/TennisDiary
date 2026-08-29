@@ -418,7 +418,7 @@ def process_video(
         working = trim_and_concat(path, segments, mode)
         log.info(f"trim_and_concat returned: working={working} exists={os.path.isfile(working)}")
         if working != path and os.path.isfile(path):
-            os.unlink(path)  # 裁剪后原完整视频不再保留
+            pass  # 保留原片，不删除（118：原视频应由文件管理手动操作）
         # 重探测裁剪产物的时长/帧率（拼接结果实际值）
         duration = probe_duration(working)
         frame_rate = probe_frame_rate(working)

@@ -19,6 +19,12 @@ from app.models.user import User
 
 log = get_logger("user")
 
+# 文件使用边界（118 §5.8）：小程序实际消费判定
+# 原片 / 抽帧帧图不被小程序直接消费，可直接清除（unreferenced）
+NON_CONSUMED_SOURCES = {"video", "video_frame"}
+# 播放短片 / 骨架 / 封面 / 头像 / 装备图被小程序直接消费，需按业务路径匹配
+CONSUMED_SOURCES = {"video_playback", "skeleton", "analysis_thumb", "avatar", "gear_image"}
+
 
 # ==================== 路径工具 ====================
 
@@ -119,6 +125,8 @@ def get_or_create_file(
     original_name: str = "",
     size_bytes: int = 0,
     mime_type: str = "",
+    business_type: str | None = None,
+    business_id: int | None = None,
 ) -> tuple[File, bool]:
     """获取或创建 File 记录（秒传主入口）
 
@@ -146,6 +154,8 @@ def get_or_create_file(
             size_bytes=existing.size_bytes,
             mime_type=existing.mime_type,
             upload_source=upload_source,
+            business_type=business_type,
+            business_id=business_id,
             ref_count=1,
             created_at=time.time(),
         )
@@ -164,6 +174,8 @@ def get_or_create_file(
         size_bytes=size_bytes,
         mime_type=mime_type,
         upload_source=upload_source,
+        business_type=business_type,
+        business_id=business_id,
         ref_count=1,
         created_at=time.time(),
     )
@@ -618,6 +630,10 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
             return "unreferenced", f"未知业务类型 {bt}"
 
     # 步骤 4：upload_source 推断兜底（business_type=None 的文件）
+    # 不被小程序直接消费的源：原片 / 抽帧帧图，直接判定未引用（可清除）
+    if src in NON_CONSUMED_SOURCES:
+        return "unreferenced", "原视频/抽帧帧图不被小程序直接消费，可清除"
+
     if src == "avatar":
         try:
             user = db.query(User).filter(User.id == uid, User.avatar_url == rel).first()
@@ -638,7 +654,8 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
             log.warning("classify_file_usage gear_image 查询异常: %s", exc, exc_info=True)
             return "unreferenced", "验证异常"
 
-    if src in ("video", "video_frame", "skeleton"):
+    # 被消费源（播放短片 / 骨架 / 封面等）：按用户 Analysis 路径匹配兜底
+    if src in CONSUMED_SOURCES:
         try:
             analyses = db.query(Analysis).filter(Analysis.user_id == uid).all()
             for a in analyses:
@@ -652,7 +669,7 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
                     return "in_use", "分析报告引用有效"
             return "unreferenced", "分析报告引用已失效"
         except Exception as exc:
-            log.warning("classify_file_usage video 查询异常: %s", exc, exc_info=True)
+            log.warning("classify_file_usage consumed 查询异常: %s", exc, exc_info=True)
             return "unreferenced", "验证异常"
 
     return "unreferenced", "未绑定业务记录"
@@ -679,7 +696,7 @@ def bulk_classify_files(db: Session, files: list[File]) -> dict[int, tuple[str, 
             user_ids.add(f.user_id)
         if f.upload_source == "gear_image":
             video_user_ids.add(f.user_id)
-        if f.upload_source in ("video", "video_frame", "skeleton"):
+        if f.upload_source in ("video_playback", "skeleton", "analysis_thumb"):
             video_user_ids.add(f.user_id)
 
     users = (
@@ -765,7 +782,7 @@ def bulk_classify_files(db: Session, files: list[File]) -> dict[int, tuple[str, 
                 result[f.id] = ("unreferenced", "装备记录引用已失效")
             continue
 
-        if src in ("video", "video_frame", "skeleton"):
+        if src in ("video_playback", "skeleton", "analysis_thumb"):
             matched = any(_check_analysis(a, rel) for a in video_analyses.get(uid, []))
             if matched:
                 result[f.id] = ("in_use", "分析报告引用有效")

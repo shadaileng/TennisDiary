@@ -1,11 +1,19 @@
 """姿态推理路由（POST /api/pose/analyze, POST /api/pose/video）"""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import update as sa_update
+from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.database import get_db
 from app.core.logging import get_logger
 from app.decorators.audit import audit
+from app.models.analysis import Analysis
+from app.models.analysis_video_info import AnalysisVideoInfo
+from app.models.file import File
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import file_service, pose_service
@@ -37,6 +45,9 @@ class PoseAnalyzeRequest(BaseModel):
         default=None,
         description="是否逐帧生成骨架视频（null=自动判断，true=强制逐帧，false=强制抽样）",
     )
+    analysis_id: int | None = Field(
+        default=None, description="关联分析记录 ID（118 流水线：分步更新同一行）"
+    )
 
 
 class PoseVideoRequest(BaseModel):
@@ -48,7 +59,11 @@ class PoseVideoRequest(BaseModel):
 
 @router.post("/analyze", response_model=ApiResponse[dict])
 @audit(action="ANALYZE", resource_type="pose")
-def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_user)):
+def analyze(
+    req: PoseAnalyzeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """MediaPipe 姿态推理：逐帧输出 33 关键点 + 首个可测帧的三角度测量
 
     - save_skeleton=true 时绘制骨架帧落盘并尝试编码骨架动画 mp4（video_url 必须合法且存在）
@@ -94,7 +109,86 @@ def analyze(req: PoseAnalyzeRequest, current_user: User = Depends(get_current_us
         detected=result["detected"],
         save_skeleton=req.save_skeleton,
     )
+
+    # 118 步骤4：携带 analysis_id 时，登记骨架文件 + 列定向更新 Analysis + 追加 derivatives
+    if req.analysis_id is not None:
+        existing = (
+            db.query(Analysis)
+            .filter(Analysis.id == req.analysis_id, Analysis.user_id == current_user.id)
+            .first()
+        )
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="分析记录不存在或越权"
+            )
+        _persist_pose(db, current_user.id, req.analysis_id, result)
+
     return ApiResponse(data=result)
+
+
+def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> None:
+    """118 步骤4：登记骨架衍生文件、列定向更新 pose/thumb、追加 analysis_video_info.derivatives"""
+    skeleton_paths: list[str] = []
+    for p in result.get("skeleton_frames") or []:
+        if p:
+            skeleton_paths.append(p)
+    if result.get("skeleton_video_url"):
+        skeleton_paths.append(result["skeleton_video_url"])
+    if result.get("skeleton_thumb"):
+        skeleton_paths.append(result["skeleton_thumb"])
+
+    if skeleton_paths:
+        file_service.register_ai_files(
+            db=db,
+            user_id=user_id,
+            paths=skeleton_paths,
+            business_type="analysis",
+            business_id=analysis_id,
+        )
+        db.flush()
+
+    # 列定向更新：仅写 pose / thumb，避免并发覆盖步骤2/3 已填列
+    stmt = (
+        sa_update(Analysis)
+        .where(Analysis.id == analysis_id)
+        .values(
+            pose=json.dumps(result, ensure_ascii=False),
+            thumb=result.get("skeleton_thumb"),
+        )
+    )
+    db.execute(stmt)
+
+    # 追加 derivatives（步骤4 是最后写入方，先查后并）
+    info = db.query(AnalysisVideoInfo).filter(AnalysisVideoInfo.analysis_id == analysis_id).first()
+    if info is not None:
+        derivatives = json.loads(info.derivatives) if info.derivatives else []
+        seen = {(d.get("kind"), d.get("rel_path")) for d in derivatives}
+        for rel in skeleton_paths:
+            if ("skeleton", rel) in seen:
+                continue
+            rec = (
+                db.query(File)
+                .filter(
+                    file_service.File.user_id == user_id,
+                    file_service.File.rel_path == rel,
+                    file_service.File.business_type == "analysis",
+                    file_service.File.business_id == analysis_id,
+                )
+                .first()
+            )
+            abs_path = file_service.rel_path_to_abs(rel)
+            derivatives.append(
+                {
+                    "kind": "skeleton",
+                    "rel_path": rel,
+                    "file_id": rec.id if rec else 0,
+                    "mime_type": rec.mime_type if rec else "",
+                    "size_bytes": file_service.get_file_size(abs_path),
+                }
+            )
+        info.derivatives = json.dumps(derivatives, ensure_ascii=False)
+
+    db.commit()
 
 
 @router.post("/video", response_model=ApiResponse[dict])

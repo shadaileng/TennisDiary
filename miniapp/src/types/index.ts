@@ -195,7 +195,15 @@ export interface Analysis {
   highlights?: string[] // 高光帧路径
   video_url?: string // 视频文件相对路径
   pose?: AnalysisPose // 姿态分析结果（Step 83）
+  status?: "processing" | "completed" | "failed" // 118 流水线状态
   created_at: number // 时间戳（秒）
+}
+
+/** 118 流水线步骤1 初始化请求 */
+export interface AnalysisInitRequest {
+  date: string
+  kind: AnalysisKind
+  mode: "single" | "full"
 }
 
 /** 创建分析入参 — 后台 AnalysisCreate */

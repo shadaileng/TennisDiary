@@ -2,10 +2,12 @@
 
 import json
 import os
+import time
 import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
@@ -13,6 +15,9 @@ from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.mime import detect_media_mime
 from app.decorators.audit import audit
+from app.models.analysis import Analysis
+from app.models.analysis_video_info import AnalysisVideoInfo
+from app.models.file import File as FileModel
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import file_service, video_service
@@ -45,6 +50,7 @@ def upload_video(
     kind: str = Form(default="综合"),
     hit_time: float | None = Form(default=None),
     cuts: str | None = Form(default=None),
+    analysis_id: int | None = Form(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -182,23 +188,115 @@ def upload_video(
     rel_video_result = file_service.abs_path_to_rel(working_path)
     result["video_url"] = rel_video_result
 
-    # 为抽帧图片创建 File 记录
-    frame_urls = result.get("frame_urls", [])
-    for frame_url in frame_urls:
-        frame_abs = file_service.rel_path_to_abs(frame_url)
-        frame_md5 = file_service.compute_md5_from_path(frame_abs)
-        if frame_md5:
-            file_service.get_or_create_file(
-                db=db,
-                user_id=current_user.id,
-                md5=frame_md5,
-                rel_path=frame_url,
-                upload_source="video_frame",
-                original_name=f"{filename}_{os.path.basename(frame_url)}",
-                size_bytes=file_service.get_file_size(frame_abs),
-                mime_type="image/jpeg",
+    # 若携带 analysis_id：验证归属 + 登记衍生文件 + 列定向更新 Analysis
+    if analysis_id is not None:
+        existing = (
+            db.query(Analysis)
+            .filter(Analysis.id == analysis_id, Analysis.user_id == current_user.id)
+            .first()
+        )
+        if existing is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分析记录不存在")
+        # working 短片建 File 记录（始终建立，便于文件管理按业务精确追踪播放短片）
+        working_md5 = file_service.compute_md5_from_path(working_path)
+        playback_record = file_service.get_or_create_file(
+            db=db,
+            user_id=current_user.id,
+            md5=working_md5 or "",
+            rel_path=rel_video_result,
+            upload_source="video_playback",
+            original_name=f"{os.path.basename(working_path)}_playback",
+            size_bytes=file_service.get_file_size(working_path),
+            mime_type=file_record.mime_type,
+            business_type="analysis",
+            business_id=analysis_id,
+        )
+        db.flush()
+        playback_record = playback_record[0]
+        # 为抽帧图片创建 File 记录
+        frame_urls = result.get("frame_urls", [])
+        for frame_url in frame_urls:
+            frame_abs = file_service.rel_path_to_abs(frame_url)
+            frame_md5 = file_service.compute_md5_from_path(frame_abs)
+            if frame_md5:
+                file_service.get_or_create_file(
+                    db=db,
+                    user_id=current_user.id,
+                    md5=frame_md5,
+                    rel_path=frame_url,
+                    upload_source="video_frame",
+                    original_name=f"{filename}_{os.path.basename(frame_url)}",
+                    size_bytes=file_service.get_file_size(frame_abs),
+                    mime_type="image/jpeg",
+                    business_type="analysis",
+                    business_id=analysis_id,
+                )
+        db.commit()
+        # 登记 analysis_video_info
+        cut_info = {
+            "segments": result.get("segments"),
+            "hit_time": result.get("hit_time"),
+            "mode": mode,
+            "kind": kind,
+        }
+        derivatives = []
+        if playback_record:
+            derivatives.append(
+                {
+                    "kind": "playback",
+                    "rel_path": rel_video_result,
+                    "file_id": playback_record.id,
+                    "mime_type": playback_record.mime_type,
+                    "size_bytes": playback_record.size_bytes,
+                }
             )
-    db.commit()
+        for frame_url in frame_urls:
+            frame_abs = file_service.rel_path_to_abs(frame_url)
+            frame_md5 = file_service.compute_md5_from_path(frame_abs)
+            if frame_md5:
+                derivatives.append(
+                    {
+                        "kind": "frame",
+                        "rel_path": frame_url,
+                        "file_id": 0,  # placeholder，待后续查表
+                        "mime_type": "image/jpeg",
+                        "size_bytes": file_service.get_file_size(frame_abs),
+                    }
+                )
+        # 查找 frame file IDs
+        frame_file_ids = {}
+        for frame_url in frame_urls:
+            rec = (
+                db.query(FileModel)
+                .filter(
+                    FileModel.user_id == current_user.id,
+                    FileModel.rel_path == frame_url,
+                    FileModel.business_type == "analysis",
+                    FileModel.business_id == analysis_id,
+                )
+                .first()
+            )
+            if rec:
+                frame_file_ids[frame_url] = rec.id
+        for d in derivatives:
+            if d["kind"] == "frame" and d["rel_path"] in frame_file_ids:
+                d["file_id"] = frame_file_ids[d["rel_path"]]
+
+        analysis_video_info = AnalysisVideoInfo(
+            user_id=current_user.id,
+            analysis_id=analysis_id,
+            source_file_id=file_record.id,
+            playback_file_id=playback_record.id if playback_record else None,
+            cut_info=json.dumps(cut_info, ensure_ascii=False),
+            derivatives=json.dumps(derivatives, ensure_ascii=False),
+            created_at=time.time(),
+        )
+        db.add(analysis_video_info)
+        # 列定向更新：仅写 video_url，避免并发覆盖
+        db.execute(
+            sa_update(Analysis).where(Analysis.id == analysis_id).values(video_url=rel_video_result)
+        )
+        db.commit()
 
     # 异步内容安全检查（不阻断上传流程）
     try:

@@ -128,9 +128,11 @@ def client(test_db, _app_client):
     def override_get_db():
         yield test_db
 
+    saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_db] = override_get_db
     yield _app_client
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)
 
 
 @pytest.fixture(scope="function")
@@ -143,7 +145,9 @@ def auth_client(client, mock_user, test_db):
     def override_get_current_user_media():
         return mock_user
 
+    saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_current_user_media] = override_get_current_user_media
     yield client
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)

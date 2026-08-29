@@ -263,6 +263,7 @@ cd admin && pnpm build                 # 构建管理端
 | 106 | 帧引用传递优化（前端改传 `frame_urls` 替代 `frames` base64，传输量从 4.2MB 降至 600B） | ✅ |
 | 107 | 小程序埋点上报优化（事件链路端点级追踪 + 参数补全 + 网络类型分类 + Admin trace_id 复制） | ✅ |
 | 110 | Admin 分页组件页码按钮优化（首尾常驻 + 中间最多 3 个连续数字 + `…` 分隔 + 当前页高亮） | ✅ |
+| 118 | 分析流水线重构与视频信息表（点击即建 analysis_id；上传/AI评分/姿态三步携带 analysis_id 分步更新同一行；analysis_video_info 表登记原视频/裁剪/播放短片/骨架衍生文件；播放短片纳入文件管理 + 分类边界对齐；小程序 startAnalysis 五步流水线） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
