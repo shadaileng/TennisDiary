@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 
 
 @router.post("", response_model=ApiResponse[EventLogResponse])
-async def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
+def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
     """上报事件日志（小程序端调用，无需鉴权）"""
     user_id = body.extra.get("user_id")
     if user_id:

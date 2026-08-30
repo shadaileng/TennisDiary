@@ -44,14 +44,15 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 /** 获取设备信息 */
 function getDeviceInfo(): Record<string, any> {
   try {
-    const info = uni.getSystemInfoSync();
+    const device = uni.getDeviceInfo();
+    const window = uni.getWindowInfo();
     return {
-      platform: info.platform,
-      model: info.model,
-      system: info.system,
-      screenWidth: info.screenWidth,
-      screenHeight: info.screenHeight,
-      brand: info.brand,
+      platform: device.platform,
+      model: device.model,
+      system: device.system,
+      screenWidth: window.screenWidth,
+      screenHeight: window.screenHeight,
+      brand: device.brand,
     };
   } catch {
     return {};
@@ -139,7 +140,7 @@ function flushOne(payload: EventLogPayload): void {
       "Content-Type": "application/json",
       ...(token ? { 'X-Auth-Token': token } : {}),
     },
-    timeout: 5000,
+    timeout: 3000,
     success() {
       // 静默成功
     },
