@@ -1,6 +1,7 @@
 """姿态推理路由（POST /api/pose/analyze, POST /api/pose/video）"""
 
 import json
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -137,14 +138,36 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
     if result.get("skeleton_thumb"):
         skeleton_paths.append(result["skeleton_thumb"])
 
+    # 批量登记骨架文件（统一使用 get_or_create_file）
     if skeleton_paths:
-        file_service.register_ai_files(
-            db=db,
-            user_id=user_id,
-            paths=skeleton_paths,
-            business_type="analysis",
-            business_id=analysis_id,
-        )
+        for rel_path in skeleton_paths:
+            abs_path = file_service.rel_path_to_abs(rel_path)
+            if not os.path.exists(abs_path):
+                log.warning("骨架文件不存在，跳过登记", rel_path=rel_path)
+                continue
+            try:
+                with open(abs_path, "rb") as f:
+                    content = f.read()
+                md5 = file_service.compute_md5_from_bytes(content)
+                # 按后缀区分 upload_source
+                if rel_path.endswith("_sk.mp4"):
+                    source = "skeleton_video"
+                elif rel_path.endswith("_sk.jpg"):
+                    source = "skeleton_thumb"
+                else:
+                    source = "skeleton_frame"
+                file_service.get_or_create_file(
+                    db=db,
+                    user_id=user_id,
+                    md5=md5,
+                    rel_path=rel_path,
+                    upload_source=source,
+                    original_name=os.path.basename(rel_path),
+                    size_bytes=len(content),
+                    mime_type="",
+                )
+            except Exception as e:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
+                log.warning("骨架文件登记失败", rel_path=rel_path, error=type(e).__name__)
         db.flush()
 
     # 列定向更新：仅写 pose / thumb，避免并发覆盖步骤2/3 已填列

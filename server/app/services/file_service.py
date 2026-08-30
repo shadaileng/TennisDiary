@@ -113,6 +113,11 @@ def compute_md5_from_path(abs_path: str, chunk_size: int = 8192) -> str | None:
         return None
 
 
+def compute_md5_from_bytes(data: bytes) -> str:
+    """从字节数据计算 MD5"""
+    return hashlib.md5(data).hexdigest()
+
+
 # ==================== File 记录操作 ====================
 
 
@@ -169,6 +174,11 @@ def get_or_create_file(
         db.add(new_record)
         # 递增原记录的引用计数
         existing.ref_count += 1
+        log.info(
+            f"秒传命中: md5={md5[:12]}... size={existing.size_bytes} "
+            f"reuse_path={existing.rel_path} source={upload_source} "
+            f"existing_id={existing.id} new_id={new_record.id}"
+        )
         return new_record, True
 
     # 正常上传：创建新记录（自动处理 original_name 唯一）
@@ -187,6 +197,10 @@ def get_or_create_file(
         created_at=time.time(),
     )
     db.add(new_record)
+    log.info(
+        f"新文件记录: md5={md5[:12]}... size={size_bytes} "
+        f"path={rel_path} source={upload_source} file_id={new_record.id}"
+    )
     return new_record, False
 
 
@@ -380,43 +394,6 @@ def decrement_analysis_files(db: Session, analysis) -> int:
             pass
 
     return count
-
-
-def register_ai_files(
-    db: Session,
-    user_id: int,
-    paths: list[str],
-    business_type: str,
-    business_id: int,
-) -> list[File]:
-    """批量注册 AI 生成的文件（骨架帧/骨架视频等）到 File 表"""
-    registered = []
-    for rel_path in paths:
-        abs_path = rel_path_to_abs(rel_path)
-        md5 = compute_md5_from_path(abs_path)
-        if not md5:
-            log.warning(f"骨架文件 MD5 计算失败，跳过: {rel_path}")
-            continue
-
-        size = get_file_size(abs_path)
-        original_name = ensure_unique_name(db, user_id, os.path.basename(rel_path))
-        record = File(
-            user_id=user_id,
-            md5=md5,
-            original_name=original_name,
-            rel_path=rel_path,
-            size_bytes=size,
-            upload_source="skeleton",
-            business_type=business_type,
-            business_id=business_id,
-            ref_count=1,
-            created_at=time.time(),
-        )
-        db.add(record)
-        db.flush()  # flush 使 ensure_unique_name 下次循环能看到本条记录
-        registered.append(record)
-
-    return registered
 
 
 def cleanup_orphan_files(db: Session, days: int = 30) -> int:
