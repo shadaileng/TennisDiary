@@ -396,7 +396,7 @@ def register_ai_files(
         abs_path = rel_path_to_abs(rel_path)
         md5 = compute_md5_from_path(abs_path)
         if not md5:
-            log.warning("骨架文件 MD5 计算失败，跳过: %s", rel_path)
+            log.warning(f"骨架文件 MD5 计算失败，跳过: {rel_path}")
             continue
 
         size = get_file_size(abs_path)
@@ -414,6 +414,7 @@ def register_ai_files(
             created_at=time.time(),
         )
         db.add(record)
+        db.flush()  # flush 使 ensure_unique_name 下次循环能看到本条记录
         registered.append(record)
 
     return registered
