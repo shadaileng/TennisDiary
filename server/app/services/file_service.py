@@ -186,6 +186,7 @@ def get_or_create_file(
         db.add(new_record)
         # 递增原记录的引用计数
         existing.ref_count += 1
+        db.flush()  # 确保后续 ensure_unique_name 能看到本条记录
         log.info(
             f"秒传命中: md5={md5[:12]}... size={existing.size_bytes} "
             f"reuse_path={existing.rel_path} source={upload_source} "
@@ -209,6 +210,7 @@ def get_or_create_file(
         created_at=time.time(),
     )
     db.add(new_record)
+    db.flush()  # 确保后续 ensure_unique_name 能看到本条记录
     log.info(
         f"新文件记录: md5={md5[:12]}... size={size_bytes} "
         f"path={rel_path} source={upload_source} file_id={new_record.id}"
