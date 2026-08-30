@@ -144,6 +144,13 @@ def get_or_create_file(
     )
 
     if existing and existing.ref_count > 0:
+        # 检查物理文件是否实际存在（防止 DB 记录残留但文件已被清理）
+        existing_abs = rel_path_to_abs(existing.rel_path)
+        if not os.path.isfile(existing_abs):
+            log.warning(f"秒传目标文件不存在，转为普通上传: rel_path={existing.rel_path} md5={md5}")
+            existing = None
+
+    if existing and existing.ref_count > 0:
         # 秒传：复用物理文件路径，创建新记录（自动处理 original_name 唯一）
         unique_name = ensure_unique_name(db, user_id, original_name)
         new_record = File(

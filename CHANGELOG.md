@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.6] - 2026-08-30
+
+### Fixed
+
+- 秒传路径物理文件存在性校验：`get_or_create_file` 增加磁盘文件检查，DB 记录存在但文件已清理时自动降级为普通上传（生成新 UUID 路径），避免 ffprobe 报 `No such file or directory`。回退 always-write 方案，恢复秒传复用已有文件路径的设计。
+
 ## [1.76.5] - 2026-08-30
 
 ### Fixed
