@@ -161,20 +161,14 @@ def create_analysis(
                 log.warning("文件不存在，跳过登记", rel_path=rel_path)
                 continue
             try:
-                with open(abs_path, "rb") as f:
-                    content = f.read()
-                md5 = file_service.compute_md5_from_bytes(content)
-                # 视频用 video，其余用 skeleton
                 source = "video" if rel_path == body.video_url else "skeleton"
                 file_service.get_or_create_file(
                     db=db,
                     user_id=current_user.id,
-                    md5=md5,
                     rel_path=rel_path,
+                    abs_path=abs_path,
                     upload_source=source,
                     original_name=os.path.basename(rel_path),
-                    size_bytes=len(content),
-                    mime_type="",
                 )
             except Exception as e:  # noqa: BLE001 - 文件登记失败不应阻断流程
                 log.warning("文件登记失败", rel_path=rel_path, error=type(e).__name__)
@@ -285,8 +279,8 @@ def _initial_pipeline_status() -> dict:
     }
 
 
-async def _save_uploaded_file(file: UploadFile, user_id: int) -> tuple[str, bytes]:
-    """保存上传的视频文件到磁盘，返回 (绝对路径, 文件内容)"""
+async def _save_uploaded_file(file: UploadFile, user_id: int) -> str:
+    """保存上传的视频文件到磁盘，返回绝对路径"""
     from app.core.config import settings
 
     upload_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), "videos", str(user_id))
@@ -300,7 +294,7 @@ async def _save_uploaded_file(file: UploadFile, user_id: int) -> tuple[str, byte
     with open(file_path, "wb") as f:
         f.write(content)
 
-    return file_path, content
+    return file_path
 
 
 async def _run_analysis_pipeline(analysis_id: int, video_path: str, metadata: dict) -> None:
@@ -353,21 +347,19 @@ async def start_analysis(
     analysis_id = analysis.id
 
     # 2. 保存视频文件
-    video_path, content = await _save_uploaded_file(file, current_user.id)
+    video_path = await _save_uploaded_file(file, current_user.id)
 
     # 3. 文件纳入管理（统一使用 get_or_create_file）
     from app.services import file_service
 
-    md5 = file_service.compute_md5_from_bytes(content)
     rel_video = file_service.abs_path_to_rel(video_path)
     file_service.get_or_create_file(
         db=db,
         user_id=current_user.id,
-        md5=md5,
         rel_path=rel_video,
+        abs_path=video_path,
         upload_source="video",
         original_name=file.filename or "video.mp4",
-        size_bytes=len(content),
         mime_type=file.content_type or "",
     )
     db.commit()

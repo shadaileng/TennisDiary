@@ -146,10 +146,6 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
                 log.warning("骨架文件不存在，跳过登记", rel_path=rel_path)
                 continue
             try:
-                with open(abs_path, "rb") as f:
-                    content = f.read()
-                md5 = file_service.compute_md5_from_bytes(content)
-                # 按后缀区分 upload_source
                 if rel_path.endswith("_sk.mp4"):
                     source = "skeleton_video"
                 elif rel_path.endswith("_sk.jpg"):
@@ -159,12 +155,10 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
                 file_service.get_or_create_file(
                     db=db,
                     user_id=user_id,
-                    md5=md5,
                     rel_path=rel_path,
+                    abs_path=abs_path,
                     upload_source=source,
                     original_name=os.path.basename(rel_path),
-                    size_bytes=len(content),
-                    mime_type="",
                 )
             except Exception as e:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
                 log.warning("骨架文件登记失败", rel_path=rel_path, error=type(e).__name__)

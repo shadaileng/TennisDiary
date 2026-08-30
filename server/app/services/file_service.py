@@ -124,19 +124,31 @@ def compute_md5_from_bytes(data: bytes) -> str:
 def get_or_create_file(
     db: Session,
     user_id: int,
-    md5: str,
     rel_path: str,
     upload_source: str,
     original_name: str = "",
-    size_bytes: int = 0,
+    abs_path: str | None = None,
+    md5: str | None = None,
+    size_bytes: int | None = None,
     mime_type: str = "",
     business_type: str | None = None,
     business_id: int | None = None,
 ) -> tuple[File, bool]:
     """获取或创建 File 记录（秒传主入口）
 
+    abs_path：优先用，内部计算 md5/size_bytes
+    md5/size_bytes：abs_path 不可用时由调用方显式传入（如内存中的上传内容已写盘后）
     返回：(File 记录, 是否秒传)
     """
+    # 优先从磁盘计算 MD5
+    if abs_path and not md5:
+        md5 = compute_md5_from_path(abs_path)
+    if not md5:
+        raise ValueError(f"无法计算 MD5: abs_path={abs_path}")
+    if size_bytes is None and abs_path:
+        size_bytes = os.path.getsize(abs_path) if os.path.isfile(abs_path) else 0
+    if size_bytes is None:
+        size_bytes = 0
     # 查询是否存在相同 MD5 的有效记录
     existing = (
         db.query(File)

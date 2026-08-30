@@ -2,7 +2,6 @@
 
 import os
 import uuid
-from io import BytesIO
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -47,12 +46,9 @@ def upload_avatar(
         detail = "仅支持 jpg/jpeg/png/webp 图片"
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
-    # 读取文件内容并计算 MD5
+    # 读取文件内容
     content = file.file.read()
-    file.file.seek(0)
-    md5 = file_service.compute_md5(BytesIO(content))
     original_name = file.filename or ""
-    size_bytes = len(content)
 
     # 构建目标路径
     abs_dir = file_service.build_upload_dir(_AVATAR_DIR, current_user.id)
@@ -60,59 +56,55 @@ def upload_avatar(
     rel_path = file_service.make_rel_path(_AVATAR_DIR, current_user.id, filename)
     abs_path = os.path.join(abs_dir, filename)
 
-    # 创建 File 记录（秒传检测）
+    # 写入物理文件
+    try:
+        with open(abs_path, "wb") as out:
+            out.write(content)
+    except Exception as exc:
+        log.error("头像文件写入失败: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件写入失败，请稍后重试",
+        ) from exc
+
+    # 内容安全检查
+    try:
+        check_image_sync(abs_path, str(current_user.id))
+    except ContentSecurityError:
+        file_service.safe_unlink(abs_path)
+        log.warning("头像内容安全检查不通过", user_id=current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="头像内容可能包含违规信息，请检查后重试",
+        ) from None
+    except Exception as exc:
+        file_service.safe_unlink(abs_path)
+        log.error("头像安全检查异常: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="内容安全检查失败，请稍后重试",
+        ) from exc
+
+    # 创建 File 记录（秒传检测，MD5 由 get_or_create_file 从磁盘计算）
     file_record, is_mirage = file_service.get_or_create_file(
         db=db,
         user_id=current_user.id,
-        md5=md5,
         rel_path=rel_path,
+        abs_path=abs_path,
         upload_source="avatar",
         original_name=original_name,
-        size_bytes=size_bytes,
         mime_type=file.content_type or "",
     )
     db.commit()
-    # 文件已落盘：用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
-    if not is_mirage:
-        file_record.mime_type = detect_image_mime(abs_path)
-        db.commit()
 
-    # 如果不是秒传，写入物理文件
-    if not is_mirage:
-        try:
-            with open(abs_path, "wb") as out:
-                out.write(content)
-        except Exception as exc:
-            # 写文件失败，回滚 File 记录
-            db.delete(file_record)
-            db.commit()
-            log.error("头像文件写入失败: %s", exc, exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="文件写入失败，请稍后重试",
-            ) from exc
+    # 秒传：删除刚写入的重复文件
+    if is_mirage:
+        file_service.safe_unlink(abs_path)
+        abs_path = file_service.rel_path_to_abs(file_record.rel_path)
 
-        # 内容安全检查
-        try:
-            check_image_sync(abs_path, str(current_user.id))
-        except ContentSecurityError:
-            file_service.safe_unlink(abs_path)
-            db.delete(file_record)
-            db.commit()
-            log.warning("头像内容安全检查不通过", user_id=current_user.id)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="头像内容可能包含违规信息，请检查后重试",
-            ) from None
-        except Exception as exc:
-            file_service.safe_unlink(abs_path)
-            db.delete(file_record)
-            db.commit()
-            log.error("头像安全检查异常: %s", exc, exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="内容安全检查失败，请稍后重试",
-            ) from None
+    # 用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
+    file_record.mime_type = detect_image_mime(abs_path)
+    db.commit()
 
     log.info("头像上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
     return ApiResponse(data={"url": rel_path, "mirage": is_mirage})
@@ -149,12 +141,9 @@ def upload_gear_image(
             status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 jpg/jpeg/png/webp 图片"
         )
 
-    # 读取文件内容并计算 MD5
+    # 读取文件内容
     content = file.file.read()
-    file.file.seek(0)
-    md5 = file_service.compute_md5(BytesIO(content))
     original_name = file.filename or ""
-    size_bytes = len(content)
 
     # 构建目标路径
     abs_dir = file_service.build_upload_dir(_GEAR_DIR, current_user.id)
@@ -162,58 +151,53 @@ def upload_gear_image(
     rel_path = file_service.make_rel_path(_GEAR_DIR, current_user.id, filename)
     abs_path = os.path.join(abs_dir, filename)
 
-    # 创建 File 记录（秒传检测）
-    file_record, is_mirage = file_service.get_or_create_file(
+    # 写入物理文件
+    try:
+        with open(abs_path, "wb") as out:
+            out.write(content)
+    except Exception as exc:
+        log.error("装备图片文件写入失败: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件写入失败，请稍后重试",
+        ) from exc
+
+    # 文件已落盘：用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
+    file_record_mime = detect_image_mime(abs_path)
+
+    # 内容安全检查
+    try:
+        check_image_sync(abs_path, str(current_user.id))
+    except ContentSecurityError:
+        file_service.safe_unlink(abs_path)
+        log.warning("装备图片内容安全检查不通过", user_id=current_user.id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片内容可能包含违规信息，请检查后重试",
+        ) from None
+    except Exception as exc:
+        file_service.safe_unlink(abs_path)
+        log.error("装备图片安全检查异常: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="内容安全检查失败，请稍后重试",
+        ) from exc
+
+    # 创建 File 记录（秒传检测，MD5 由 get_or_create_file 从磁盘计算）
+    _file_record, is_mirage = file_service.get_or_create_file(
         db=db,
         user_id=current_user.id,
-        md5=md5,
         rel_path=rel_path,
+        abs_path=abs_path,
         upload_source="gear_image",
         original_name=original_name,
-        size_bytes=size_bytes,
-        mime_type=file.content_type or "",
+        mime_type=file_record_mime,
     )
     db.commit()
 
-    # 如果不是秒传，写入物理文件
-    if not is_mirage:
-        try:
-            with open(abs_path, "wb") as out:
-                out.write(content)
-        except Exception as exc:
-            db.delete(file_record)
-            db.commit()
-            log.error("装备图片文件写入失败: %s", exc, exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="文件写入失败，请稍后重试",
-            ) from exc
-
-        # 文件已落盘：用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
-        file_record.mime_type = detect_image_mime(abs_path)
-        db.commit()
-
-        # 内容安全检查
-        try:
-            check_image_sync(abs_path, str(current_user.id))
-        except ContentSecurityError:
-            file_service.safe_unlink(abs_path)
-            db.delete(file_record)
-            db.commit()
-            log.warning("装备图片内容安全检查不通过", user_id=current_user.id)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="图片内容可能包含违规信息，请检查后重试",
-            ) from None
-        except Exception as exc:
-            file_service.safe_unlink(abs_path)
-            db.delete(file_record)
-            db.commit()
-            log.error("装备图片安全检查异常: %s", exc, exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="内容安全检查失败，请稍后重试",
-            ) from None
+    # 秒传：删除刚写入的重复文件
+    if is_mirage:
+        file_service.safe_unlink(abs_path)
 
     log.info("装备图片上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
     return ApiResponse(data={"url": rel_path, "mirage": is_mirage})

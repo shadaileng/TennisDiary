@@ -75,68 +75,53 @@ def upload_video(
     rel_video = file_service.make_rel_path("videos", current_user.id, filename)
     abs_path = os.path.join(abs_dir, filename)
 
-    # 分块读取文件内容，同时计算 MD5
-    import hashlib
+    # 读取文件内容
+    content = file.file.read()
 
-    md5_hash = hashlib.md5()
-    content_chunks = []
-    while True:
-        chunk = file.file.read(1024 * 1024)
-        if not chunk:
-            break
-        content_chunks.append(chunk)
-        md5_hash.update(chunk)
-    content = b"".join(content_chunks)
-    md5 = md5_hash.hexdigest()
-    size_bytes = len(content)
+    # 写入物理文件
+    try:
+        with open(abs_path, "wb") as out:
+            out.write(content)
+            out.flush()
+            os.fsync(out.fileno())
+    except Exception as exc:
+        log.error("视频文件写入失败: path=%s error=%s", abs_path, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件写入失败，请稍后重试",
+        ) from exc
 
-    # 创建 File 记录（秒传检测）
+    # 创建 File 记录（秒传检测，MD5 由 get_or_create_file 从磁盘计算）
     file_record, is_mirage = file_service.get_or_create_file(
         db=db,
         user_id=current_user.id,
-        md5=md5,
         rel_path=rel_video,
+        abs_path=abs_path,
         upload_source="video",
         original_name=original_name,
-        size_bytes=size_bytes,
         mime_type=file.content_type or "",
     )
     db.commit()
 
-    # 如果不是秒传，写入物理文件；秒传复用已有文件路径
-    if not is_mirage:
-        try:
-            with open(abs_path, "wb") as out:
-                out.write(content)
-                out.flush()
-                os.fsync(out.fileno())
-        except Exception as exc:
-            db.delete(file_record)
-            db.commit()
-            log.error(f"视频文件写入失败: path={abs_path} error={exc}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="文件写入失败，请稍后重试",
-            ) from exc
-
-        actual_size = file_service.get_file_size(abs_path)
-        if actual_size == 0:
-            file_service.safe_unlink(abs_path)
-            db.delete(file_record)
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
-            )
-    else:
-        # 秒传时使用已存在的文件路径
+    # 秒传：删除刚写入的重复文件，使用已有文件路径
+    if is_mirage:
+        file_service.safe_unlink(abs_path)
         abs_path = file_service.rel_path_to_abs(file_record.rel_path)
-        actual_size = file_service.get_file_size(abs_path)
+
+    actual_size = file_service.get_file_size(abs_path)
+    if actual_size == 0:
+        file_service.safe_unlink(abs_path)
+        db.delete(file_record)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
+        )
 
     # 文件落盘后用 ffprobe 探测真实 MIME 类型，覆盖客户端可能缺失/错误的 Content-Type
     file_record.mime_type = detect_media_mime(abs_path)
     db.commit()
 
-    log.info(f"视频上传完成: path={rel_video} size={actual_size} mirage={is_mirage}")
+    log.info("视频上传完成: path=%s size=%s mirage=%s", rel_video, actual_size, is_mirage)
 
     # 解析裁剪参数
     parsed_cuts: list[dict] | None = None
@@ -182,6 +167,13 @@ def upload_video(
     working_path = result.get("working_path") or abs_path
     rel_video_result = file_service.abs_path_to_rel(working_path)
     result["video_url"] = rel_video_result
+
+    log.info(
+        f"视频处理完成: duration={result.get('duration', 0):.2f}s "
+        f"frames={len(result.get('frame_urls', []))} "
+        f"trimmed={result.get('trimmed', False)} "
+        f"working={rel_video_result} mirage={is_mirage}"
+    )
 
     # 若携带 analysis_id：验证归属 + 登记衍生文件 + 列定向更新 Analysis
     if analysis_id is not None:
