@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.4] - 2026-08-30
+
+### Fixed
+
+- 统一日志格式为 f-string：loguru 不支持 `%s` printf 风格参数（被忽略显示为字面量），项目内 17 处日志统一改为 f-string。
+- 修正 AGENTS.md 过时的日志格式规则：明确禁止对异常对象直接 `f"...{exc}"` 拼接（`str()` 含 `{}` 触发 loguru 二次格式化崩溃），允许 `f"...{type(exc).__name__}"` 安全写法。
+
 ## [1.76.3] - 2026-08-30
 
 ### Fixed

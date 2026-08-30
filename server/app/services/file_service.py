@@ -432,7 +432,7 @@ def cleanup_orphan_files(db: Session, days: int = 30) -> int:
         abs_path = rel_path_to_abs(record.rel_path)
         if safe_unlink(abs_path):
             cleaned += 1
-            log.info("清理已删除文件: %s", record.rel_path)
+            log.info(f"清理已删除文件: {record.rel_path}")
         # 删除记录
         db.delete(record)
 
@@ -446,7 +446,7 @@ def cleanup_orphan_paths(rel_paths: list[str]) -> int:
         abs_path = rel_path_to_abs(rel_path)
         if safe_unlink(abs_path):
             cleaned += 1
-            log.info("清理孤儿文件: %s", rel_path)
+            log.info(f"清理孤儿文件: {rel_path}")
     return cleaned
 
 
@@ -547,7 +547,7 @@ def register_orphan_files(
             db.query(File).filter(File.rel_path == rel_path, File.deleted_at.is_(None)).first()
         )
         if existing:
-            log.info("文件已注册，跳过: %s", rel_path)
+            log.info(f"文件已注册，跳过: {rel_path}")
             continue
 
         # 计算 MD5
@@ -571,7 +571,7 @@ def register_orphan_files(
         )
         db.add(record)
         registered.append(record)
-        log.info("注册孤立文件: %s user_id=%d source=%s", rel_path, user_id, upload_source)
+        log.info(f"注册孤立文件: {rel_path} user_id={user_id} source={upload_source}")
 
     return registered
 

@@ -137,16 +137,14 @@ def upload_video(
     _file_exists = os.path.isfile(abs_path)
     _file_stat = os.stat(abs_path) if _file_exists else None
     log.info(
-        "写入后文件状态: path=%s exists=%s size=%s inode=%s",
-        abs_path,
-        _file_exists,
-        _file_stat.st_size if _file_stat else None,
-        _file_stat.st_ino if _file_stat else None,
+        f"写入后文件状态: path={abs_path} exists={_file_exists}"
+        f" size={_file_stat.st_size if _file_stat else None}"
+        f" inode={_file_stat.st_ino if _file_stat else None}"
     )
     file_record.mime_type = detect_media_mime(abs_path)
     db.commit()
 
-    log.info("视频上传完成: path=%s size=%s mirage=%s", rel_video, actual_size, is_mirage)
+    log.info(f"视频上传完成: path={rel_video} size={actual_size} mirage={is_mirage}")
 
     # 解析裁剪参数
     parsed_cuts: list[dict] | None = None
@@ -178,12 +176,7 @@ def upload_video(
     except Exception as exc:
         if not is_mirage:
             file_service.safe_unlink(abs_path)
-        log.error(
-            "视频处理失败: msg=%s exc_type=%s path=%s",
-            str(exc),
-            type(exc).__name__,
-            abs_path,
-        )
+        log.error(f"视频处理失败: msg={exc!s} exc_type={type(exc).__name__} path={abs_path}")
         detail = str(exc) if isinstance(exc, ValueError) else "视频处理失败，请检查文件格式"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
