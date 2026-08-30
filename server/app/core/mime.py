@@ -113,6 +113,12 @@ def detect_media_mime(path: str) -> str:
             )
             if proc.returncode == 0:
                 return _parse_ffprobe(proc.stdout.decode("utf-8", "replace"), path)
+            log.warning(
+                "ffprobe MIME 探测失败: path=%s rc=%s stderr=%s",
+                path,
+                proc.returncode,
+                proc.stderr.decode("utf-8", "replace")[-200:],
+            )
         except (subprocess.SubprocessError, OSError) as exc:
             log.warning("ffprobe 探测失败，回退扩展名: path=%s error=%s", path, exc)
 

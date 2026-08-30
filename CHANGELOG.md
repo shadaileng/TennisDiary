@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.3] - 2026-08-30
+
+### Fixed
+
+- 视频上传排查日志：写入后记录文件存在性/size/inode，`detect_media_mime` ffprobe 失败时记录 stderr，异常处理器输出完整 `str(exc)` 消息。移除无效的 probe_duration 重试逻辑。
+
 ## [1.76.2] - 2026-08-30
 
 ### Fixed

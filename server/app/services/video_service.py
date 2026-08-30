@@ -10,7 +10,6 @@ import os
 import re
 import shutil
 import subprocess
-import time
 
 from app.core.logging import get_logger
 
@@ -84,13 +83,6 @@ def _parse_duration_from_ffmpeg_stderr(stderr: str) -> float:
 
 def probe_duration(path: str) -> float:
     """探测视频时长：优先 ffprobe，回退 ffmpeg stderr 解析"""
-    for _attempt in range(3):
-        if os.path.isfile(path):
-            break
-        time.sleep(0.1)
-    else:
-        raise FileNotFoundError(f"视频文件不存在: {path}")
-
     ffprobe = shutil.which("ffprobe")
     log.info("probe_duration: path=%s ffprobe=%s", path, ffprobe)
     if ffprobe:

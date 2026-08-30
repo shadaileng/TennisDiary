@@ -133,6 +133,16 @@ def upload_video(
         actual_size = file_service.get_file_size(abs_path)
 
     # 文件落盘后用 ffprobe 探测真实 MIME 类型，覆盖客户端可能缺失/错误的 Content-Type
+    # DEBUG: 写入后文件状态排查
+    _file_exists = os.path.isfile(abs_path)
+    _file_stat = os.stat(abs_path) if _file_exists else None
+    log.info(
+        "写入后文件状态: path=%s exists=%s size=%s inode=%s",
+        abs_path,
+        _file_exists,
+        _file_stat.st_size if _file_stat else None,
+        _file_stat.st_ino if _file_stat else None,
+    )
     file_record.mime_type = detect_media_mime(abs_path)
     db.commit()
 
@@ -169,8 +179,8 @@ def upload_video(
         if not is_mirage:
             file_service.safe_unlink(abs_path)
         log.error(
-            "视频处理失败: %s exc_type=%s path=%s",
-            exc,
+            "视频处理失败: msg=%s exc_type=%s path=%s",
+            str(exc),
             type(exc).__name__,
             abs_path,
         )
