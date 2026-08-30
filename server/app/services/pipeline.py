@@ -3,7 +3,6 @@
 架构：计算并行 + 写表串行
 - AI 与姿态检测在 ThreadPoolExecutor 并行执行（纯计算，无 DB 操作）
 - DB 写入（score/summary/pose/骨架文件登记）在主线程串行完成，共用 self.db
-- 仅线程内操作（如读取 AI 配置）使用独立 Session
 """
 
 import json
@@ -16,7 +15,6 @@ from enum import Enum
 from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
 from app.core.logging import get_logger
 from app.models.analysis import Analysis
 
@@ -153,8 +151,13 @@ class PipelineEngine:
             # Step 2+3: 并行计算（纯计算，无 DB 操作）
             frame_urls = video_result["frame_urls"]
 
+            # AI 配置在主线程预读，避免线程内使用 DB
+            from app.services.config_service import get_ai_config
+
+            ai_config = get_ai_config(self.db)
+
             with ThreadPoolExecutor(max_workers=2) as executor:
-                ai_future = executor.submit(self._compute_ai, frame_urls, metadata)
+                ai_future = executor.submit(self._compute_ai, frame_urls, metadata, ai_config)
                 pose_future = executor.submit(
                     self._compute_pose, frame_urls, video_result, metadata
                 )
@@ -272,19 +275,11 @@ class PipelineEngine:
 
         return result
 
-    def _compute_ai(self, frame_urls: list[str], metadata: dict) -> dict:
-        """AI 评分（线程内执行，用独立会话读配置）"""
+    def _compute_ai(self, frame_urls: list[str], metadata: dict, ai_config: dict) -> dict:
+        """AI 评分（线程内执行，纯计算无 DB）"""
         import asyncio
 
         from app.services import ai_service
-        from app.services.config_service import get_ai_config
-
-        # 线程内必须用独立 Session（self.db 不跨线程）
-        db = SessionLocal()
-        try:
-            ai_config = get_ai_config(db)
-        finally:
-            db.close()
 
         async def _run():
             return await ai_service.analyze_swing(
