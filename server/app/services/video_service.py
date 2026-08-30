@@ -137,7 +137,7 @@ def probe_frame_rate(path: str) -> float:
                 "-select_streams",
                 "v:0",
                 "-show_entries",
-                "stream=r_frame_rate,avg_frame_rate",
+                "stream=r_frame_rate",
                 "-of",
                 "default=nw=1:nk=1",
                 path,
@@ -146,7 +146,9 @@ def probe_frame_rate(path: str) -> float:
             timeout=30,
         )
         if proc.returncode == 0:
-            frame_rate_str = proc.stdout.decode().strip()
+            raw = proc.stdout.decode().strip()
+            # ffprobe 可能输出多行（每行一个 stream），只取第一行
+            frame_rate_str = raw.split("\n")[0].strip() if raw else ""
             if frame_rate_str:
                 try:
                     # 处理分数格式如 "30000/1001"
@@ -155,7 +157,7 @@ def probe_frame_rate(path: str) -> float:
                         return float(num) / float(den)
                     return float(frame_rate_str)
                 except (ValueError, ZeroDivisionError):
-                    log.debug(f"帧率字符串解析失败: {frame_rate_str!r}，使用默认 30fps")
+                    log.debug("帧率字符串解析失败: %r，使用默认 30fps", frame_rate_str)
     return 30.0  # 默认帧率
 
 

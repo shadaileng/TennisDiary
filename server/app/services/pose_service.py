@@ -452,7 +452,7 @@ def analyze_video_file(
 
     if skeleton_paths and frame_rate:
         # 用原视频帧率编码，帧数一致则播放时长一致
-        effective_fps = max(1.0, min(30.0, frame_rate))
+        effective_fps = max(1.0, frame_rate)
         out_name = f"{base}_skeleton.mp4"
         out_path = os.path.join(video_dir, out_name)
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
@@ -486,7 +486,7 @@ def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) 
     frame_base = os.path.splitext(os.path.basename(first_frame))[0]  # e.g. "abc_sk0000"
     pattern = os.path.join(frame_dir, f"{frame_base.rsplit('_sk', 1)[0]}_sk%04d.jpg")
 
-    effective_fps = max(1.0, min(30.0, fps))
+    effective_fps = max(1.0, fps)
     cmd = [
         ffmpeg,
         "-y",
@@ -601,7 +601,7 @@ def _analyze_full_frames(
     skeleton_thumb = skeleton_rel[0] if skeleton_rel else None
 
     if skeleton_paths and frame_rate:
-        effective_fps = max(1.0, min(30.0, frame_rate))
+        effective_fps = max(1.0, frame_rate)
         out_name = f"{base}_skeleton.mp4"
         out_path = os.path.join(video_dir, out_name)
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
