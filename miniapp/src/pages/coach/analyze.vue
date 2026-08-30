@@ -172,7 +172,7 @@
       <view
         class="analyze-btn press-btn"
         :class="{ 'analyze-btn--disabled': !videoPath || analyzing }"
-        @tap="startAnalysis"
+        @tap="handleStartAnalysis"
       >
         <text v-if="analyzing">分析中，请稍候…</text>
         <text v-else>开始分析</text>
@@ -183,19 +183,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import {
-  analyzePose,
-  analyzeSwing,
-  createAnalysisInit,
-  finalizeAnalysis,
-  uploadVideo,
-} from "@/services/data";
-// 注：createAnalysis 仍保留于 data.ts 供旧链路/兼容，本页已切换到 118 流水线
-import type { AnalysisKind, AnalysisPose, AnalysisReport } from "@/types";
+import { createStatusSubscriber, type AnalysisStatus } from "@/services/analysisStatus";
+import type { AnalysisKind } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isUserCancel, isRuntimePermissionDenied, isPrivacyScopeError } from "@/utils/privacy";
@@ -316,6 +309,23 @@ onMounted(() => {
   videoCtx = uni.createVideoContext("swingVideo");
 });
 
+// ============ 状态订阅（119：混合模式） ============
+let statusSubscriber: { start: () => void; stop: () => void } | null = null;
+const pipelineStep = ref("");
+const pipelineProgress = ref(0);
+
+/** 停止状态订阅 */
+function stopStatusSubscriber() {
+  if (statusSubscriber) {
+    statusSubscriber.stop();
+    statusSubscriber = null;
+  }
+}
+
+/** 页面卸载时清理 */
+onUnmounted(() => {
+  stopStatusSubscriber();
+});
 
 
 // ============ 模式切换 ============
@@ -670,7 +680,12 @@ function clearHitTime() {
 }
 
 // ============ 开始分析 ============
-async function startAnalysis() {
+
+/**
+ * 统一分析端点模式（119）
+ * 前端仅上传视频，后端异步执行完整管线，通过轮询/SSE获取进度
+ */
+async function startAnalysisUnified() {
   if (analyzing.value || !videoPath.value) return;
   const traceId = createTraceId();
   const t0 = Date.now();
@@ -690,18 +705,6 @@ async function startAnalysis() {
   analyzing.value = true;
   let analysisId = 0;
   try {
-    const formData: { mode: string; kind: string; hit_time?: string; cuts?: string } = {
-      mode: mode.value,
-      kind: kind.value,
-      hit_time: mode.value === "single" && hitTime.value > 0 ? String(hitTime.value.toFixed(2)) : "",
-    };
-
-    if (trimmed.value) {
-      formData.cuts = JSON.stringify(
-        segments.value.map((s) => ({ start: round2(s.start), end: round2(s.end) })),
-      );
-    }
-
     // 0. 检查视频文件是否存在
     const fs = uni.getFileSystemManager();
     const fileExists = await new Promise<boolean>((resolve) => {
@@ -717,146 +720,136 @@ async function startAnalysis() {
     }
 
     // === 整体入口 ===
-    logInfo("开始AI分析", {
+    logInfo("开始AI分析（统一端点）", {
       trace_id: traceId, mode: mode.value, kind: kind.value,
-      has_cuts: !!formData.cuts, video_duration: videoDuration.value,
+      has_cuts: trimmed.value, video_duration: videoDuration.value,
       segment_count: segments.value.length,
     }, undefined, "analysis_started", traceId);
 
-    // === 步骤1: 建分析占位记录，取得 analysis_id（118 流水线）===
-    progress.value = "初始化分析任务…";
-    logInfo("分析初始化开始", { trace_id: traceId }, undefined, "analysis_init_start", traceId);
-    const tInit = Date.now();
-    let initResp: { id: number };
-    try {
-      initResp = await createAnalysisInit({
-        date: todayStr(),
-        kind: kind.value,
-        mode: mode.value,
+    // === 步骤1: 上传视频并启动后台分析管线 ===
+    progress.value = "上传视频并启动分析…";
+    logInfo("统一分析开始", { trace_id: traceId }, undefined, "unified_analysis_start", traceId);
+    const tStart = Date.now();
+
+    // 构建 FormData
+    const formData: Record<string, string> = {
+      date: todayStr(),
+      kind: kind.value,
+      mode: mode.value,
+      hit_time: mode.value === "single" && hitTime.value > 0 ? String(hitTime.value.toFixed(2)) : "0",
+    };
+
+    if (trimmed.value) {
+      formData.cuts = JSON.stringify(
+        segments.value.map((s) => ({ start: round2(s.start), end: round2(s.end) })),
+      );
+    }
+
+    // 上传文件并启动分析
+    const uploadRes = await new Promise<any>((resolve, reject) => {
+      const token = uni.getStorageSync("td_token") || "";
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+      const url = `${baseUrl}/api/analyses/start`;
+
+      uni.uploadFile({
+        url,
+        filePath: videoPath.value,
+        name: "file",
+        formData,
+        header: {
+          "X-Auth-Token": token,
+        },
+        success: (res) => {
+          if (res.statusCode === 200) {
+            try {
+              const data = JSON.parse(res.data);
+              if (data.code === 0 && data.data) {
+                resolve(data.data);
+              } else {
+                reject(new Error(data.message || "启动分析失败"));
+              }
+            } catch (e) {
+              reject(new Error("解析响应失败"));
+            }
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}`));
+          }
+        },
+        fail: (err) => {
+          reject(new Error(err.errMsg || "上传失败"));
+        },
       });
-      logInfo("分析初始化成功", {
-        trace_id: traceId, duration_ms: Date.now() - tInit, analysis_id: initResp.id,
-      }, undefined, "analysis_init_success", traceId);
-    } catch (e) {
-      logError("分析初始化失败", {
-        trace_id: traceId, duration_ms: Date.now() - tInit, error: String(e),
-      }, undefined, "analysis_init_failed", undefined, traceId);
-      throw e;
-    }
-    analysisId = initResp.id;
+    });
 
-    // === 步骤2: 视频上传 + 抽帧（携带 analysis_id）===
-    progress.value = "上传视频并抽取关键帧…";
-    logInfo("视频上传开始", { trace_id: traceId, analysis_id: analysisId }, undefined, "video_upload_start", traceId);
-    const tUpload = Date.now();
-    let uploaded: any;
-    try {
-      uploaded = await uploadVideo(videoPath.value, formData, analysisId);
-      logInfo("视频上传成功", {
-        trace_id: traceId, duration_ms: Date.now() - tUpload, analysis_id: analysisId,
-        video_url: uploaded.video_url, frame_count: uploaded.frame_urls?.length,
-      }, undefined, "video_upload_success", traceId);
-    } catch (e) {
-      logError("视频上传失败", {
-        trace_id: traceId, duration_ms: Date.now() - tUpload, analysis_id: analysisId, error: String(e),
-      }, undefined, "video_upload_failed", undefined, traceId);
-      throw e;
-    }
+    analysisId = uploadRes.id;
+    logInfo("统一分析已启动", {
+      trace_id: traceId, duration_ms: Date.now() - tStart, analysis_id: analysisId,
+    }, undefined, "unified_analysis_launched", traceId);
 
-    // === 步骤3+4: AI六维评分 与 姿态测量 并行（均携带 analysis_id）===
-    progress.value = "教练正在分析动作与姿态（约 15-90 秒）…";
-    logInfo("AI分析开始", { trace_id: traceId, analysis_id: analysisId, type: "swing", kind: kind.value, mode: mode.value }, undefined, "ai_swing_start", traceId);
-    logInfo("姿态分析开始", { trace_id: traceId, analysis_id: analysisId, type: "pose", kind: kind.value, mode: mode.value, duration: uploaded.duration, frame_rate: uploaded.frame_rate }, undefined, "ai_pose_start", traceId);
+    // === 步骤2: 订阅状态更新 ===
+    progress.value = "分析中，请稍候…";
+    logInfo("状态订阅开始", { trace_id: traceId, analysis_id: analysisId }, undefined, "status_subscribe_start", traceId);
 
-    const tAi = Date.now();
-    const tPose = Date.now();
+    await new Promise<void>((resolve, reject) => {
+      statusSubscriber = createStatusSubscriber(analysisId, (status: AnalysisStatus) => {
+        // 更新进度显示
+        if (status.pipeline_status) {
+          pipelineStep.value = status.pipeline_status.step;
+          pipelineProgress.value = status.pipeline_status.progress;
 
-    const [aiResult, poseResult] = await Promise.allSettled([
-      analyzeSwing(uploaded.frame_urls, kind.value, mode.value, analysisId),
-      analyzePose(uploaded.frame_urls, {
-        videoUrl: uploaded.video_url,
-        saveSkeleton: true,
-        duration: uploaded.duration,
-        frameRate: uploaded.frame_rate,
-      }, analysisId),
-    ]);
+          // 更新进度文字
+          const stepLabels: Record<string, string> = {
+            init: "初始化…",
+            upload: "处理视频…",
+            ai: "AI评分中…",
+            pose: "姿态分析中…",
+            finalize: "保存结果…",
+          };
+          progress.value = stepLabels[status.pipeline_status.step] || "分析中…";
+        }
 
-    const aiDuration = Date.now() - tAi;
-    const poseDuration = Date.now() - tPose;
+        // 完成时跳转报告页
+        if (status.status === "completed") {
+          logInfo("分析完成", {
+            trace_id: traceId, analysis_id: analysisId,
+            total_duration_ms: Date.now() - t0,
+          }, undefined, "analysis_completed", traceId);
+          stopStatusSubscriber();
+          uni.redirectTo({ url: `/pages/coach/report?id=${analysisId}` });
+          resolve();
+        }
 
-    // AI分析结果上报
-    if (aiResult.status === "fulfilled") {
-      logInfo("AI分析成功", {
-        trace_id: traceId, duration_ms: aiDuration, analysis_id: analysisId,
-        score: aiResult.value.score, ntrp: aiResult.value.ntrp,
-      }, undefined, "ai_swing_success", traceId);
-    } else {
-      logError("AI分析失败", {
-        trace_id: traceId, duration_ms: aiDuration, analysis_id: analysisId, error: String(aiResult.reason),
-      }, undefined, "ai_swing_failed", undefined, traceId);
-    }
+        // 失败时提示
+        if (status.status === "failed") {
+          const errorMsg = status.pipeline_status?.error || "分析失败，请重试";
+          logError("分析失败", {
+            trace_id: traceId, analysis_id: analysisId, error: errorMsg,
+          }, undefined, "analysis_failed", undefined, traceId);
+          stopStatusSubscriber();
+          reject(new Error(errorMsg));
+        }
+      });
 
-    // 姿态分析结果上报
-    if (poseResult.status === "fulfilled") {
-      logInfo("姿态分析成功", {
-        trace_id: traceId, duration_ms: poseDuration, analysis_id: analysisId,
-        detected: poseResult.value.detected, has_skeleton: !!poseResult.value.skeleton_video_url,
-        metrics: poseResult.value.metrics ? { elbowAngle: poseResult.value.metrics.elbowAngle, kneeAngle: poseResult.value.metrics.kneeAngle, trunkLean: poseResult.value.metrics.trunkLean } : null,
-      }, undefined, "ai_pose_success", traceId);
-    } else {
-      logError("姿态分析失败", {
-        trace_id: traceId, duration_ms: poseDuration, analysis_id: analysisId, error: String(poseResult.reason),
-      }, undefined, "ai_pose_failed", undefined, traceId);
-    }
-
-    // === 步骤5: 收尾，置 completed 并取回完整记录（118 流水线）===
-    progress.value = "保存分析结果…";
-    logInfo("分析收尾开始", { trace_id: traceId, analysis_id: analysisId }, undefined, "analysis_finalize_start", traceId);
-    const tFinalize = Date.now();
-    let analysis: any;
-    try {
-      analysis = await finalizeAnalysis(analysisId);
-      logInfo("分析收尾成功", {
-        trace_id: traceId, duration_ms: Date.now() - tFinalize, analysis_id: analysisId,
-        status: analysis.status,
-      }, undefined, "analysis_finalize_success", traceId);
-    } catch (e) {
-      logError("分析收尾失败", {
-        trace_id: traceId, duration_ms: Date.now() - tFinalize, analysis_id: analysisId, error: String(e),
-      }, undefined, "analysis_finalize_failed", undefined, traceId);
-      throw e;
-    }
-
-    // === 整体出口 ===
-    const totalDuration = Date.now() - t0;
-    logInfo("AI分析完成", {
-      trace_id: traceId, analysis_id: analysisId,
-      mode: mode.value, kind: kind.value,
-      steps: {
-        init: { duration_ms: Date.now() - tInit },
-        upload: { duration_ms: Date.now() - tUpload },
-        ai: { duration_ms: aiDuration },
-        pose: { duration_ms: poseDuration },
-        finalize: { duration_ms: Date.now() - tFinalize },
-      },
-      total_duration_ms: totalDuration,
-    }, undefined, "analysis_completed", traceId);
-
-    uni.redirectTo({ url: `/pages/coach/report?id=${analysis.id}` });
+      statusSubscriber.start();
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "分析失败，请重试";
-    const totalDuration = Date.now() - t0;
-    logError("AI分析失败", {
+    logError("统一分析失败", {
       trace_id: traceId, error: msg,
       mode: mode.value, kind: kind.value,
-      failed_step: analysisId != null ? "finalize" : "init",
-      total_duration_ms: totalDuration,
+      total_duration_ms: Date.now() - t0,
     }, undefined, "analysis_failed", undefined, traceId);
     uni.showToast({ title: msg, icon: "none" });
   } finally {
     analyzing.value = false;
     progress.value = "";
+    stopStatusSubscriber();
   }
+}
+
+/** 启动分析 */
+function handleStartAnalysis() {
+  startAnalysisUnified();
 }
 
 function round2(n: number): number {

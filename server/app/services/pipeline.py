@@ -58,6 +58,10 @@ def _initial_pipeline_status() -> dict:
         "steps": {step.value: {"status": StepStatus.PENDING.value} for step in PipelineStep},
         "error": None,
         "retry_count": 0,
+        "started_at": time.time(),
+        "completed_at": None,
+        "total_duration_s": None,
+        "parallel_duration_s": None,
     }
 
 
@@ -109,6 +113,7 @@ class PipelineEngine:
         status: StepStatus,
         progress: int | None = None,
         error: str | None = None,
+        duration_s: float | None = None,
     ) -> None:
         """更新步骤状态"""
         analysis = self.db.query(Analysis).filter(Analysis.id == self.analysis_id).first()
@@ -122,10 +127,10 @@ class PipelineEngine:
         pipeline_status["step"] = step.value
         default_progress = _STEP_PROGRESS.get(step, 0)
         pipeline_status["progress"] = progress if progress is not None else default_progress
-        pipeline_status["steps"][step.value] = {
-            "status": status.value,
-            "ts": time.time(),
-        }
+        step_data: dict = {"status": status.value, "ts": time.time()}
+        if duration_s is not None:
+            step_data["duration_s"] = round(duration_s, 2)
+        pipeline_status["steps"][step.value] = step_data
         if error:
             pipeline_status["error"] = error
 
@@ -140,6 +145,7 @@ class PipelineEngine:
 
     def run_pipeline(self, video_path: str, metadata: dict) -> dict:
         """执行完整管线：计算并行 + 写表串行"""
+        pipeline_start = time.time()
         log.info("管线开始", analysis_id=self.analysis_id)
 
         try:
@@ -156,6 +162,7 @@ class PipelineEngine:
 
             ai_config = get_ai_config(self.db)
 
+            parallel_start = time.time()
             with ThreadPoolExecutor(max_workers=2) as executor:
                 ai_future = executor.submit(self._compute_ai, frame_urls, metadata, ai_config)
                 pose_future = executor.submit(
@@ -182,7 +189,16 @@ class PipelineEngine:
                         parts.append(f"Pose: {type(pose_exc).__name__}: {str(pose_exc)[:120]}")
                     raise RuntimeError("; ".join(parts)) from (ai_exc or pose_exc)
 
+            parallel_elapsed = time.time() - parallel_start
+            log.info(
+                "管线-并行计算耗时: %.2fs (ai=%s, pose=%s)",
+                parallel_elapsed,
+                "ok" if not ai_exc else type(ai_exc).__name__,
+                "ok" if not pose_exc else type(pose_exc).__name__,
+            )
+
             # Step 2+3 写表：串行执行（共用 self.db）
+            write_start = time.time()
             self._update_step_status(PipelineStep.AI, StepStatus.PROCESSING)
             self._write_ai_result(ai_result)
             self._update_step_status(PipelineStep.AI, StepStatus.COMPLETED, progress=100)
@@ -190,18 +206,37 @@ class PipelineEngine:
             self._update_step_status(PipelineStep.POSE, StepStatus.PROCESSING)
             self._write_pose_result(pose_result)
             self._update_step_status(PipelineStep.POSE, StepStatus.COMPLETED, progress=100)
+            write_elapsed = time.time() - write_start
+            log.info("管线-写表耗时: %.2fs", write_elapsed)
 
             # Step 4: 收尾
             self._finalize()
 
-            log.info("管线完成", analysis_id=self.analysis_id)
+            total_elapsed = time.time() - pipeline_start
+            # 写入顶层计时到 pipeline_status
+            analysis = self.db.query(Analysis).filter(Analysis.id == self.analysis_id).first()
+            if analysis:
+                pipeline_status = _parse_pipeline_status(analysis.pipeline_status)
+                if pipeline_status:
+                    pipeline_status["completed_at"] = time.time()
+                    pipeline_status["total_duration_s"] = round(total_elapsed, 2)
+                    pipeline_status["parallel_duration_s"] = round(parallel_elapsed, 2)
+                    self._update_pipeline_status(pipeline_status)
+
+            log.info(
+                "管线完成 analysis_id=%s total=%.2fs",
+                self.analysis_id,
+                total_elapsed,
+            )
             return {"status": "completed", "ai": ai_result, "pose": pose_result}
 
         except Exception as e:  # noqa: BLE001 - 管线需要捕获所有异常
+            total_elapsed = time.time() - pipeline_start
             tb = traceback.format_exc()
             log.error(
-                "管线失败 analysis_id=%s error=%s: %s\n%s",
+                "管线失败 analysis_id=%s total=%.2fs error=%s: %s\n%s",
                 self.analysis_id,
+                total_elapsed,
                 type(e).__name__,
                 str(e)[:200],
                 tb,
@@ -252,6 +287,7 @@ class PipelineEngine:
 
     def _process_video(self, video_path: str, metadata: dict) -> dict:
         """视频处理（同步）"""
+        t0 = time.time()
         from app.services import file_service, video_service
 
         mode = metadata.get("mode", "single")
@@ -260,9 +296,10 @@ class PipelineEngine:
 
         result = video_service.process_video(video_path, mode, hit_time, cuts)
 
+        elapsed = time.time() - t0
         log.info(
-            "管线-视频处理完成: duration=%.2fs frames=%d trimmed=%s",
-            result.get("duration", 0),
+            "管线-视频处理耗时: %.2fs frames=%d trimmed=%s",
+            elapsed,
             len(result.get("frame_urls", [])),
             result.get("trimmed", False),
         )
@@ -277,6 +314,7 @@ class PipelineEngine:
 
     def _compute_ai(self, frame_urls: list[str], metadata: dict, ai_config: dict) -> dict:
         """AI 评分（线程内执行，纯计算无 DB）"""
+        t0 = time.time()
         import asyncio
 
         from app.services import ai_service
@@ -296,10 +334,12 @@ class PipelineEngine:
         finally:
             loop.close()
 
+        log.info("管线-AI评分耗时: %.2fs frames=%d", time.time() - t0, len(frame_urls))
         return report
 
     def _compute_pose(self, frame_urls: list[str], video_result: dict, metadata: dict) -> dict:
         """姿态推理（线程内执行，纯计算无 DB）"""
+        t0 = time.time()
         from app.services import file_service, pose_service
 
         save_skeleton = True
@@ -317,6 +357,7 @@ class PipelineEngine:
             frame_urls=frame_urls,
         )
 
+        log.info("管线-姿态推理耗时: %.2fs frames=%d", time.time() - t0, len(frame_urls))
         return result
 
     # ==================== 写表阶段（主线程串行，共用 self.db） ====================
@@ -425,6 +466,7 @@ class PipelineEngine:
 
     def _finalize(self) -> None:
         """收尾更新状态"""
+        t0 = time.time()
         analysis = self.db.query(Analysis).filter(Analysis.id == self.analysis_id).first()
         if analysis and analysis.video_url:
             self._update_analysis_field(status="completed")
@@ -435,6 +477,7 @@ class PipelineEngine:
                 pipeline_status["steps"][PipelineStep.FINALIZE.value] = {
                     "status": StepStatus.COMPLETED.value,
                     "ts": time.time(),
+                    "duration_s": round(time.time() - t0, 2),
                 }
                 self._update_pipeline_status(pipeline_status)
         else:

@@ -265,6 +265,7 @@ cd admin && pnpm build                 # 构建管理端
 | 110 | Admin 分页组件页码按钮优化（首尾常驻 + 中间最多 3 个连续数字 + `…` 分隔 + 当前页高亮） | ✅ |
 | 118 | 分析流水线重构与视频信息表（点击即建 analysis_id；上传/AI评分/姿态三步携带 analysis_id 分步更新同一行；analysis_video_info 表登记原视频/裁剪/播放短片/骨架衍生文件；播放短片纳入文件管理 + 分类边界对齐；小程序 startAnalysis 五步流水线） | ✅ |
 | 119 | 电子教练后台任务队列与管线模式（统一上传端点 + BackgroundTasks 异步管线 + pipeline_status JSON 追踪 + 轮询/SSE 混合订阅 + 自动重试；计算并行+写表串行架构；修复 probe_frame_rate 多行输出、骨架帧率上限、批量登记 savepoint 隔离、并行步骤异常收集） | ✅ |
+| 120 | Pipeline 耗时日志与前端旧模式清理（各步骤 duration_s + 顶层计时 + 前端移除旧 118 串行调用） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

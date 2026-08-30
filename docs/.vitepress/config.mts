@@ -219,6 +219,8 @@ export default defineConfig({
             { text: '75-6：Phase 5 分享工坊', link: '/plans/75-6-Phase5-分享工坊' },
             { text: '82：姿态模型获取与随包打包', link: '/plans/82-姿态模型获取与随包打包' },
             { text: '83：姿态可视化与六边形雷达图', link: '/plans/83-姿态可视化与六边形雷达图' },
+            { text: '119：电子教练后台任务队列与管线模式（v1.1.0）', link: '/plans/119-电子教练后台任务队列与管线模式' },
+            { text: '120：Pipeline 耗时日志与前端旧模式清理', link: '/plans/120-Pipeline耗时日志与前端旧模式清理' },
           ],
         },
       ],

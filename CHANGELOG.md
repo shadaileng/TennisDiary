@@ -6,6 +6,16 @@
 
 ## [1.76.10] - 2026-08-30
 
+### Added
+
+- Pipeline 各步骤耗时日志：`run_pipeline` / `_process_video` / `_compute_ai` / `_compute_pose` / `_finalize` 各阶段增加 `time.time()` 计时，日志输出 `管线-视频处理耗时` / `管线-AI评分耗时` / `管线-姿态推理耗时` / `管线-并行计算耗时` / `管线-写表耗时` / `管线完成 total=`。
+- `pipeline_status` JSON 增加顶层计时字段：`started_at` / `completed_at` / `total_duration_s` / `parallel_duration_s`，每个步骤 dict 增加 `duration_s`。
+
+### Changed
+
+- 前端移除旧 118 串行调用：删除 `analyze.vue` 中 `startAnalysis()` 函数（~190行）、`useUnifiedMode` flag、旧 imports；`handleStartAnalysis()` 直接调用 `startAnalysisUnified()`。
+- 前端 `data.ts` 移除旧端点函数：`uploadVideo()` / `analyzeSwing()` / `analyzePose()` / `createAnalysisInit()` / `finalizeAnalysis()`，保留 `generateCaption()` / `createAnalysis()` / `getAnalyses()` 等。
+
 ### Fixed
 
 - 管线并发 Session 冲突修复：`PipelineEngine` 拆分为「计算并行 + 写表串行」架构，AI 与姿态检测在 ThreadPoolExecutor 并行执行，DB 写入（score/summary/pose/骨架文件登记）在主线程串行完成，消除 SQLite `InterfaceError: concurrent operations are not permitted`。

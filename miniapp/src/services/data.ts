@@ -1,10 +1,8 @@
 import { del, get, post, put } from "./request";
-import { uploadRaw } from "@/utils/upload";
 
 import type {
   Analysis,
   AnalysisCreate,
-  AnalysisReport,
   CaptionResult,
   Checkin,
   CheckinCreate,
@@ -15,13 +13,10 @@ import type {
   GearCreate,
   GearUpdate,
   MessageResponse,
-  PoseResult,
   Stats,
-  VideoUploadResult,
   WeightCreate,
   WeightRecord,
 } from "@/types";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 /**
  * 业务数据 API 封装
@@ -129,115 +124,14 @@ export function getStats(): Promise<Stats> {
 
 // ==================== 电子教练（视频/AI/姿态/分析） ====================
 
-/** 上传视频并抽帧（uploadRaw 直传后端，75-2 抽帧 + Step99 裁剪拼接）
- * analysisId 非空时走 118 流水线：绑定 analysis_id，分步更新同一分析记录 */
-export function uploadVideo(
-  filePath: string,
-  formData: { mode: string; kind: string; hit_time?: string; cuts?: string },
-  analysisId?: number,
-): Promise<VideoUploadResult> {
-  const traceId = createTraceId();
-  return uploadRaw<VideoUploadResult>({
-    path: "/video/upload",
-    filePath,
-    formData: { ...formData, ...(analysisId != null ? { analysis_id: String(analysisId) } : {}) },
-    timeout: 120000,
-    onSuccess: (result, durationMs) => {
-      logInfo(
-        "视频上传成功",
-        { video_url: result.video_url, mirage: result.mirage, duration_ms: durationMs },
-        "business",
-        "video_upload_success",
-        traceId,
-      );
-    },
-    onMirage: (result, durationMs) => {
-      logInfo(
-        "视频秒传",
-        { video_url: result.video_url, duration_ms: durationMs },
-        "business",
-        "video_upload_mirage",
-        traceId,
-      );
-    },
-    onFailed: (error, durationMs) => {
-      logError(
-        "视频上传失败",
-        { error: error.message, filePath, mode: formData.mode, kind: formData.kind, hit_time: formData.hit_time, cuts: formData.cuts, duration_ms: durationMs },
-        undefined,
-        "video_upload_failed",
-        undefined,
-        traceId,
-      );
-    },
-  }) as Promise<VideoUploadResult>;
-}
-
-/** AI 六维评分（120s 超时，Key 存服务端，失败后端降级）
- * analysisId 非空时走 118 流水线：评分结果回写同一分析记录 */
-export function analyzeSwing(
-  frameUrls: string[],
-  kind: string,
-  mode: "single" | "full",
-  analysisId?: number,
-): Promise<AnalysisReport> {
-  return post<AnalysisReport>(
-    "/ai/analyze",
-    { frame_urls: frameUrls, kind, mode, ...(analysisId != null ? { analysis_id: analysisId } : {}) },
-    { timeout: 120000 },
-  );
-}
-
 /** AI 分享文案润色（30s 超时，Key 存服务端，失败后端降级为本地模板文案） */
 export function generateCaption(template: string, style: string, text: string): Promise<CaptionResult> {
   return post<CaptionResult>("/ai/caption", { template, style, text }, { timeout: 30000 });
 }
 
-/** 姿态推理（33 关键点 + 角度测量 + 可选骨架落盘，60s 超时）
- * analysisId 非空时走 118 流水线：姿态结果回写同一分析记录并登记骨架衍生文件 */
-export function analyzePose(
-  frameUrls: string[],
-  options?: {
-    videoUrl?: string
-    saveSkeleton?: boolean
-    duration?: number
-    frameRate?: number
-    fullFrames?: boolean  // 是否逐帧生成骨架视频（null=自动判断）
-  },
-  analysisId?: number,
-): Promise<PoseResult> {
-  return post<PoseResult>(
-    "/pose/analyze",
-    {
-      frame_urls: frameUrls,
-      video_url: options?.videoUrl,
-      save_skeleton: options?.saveSkeleton ?? false,
-      duration: options?.duration,
-      frame_rate: options?.frameRate,
-      full_frames: options?.fullFrames,
-      ...(analysisId != null ? { analysis_id: analysisId } : {}),
-    },
-    { timeout: 60000 },
-  );
-}
-
 /** 落库分析报告（AI 分析成功后调用，供历史回看；118 后仍保留兼容旧链路） */
 export function createAnalysis(body: AnalysisCreate): Promise<Analysis> {
   return post<Analysis>("/analyses", body);
-}
-
-/** 118 流水线步骤1：仅建分析占位记录，返回 analysis_id */
-export function createAnalysisInit(body: {
-  date: string
-  kind: string
-  mode: "single" | "full"
-}): Promise<{ id: number }> {
-  return post<{ id: number }>("/analyses/init", body);
-}
-
-/** 118 流水线步骤5：收尾，置 completed 并返回完整记录 */
-export function finalizeAnalysis(id: number): Promise<Analysis> {
-  return put<Analysis>(`/analyses/${id}`, { status: "completed" });
 }
 
 /** 当前用户历史分析报告列表 */
