@@ -6,6 +6,13 @@
     </view>
 
     <view v-else class="report-body">
+      <!-- 失败状态提示 -->
+      <view v-if="analysis.status === 'failed'" class="failed-banner">
+        <text class="failed-icon">⚠️</text>
+        <text class="failed-text">分析失败</text>
+        <text class="failed-hint">请重新上传视频进行分析</text>
+      </view>
+
       <!-- 封面 + 评分圆徽 -->
       <view class="cover-wrap">
         <image v-if="coverSrc" :src="coverSrc" mode="aspectFill" class="cover-img" />
@@ -229,6 +236,33 @@ function confirmRemove() {
   display: flex;
   flex-direction: column;
   gap: $space-md;
+}
+
+// ========== 失败状态 ==========
+.failed-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: $space-xl $space-lg;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: $radius-card;
+  gap: 6px;
+}
+
+.failed-icon {
+  font-size: 32px;
+}
+
+.failed-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #DC2626;
+}
+
+.failed-hint {
+  font-size: 13px;
+  color: #991B1B;
 }
 
 // ========== 封面 ==========

@@ -141,8 +141,26 @@ class PipelineEngine:
                     metadata,
                 )
 
-                ai_result = ai_future.result()
-                pose_result = pose_future.result()
+                # 收集两个 future 的结果/异常，避免丢失任一方错误
+                ai_result, ai_exc = None, None
+                pose_result, pose_exc = None, None
+                try:
+                    ai_result = ai_future.result()
+                except Exception as exc:  # noqa: BLE001
+                    ai_exc = exc
+                try:
+                    pose_result = pose_future.result()
+                except Exception as exc:  # noqa: BLE001
+                    pose_exc = exc
+
+                if ai_exc or pose_exc:
+                    # 合并错误信息，优先抛出 AI 异常
+                    parts = []
+                    if ai_exc:
+                        parts.append(f"AI: {type(ai_exc).__name__}: {str(ai_exc)[:120]}")
+                    if pose_exc:
+                        parts.append(f"Pose: {type(pose_exc).__name__}: {str(pose_exc)[:120]}")
+                    raise RuntimeError("; ".join(parts)) from (ai_exc or pose_exc)
 
             # Step 4: 收尾
             self._finalize()
