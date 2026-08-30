@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.7] - 2026-08-30
+
+### Fixed
+
+- 秒传路径修复：`video.py` 秒传分支错误使用新生成的 UUID 路径（`rel_video`），应使用已有文件的 `file_record.rel_path`，导致 ffprobe 仍指向不存在的文件。
+
 ## [1.76.6] - 2026-08-30
 
 ### Fixed

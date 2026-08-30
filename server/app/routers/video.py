@@ -129,7 +129,7 @@ def upload_video(
             )
     else:
         # 秒传时使用已存在的文件路径
-        abs_path = file_service.rel_path_to_abs(rel_video)
+        abs_path = file_service.rel_path_to_abs(file_record.rel_path)
         actual_size = file_service.get_file_size(abs_path)
 
     # 文件落盘后用 ffprobe 探测真实 MIME 类型，覆盖客户端可能缺失/错误的 Content-Type
