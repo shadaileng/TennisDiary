@@ -103,34 +103,29 @@ def upload_video(
     )
     db.commit()
 
-    # 如果不是秒传，写入物理文件
-    if not is_mirage:
-        try:
-            with open(abs_path, "wb") as out:
-                out.write(content)
-                out.flush()
-                os.fsync(out.fileno())
-        except Exception as exc:
-            db.delete(file_record)
-            db.commit()
-            log.error("视频文件写入失败: path=%s error=%s", abs_path, exc)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="文件写入失败，请稍后重试",
-            ) from exc
+    # 始终写入物理文件（秒传仅复用 DB 记录，原始文件可能已被清理）
+    try:
+        with open(abs_path, "wb") as out:
+            out.write(content)
+            out.flush()
+            os.fsync(out.fileno())
+    except Exception as exc:
+        db.delete(file_record)
+        db.commit()
+        log.error(f"视频文件写入失败: path={abs_path} error={exc}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件写入失败，请稍后重试",
+        ) from exc
 
-        actual_size = file_service.get_file_size(abs_path)
-        if actual_size == 0:
-            file_service.safe_unlink(abs_path)
-            db.delete(file_record)
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
-            )
-    else:
-        # 秒传时使用已存在的文件路径
-        abs_path = file_service.rel_path_to_abs(rel_video)
-        actual_size = file_service.get_file_size(abs_path)
+    actual_size = file_service.get_file_size(abs_path)
+    if actual_size == 0:
+        file_service.safe_unlink(abs_path)
+        db.delete(file_record)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
+        )
 
     # 文件落盘后用 ffprobe 探测真实 MIME 类型，覆盖客户端可能缺失/错误的 Content-Type
     # DEBUG: 写入后文件状态排查
@@ -159,23 +154,19 @@ def upload_video(
     try:
         result = video_service.process_video(abs_path, mode, hit_time, cuts=parsed_cuts)
     except VideoTooLongError as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        file_service.safe_unlink(abs_path)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except InvalidCutError as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        file_service.safe_unlink(abs_path)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except FfmpegUnavailableError as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        file_service.safe_unlink(abs_path)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="服务器未配置 ffmpeg，无法抽帧",
         ) from exc
     except Exception as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        file_service.safe_unlink(abs_path)
         log.error(f"视频处理失败: msg={exc!s} exc_type={type(exc).__name__} path={abs_path}")
         detail = str(exc) if isinstance(exc, ValueError) else "视频处理失败，请检查文件格式"
         raise HTTPException(

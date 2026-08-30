@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.5] - 2026-08-30
+
+### Fixed
+
+- 视频上传秒传路径修复：秒传（mirage）仅复用 DB 记录，原始文件可能已被清理导致 ffprobe 报 `No such file or directory`。移除 `is_mirage` 条件，始终将上传内容写入磁盘。
+
 ## [1.76.4] - 2026-08-30
 
 ### Fixed
