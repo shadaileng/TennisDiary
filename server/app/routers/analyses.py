@@ -298,8 +298,8 @@ async def _save_uploaded_file(file: UploadFile, user_id: int) -> str:
     return file_path
 
 
-async def _run_analysis_pipeline(analysis_id: int, video_path: str, metadata: dict) -> None:
-    """后台任务：执行分析管线"""
+def _run_analysis_pipeline(analysis_id: int, video_path: str, metadata: dict) -> None:
+    """后台任务：执行分析管线（sync def → FastAPI 放入线程池，不阻塞事件循环）"""
     from app.core.database import SessionLocal
     from app.services.pipeline import PipelineEngine
 
