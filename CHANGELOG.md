@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.8] - 2026-08-30
+
+### Fixed
+
+- `ensure_unique_name` 去重检查包含软删除记录：原逻辑仅查 `deleted_at IS NULL`，但 UNIQUE 约束 `(user_id, original_name)` 包含所有行，软删除记录仍占位导致 INSERT 报 `UNIQUE constraint failed`。
+
 ## [1.76.7] - 2026-08-30
 
 ### Fixed
