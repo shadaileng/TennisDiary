@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 
 from app.core.logging import get_logger
 
@@ -83,8 +84,15 @@ def _parse_duration_from_ffmpeg_stderr(stderr: str) -> float:
 
 def probe_duration(path: str) -> float:
     """探测视频时长：优先 ffprobe，回退 ffmpeg stderr 解析"""
+    for _attempt in range(3):
+        if os.path.isfile(path):
+            break
+        time.sleep(0.1)
+    else:
+        raise FileNotFoundError(f"视频文件不存在: {path}")
+
     ffprobe = shutil.which("ffprobe")
-    log.info(f"probe_duration: path={path} ffprobe={ffprobe}")
+    log.info("probe_duration: path=%s ffprobe=%s", path, ffprobe)
     if ffprobe:
         proc = subprocess.run(
             [
@@ -102,14 +110,14 @@ def probe_duration(path: str) -> float:
         )
         _stdout = proc.stdout.decode().strip()
         _stderr = proc.stderr.decode()[-300:]
-        log.info(f"ffprobe: rc={proc.returncode} stdout={_stdout!r} stderr={_stderr!r}")
+        log.info("ffprobe: rc=%s stdout=%r stderr=%r", proc.returncode, _stdout, _stderr)
         if proc.returncode == 0:
             try:
                 return float(_stdout)
             except ValueError:
-                log.warning(f"ffprobe 输出无法解析为时长: stdout={_stdout!r}")
+                log.warning("ffprobe 输出无法解析为时长: stdout=%r", _stdout)
         _stderr2 = proc.stderr.decode("utf-8", "replace")[-300:]
-        log.warning(f"ffprobe 探测时长失败 rc={proc.returncode} stderr={_stderr2}")
+        log.warning("ffprobe 探测时长失败 rc=%s stderr=%s", proc.returncode, _stderr2)
     ffmpeg = find_ffmpeg()
     if ffmpeg:
         proc = subprocess.run([ffmpeg, "-i", path], capture_output=True, timeout=30)
@@ -117,7 +125,7 @@ def probe_duration(path: str) -> float:
             return _parse_duration_from_ffmpeg_stderr(proc.stderr.decode(errors="replace"))
         except ValueError:
             _fs = proc.stderr.decode("utf-8", "replace")[-300:]
-            log.warning(f"ffmpeg 解析时长失败 rc={proc.returncode} stderr={_fs}")
+            log.warning("ffmpeg 解析时长失败 rc=%s stderr=%s", proc.returncode, _fs)
             raise
     raise FfmpegUnavailableError("ffmpeg 不可用")
 
@@ -155,7 +163,7 @@ def probe_frame_rate(path: str) -> float:
                         return float(num) / float(den)
                     return float(frame_rate_str)
                 except (ValueError, ZeroDivisionError):
-                    log.debug(f"帧率字符串解析失败: {frame_rate_str!r}，使用默认 30fps")
+                    log.debug("帧率字符串解析失败: %r，使用默认 30fps", frame_rate_str)
     return 30.0  # 默认帧率
 
 
@@ -232,7 +240,7 @@ def trim_video(src: str, dst: str, start: float, length: float) -> None:
     ]
     for extra in (["-c:a", "copy"], ["-an"]):
         cmd = [*base, *extra, dst]
-        log.info(f"trim_video cmd={' '.join(cmd[:8])}... dst={dst}")
+        log.info("trim_video cmd=%s... dst=%s", " ".join(cmd[:8]), dst)
         proc = subprocess.run(cmd, capture_output=True, timeout=120)
         _dst_exists = os.path.isfile(dst)
         _dst_size = os.path.getsize(dst) if _dst_exists else None
@@ -411,12 +419,12 @@ def process_video(
 
     segments: list[dict] | None = None
     working = path
-    log.info(f"process_video: cuts={cuts} duration={duration}")
+    log.info("process_video: cuts=%s duration=%s", cuts, duration)
     if cuts:
         segments = validate_cuts(cuts, mode, duration)
-        log.info(f"validate_cuts OK: segments={segments}")
+        log.info("validate_cuts OK: segments=%s", segments)
         working = trim_and_concat(path, segments, mode)
-        log.info(f"trim_and_concat returned: working={working} exists={os.path.isfile(working)}")
+        log.info("trim_and_concat returned: working=%s exists=%s", working, os.path.isfile(working))
         if working != path and os.path.isfile(path):
             pass  # 保留原片，不删除（118：原视频应由文件管理手动操作）
         # 重探测裁剪产物的时长/帧率（拼接结果实际值）

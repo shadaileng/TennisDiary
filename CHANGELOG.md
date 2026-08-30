@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.2] - 2026-08-30
+
+### Fixed
+
+- 视频上传 MIME 检测顺序修复：`detect_media_mime` 移到文件写入+size 校验之后，避免对尚未落盘的文件调用 ffprobe。
+- `probe_duration` 文件存在性重试：写入后最多重试 3 次（每次 100ms），防止 Windows 文件系统延迟导致 ffprobe 找不到文件。
+- 修复 `video_service.py` 7 处 f-string 日志违规（AGENTS.md 禁止 loguru 用 f-string）。
+
 ## [1.76.1] - 2026-08-30
 
 ### Fixed

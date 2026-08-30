@@ -102,10 +102,6 @@ def upload_video(
         mime_type=file.content_type or "",
     )
     db.commit()
-    # 非秒传时文件已落盘，秒传时复用已有路径；用 ffprobe 探测真实类型覆盖
-    # 客户端可能缺失/错误的 Content-Type，保证 mime_type 正确（如 video/mp4）
-    file_record.mime_type = detect_media_mime(abs_path)
-    db.commit()
 
     # 如果不是秒传，写入物理文件
     if not is_mirage:
@@ -135,6 +131,10 @@ def upload_video(
         # 秒传时使用已存在的文件路径
         abs_path = file_service.rel_path_to_abs(rel_video)
         actual_size = file_service.get_file_size(abs_path)
+
+    # 文件落盘后用 ffprobe 探测真实 MIME 类型，覆盖客户端可能缺失/错误的 Content-Type
+    file_record.mime_type = detect_media_mime(abs_path)
+    db.commit()
 
     log.info("视频上传完成: path=%s size=%s mirage=%s", rel_video, actual_size, is_mirage)
 
