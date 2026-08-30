@@ -24,10 +24,10 @@ class File(Base):
     created_at = Column(Float, default=0)  # 上传时间戳
     deleted_at = Column(Float, nullable=True, index=True)  # 软删除时间（None=未删除）
 
-    # 唯一约束：同用户不允许两个文件同名（冲突时上传端点重命名，不依赖数据库阻拦）
+    # 唯一约束：全局不允许两个文件同名（冲突时上传端点重命名，不依赖数据库阻拦）
     # 不设 (user_id, md5) 约束：同用户重复上传同一文件应创建独立记录（秒传基础）
     __table_args__ = (
-        UniqueConstraint("user_id", "original_name", name="uq_files_user_original_name"),
+        UniqueConstraint("original_name", name="uq_files_original_name"),
     )
 
     def __repr__(self) -> str:

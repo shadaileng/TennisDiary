@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.9] - 2026-08-30
+
+### Fixed
+
+- 文件名全局唯一：`ensure_unique_name` 去掉 `user_id` 过滤，全用户范围检查重名；DB 唯一约束从 `(user_id, original_name)` 改为 `(original_name)`；`register_ai_files` 每次 `db.add` 后 `flush` 确保同批次去重可见。
+
 ## [1.76.8] - 2026-08-30
 
 ### Fixed

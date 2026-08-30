@@ -262,14 +262,13 @@ def repair_file_mime_types(
 
 
 def ensure_unique_name(db: Session, user_id: int, original_name: str) -> str:
-    """检查 (user_id, original_name) 是否已存在（含软删除记录），存在则追加后缀"""
+    """检查 original_name 是否已存在（全用户范围，含软删除记录），存在则追加后缀"""
     base, ext = os.path.splitext(original_name)
     candidate = original_name
     counter = 1
     while (
         db.query(File)
         .filter(
-            File.user_id == user_id,
             File.original_name == candidate,
         )
         .first()
