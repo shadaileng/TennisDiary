@@ -80,7 +80,7 @@ import { isRuntimePermissionDenied } from "@/utils/privacy";
 const instance = getCurrentInstance();
 const { themeStyle, themeBg } = useThemeStyle();
 const W = 1080;
-const dpr = uni.getSystemInfoSync().pixelRatio || 2;
+const dpr = uni.getWindowInfo().pixelRatio || 2;
 
 const CAPTION_STYLES: readonly CaptionStyle[] = ["活泼", "简洁", "专业"] as const;
 

@@ -191,7 +191,7 @@ class DimensionScore(BaseModel):
 
 class ImprovementItem(BaseModel):
     issue: str
-    advice: str
+    advice: str = ""
 
 
 class AnalysisReportSchema(BaseModel):

@@ -66,7 +66,7 @@ function draw() {
       if (!res[0]?.node) return;
       const canvas = res[0].node;
       const ctx = canvas.getContext("2d");
-      const dpr = uni.getSystemInfoSync().pixelRatio || 2;
+      const dpr = uni.getWindowInfo().pixelRatio || 2;
       
       canvas.width = res[0].width * dpr;
       canvas.height = props.height * dpr;
