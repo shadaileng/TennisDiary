@@ -394,10 +394,11 @@ def register_ai_files(
             continue
 
         size = get_file_size(abs_path)
+        original_name = ensure_unique_name(db, user_id, os.path.basename(rel_path))
         record = File(
             user_id=user_id,
             md5=md5,
-            original_name=os.path.basename(rel_path),
+            original_name=original_name,
             rel_path=rel_path,
             size_bytes=size,
             upload_source="skeleton",
@@ -557,10 +558,11 @@ def register_orphan_files(
         user_id = _infer_user_id(rel_path) or default_user_id
         upload_source = _infer_upload_source(rel_path)
 
+        original_name = ensure_unique_name(db, user_id, os.path.basename(rel_path))
         record = File(
             user_id=user_id,
             md5=md5 or "",
-            original_name=os.path.basename(rel_path),
+            original_name=original_name,
             rel_path=rel_path,
             size_bytes=size,
             upload_source=upload_source,

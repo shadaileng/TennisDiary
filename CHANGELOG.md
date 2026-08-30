@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.1] - 2026-08-30
+
+### Fixed
+
+- 文件注册表去重遗漏：`register_ai_files`（骨架帧注册）和 `register_orphan_files`（孤立文件注册）创建 File 记录时未调用 `ensure_unique_name()`，导致同名文件触发 UNIQUE constraint failed。补齐去重逻辑，冲突时自动追加 `_1`、`_2` 后缀。
+
 ## [1.76.0] - 2026-08-29
 
 ### Added
