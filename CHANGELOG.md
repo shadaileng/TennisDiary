@@ -4,6 +4,21 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.10] - 2026-08-30
+
+### Fixed
+
+- 管线并发 Session 冲突修复：`PipelineEngine` 拆分为「计算并行 + 写表串行」架构，AI 与姿态检测在 ThreadPoolExecutor 并行执行，DB 写入（score/summary/pose/骨架文件登记）在主线程串行完成，消除 SQLite `InterfaceError: concurrent operations are not permitted`。
+- `probe_frame_rate` 帧率探测修复：`-show_entries stream=r_frame_rate,avg_frame_rate` 多行输出导致 `split("/")` 解析失败，回退默认30fps；改为只请求 `r_frame_rate` 并加 `split("\n")[0]` 防御。
+- 骨架视频帧率上限移除：`min(30.0, fps)` 硬上限导致60fps视频骨架播放速度减半，移除后保持原帧率。
+- 批量文件登记 savepoint 隔离：`get_or_create_file` 内 `db.flush()` 约束失败后 session 进入 prepared 状态，后续操作全部报错；改为 `db.begin_nested()` savepoint，单条失败仅回滚该条。
+- `get_or_create_file` 批量插入去重：加 `db.flush()` 确保后续 `ensure_unique_name` 能看到前一条记录，避免同名冲突。
+- `get_or_create_file` MD5/size 内部计算：调用方只需传 `abs_path`，消除各处重复的 `compute_md5_from_path` / `compute_md5_from_bytes` + `get_file_size` 调用。
+- 文件登记统一为 `get_or_create_file`：删除 `register_ai_files` 函数，所有文件登记走同一入口，按 `upload_source` 区分类型。
+- 管线并行步骤异常收集：AI+pose 两个 future 的异常均被捕获，合并错误信息，不再静默丢失。
+- 管线失败状态提示：历史列表显示红色 ✕ 徽章 + "分析失败"，报告页顶部红色横幅。
+- 文件登记统一为 `get_or_create_file`：`analyses.py`、`pose.py`、`video.py`、`upload.py` 所有文件登记调用统一，删除 `register_ai_files` 函数。
+
 ## [1.76.9] - 2026-08-30
 
 ### Fixed
