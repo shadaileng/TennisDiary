@@ -190,11 +190,10 @@ class PipelineEngine:
                     raise RuntimeError("; ".join(parts)) from (ai_exc or pose_exc)
 
             parallel_elapsed = time.time() - parallel_start
+            ai_status = "ok" if not ai_exc else type(ai_exc).__name__
+            pose_status = "ok" if not pose_exc else type(pose_exc).__name__
             log.info(
-                "管线-并行计算耗时: %.2fs (ai=%s, pose=%s)",
-                parallel_elapsed,
-                "ok" if not ai_exc else type(ai_exc).__name__,
-                "ok" if not pose_exc else type(pose_exc).__name__,
+                f"管线-并行计算耗时: {parallel_elapsed:.2f}s (ai={ai_status}, pose={pose_status})",
             )
 
             # Step 2+3 写表：串行执行（共用 self.db）
@@ -207,7 +206,7 @@ class PipelineEngine:
             self._write_pose_result(pose_result)
             self._update_step_status(PipelineStep.POSE, StepStatus.COMPLETED, progress=100)
             write_elapsed = time.time() - write_start
-            log.info("管线-写表耗时: %.2fs", write_elapsed)
+            log.info(f"管线-写表耗时: {write_elapsed:.2f}s")
 
             # Step 4: 收尾
             self._finalize()
@@ -224,9 +223,7 @@ class PipelineEngine:
                     self._update_pipeline_status(pipeline_status)
 
             log.info(
-                "管线完成 analysis_id=%s total=%.2fs",
-                self.analysis_id,
-                total_elapsed,
+                f"管线完成 analysis_id={self.analysis_id} total={total_elapsed:.2f}s",
             )
             return {"status": "completed", "ai": ai_result, "pose": pose_result}
 
@@ -297,12 +294,9 @@ class PipelineEngine:
         result = video_service.process_video(video_path, mode, hit_time, cuts)
 
         elapsed = time.time() - t0
-        log.info(
-            "管线-视频处理耗时: %.2fs frames=%d trimmed=%s",
-            elapsed,
-            len(result.get("frame_urls", [])),
-            result.get("trimmed", False),
-        )
+        n = len(result.get("frame_urls", []))
+        t = result.get("trimmed", False)
+        log.info(f"管线-视频处理: {elapsed:.1f}s {n}帧 trim={t}")
 
         # 文件登记由上传路由统一处理（get_or_create_file），此处仅更新 video_url
         if self.analysis_id:
@@ -334,7 +328,7 @@ class PipelineEngine:
         finally:
             loop.close()
 
-        log.info("管线-AI评分耗时: %.2fs frames=%d", time.time() - t0, len(frame_urls))
+        log.info(f"管线-AI评分耗时: {time.time() - t0:.2f}s frames={len(frame_urls)}")
         return report
 
     def _compute_pose(self, frame_urls: list[str], video_result: dict, metadata: dict) -> dict:
@@ -357,7 +351,7 @@ class PipelineEngine:
             frame_urls=frame_urls,
         )
 
-        log.info("管线-姿态推理耗时: %.2fs frames=%d", time.time() - t0, len(frame_urls))
+        log.info(f"管线-姿态推理耗时: {time.time() - t0:.2f}s frames={len(frame_urls)}")
         return result
 
     # ==================== 写表阶段（主线程串行，共用 self.db） ====================
