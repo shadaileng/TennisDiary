@@ -280,53 +280,73 @@ class PipelineEngine:
             skeleton_video = result.get("skeleton_video_url")
             skeleton_thumb = result.get("skeleton_thumb")
 
-            try:
-                # 骨架帧
-                for frame_path in skeleton_frames:
-                    abs_p = file_service.rel_path_to_abs(frame_path)
-                    file_service.get_or_create_file(
-                        db=self.db,
-                        user_id=self._get_user_id(),
-                        rel_path=frame_path,
-                        abs_path=abs_p,
-                        upload_source="skeleton_frame",
-                        original_name=os.path.basename(frame_path),
-                        business_type="analysis",
-                        business_id=self.analysis_id,
+            # 骨架帧（每帧用 savepoint 隔离，单帧失败不影响其余）
+            for frame_path in skeleton_frames:
+                try:
+                    with self.db.begin_nested():
+                        abs_p = file_service.rel_path_to_abs(frame_path)
+                        file_service.get_or_create_file(
+                            db=self.db,
+                            user_id=self._get_user_id(),
+                            rel_path=frame_path,
+                            abs_path=abs_p,
+                            upload_source="skeleton_frame",
+                            original_name=os.path.basename(frame_path),
+                            business_type="analysis",
+                            business_id=self.analysis_id,
+                        )
+                except Exception as exc:  # noqa: BLE001 - 单帧登记失败非致命
+                    log.warning(
+                        "骨架帧登记失败(非致命): %s - %s",
+                        type(exc).__name__,
+                        str(exc)[:120],
                     )
 
-                # 骨架视频
-                if skeleton_video:
-                    abs_p = file_service.rel_path_to_abs(skeleton_video)
-                    file_service.get_or_create_file(
-                        db=self.db,
-                        user_id=self._get_user_id(),
-                        rel_path=skeleton_video,
-                        abs_path=abs_p,
-                        upload_source="skeleton_video",
-                        original_name=os.path.basename(skeleton_video),
-                        business_type="analysis",
-                        business_id=self.analysis_id,
+            # 骨架视频
+            if skeleton_video:
+                try:
+                    with self.db.begin_nested():
+                        abs_p = file_service.rel_path_to_abs(skeleton_video)
+                        file_service.get_or_create_file(
+                            db=self.db,
+                            user_id=self._get_user_id(),
+                            rel_path=skeleton_video,
+                            abs_path=abs_p,
+                            upload_source="skeleton_video",
+                            original_name=os.path.basename(skeleton_video),
+                            business_type="analysis",
+                            business_id=self.analysis_id,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "骨架视频登记失败(非致命): %s - %s",
+                        type(exc).__name__,
+                        str(exc)[:120],
                     )
 
-                # 骨架封面
-                if skeleton_thumb:
-                    abs_p = file_service.rel_path_to_abs(skeleton_thumb)
-                    file_service.get_or_create_file(
-                        db=self.db,
-                        user_id=self._get_user_id(),
-                        rel_path=skeleton_thumb,
-                        abs_path=abs_p,
-                        upload_source="skeleton_thumb",
-                        original_name=os.path.basename(skeleton_thumb),
-                        business_type="analysis",
-                        business_id=self.analysis_id,
+            # 骨架封面
+            if skeleton_thumb:
+                try:
+                    with self.db.begin_nested():
+                        abs_p = file_service.rel_path_to_abs(skeleton_thumb)
+                        file_service.get_or_create_file(
+                            db=self.db,
+                            user_id=self._get_user_id(),
+                            rel_path=skeleton_thumb,
+                            abs_path=abs_p,
+                            upload_source="skeleton_thumb",
+                            original_name=os.path.basename(skeleton_thumb),
+                            business_type="analysis",
+                            business_id=self.analysis_id,
+                        )
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "骨架封面登记失败(非致命): %s - %s",
+                        type(exc).__name__,
+                        str(exc)[:120],
                     )
 
-                self.db.commit()
-            except Exception as exc:  # noqa: BLE001 - 文件登记失败非致命
-                log.warning(f"骨架文件登记失败(非致命): {type(exc).__name__}: {str(exc)[:200]}")
-                self.db.rollback()
+            self.db.commit()
 
             # 更新 Analysis.pose, thumb
             self._update_analysis_field(

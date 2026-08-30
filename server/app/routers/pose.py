@@ -138,7 +138,7 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
     if result.get("skeleton_thumb"):
         skeleton_paths.append(result["skeleton_thumb"])
 
-    # 批量登记骨架文件（统一使用 get_or_create_file）
+    # 批量登记骨架文件（统一使用 get_or_create_file，每文件 savepoint 隔离）
     if skeleton_paths:
         for rel_path in skeleton_paths:
             abs_path = file_service.rel_path_to_abs(rel_path)
@@ -146,20 +146,21 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
                 log.warning("骨架文件不存在，跳过登记", rel_path=rel_path)
                 continue
             try:
-                if rel_path.endswith("_sk.mp4"):
-                    source = "skeleton_video"
-                elif rel_path.endswith("_sk.jpg"):
-                    source = "skeleton_thumb"
-                else:
-                    source = "skeleton_frame"
-                file_service.get_or_create_file(
-                    db=db,
-                    user_id=user_id,
-                    rel_path=rel_path,
-                    abs_path=abs_path,
-                    upload_source=source,
-                    original_name=os.path.basename(rel_path),
-                )
+                with db.begin_nested():
+                    if rel_path.endswith("_sk.mp4"):
+                        source = "skeleton_video"
+                    elif rel_path.endswith("_sk.jpg"):
+                        source = "skeleton_thumb"
+                    else:
+                        source = "skeleton_frame"
+                    file_service.get_or_create_file(
+                        db=db,
+                        user_id=user_id,
+                        rel_path=rel_path,
+                        abs_path=abs_path,
+                        upload_source=source,
+                        original_name=os.path.basename(rel_path),
+                    )
             except Exception as e:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
                 log.warning("骨架文件登记失败", rel_path=rel_path, error=type(e).__name__)
         db.flush()

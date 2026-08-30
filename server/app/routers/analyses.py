@@ -153,7 +153,7 @@ def create_analysis(
         if skeleton_thumb:
             files_to_register.append(skeleton_thumb)
 
-    # 批量注册文件（统一使用 get_or_create_file）
+    # 批量注册文件（统一使用 get_or_create_file，每文件 savepoint 隔离）
     if files_to_register:
         for rel_path in files_to_register:
             abs_path = file_service.rel_path_to_abs(rel_path)
@@ -161,15 +161,16 @@ def create_analysis(
                 log.warning("文件不存在，跳过登记", rel_path=rel_path)
                 continue
             try:
-                source = "video" if rel_path == body.video_url else "skeleton"
-                file_service.get_or_create_file(
-                    db=db,
-                    user_id=current_user.id,
-                    rel_path=rel_path,
-                    abs_path=abs_path,
-                    upload_source=source,
-                    original_name=os.path.basename(rel_path),
-                )
+                with db.begin_nested():
+                    source = "video" if rel_path == body.video_url else "skeleton"
+                    file_service.get_or_create_file(
+                        db=db,
+                        user_id=current_user.id,
+                        rel_path=rel_path,
+                        abs_path=abs_path,
+                        upload_source=source,
+                        original_name=os.path.basename(rel_path),
+                    )
             except Exception as e:  # noqa: BLE001 - 文件登记失败不应阻断流程
                 log.warning("文件登记失败", rel_path=rel_path, error=type(e).__name__)
 
