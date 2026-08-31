@@ -19,6 +19,9 @@
 ### Fixed
 
 - 管线并发 Session 冲突修复：`PipelineEngine` 拆分为「计算并行 + 写表串行」架构，AI 与姿态检测在 ThreadPoolExecutor 并行执行，DB 写入（score/summary/pose/骨架文件登记）在主线程串行完成，消除 SQLite `InterfaceError: concurrent operations are not permitted`。
+- 管线后台任务 async→def：`run_in_threadpool` 包裹的后台任务函数改为同步 def，避免 Starlette 线程池不执行协程导致事件循环阻塞。
+- 事件端点 async→def：`/api/events` 端点改为同步 def，修复阻塞事件循环导致小程序埋点上报超时。
+- `_compute_ai` 不再使用 DB：AI 配置由主线程预读传入，线程内仅执行纯计算，避免跨线程 Session 冲突。
 - `probe_frame_rate` 帧率探测修复：`-show_entries stream=r_frame_rate,avg_frame_rate` 多行输出导致 `split("/")` 解析失败，回退默认30fps；改为只请求 `r_frame_rate` 并加 `split("\n")[0]` 防御。
 - 骨架视频帧率上限移除：`min(30.0, fps)` 硬上限导致60fps视频骨架播放速度减半，移除后保持原帧率。
 - 批量文件登记 savepoint 隔离：`get_or_create_file` 内 `db.flush()` 约束失败后 session 进入 prepared 状态，后续操作全部报错；改为 `db.begin_nested()` savepoint，单条失败仅回滚该条。
@@ -91,6 +94,27 @@
 ### Added
 
 - 电子教练分析流水线重构（118）：点击即建 analysis_id，上传/AI评分/姿态三步携带 analysis_id 分步更新同一分析记录；新增 `analysis_video_info` 表登记原视频/裁剪/播放短片/骨架衍生文件；播放短片纳入文件管理，分类边界对齐（原片/抽帧为 unreferenced）；小程序 `startAnalysis` 改为 init→upload→(AI+姿态)→finalize 五步流水线。
+
+## [1.75.6] - 2026-08-28
+
+### Added
+
+- 文件类型探测与 MIME 修复（116）：新增 `app/services/file_type_detector.py` 探测模块（ffprobe + magic bytes 双重检测，17 种媒体类型映射）；Admin 文件管理新增 MIME 分类筛选；批量修复脚本扫描并修正历史文件 `mime_type` 字段。
+
+## [1.75.5] - 2026-08-27
+
+### Fixed
+
+- 文件/备份下载强制 octet-stream 附件并支持 token 双通道鉴权：`admin/system/files` 和 `backups` 下载端点统一返回 `application/octet-stream` + `Content-Disposition: attachment`，阻止浏览器预览行为；支持 `?token=` 查询参数与 `X-Auth-Token` 请求头双通道鉴权，解决 `<a>` 标签原生下载无法携带自定义头的问题。
+- `start-server.py` 跨平台化并启用 uvicorn 热重载：改用 `sys.executable` 确保虚拟环境 Python 路径正确，`--reload` 参数移至默认启用。
+- 修复 `test_cleanup_orphans` 依赖覆盖泄漏：测试 fixture 中 `monkeypatch` 的环境变量在测试结束后未恢复，影响后续用例。
+
+## [1.75.4] - 2026-08-27
+
+### Added
+
+- 提交门禁改跑 fast 轻量子集：`pre-commit` hook 改为仅执行 `pytest -m fast`（纯函数/模型/校验，不依赖 DB 与 TestClient），全量集成测试移交 CI 并行执行；引入 `pytest-testmon` 实现增量测试（只跑受影响用例）。
+- 测试并行化提速：引入 `pytest-xdist`（`-n auto` 并行）+ `StaticPool` 内存库 + session 级 `client` fixture，本地全量测试从 ~2min 降至 ~1min；`verify.sh` 同步改用 `-n auto`。
 
 ## [1.75.3] - 2026-08-26
 
