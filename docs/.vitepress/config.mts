@@ -203,6 +203,8 @@ export default defineConfig({
              { text: '85：骨骼视频帧率自适应绘制', link: '/plans/85-骨骼视频帧率自适应绘制' },
              { text: '101：后端日志细化与异常静默处理修复', link: '/plans/101-后端日志细化与异常静默处理修复' },
              { text: '115：pytest 测试提速方案', link: '/plans/115-pytest测试提速方案' },
+             { text: '121：写表步骤批量插入优化', link: '/plans/121-写表步骤批量插入优化' },
+             { text: '122：管线文件管理优化', link: '/plans/122-管线文件管理优化' },
 ],
         },
         {

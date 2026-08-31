@@ -157,8 +157,8 @@
           </div>
           <div class="flex gap-2 flex-wrap">
             <img
-              v-if="fileUrl(pose.skeleton_thumb)"
-              :src="fileUrl(pose.skeleton_thumb)"
+              v-if="fileUrl(a.thumb)"
+              :src="fileUrl(a.thumb)"
               class="h-24 w-auto object-contain rounded border border-gray-200"
               alt="骨架封面"
             />

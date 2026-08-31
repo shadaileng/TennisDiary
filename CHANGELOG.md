@@ -4,6 +4,37 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.12] - 2026-08-31
+
+### Added
+
+- 裁剪视频纳入文件管理：管线 `_process_video` 中将裁剪视频（`_seg0.mp4`）登记到 File 表（`upload_source=video_playback`），Admin 文件管理界面可见。
+- 管线完成后自动清理采样帧：`_finalize` 中删除 `_f{i}.jpg` 文件（AI/姿态推理的中间数据），释放磁盘空间。
+
+### Changed
+
+- `pose.skeleton_thumb` 冗余字段移除：pose JSON 不再包含 `skeleton_thumb`，改用 `analysis.thumb`；Admin 分析详情页适配为读取 `a.thumb`。
+
+## [1.76.11] - 2026-08-31
+
+### Added
+
+- `compute_md5_and_size()`：一次磁盘读取同时计算 MD5 和文件大小，避免重复 I/O。
+- `batch_get_or_create_files()`：批量文件登记函数，一次查询 MD5 去重 + 一次 bulk insert，替代逐帧串行调用。
+- `tests/test_file_service_batch.py`：10 个测试用例覆盖批量函数的正常/异常/混合场景。
+
+### Changed
+
+- `pose_service` 骨架帧预计算：`_analyze_full_frames` 和 `_analyze_sampled_frames` 在写入磁盘时同步计算 MD5/size，返回结构改为 `[{rel_path, md5, size, upload_source}, ...]`。
+- `pipeline._write_pose_result` 改为批量模式：骨架帧/视频/封面合并为一次 `batch_get_or_create_files` 调用，两次 `db.commit()` 合并为一次。
+- 状态查询端点返回 `skeleton_video_info` / `skeleton_thumb_info` 替代原有 `skeleton_video_url` / `skeleton_thumb`。
+
+### Fixed
+
+- Pipeline 写表步骤 N+1 查询问题：骨架帧逐帧串行 `get_or_create_file` 改为批量插入，DB 操作从 ~427 次降至 ~3 次，写表耗时从 56.5s 降至 <1s。
+- `ensure_unique_name` 批量优化：批量预查询 original_name 集合，内存内计算唯一名称，避免逐条 DB 查询。
+- pose JSON 写入格式兼容旧版：`_write_pose_result` 写入 DB 前将 `skeleton_frames` 从字典数组转为字符串数组，保持前端期望的旧格式；同时迁移修复已有 Analysis 记录。
+
 ## [1.76.10] - 2026-08-30
 
 ### Added

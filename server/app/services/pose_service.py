@@ -569,11 +569,13 @@ def _analyze_full_frames(
     if not extracted_frames:
         raise ValueError("未能从视频中抽取任何帧")
 
+    from app.services import file_service
+
     results: list[dict] = []
     metrics = None
     detected = False
     skeleton_paths: list[str] = []
-    skeleton_rel: list[str] = []
+    skeleton_info: list[dict] = []  # 包含预计算 MD5/size
 
     for i, frame_bytes in enumerate(extracted_frames):
         landmarks = detect_pose(frame_bytes)
@@ -593,12 +595,25 @@ def _analyze_full_frames(
         sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
         with open(sk_path, "wb") as out:
             out.write(sk_bytes)
+
+        # 预计算 MD5 + size（一次磁盘读取）
+        md5, size = file_service.compute_md5_and_size(sk_path)
+
         skeleton_paths.append(sk_path)
-        skeleton_rel.append(_rel_url(sk_path))
+        skeleton_info.append(
+            {
+                "rel_path": _rel_url(sk_path),
+                "md5": md5,
+                "size": size,
+                "upload_source": "skeleton_frame",
+            }
+        )
 
     # 编码骨架视频
     skeleton_video_url = None
-    skeleton_thumb = skeleton_rel[0] if skeleton_rel else None
+    skeleton_video_info = None
+    skeleton_thumb = skeleton_info[0]["rel_path"] if skeleton_info else None
+    skeleton_thumb_info = skeleton_info[0] if skeleton_info else None
 
     if skeleton_paths and frame_rate:
         effective_fps = max(1.0, frame_rate)
@@ -607,14 +622,27 @@ def _analyze_full_frames(
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
         if encoded and os.path.isfile(out_path):
             skeleton_video_url = _rel_url(out_path)
+            md5, size = file_service.compute_md5_and_size(out_path)
+            skeleton_video_info = {
+                "rel_path": skeleton_video_url,
+                "md5": md5,
+                "size": size,
+                "upload_source": "skeleton_video",
+            }
+
+    # 骨架封面信息
+    if skeleton_thumb and skeleton_thumb_info:
+        skeleton_thumb_info = {**skeleton_thumb_info, "upload_source": "skeleton_thumb"}
 
     return {
         "frames": results,
         "metrics": metrics,
         "detected": detected,
-        "skeleton_frames": skeleton_rel,
+        "skeleton_frames": skeleton_info,
         "skeleton_video_url": skeleton_video_url,
+        "skeleton_video_info": skeleton_video_info,
         "skeleton_thumb": skeleton_thumb,
+        "skeleton_thumb_info": skeleton_thumb_info,
     }
 
 
@@ -626,14 +654,18 @@ def _analyze_sampled_frames(
     frame_rate: float | None,
 ) -> dict:
     """处理抽样的帧（原有逻辑）"""
+    from app.services import file_service
+
     results: list[dict] = []
     metrics = None
     detected = False
     metrics_sk_idx: int | None = None
     skeleton_paths: list[str] = []
-    skeleton_rel: list[str] = []
+    skeleton_info: list[dict] = []  # 包含预计算 MD5/size
     skeleton_thumb = None
+    skeleton_thumb_info = None
     skeleton_video_url = None
+    skeleton_video_info = None
 
     video_dir = None
     base = None
@@ -664,15 +696,27 @@ def _analyze_sampled_frames(
             sk_path = os.path.join(video_dir, f"{base}_sk{sk_idx:04d}.jpg")
             with open(sk_path, "wb") as out:
                 out.write(sk_bytes)
+
+            # 预计算 MD5 + size（一次磁盘读取）
+            md5, size = file_service.compute_md5_and_size(sk_path)
+
             skeleton_paths.append(sk_path)
-            skeleton_rel.append(_rel_url(sk_path))
+            skeleton_info.append(
+                {
+                    "rel_path": _rel_url(sk_path),
+                    "md5": md5,
+                    "size": size,
+                    "upload_source": "skeleton_frame",
+                }
+            )
             sk_idx += 1
 
-    if skeleton_rel:
-        if metrics_sk_idx is not None and metrics_sk_idx < len(skeleton_rel):
-            skeleton_thumb = skeleton_rel[metrics_sk_idx]
+    if skeleton_info:
+        if metrics_sk_idx is not None and metrics_sk_idx < len(skeleton_info):
+            skeleton_thumb_info = skeleton_info[metrics_sk_idx]
         else:
-            skeleton_thumb = skeleton_rel[0]
+            skeleton_thumb_info = skeleton_info[0]
+        skeleton_thumb = skeleton_thumb_info["rel_path"]
     if skeleton_paths and video_dir is not None:
         # 骨骼视频帧率 = 帧数/时长，确保播放时长与原视频一致
         effective_fps = (len(skeleton_paths) / duration) if duration else 2.0
@@ -681,12 +725,25 @@ def _analyze_sampled_frames(
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
         if encoded and os.path.isfile(out_path):
             skeleton_video_url = _rel_url(out_path)
+            md5, size = file_service.compute_md5_and_size(out_path)
+            skeleton_video_info = {
+                "rel_path": skeleton_video_url,
+                "md5": md5,
+                "size": size,
+                "upload_source": "skeleton_video",
+            }
+
+    # 骨架封面信息
+    if skeleton_thumb_info:
+        skeleton_thumb_info = {**skeleton_thumb_info, "upload_source": "skeleton_thumb"}
 
     return {
         "frames": results,
         "metrics": metrics,
         "detected": detected,
-        "skeleton_frames": skeleton_rel,
+        "skeleton_frames": skeleton_info,
         "skeleton_video_url": skeleton_video_url,
+        "skeleton_video_info": skeleton_video_info,
         "skeleton_thumb": skeleton_thumb,
+        "skeleton_thumb_info": skeleton_thumb_info,
     }

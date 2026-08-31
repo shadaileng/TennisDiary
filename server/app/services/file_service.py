@@ -118,6 +118,31 @@ def compute_md5_from_bytes(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
 
 
+def compute_md5_and_size(abs_path: str, chunk_size: int = 8192) -> tuple[str | None, int]:
+    """一次磁盘读取同时计算 MD5 和文件大小
+
+    Args:
+        abs_path: 文件绝对路径
+        chunk_size: 读取块大小
+
+    Returns:
+        (md5_hex, size_bytes) 元组，文件不存在返回 (None, 0)
+    """
+    if not os.path.isfile(abs_path):
+        return None, 0
+    try:
+        md5 = hashlib.md5()
+        size = 0
+        with open(abs_path, "rb") as f:
+            while chunk := f.read(chunk_size):
+                md5.update(chunk)
+                size += len(chunk)
+        return md5.hexdigest(), size
+    except (OSError, ValueError) as exc:
+        log.warning("MD5 计算失败: path=%s error=%s", abs_path, exc)
+        return None, 0
+
+
 # ==================== File 记录操作 ====================
 
 
@@ -216,6 +241,126 @@ def get_or_create_file(
         f"path={rel_path} source={upload_source} file_id={new_record.id}"
     )
     return new_record, False
+
+
+def batch_get_or_create_files(
+    db: Session,
+    user_id: int,
+    files: list[dict],  # [{rel_path, md5, size, upload_source}, ...]
+    business_type: str | None = None,
+    business_id: int | None = None,
+) -> list[File]:
+    """批量登记文件：一次查询 MD5 + original_name，一次 bulk insert
+
+    files: 预计算结果列表，每项包含 rel_path, md5, size, upload_source
+    注意：调用方必须确保 md5/size 已预计算，本函数不做任何磁盘读取
+    """
+    if not files:
+        return []
+
+    # 1. 批量查询已有 MD5 记录（一次查询）
+    all_md5s = [f["md5"] for f in files if f.get("md5")]
+    existing_map: dict[str, File] = {}
+    if all_md5s:
+        existing_records = (
+            db.query(File)
+            .filter(
+                File.user_id == user_id,
+                File.md5.in_(all_md5s),
+                File.deleted_at.is_(None),
+                File.ref_count > 0,
+            )
+            .all()
+        )
+        for rec in existing_records:
+            existing_map[rec.md5] = rec
+
+    # 2. 批量预查询 original_name 唯一性（避免逐条查询）
+    existing_names: set[str] = set()
+    if files:
+        candidate_names = [os.path.basename(f["rel_path"]) for f in files]
+        existing_names = set(
+            row[0]
+            for row in db.query(File.original_name)
+            .filter(
+                File.original_name.in_(candidate_names),
+                File.deleted_at.is_(None),
+            )
+            .all()
+        )
+
+    # 3. 构建新记录列表
+    new_records: list[File] = []
+    name_counter: dict[str, int] = {}  # 跟踪同名文件的后缀计数
+    reuse_count = 0  # 秒传命中计数
+    for info in files:
+        md5 = info.get("md5")
+        if not md5:
+            continue
+
+        existing = existing_map.get(md5)
+        original_name = os.path.basename(info["rel_path"])
+        base, ext = os.path.splitext(original_name)
+
+        # 生成唯一名称（批量模式，内存内计算）
+        unique_name = original_name
+        if original_name in existing_names:
+            counter = name_counter.get(original_name, 1)
+            while f"{base}_{counter}{ext}" in existing_names:
+                counter += 1
+            unique_name = f"{base}_{counter}{ext}"
+            name_counter[original_name] = counter + 1
+        existing_names.add(unique_name)
+
+        if existing:
+            # 秒传：复用路径
+            new_record = File(
+                user_id=user_id,
+                md5=md5,
+                original_name=unique_name,
+                rel_path=existing.rel_path,
+                size_bytes=existing.size_bytes,
+                mime_type=existing.mime_type,
+                upload_source=info["upload_source"],
+                business_type=business_type,
+                business_id=business_id,
+                ref_count=1,
+                created_at=time.time(),
+            )
+            existing.ref_count += 1
+            reuse_count += 1
+        else:
+            # 正常上传
+            new_record = File(
+                user_id=user_id,
+                md5=md5,
+                original_name=unique_name,
+                rel_path=info["rel_path"],
+                size_bytes=info.get("size", 0),
+                upload_source=info["upload_source"],
+                business_type=business_type,
+                business_id=business_id,
+                ref_count=1,
+                created_at=time.time(),
+            )
+        new_records.append(new_record)
+
+    # 4. 批量插入 + 单次 flush
+    if new_records:
+        db.add_all(new_records)
+        db.flush()
+
+    # 5. 汇总日志
+    log.info(
+        "批量文件登记完成: total={} reuse={} new={} business={}/{}",
+        len(new_records),
+        reuse_count,
+        len(new_records) - reuse_count,
+        business_type,
+        business_id,
+    )
+
+    return new_records
 
 
 def repair_file_mime_types(

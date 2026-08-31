@@ -298,11 +298,30 @@ class PipelineEngine:
         t = result.get("trimmed", False)
         log.info(f"管线-视频处理: {elapsed:.1f}s {n}帧 trim={t}")
 
-        # 文件登记由上传路由统一处理（get_or_create_file），此处仅更新 video_url
+        # 更新 video_url + 裁剪视频纳入文件管理
         if self.analysis_id:
             working_path = result.get("working_path")
             rel_video_url = file_service.abs_path_to_rel(working_path) if working_path else None
             self._update_analysis_field(video_url=rel_video_url)
+
+            # 裁剪视频纳入文件管理（upload_source=video_playback）
+            if rel_video_url and result.get("trimmed"):
+                try:
+                    file_service.get_or_create_file(
+                        db=self.db,
+                        user_id=self._get_user_id(),
+                        rel_path=rel_video_url,
+                        upload_source="video_playback",
+                        original_name=f"{os.path.basename(working_path)}_playback",
+                        business_type="analysis",
+                        business_id=self.analysis_id,
+                    )
+                except Exception as exc:  # noqa: BLE001 - 登记失败非致命
+                    log.warning(
+                        "裁剪视频登记失败(非致命): %s - %s",
+                        type(exc).__name__,
+                        str(exc)[:120],
+                    )
 
         return result
 
@@ -367,92 +386,57 @@ class PipelineEngine:
             )
 
     def _write_pose_result(self, pose_result: dict) -> None:
-        """写入姿态结果到数据库（骨架文件登记 + Analysis 更新）"""
+        """写入姿态结果到数据库（零磁盘 I/O，单次 commit）"""
         if not (self.analysis_id and pose_result):
             return
 
         from app.services import file_service
 
         skeleton_frames = pose_result.get("skeleton_frames") or []
-        skeleton_video = pose_result.get("skeleton_video_url")
-        skeleton_thumb = pose_result.get("skeleton_thumb")
+        skeleton_video = pose_result.get("skeleton_video_info")
+        skeleton_thumb = pose_result.get("skeleton_thumb_info")
         user_id = self._get_user_id()
 
-        # 骨架帧（每帧用 savepoint 隔离，单帧失败不影响其余）
-        for frame_path in skeleton_frames:
-            try:
-                with self.db.begin_nested():
-                    abs_p = file_service.rel_path_to_abs(frame_path)
-                    file_service.get_or_create_file(
-                        db=self.db,
-                        user_id=user_id,
-                        rel_path=frame_path,
-                        abs_path=abs_p,
-                        upload_source="skeleton_frame",
-                        original_name=os.path.basename(frame_path),
-                        business_type="analysis",
-                        business_id=self.analysis_id,
-                    )
-            except Exception as exc:  # noqa: BLE001 - 单帧登记失败非致命
-                log.warning(
-                    "骨架帧登记失败(非致命): %s - %s",
-                    type(exc).__name__,
-                    str(exc)[:120],
-                )
-
-        # 骨架视频
+        # 批量登记所有文件（骨架帧 + 视频 + 封面）
+        # pose_service 已返回包含 upload_source 的预计算结果
+        all_files = list(skeleton_frames)
         if skeleton_video:
-            try:
-                with self.db.begin_nested():
-                    abs_p = file_service.rel_path_to_abs(skeleton_video)
-                    file_service.get_or_create_file(
-                        db=self.db,
-                        user_id=user_id,
-                        rel_path=skeleton_video,
-                        abs_path=abs_p,
-                        upload_source="skeleton_video",
-                        original_name=os.path.basename(skeleton_video),
-                        business_type="analysis",
-                        business_id=self.analysis_id,
-                    )
-            except Exception as exc:  # noqa: BLE001
-                log.warning(
-                    "骨架视频登记失败(非致命): %s - %s",
-                    type(exc).__name__,
-                    str(exc)[:120],
-                )
-
-        # 骨架封面
+            all_files.append(skeleton_video)
         if skeleton_thumb:
+            all_files.append(skeleton_thumb)
+
+        if all_files:
             try:
-                with self.db.begin_nested():
-                    abs_p = file_service.rel_path_to_abs(skeleton_thumb)
-                    file_service.get_or_create_file(
-                        db=self.db,
-                        user_id=user_id,
-                        rel_path=skeleton_thumb,
-                        abs_path=abs_p,
-                        upload_source="skeleton_thumb",
-                        original_name=os.path.basename(skeleton_thumb),
-                        business_type="analysis",
-                        business_id=self.analysis_id,
-                    )
-            except Exception as exc:  # noqa: BLE001
+                file_service.batch_get_or_create_files(
+                    db=self.db,
+                    user_id=user_id,
+                    files=all_files,
+                    business_type="analysis",
+                    business_id=self.analysis_id,
+                )
+            except Exception as exc:  # noqa: BLE001 - 批量登记失败非致命，记录日志继续
                 log.warning(
-                    "骨架封面登记失败(非致命): %s - %s",
+                    "文件批量登记失败(非致命): %s - %s",
                     type(exc).__name__,
                     str(exc)[:120],
                 )
 
-        self.db.commit()
-
-        # 更新 Analysis.pose, thumb
+        # 单次提交：文件登记 + Analysis 更新
+        # 构建兼容旧格式的 pose JSON（skeleton_frames 为字符串数组）
+        # 移除 skeleton_thumb，使用 analysis.thumb 替代
+        pose_for_db = {
+            "frames": pose_result.get("frames"),
+            "metrics": pose_result.get("metrics"),
+            "detected": pose_result.get("detected"),
+            "skeleton_frames": [f["rel_path"] for f in (pose_result.get("skeleton_frames") or [])],
+            "skeleton_video_url": pose_result.get("skeleton_video_url"),
+        }
         stmt = (
             sa_update(Analysis)
             .where(Analysis.id == self.analysis_id)
             .values(
-                pose=json.dumps(pose_result, ensure_ascii=False),
-                thumb=skeleton_thumb,
+                pose=json.dumps(pose_for_db, ensure_ascii=False),
+                thumb=skeleton_thumb["rel_path"] if skeleton_thumb else None,
             )
         )
         self.db.execute(stmt)
@@ -474,8 +458,31 @@ class PipelineEngine:
                     "duration_s": round(time.time() - t0, 2),
                 }
                 self._update_pipeline_status(pipeline_status)
+
+            # 清理采样帧（AI/姿态推理的中间数据，小程序不使用）
+            self._cleanup_sampled_frames(analysis.video_url)
         else:
             log.warning(
                 "分析记录 video_url 为空，保留 processing 孤儿",
                 analysis_id=self.analysis_id,
             )
+
+    def _cleanup_sampled_frames(self, video_url: str) -> None:
+        """删除采样帧文件（_f{i}.jpg），这些是 AI/姿态推理的中间数据"""
+        import glob
+
+        from app.services import file_service
+
+        video_dir = os.path.dirname(file_service.rel_path_to_abs(video_url))
+        base = os.path.splitext(os.path.basename(video_url))[0]
+        # 匹配 {base}_f*.jpg（采样帧），不匹配 _sk*.jpg（骨架帧）
+        pattern = os.path.join(video_dir, f"{base}_f*.jpg")
+        cleaned = 0
+        for path in glob.glob(pattern):
+            try:
+                os.remove(path)
+                cleaned += 1
+            except OSError as exc:
+                log.warning("删除采样帧失败: %s - %s", path, exc)
+        if cleaned:
+            log.info("已清理采样帧: {} 个文件 business=analysis/{}", cleaned, self.analysis_id)

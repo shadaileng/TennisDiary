@@ -50,9 +50,25 @@ def _parse_json_field(raw: str | None) -> dict | list | None:
         return None
 
 
+_DIMENSION_KEY_ALIASES: dict[str, str] = {"command": "comment"}
+
+
+def _normalize_dimensions(report: dict) -> None:
+    """归一化 dimensions 中 AI 拼写错误的字段别名（如 command → comment）"""
+    dims = report.get("dimensions")
+    if not isinstance(dims, list):
+        return
+    for d in dims:
+        for alias, canonical in _DIMENSION_KEY_ALIASES.items():
+            if alias in d and canonical not in d:
+                d[canonical] = d.pop(alias)
+
+
 def analysis_to_response(analysis: Analysis) -> AnalysisResponse:
     """将 ORM Analysis 转换为 AnalysisResponse，report/highlights/pose 转结构化 JSON"""
     report = _parse_json_field(analysis.report)
+    if isinstance(report, dict):
+        _normalize_dimensions(report)
     highlights = _parse_json_field(analysis.highlights)
     pose = _parse_json_field(analysis.pose)
     return AnalysisResponse(
