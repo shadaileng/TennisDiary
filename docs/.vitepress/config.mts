@@ -205,6 +205,7 @@ export default defineConfig({
              { text: '115：pytest 测试提速方案', link: '/plans/115-pytest测试提速方案' },
              { text: '121：写表步骤批量插入优化', link: '/plans/121-写表步骤批量插入优化' },
              { text: '122：管线文件管理优化', link: '/plans/122-管线文件管理优化' },
+             { text: '123：综合分析骨骼视频完整绘制与骨架帧清理', link: '/plans/123-综合分析骨骼视频完整绘制与骨架帧清理' },
 ],
         },
         {

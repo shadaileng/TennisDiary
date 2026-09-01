@@ -180,19 +180,26 @@ _MEDIA_SOURCES = {"video", "video_frame", "audio"}
 def detect_mime_type(path: str, upload_source: str = "") -> str:
     """入口：根据来源选择图片/音视频探测，统一回退到扩展名映射
 
-    - 图片类来源 -> detect_image_mime
-    - 音视频类来源 -> detect_media_mime
-    - 未知/兜底 -> 扩展名映射
+    扩展名优先于 upload_source 判断（修复 videos/ 目录下 .jpg 被误判为视频）：
+    - 图片扩展名 -> detect_image_mime
+    - 音视频扩展名 -> detect_media_mime
+    - 无明确扩展名时按 upload_source 判断
     """
+    ext = os.path.splitext(path)[1].lower()
+
+    # 扩展名优先：图片扩展名始终走图片探测
+    if ext in EXTENSION_MIME and EXTENSION_MIME[ext].startswith("image/"):
+        return detect_image_mime(path)
+
+    # 扩展名优先：音视频扩展名走媒体探测
+    if ext in (".mp4", ".mov", ".m4v", ".m4a", ".mp3", ".wav", ".webm", ".flv", ".matroska"):
+        return detect_media_mime(path)
+
+    # 无明确扩展名时，按 upload_source 判断
     source = (upload_source or "").lower()
     if source in _IMAGE_SOURCES:
         return detect_image_mime(path)
     if source in _MEDIA_SOURCES:
         return detect_media_mime(path)
-    # 未知来源：按扩展名粗判，音视频扩展名走媒体探测，否则图片探测
-    ext = os.path.splitext(path)[1].lower()
-    if ext in (".mp4", ".mov", ".m4v", ".m4a", ".mp3", ".wav", ".webm", ".flv", ".matroska"):
-        return detect_media_mime(path)
-    if ext in EXTENSION_MIME and EXTENSION_MIME[ext].startswith("image/"):
-        return detect_image_mime(path)
+
     return _ext_mime(path) or "application/octet-stream"

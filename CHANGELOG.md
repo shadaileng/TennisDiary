@@ -4,6 +4,17 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.76.13] - 2026-09-01
+
+### Fixed
+
+- 综合分析骨骼视频帧数修复：`pipeline._compute_pose` 在 full 模式下传入 `full_frames=True`，骨架视频帧数与原视频一致（123）。
+- 骨架缩略图独立化：`pose_service` 编码骨架视频后自动提取首帧作为 `_thumb.jpg`，不再依赖 `sk_0000.jpg`（123）。
+- 骨架帧不落库不登记：`pipeline._write_pose_result` 和 `pose._persist_pose` 不再将骨架帧写入 DB 或注册为 File 记录，分析完成后自动清理（123）。
+- 中间帧统一清理：`pipeline._cleanup_intermediate_frames` 同时清理 `_f*.jpg`（抽样帧）和 `_sk*.jpg`（骨架帧）（123）。
+- 删除分析兜底清理：`file_service.decrement_analysis_files` 调用 `_cleanup_orphan_intermediate_frames` 兜底清理残留文件（123）。
+- Admin 分析弹窗骨架帧替换为视频播放器，解决图片列表过长问题（123）。
+
 ## [1.76.12] - 2026-08-31
 
 ### Added

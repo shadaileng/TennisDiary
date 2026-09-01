@@ -155,30 +155,21 @@
               <div class="text-xs text-gray-500">躯干倾斜</div>
             </div>
           </div>
-          <div class="flex gap-2 flex-wrap">
+          <div v-if="fileUrl(pose.skeleton_video_url)" class="mb-3">
+            <video
+              :src="fileUrl(pose.skeleton_video_url)"
+              controls
+              class="w-full max-w-md rounded border border-gray-200"
+              preload="metadata"
+            />
+          </div>
+          <div v-else-if="fileUrl(detail.thumb)" class="mb-3">
             <img
-              v-if="fileUrl(a.thumb)"
-              :src="fileUrl(a.thumb)"
+              :src="fileUrl(detail.thumb)"
               class="h-24 w-auto object-contain rounded border border-gray-200"
               alt="骨架封面"
             />
-            <img
-              v-for="(f, i) in pose.skeleton_frames || []"
-              :key="i"
-              :src="fileUrl(f)"
-              class="h-24 w-32 object-cover rounded border border-gray-200"
-              :alt="`骨架帧${i + 1}`"
-            />
           </div>
-          <a
-            v-if="fileUrl(pose.skeleton_video_url)"
-            :href="fileUrl(pose.skeleton_video_url)"
-            target="_blank"
-            rel="noopener"
-            class="inline-block mt-2 text-sm text-olive-600 hover:underline"
-          >
-            打开骨架视频 ↗
-          </a>
         </div>
 
         <!-- 封面 / 高光帧 -->

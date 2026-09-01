@@ -515,6 +515,10 @@ def decrement_analysis_files(db: Session, analysis) -> int:
     """递减 Analysis 关联的所有文件（含骨架产物）的引用计数"""
     import json
 
+    # 兜底清理残留的中间帧文件（_f*.jpg + _sk*.jpg）
+    if analysis.video_url:
+        _cleanup_orphan_intermediate_frames(analysis.video_url, analysis.user_id)
+
     count = 0
     # 主文件（thumb、video_url）
     if analysis.thumb:
@@ -592,6 +596,28 @@ def cleanup_orphan_paths(rel_paths: list[str]) -> int:
     return cleaned
 
 
+def _cleanup_orphan_intermediate_frames(video_url: str, user_id: int | None = None) -> int:
+    """兜底清理残留的中间帧文件（_f*.jpg + _sk*.jpg），返回清理数量"""
+    import glob
+
+    abs_path = rel_path_to_abs(video_url)
+    video_dir = os.path.dirname(abs_path)
+    base = os.path.splitext(os.path.basename(video_url))[0]
+    cleaned = 0
+
+    for pattern in [f"{base}_f*.jpg", f"{base}_sk*.jpg"]:
+        for path in glob.glob(os.path.join(video_dir, pattern)):
+            try:
+                os.remove(path)
+                cleaned += 1
+            except OSError as exc:
+                log.warning("兜底清理中间帧失败: %s - %s", path, exc)
+
+    if cleaned:
+        log.info("兜底清理中间帧: {} 个文件 video={}", cleaned, video_url)
+    return cleaned
+
+
 # ==================== 文件扫描 ====================
 
 
@@ -607,6 +633,10 @@ def _infer_upload_source(rel_path: str) -> str:
     elif prefix == "gears":
         return "gear_image"
     elif prefix == "videos":
+        # videos/ 目录下可能是视频文件，也可能是抽帧图片
+        ext = os.path.splitext(rel_path)[1].lower()
+        if ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"):
+            return "video_frame"
         return "video"
     elif prefix in ("analyses", "frames"):
         return "video_frame"

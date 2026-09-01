@@ -129,16 +129,16 @@ def analyze(
 
 def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> None:
     """118 步骤4：登记骨架衍生文件、列定向更新 pose/thumb、追加 analysis_video_info.derivatives"""
+    skeleton_video_url = result.get("skeleton_video_url")
+    skeleton_thumb = result.get("skeleton_thumb")
     skeleton_paths: list[str] = []
-    for p in result.get("skeleton_frames") or []:
-        if p:
-            skeleton_paths.append(p)
-    if result.get("skeleton_video_url"):
-        skeleton_paths.append(result["skeleton_video_url"])
-    if result.get("skeleton_thumb"):
-        skeleton_paths.append(result["skeleton_thumb"])
+    if skeleton_video_url:
+        skeleton_paths.append(skeleton_video_url)
+    if skeleton_thumb:
+        skeleton_paths.append(skeleton_thumb)
 
     # 批量登记骨架文件（统一使用 get_or_create_file，每文件 savepoint 隔离）
+    # 注意：骨架帧（_sk*.jpg）不登记，分析完成后清理
     if skeleton_paths:
         for rel_path in skeleton_paths:
             abs_path = file_service.rel_path_to_abs(rel_path)
@@ -147,9 +147,9 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
                 continue
             try:
                 with db.begin_nested():
-                    if rel_path.endswith("_sk.mp4"):
+                    if rel_path.endswith("_skeleton.mp4"):
                         source = "skeleton_video"
-                    elif rel_path.endswith("_sk.jpg"):
+                    elif rel_path.endswith("_thumb.jpg"):
                         source = "skeleton_thumb"
                     else:
                         source = "skeleton_frame"
@@ -160,18 +160,27 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
                         abs_path=abs_path,
                         upload_source=source,
                         original_name=os.path.basename(rel_path),
+                        business_type="analysis",
+                        business_id=analysis_id,
                     )
             except Exception as e:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
                 log.warning("骨架文件登记失败", rel_path=rel_path, error=type(e).__name__)
         db.flush()
 
-    # 列定向更新：仅写 pose / thumb，避免并发覆盖步骤2/3 已填列
+    # 列定向更新：pose 中 skeleton_frames 为空列表（帧已清理），thumb 指向独立缩略图
+    pose_for_db = {
+        "frames": result.get("frames"),
+        "metrics": result.get("metrics"),
+        "detected": result.get("detected"),
+        "skeleton_frames": [],
+        "skeleton_video_url": skeleton_video_url,
+    }
     stmt = (
         sa_update(Analysis)
         .where(Analysis.id == analysis_id)
         .values(
-            pose=json.dumps(result, ensure_ascii=False),
-            thumb=result.get("skeleton_thumb"),
+            pose=json.dumps(pose_for_db, ensure_ascii=False),
+            thumb=skeleton_thumb,
         )
     )
     db.execute(stmt)

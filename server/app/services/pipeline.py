@@ -361,6 +361,9 @@ class PipelineEngine:
         working_path = video_result.get("working_path")
         video_url = file_service.abs_path_to_rel(working_path) if working_path else None
 
+        # full 模式强制逐帧生成骨架视频，single 模式按阈值自动判断
+        full_frames = True if metadata.get("mode") == "full" else None
+
         result = pose_service.analyze_frames(
             frames=None,
             video_url=video_url,
@@ -368,6 +371,7 @@ class PipelineEngine:
             duration=duration,
             frame_rate=frame_rate,
             frame_urls=frame_urls,
+            full_frames=full_frames,
         )
 
         log.info(f"管线-姿态推理耗时: {time.time() - t0:.2f}s frames={len(frame_urls)}")
@@ -392,14 +396,12 @@ class PipelineEngine:
 
         from app.services import file_service
 
-        skeleton_frames = pose_result.get("skeleton_frames") or []
         skeleton_video = pose_result.get("skeleton_video_info")
         skeleton_thumb = pose_result.get("skeleton_thumb_info")
         user_id = self._get_user_id()
 
-        # 批量登记所有文件（骨架帧 + 视频 + 封面）
-        # pose_service 已返回包含 upload_source 的预计算结果
-        all_files = list(skeleton_frames)
+        # 仅登记骨架视频和缩略图，骨架帧不登记（分析完成后清理）
+        all_files = []
         if skeleton_video:
             all_files.append(skeleton_video)
         if skeleton_thumb:
@@ -421,14 +423,12 @@ class PipelineEngine:
                     str(exc)[:120],
                 )
 
-        # 单次提交：文件登记 + Analysis 更新
-        # 构建兼容旧格式的 pose JSON（skeleton_frames 为字符串数组）
-        # 移除 skeleton_thumb，使用 analysis.thumb 替代
+        # 构建 pose JSON：skeleton_frames 为空列表（帧已清理，不落库）
         pose_for_db = {
             "frames": pose_result.get("frames"),
             "metrics": pose_result.get("metrics"),
             "detected": pose_result.get("detected"),
-            "skeleton_frames": [f["rel_path"] for f in (pose_result.get("skeleton_frames") or [])],
+            "skeleton_frames": [],
             "skeleton_video_url": pose_result.get("skeleton_video_url"),
         }
         stmt = (
@@ -459,30 +459,39 @@ class PipelineEngine:
                 }
                 self._update_pipeline_status(pipeline_status)
 
-            # 清理采样帧（AI/姿态推理的中间数据，小程序不使用）
-            self._cleanup_sampled_frames(analysis.video_url)
+            # 清理中间帧文件（抽样帧 _f*.jpg + 骨架帧 _sk*.jpg）
+            self._cleanup_intermediate_frames(analysis.video_url)
         else:
             log.warning(
                 "分析记录 video_url 为空，保留 processing 孤儿",
                 analysis_id=self.analysis_id,
             )
 
-    def _cleanup_sampled_frames(self, video_url: str) -> None:
-        """删除采样帧文件（_f{i}.jpg），这些是 AI/姿态推理的中间数据"""
+    def _cleanup_intermediate_frames(self, video_url: str) -> None:
+        """删除中间帧文件（_f*.jpg 抽样帧 + _sk*.jpg 骨架帧）"""
         import glob
 
         from app.services import file_service
 
         video_dir = os.path.dirname(file_service.rel_path_to_abs(video_url))
         base = os.path.splitext(os.path.basename(video_url))[0]
-        # 匹配 {base}_f*.jpg（采样帧），不匹配 _sk*.jpg（骨架帧）
-        pattern = os.path.join(video_dir, f"{base}_f*.jpg")
         cleaned = 0
-        for path in glob.glob(pattern):
+
+        # 清理抽样帧 _f*.jpg
+        for path in glob.glob(os.path.join(video_dir, f"{base}_f*.jpg")):
             try:
                 os.remove(path)
                 cleaned += 1
             except OSError as exc:
-                log.warning("删除采样帧失败: %s - %s", path, exc)
+                log.warning("删除抽样帧失败: %s - %s", path, exc)
+
+        # 清理骨架帧 _sk*.jpg
+        for path in glob.glob(os.path.join(video_dir, f"{base}_sk*.jpg")):
+            try:
+                os.remove(path)
+                cleaned += 1
+            except OSError as exc:
+                log.warning("删除骨架帧失败: %s - %s", path, exc)
+
         if cleaned:
-            log.info("已清理采样帧: {} 个文件 business=analysis/{}", cleaned, self.analysis_id)
+            log.info("已清理中间帧: {} 个文件 business=analysis/{}", cleaned, self.analysis_id)

@@ -239,7 +239,13 @@ class TestAnalyzeFramesSaveSkeleton:
                 f.write(b"mp4")
             return True
 
+        def fake_extract_frame(video_path, out_path):
+            with open(out_path, "wb") as f:
+                f.write(b"\xff\xd8thumb\xff\xd9")
+            return True
+
         monkeypatch.setattr(ps, "encode_skeleton_video", fake_encode)
+        monkeypatch.setattr(ps, "_extract_first_frame", fake_extract_frame)
         self._setup_video(data_dir)
         monkeypatch.setattr(ps.settings, "UPLOAD_DIR", str(data_dir / "uploads"))
 
@@ -249,12 +255,15 @@ class TestAnalyzeFramesSaveSkeleton:
             save_skeleton=True,
             duration=10.0,
         )
-        assert result["skeleton_frames"] == [
-            "videos/1/abc_sk0000.jpg",
-            "videos/1/abc_sk0001.jpg",
-        ]
+        # skeleton_frames 现在返回字典列表（包含 rel_path, md5, size, upload_source）
+        assert len(result["skeleton_frames"]) == 2
+        assert result["skeleton_frames"][0]["rel_path"] == "videos/1/abc_sk0000.jpg"
+        assert result["skeleton_frames"][1]["rel_path"] == "videos/1/abc_sk0001.jpg"
+        assert result["skeleton_frames"][0]["upload_source"] == "skeleton_frame"
         assert result["skeleton_video_url"] == "videos/1/abc_skeleton.mp4"
-        assert result["skeleton_thumb"] == "videos/1/abc_sk0000.jpg"
+        # skeleton_thumb 现在指向独立缩略图（_thumb.jpg），不再是 sk_0000.jpg
+        assert result["skeleton_thumb"] is not None
+        assert "thumb" in result["skeleton_thumb"]
         assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0000.jpg").is_file()
         assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0001.jpg").is_file()
 

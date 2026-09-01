@@ -361,6 +361,19 @@ def find_ffmpeg() -> str | None:
     return None
 
 
+def _extract_first_frame(video_path: str, out_path: str) -> bool:
+    """从视频提取首帧保存为 JPEG，返回是否成功"""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        return False
+    proc = subprocess.run(
+        [ffmpeg, "-y", "-i", video_path, "-vframes", "1", "-q:v", "2", out_path],
+        capture_output=True,
+        timeout=30,
+    )
+    return proc.returncode == 0 and os.path.isfile(out_path)
+
+
 def extract_all_frames(video_path: str, width: int = 640) -> list[bytes]:
     """从视频文件逐帧抽取所有帧，返回 JPEG bytes 列表"""
     ffmpeg = find_ffmpeg()
@@ -612,8 +625,8 @@ def _analyze_full_frames(
     # 编码骨架视频
     skeleton_video_url = None
     skeleton_video_info = None
-    skeleton_thumb = skeleton_info[0]["rel_path"] if skeleton_info else None
-    skeleton_thumb_info = skeleton_info[0] if skeleton_info else None
+    skeleton_thumb = None
+    skeleton_thumb_info = None
 
     if skeleton_paths and frame_rate:
         effective_fps = max(1.0, frame_rate)
@@ -630,9 +643,19 @@ def _analyze_full_frames(
                 "upload_source": "skeleton_video",
             }
 
-    # 骨架封面信息
-    if skeleton_thumb and skeleton_thumb_info:
-        skeleton_thumb_info = {**skeleton_thumb_info, "upload_source": "skeleton_thumb"}
+            # 提取骨架视频首帧作为永久缩略图（独立文件，不依赖 sk*.jpg）
+            thumb_name = f"{base}_thumb.jpg"
+            thumb_path = os.path.join(video_dir, thumb_name)
+            _extract_first_frame(out_path, thumb_path)
+            if os.path.isfile(thumb_path):
+                md5, size = file_service.compute_md5_and_size(thumb_path)
+                skeleton_thumb = _rel_url(thumb_path)
+                skeleton_thumb_info = {
+                    "rel_path": skeleton_thumb,
+                    "md5": md5,
+                    "size": size,
+                    "upload_source": "skeleton_thumb",
+                }
 
     return {
         "frames": results,
@@ -733,9 +756,19 @@ def _analyze_sampled_frames(
                 "upload_source": "skeleton_video",
             }
 
-    # 骨架封面信息
-    if skeleton_thumb_info:
-        skeleton_thumb_info = {**skeleton_thumb_info, "upload_source": "skeleton_thumb"}
+            # 提取骨架视频首帧作为永久缩略图（独立文件，不依赖 sk*.jpg）
+            thumb_name = f"{base}_thumb.jpg"
+            thumb_path = os.path.join(video_dir, thumb_name)
+            _extract_first_frame(out_path, thumb_path)
+            if os.path.isfile(thumb_path):
+                md5, size = file_service.compute_md5_and_size(thumb_path)
+                skeleton_thumb = _rel_url(thumb_path)
+                skeleton_thumb_info = {
+                    "rel_path": skeleton_thumb,
+                    "md5": md5,
+                    "size": size,
+                    "upload_source": "skeleton_thumb",
+                }
 
     return {
         "frames": results,
