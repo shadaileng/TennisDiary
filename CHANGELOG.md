@@ -4,6 +4,25 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.0] - 2026-09-01
+
+### Added
+
+- Admin 分析报告筛选功能：后端新增 `date_from`/`date_to`/`kind`/`mode`/`status` 五个筛选参数，前端新增筛选区域 UI（日期范围、类型、模式、状态下拉）+ 查询/重置按钮（124）。
+- Admin 分析报告行点击查看详情：表格行直接点击打开详情弹窗，无需点击"查看"按钮（124）。
+- Admin Table 组件样式增强：单元格交界添加短竖线分隔（16px 居中），操作列使用 flex 居中显示。
+
+### Changed
+
+- Admin 分析报告列宽优化：隐藏冗余的 `date` 列，为各列添加 `width` 属性（124）。
+- Admin Table 组件单元格 padding 调整：`py-4`（16px）→ `py-2.5`（10px），行高更紧凑。
+- Admin 分析报告封面图片尺寸缩小：`h-10 w-16`（40x64px）→ `h-8 w-12`（32x48px）。
+
+### Fixed
+
+- Admin 分析报告创建时间显示 1970/1/22：前端错误使用 `formatDate`（期望 ISO 字符串），改为 `formatTs`（Unix 秒级时间戳）（124）。
+- Admin 分析报告排序混乱：只按 `date` 排序导致同一天内记录顺序不稳定，新增 `id` 作为二级排序（124）。
+
 ## [1.76.13] - 2026-09-01
 
 ### Fixed

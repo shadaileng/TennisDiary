@@ -300,6 +300,7 @@ class AnalysisAdminResponse(BaseModel):
     summary: str
     ntrp: str | None = None
     thumb: str | None = None  # 封面帧路径（列表缩略图用，避免列表解析大 JSON）
+    status: str = "completed"
     created_at: float
     user: dict | None = None
 

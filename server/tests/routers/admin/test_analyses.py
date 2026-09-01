@@ -138,3 +138,143 @@ def test_delete_analysis(auth_client, test_db, test_analysis_user):
     assert "删除成功" in response.json()["message"]
     again = auth_client.delete(f"/api/admin/analyses/{analysis.id}")
     assert again.status_code == 404
+
+
+# ===== 筛选与排序测试（Step 124） =====
+
+
+@pytest.fixture(scope="module")
+def sample_analyses(test_db, test_analysis_user):
+    """创建多条不同属性的分析记录用于筛选测试"""
+    records = [
+        _insert_analysis(
+            test_db,
+            user_id=test_analysis_user.id,
+            date="2026-08-10",
+            kind="正手",
+            mode="single",
+            score=65.0,
+            status="completed",
+            created_at=1754800000,
+        ),
+        _insert_analysis(
+            test_db,
+            user_id=test_analysis_user.id,
+            date="2026-08-12",
+            kind="综合",
+            mode="full",
+            score=75.0,
+            status="completed",
+            created_at=1754900000,
+        ),
+        _insert_analysis(
+            test_db,
+            user_id=test_analysis_user.id,
+            date="2026-08-15",
+            kind="反手",
+            mode="single",
+            score=80.0,
+            status="completed",
+            created_at=1755100000,
+        ),
+        _insert_analysis(
+            test_db,
+            user_id=test_analysis_user.id,
+            date="2026-08-15",
+            kind="截击",
+            mode="full",
+            score=70.0,
+            status="processing",
+            created_at=1755200000,
+        ),
+        _insert_analysis(
+            test_db,
+            user_id=test_analysis_user.id,
+            date="2026-08-20",
+            kind="发球",
+            mode="single",
+            score=None,
+            status="failed",
+            created_at=1755600000,
+        ),
+    ]
+    return records
+
+
+def test_list_analyses_with_date_filter(auth_client, sample_analyses):
+    """日期范围筛选"""
+    resp = auth_client.get(
+        "/api/admin/analyses?date_from=2026-08-10&date_to=2026-08-15",
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]["items"]
+    assert len(data) >= 3
+    for item in data:
+        assert "2026-08-10" <= item["date"] <= "2026-08-15"
+
+
+def test_list_analyses_with_kind_filter(auth_client, sample_analyses):
+    """类型筛选"""
+    resp = auth_client.get(
+        "/api/admin/analyses?kind=正手",
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]["items"]
+    assert len(data) >= 1
+    for item in data:
+        assert item["kind"] == "正手"
+
+
+def test_list_analyses_with_mode_filter(auth_client, sample_analyses):
+    """模式筛选"""
+    resp = auth_client.get(
+        "/api/admin/analyses?mode=single",
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]["items"]
+    assert len(data) >= 1
+    for item in data:
+        assert item["mode"] == "single"
+
+
+def test_list_analyses_with_status_filter(auth_client, sample_analyses):
+    """状态筛选"""
+    resp = auth_client.get(
+        "/api/admin/analyses?status=completed",
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]["items"]
+    assert len(data) >= 1
+    for item in data:
+        assert item["status"] == "completed"
+
+
+def test_list_analyses_with_combined_filters(auth_client, sample_analyses):
+    """组合筛选：日期 + 类型 + 模式"""
+    resp = auth_client.get(
+        "/api/admin/analyses?date_from=2026-08-01&date_to=2026-08-31&kind=综合&mode=full",
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]["items"]
+    assert len(data) >= 1
+    for item in data:
+        assert "2026-08-01" <= item["date"] <= "2026-08-31"
+        assert item["kind"] == "综合"
+        assert item["mode"] == "full"
+
+
+def test_list_analyses_order_by_date_and_id(auth_client, sample_analyses):
+    """排序验证：先按 date 降序，再按 id 降序"""
+    resp = auth_client.get(
+        "/api/admin/analyses",
+    )
+    assert resp.status_code == 200
+    items = resp.json()["data"]["items"]
+    assert len(items) >= 2
+    for i in range(len(items) - 1):
+        curr = items[i]
+        next_item = items[i + 1]
+        # 日期降序，或同日期内 ID 降序
+        assert (curr["date"] > next_item["date"]) or (
+            curr["date"] == next_item["date"] and curr["id"] >= next_item["id"]
+        )

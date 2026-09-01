@@ -30,11 +30,11 @@
           </th>
         </tr>
       </thead>
-      <tbody class="bg-white divide-y divide-gray-200">
+      <tbody class="bg-white">
         <tr
           v-for="(row, index) in data"
           :key="row[rowKey ?? 'id'] ?? index"
-          class="transition-colors"
+          class="transition-colors border-b border-gray-200"
           :class="[
             rowClickable ? 'cursor-pointer' : '',
             isSelected(row) ? 'bg-blue-50' : 'hover:bg-gray-50',
@@ -51,22 +51,25 @@
             />
           </td>
           <td
-            v-for="column in columns"
+            v-for="(column, idx) in columns"
             :key="column.key"
             :style="widthStyle(column.width)"
             :class="[
-              'px-4 py-4 text-sm text-gray-900',
+              'relative px-4 py-2.5 text-sm text-gray-900',
               column.wrap ? 'whitespace-normal break-all' : 'whitespace-nowrap',
               alignClass(column.align),
               column.className,
             ]"
           >
+            <div v-if="idx < columns.length - 1 || $slots.actions" class="absolute right-0 top-1/2 -translate-y-1/2 h-4 w-px bg-gray-300"></div>
             <slot :name="'cell-' + column.key" :row="row" :value="row[column.key]">
               {{ row[column.key] }}
             </slot>
           </td>
-          <td v-if="$slots.actions" class="px-2 py-4 whitespace-nowrap text-right text-sm font-medium" @click.stop>
-            <slot name="actions" :row="row" />
+          <td v-if="$slots.actions" class="px-2 py-2.5 whitespace-nowrap text-sm font-medium" @click.stop>
+            <div class="flex items-center justify-center">
+              <slot name="actions" :row="row" />
+            </div>
           </td>
         </tr>
         <tr v-if="data.length === 0">

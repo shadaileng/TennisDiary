@@ -50,7 +50,16 @@ export interface AnalysisListResponse {
   total: number
 }
 
-export function getAnalyses(params: { offset?: number; limit?: number; user_id?: number }): Promise<AnalysisListResponse> {
+export function getAnalyses(params: {
+  offset?: number
+  limit?: number
+  user_id?: number
+  date_from?: string
+  date_to?: string
+  kind?: string
+  mode?: string
+  status?: string
+}): Promise<AnalysisListResponse> {
   return request.get('/api/admin/analyses', { params })
 }
 

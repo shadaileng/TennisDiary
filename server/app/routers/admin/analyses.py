@@ -40,16 +40,33 @@ def list_analyses(
     offset: int = 0,
     limit: int = 20,
     user_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    kind: str | None = None,
+    mode: str | None = None,
+    status: str | None = None,
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """分析报告列表（分页+用户筛选）"""
+    """分析报告列表（分页+多条件筛选）"""
     query = db.query(Analysis)
     if user_id is not None:
         query = query.filter(Analysis.user_id == user_id)
+    if date_from:
+        query = query.filter(Analysis.date >= date_from)
+    if date_to:
+        query = query.filter(Analysis.date <= date_to)
+    if kind:
+        query = query.filter(Analysis.kind == kind)
+    if mode:
+        query = query.filter(Analysis.mode == mode)
+    if status:
+        query = query.filter(Analysis.status == status)
 
     total = query.count()
-    analyses = query.order_by(Analysis.date.desc()).offset(offset).limit(limit).all()
+    analyses = (
+        query.order_by(Analysis.date.desc(), Analysis.id.desc()).offset(offset).limit(limit).all()
+    )
     return ApiResponse(
         data=PaginatedData(
             items=[_enrich_analysis(a, db) for a in analyses],
