@@ -4,6 +4,18 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.3] - 2026-09-02
+
+### Added
+
+- 小程序渲染层错误全局埋点：`App.vue` 添加 `wx.onError` 监听，上报非关键渲染层错误（126）。
+
+## [1.77.2] - 2026-09-02
+
+### Fixed
+
+- 小程序昵称输入隐私授权修复：`input type="nickname"` 点击时调用 `wx.requirePrivacyAuthorize` 弹出官方隐私授权弹窗，解决 `errno:104` 降级问题（126）。
+
 ## [1.77.1] - 2026-09-02
 
 ### Changed

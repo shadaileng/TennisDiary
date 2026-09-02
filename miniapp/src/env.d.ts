@@ -17,3 +17,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// 微信小程序 wx API 类型声明
+declare const wx: {
+  getPrivacySetting(): Promise<{ needAuthorization: boolean; privacyContractName: string }>
+  requirePrivacyAuthorize(): Promise<void>
+  onNeedPrivacyAuthorization(resolve: (options: { buttonId?: string; event: 'agree' | 'disagree' | 'exposureAuthorization' }) => void, eventInfo: { referrer: string }): void
+}

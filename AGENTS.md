@@ -270,6 +270,7 @@ cd admin && pnpm build                 # 构建管理端
 | 122 | 管线文件管理优化（裁剪视频纳入文件管理 + 采样帧清理 + 移除 skeleton_thumb 冗余字段） | 🚧 |
 | 124 | Admin 分析报告时间修复与筛选功能（修复创建时间显示 1970/1/22 + 排序混乱 + 添加筛选条件与查询按钮） | ✅ |
 | 125 | Admin 文件管理简化与查询优化（删减 get_file/preview/register-all 端点 + 移除 DerivedFileInfo + 统一 bulk_classify_files + 列表 N+1 修复） | ✅ |
+| 126 | 小程序昵称输入隐私授权修复 + 渲染层错误埋点（参考 tarot 简化方案，删除手动隐私授权，依赖微信自动弹窗） | 📋 待执行 |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

@@ -30,6 +30,8 @@
           class="form-input"
           :maxlength="24"
           placeholder="设置昵称"
+          :focus="nicknameFocus"
+          @touchstart="onNicknameTouchStart"
           @blur="saveNickname"
           @confirm="saveNickname"
         />
@@ -92,6 +94,10 @@ const genderIndex = ref(0);
 const birthday = ref("");
 const today = todayStr();
 
+// 隐私授权相关状态
+const nicknameFocus = ref(false);
+const privacyAuthorized = ref(false);
+
 /** 用于展示的头像完整 URL（相对路径拼 BASE_URL） */
 const avatarUrl = ref("");
 
@@ -102,6 +108,9 @@ onShow(() => {
   genderIndex.value = user?.gender ?? 0;
   birthday.value = user?.birthday || "";
   avatarUrl.value = resolveUploadUrl(user?.avatar_url || "");
+  
+  // 检查隐私授权状态
+  checkPrivacyAuthorization();
 });
 
 function onGenderChange(e: any) {
@@ -184,6 +193,46 @@ async function uploadAndSaveAvatar(tempUrl: string) {
     trace_id: traceId, total_duration_ms: Date.now() - t0,
   }, undefined, "avatar_update_success", traceId);
   uni.showToast({ title: "头像已更新", icon: "success" });
+}
+
+/** 检查隐私授权状态 */
+async function checkPrivacyAuthorization() {
+  // #ifdef MP-WEIXIN
+  try {
+    const res = await wx.getPrivacySetting();
+    privacyAuthorized.value = !res.needAuthorization;
+  } catch (err) {
+    console.error('获取隐私设置失败:', err);
+  }
+  // #endif
+}
+
+/** 昵称输入框触摸事件 */
+async function onNicknameTouchStart() {
+  // #ifdef MP-WEIXIN
+  // 如果已经授权过，直接聚焦
+  if (privacyAuthorized.value) {
+    nicknameFocus.value = true;
+    return;
+  }
+  
+  // 需要隐私授权，调用官方弹窗
+  try {
+    await wx.requirePrivacyAuthorize();
+    // 用户同意授权
+    privacyAuthorized.value = true;
+    nicknameFocus.value = true;
+  } catch (err) {
+    // 用户拒绝授权或出错
+    console.error('隐私授权失败:', err);
+    uni.showToast({ title: '需要同意隐私协议才能使用昵称功能', icon: 'none' });
+  }
+  // #endif
+  
+  // 非微信环境直接聚焦
+  // #ifndef MP-WEIXIN
+  nicknameFocus.value = true;
+  // #endif
 }
 
 /** 昵称失焦保存（空值忽略） */
