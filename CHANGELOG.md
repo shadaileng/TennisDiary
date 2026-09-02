@@ -4,6 +4,16 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.6] - 2026-09-02
+
+### Fixed
+
+- 小程序日记表单「配套装备」选择与手输被挤压（108）：从已有装备选择功能合入即存在结构缺陷——`width:100%` 的「从已有装备选择」选择器被塞进不换行的 flex 单行 `.form-gear-row` 内，把名称/体验输入框与删除键压缩到几乎不可见，导致选择装备后看不到名称填入、手输框也点不到。修复：`.form-gear-row` 加 `flex-wrap`，`.form-gear-select` 改 `flex:0 0 100%` 使其独立换行为上方一整行，输入框与删除键正常排布在下行（上下堆叠，符合 UI 设计）。新增 `gearSelectLabel(i)` 选中回显：已填名称（选择或手输）时按钮文案显示 `✓ 名称`，否则显示默认「📋 从已有装备选择」，消除"赋值后无反馈"的困惑。`type-check` + `build:mp-weixin` 通过。
+
+### Changed
+
+- 文档（108）：方案文档置为 🏁 已完成（v1.1.0），记录根因 git diff 与修复方案；同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度。
+
 ## [1.77.5] - 2026-09-02
 
 ### Fixed

@@ -102,7 +102,7 @@
         <text v-if="form.gears.length === 0" class="form-hint">球馆 / 球拍 / 穿搭及使用体验</text>
         <view v-for="(g, i) in form.gears" :key="i" class="form-gear-row">
           <view v-if="gearStore.gears.length > 0" class="form-gear-select" @tap="showGearPicker(i)">
-            <text class="form-gear-select-text">📋 从已有装备选择</text>
+            <text class="form-gear-select-text">{{ gearSelectLabel(i) }}</text>
           </view>
           <view class="form-gear-fields">
             <input
@@ -286,6 +286,12 @@ function showGearPicker(i: number) {
       form.gears[i].name = names[res.tapIndex];
     },
   });
+}
+
+/** 装备行顶部按钮文案：已选/手输过名称则回显，否则显示默认引导 */
+function gearSelectLabel(i: number): string {
+  const name = form.gears[i]?.name?.trim();
+  return name ? `✓ ${name}` : "📋 从已有装备选择";
 }
 
 function removeGear(i: number) {
@@ -532,23 +538,26 @@ function confirmRemove() {
 
 .form-gear-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: $space-sm;
   margin-bottom: $space-sm;
 }
 
 .form-gear-select {
+  flex: 0 0 100%;
+  width: 100%;
   background-color: var(--color-page-bg, #F2F2EF);
   border-radius: 12px;
   padding: 10px 16px;
-  margin-bottom: $space-sm;
-  width: 100%;
   box-sizing: border-box;
 }
 
 .form-gear-select-text {
   font-size: 13px;
   color: $color-olive-light;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 .form-gear-fields {
