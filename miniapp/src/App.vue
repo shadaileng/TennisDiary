@@ -17,6 +17,21 @@ onLaunch(() => {
   // 启动时补发离线事件
   flushPendingEvents();
   console.log("App Launch");
+
+  // #ifdef MP-WEIXIN
+  // 监听渲染层错误（小程序逻辑层与渲染层分离，onError 仅捕获逻辑层错误）
+  wx.onError((errMsg: string) => {
+    // 过滤已知的非关键错误
+    if (typeof errMsg === "string" &&
+        (errMsg.includes("showNicknameAccessory") ||
+         errMsg.includes("nickname") ||
+         errMsg.includes("showShareMenu") ||
+         errMsg.includes("getPrivacySetting"))) {
+      return;
+    }
+    logFatal("渲染层错误", { errMsg });
+  });
+  // #endif
 });
 onShow(() => {
   console.log("App Show");
