@@ -7,6 +7,7 @@ import { onLaunch, onError } from "@dcloudio/uni-app";
 import Loading from "@/components/Loading.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
+import { useCostTagsStore } from "@/stores/costTags";
 import { logFatal, logWarn, flushPendingEvents } from "@/utils/eventLogger";
 
 onLaunch(() => {
@@ -14,6 +15,8 @@ onLaunch(() => {
   const auth = useAuthStore();
   auth.init();
   useSettingsStore().init();
+  // 恢复本地费用学习标签候选池
+  useCostTagsStore().init();
   // 启动时补发离线事件
   flushPendingEvents();
 

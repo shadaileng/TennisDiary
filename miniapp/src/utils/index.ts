@@ -38,6 +38,8 @@ export const SESSION_TYPES = ["训练", "比赛", "发球机", "发球练习"] a
 export const GEAR_CATEGORIES = ["球拍", "球鞋", "衣服", "袜子", "帽子", "毛巾", "网球", "其他"] as const;
 /** 动作分析种类 */
 export const ANALYSIS_KINDS = ["综合", "正手", "反手", "截击", "发球", "高压"] as const;
+/** 费用明细快捷标签默认种子（首装/候选池为空时兜底，保证首用即有快捷项；后续由真实填写项按频次挤出） */
+export const DEFAULT_COST_PRESETS = ["场地费", "教练费", "网球", "饮料", "手胶", "穿线"] as const;
 
 // ==================== 日期 / 时间 ====================
 

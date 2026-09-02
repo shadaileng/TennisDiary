@@ -4,6 +4,16 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.7] - 2026-09-02
+
+### Added
+
+- 小程序日记表单「花费明细」新增高频费用学习标签（128）：本地 Pinia store（`stores/costTags.ts`）持久化各费用名目使用频次（storage 键 `td_cost_tags`），首装以默认种子兜底（场地费/教练费/网球/饮料/手胶/穿线）。表单花费卡片头部下方常驻展示频次最高的 6 个快捷标签：点击无同名明细则新增一行并自动聚焦金额输入，已有同名则不重复添加、仅聚焦已有行并轻提示；保存日记成功后 `recordUsed` 累计本次使用的名目频次、首次填写的费用类型自动入池。`App.vue` onLaunch 初始化候选池。
+
+### Changed
+
+- 文档（128）：新增 `docs/plans/128-日记花费明细学习标签.md`，同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
+
 ## [1.77.6] - 2026-09-02
 
 ### Fixed
