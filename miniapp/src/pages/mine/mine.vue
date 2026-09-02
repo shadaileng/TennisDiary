@@ -133,6 +133,9 @@ const showThemePicker = ref(false);
 /** 统计徽章数据（登录后拉取，失败静默降级） */
 const stats = ref<Stats | null>(null);
 
+/** 登录中标记（防双击并发，保证 showLoading/hideLoading 配对） */
+const loggingIn = ref(false);
+
 /** 头像完整展示 URL */
 const userAvatar = computed(() => resolveUploadUrl(authStore.user?.avatar_url || ""));
 
@@ -189,6 +192,9 @@ function goEditProfile() {
 }
 
 async function doLogin() {
+  // 并发守卫：登录中忽略重复点击，避免 showLoading/hideLoading 不配对
+  if (loggingIn.value) return;
+  loggingIn.value = true;
   uni.showLoading({ title: "登录中", mask: true });
   try {
     await authStore.login();
@@ -198,6 +204,8 @@ async function doLogin() {
     uni.hideLoading();
     const msg = e instanceof Error ? e.message : "登录失败";
     uni.showToast({ title: msg, icon: "none" });
+  } finally {
+    loggingIn.value = false;
   }
 }
 </script>

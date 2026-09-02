@@ -115,9 +115,9 @@ export function maskMiddle(value: string | number, keep = 4): string {
 /**
  * 将后端返回的上传文件相对 url 转为可展示的完整 URL。
  * - 头像 `avatars/<user_id>/<uuid>.<ext>` → `/api/upload/avatar/<user_id>/<uuid>.<ext>`
- * - 装备图片 `gears/<user_id>/<uuid>.<ext>` → `/api/upload/gear-image` (需token)
- * - 视频/帧/骨架 `videos/<user_id>/<file>` → `/api/media/videos/<user_id>/<file>?token=`
- *   （小程序 <image>/<video> 无法携带自定义头，媒体组件需 query 传 token）
+ * - 装备图片 / 视频/帧/骨架（`gears/`、`videos/` 开头的相对路径）
+ *   → `/api/media/<url>?token=`（小程序 <image>/<video> 无法携带自定义头，
+ *   媒体组件需 query 传 token，故装备图与视频统一走 media 端点）
  * - 绝对地址（http/data）原样返回
  */
 export function resolveUploadUrl(url: string): string {
@@ -127,12 +127,7 @@ export function resolveUploadUrl(url: string): string {
   if (parts[0] === "avatars" && parts[1] && parts.length >= 3) {
     return `${BASE_URL}${API_PREFIX}/upload/avatar/${parts[1]}/${parts.slice(2).join("/")}`;
   }
-  if (parts[0] === "gears" && parts[1] && parts.length >= 3) {
-    const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
-    const sep = token ? `?token=${encodeURIComponent(token)}` : "";
-    return `${BASE_URL}${API_PREFIX}/media/${url}${sep}`;
-  }
-  if (parts[0] === "videos" && parts[1] && parts.length >= 3) {
+  if ((parts[0] === "gears" || parts[0] === "videos") && parts[1] && parts.length >= 3) {
     const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
     const sep = token ? `?token=${encodeURIComponent(token)}` : "";
     return `${BASE_URL}${API_PREFIX}/media/${url}${sep}`;

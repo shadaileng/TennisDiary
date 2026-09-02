@@ -192,6 +192,7 @@ import type { AnalysisKind } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isUserCancel, isRuntimePermissionDenied, isPrivacyScopeError } from "@/utils/privacy";
+import { uploadRaw } from "@/utils/upload";
 
 const { themeStyle, themeBg } = useThemeStyle();
 
@@ -385,7 +386,6 @@ function chooseVideo() {
       if (finished) return;
       finished = true;
 
-      console.error("[chooseVideo] 失败", err);
       if (isUserCancel(err)) {
         logInfo("用户取消选择视频", { trace_id: traceId }, undefined, "choose_video_cancel", traceId);
       } else if (isRuntimePermissionDenied(err)) {
@@ -745,40 +745,12 @@ async function startAnalysisUnified() {
       );
     }
 
-    // 上传文件并启动分析
-    const uploadRes = await new Promise<any>((resolve, reject) => {
-      const token = uni.getStorageSync("td_token") || "";
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-      const url = `${baseUrl}/api/analyses/start`;
-
-      uni.uploadFile({
-        url,
-        filePath: videoPath.value,
-        name: "file",
-        formData,
-        header: {
-          "X-Auth-Token": token,
-        },
-        success: (res) => {
-          if (res.statusCode === 200) {
-            try {
-              const data = JSON.parse(res.data);
-              if (data.code === 0 && data.data) {
-                resolve(data.data);
-              } else {
-                reject(new Error(data.message || "启动分析失败"));
-              }
-            } catch (e) {
-              reject(new Error("解析响应失败"));
-            }
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}`));
-          }
-        },
-        fail: (err) => {
-          reject(new Error(err.errMsg || "上传失败"));
-        },
-      });
+    // 上传文件并启动分析（走统一 uploadRaw 封装，内部处理 token/URL/响应解析/错误）
+    const uploadRes = await uploadRaw<any>({
+      path: "/analyses/start",
+      filePath: videoPath.value,
+      fieldName: "file",
+      formData,
     });
 
     analysisId = uploadRes.id;

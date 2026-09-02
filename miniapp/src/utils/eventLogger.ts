@@ -151,14 +151,23 @@ function flushOne(payload: EventLogPayload): void {
   });
 }
 
-/** 批量防抖 flush（info/warn 使用） */
+/** 取走当前待发送批次并逐条上报 */
+function flushBatchNow(): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  const batch = [...pendingBatch];
+  pendingBatch = [];
+  batch.forEach(flushOne);
+}
+
+/** 批量防抖 flush（info/warn 使用）：3s 后取走并发送当前批次 */
 function batchFlush(): void {
   if (flushTimer) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => {
     flushTimer = null;
-    const batch = [...pendingBatch];
-    pendingBatch = [];
-    batch.forEach(flushOne);
+    flushBatchNow();
   }, BATCH_FLUSH_INTERVAL_MS);
 }
 
@@ -206,9 +215,9 @@ export function logWarn(
     message,
     extra,
   });
+  // ≥5 条立即发送（避免阈值批次被清空丢失）；否则走 3s 批量防抖
   if (pendingBatch.length >= BATCH_THRESHOLD) {
-    batchFlush();
-    pendingBatch = [];
+    flushBatchNow();
   } else {
     batchFlush();
   }

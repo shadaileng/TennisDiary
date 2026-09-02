@@ -119,7 +119,6 @@ export const useAuthStore = defineStore("auth", {
         await this.login();
       } catch (e) {
         logError("静默续登失败", { error: (e as Error).message }, undefined, "ensure_login_failed", undefined, createTraceId());
-        console.error("静默登录失败", e);
         this.logout();
       }
     },

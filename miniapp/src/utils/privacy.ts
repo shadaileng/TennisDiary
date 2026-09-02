@@ -33,3 +33,51 @@ export function isPrivacyScopeError(err: any): boolean {
   const msg = String(err?.errMsg || '');
   return err?.errno === 112 || /privacy|隐私|scope is not declared/i.test(msg);
 }
+
+// ==================== 隐私授权引导 ====================
+
+/** 查询当前隐私授权状态；低版本基础库或异常时按「无需授权」兜底 */
+export function checkPrivacySetting(): Promise<{ needAuthorization: boolean; privacyContractName: string }> {
+  return new Promise((resolve) => {
+    // #ifdef MP-WEIXIN
+    if (typeof wx !== "undefined" && typeof wx.getPrivacySetting === "function") {
+      wx.getPrivacySetting({
+        success: (res) => resolve(res),
+        fail: () => resolve({ needAuthorization: false, privacyContractName: "" }),
+      });
+      return;
+    }
+    // #endif
+    resolve({ needAuthorization: false, privacyContractName: "" });
+  });
+}
+
+/**
+ * 在用户手势内编程式拉起微信隐私授权弹窗。
+ * - 已授权 / 低版本基础库：立即成功
+ * - 用户同意：resolve(true)
+ * - 用户拒绝或接口失败：resolve(false)
+ */
+export function requirePrivacyAuthorize(): Promise<boolean> {
+  return new Promise((resolve) => {
+    // #ifdef MP-WEIXIN
+    if (typeof wx !== "undefined" && typeof wx.requirePrivacyAuthorize === "function") {
+      wx.requirePrivacyAuthorize({
+        success: () => resolve(true),
+        fail: () => resolve(false),
+      });
+      return;
+    }
+    // #endif
+    resolve(true);
+  });
+}
+
+/** 打开官方「用户隐私保护指引」全文 */
+export function openPrivacyContract(): void {
+  // #ifdef MP-WEIXIN
+  if (typeof wx !== "undefined" && typeof wx.openPrivacyContract === "function") {
+    wx.openPrivacyContract({});
+  }
+  // #endif
+}

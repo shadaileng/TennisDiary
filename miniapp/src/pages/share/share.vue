@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { getCurrentInstance, nextTick, ref, watch } from "vue";
-import { onShow } from "@dcloudio/uni-app";
+import { onShow, onUnload } from "@dcloudio/uni-app";
 
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -91,6 +91,8 @@ const cardURL = ref("");
 const cardSavePath = ref("");
 const saving = ref(false);
 const regenerating = ref(false);
+/** 保存分享图超时句柄：页面卸载时需清理，避免离开后仍弹超时 toast */
+let saveImageTimeout: ReturnType<typeof setTimeout> | null = null;
 const diaries = ref<Diary[]>([]);
 const analysis = ref<Analysis | undefined>(undefined);
 
@@ -173,7 +175,6 @@ function draw() {
         qrImage = await loadQrImage(node);
       } catch (e) {
         logError("分享图二维码加载失败，降级输出", { error: (e as Error).message }, undefined, "share_qr_load_failed", undefined, createTraceId());
-        console.error("[share] QR image load failed:", e);
       }
 
       const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never, qrImage);
@@ -211,14 +212,12 @@ function draw() {
               cardSavePath.value = savePath
             } catch (e) {
               logError("持久路径写入失败", { error: String(e) }, undefined, "share_persist_save_failed", undefined, createTraceId());
-              console.error('[share] 持久路径写入失败:', e)
               // 降级使用 tempFilePath
             }
             // #endif
         },
         fail: (err: any) => {
           logError("canvasToTempFilePath 失败", { error: String(err) }, undefined, "share_canvas_failed", undefined, createTraceId());
-          console.error('[share] canvasToTempFilePath fail:', err)
           cardURL.value = "";
         },
       };
@@ -299,7 +298,7 @@ function saveImage() {
   saving.value = true;
 
   let saveTimedOut = false
-  const saveTimeout = setTimeout(() => {
+  saveImageTimeout = setTimeout(() => {
     if (saving.value) {
       saveTimedOut = true
       saving.value = false
@@ -311,14 +310,14 @@ function saveImage() {
     filePath: cardSavePath.value || cardURL.value,
     success: () => {
       if (saveTimedOut) return
-      clearTimeout(saveTimeout)
+      clearImageSaveTimeout()
       logInfo("分享图片保存成功", { trace_id: traceId, template: tpl.value }, undefined, "share_image_saved", traceId);
       uni.showToast({ title: "已保存到相册", icon: "success" })
       saving.value = false
     },
     fail: (err) => {
       if (saveTimedOut) return
-      clearTimeout(saveTimeout)
+      clearImageSaveTimeout()
       if (isRuntimePermissionDenied(err)) {
         logError("保存图片权限被拒绝", { trace_id: traceId, error: err.errMsg, template: tpl.value }, undefined, "share_image_denied", undefined, traceId);
         uni.showModal({
@@ -330,7 +329,6 @@ function saveImage() {
           },
         });
       } else {
-        console.error('[share] saveImage fail:', err)
         logError("保存图片失败", { trace_id: traceId, error: err.errMsg, template: tpl.value }, undefined, "share_image_failed", undefined, traceId);
         uni.showToast({ title: "保存失败，请重试", icon: "none" });
       }
@@ -338,6 +336,19 @@ function saveImage() {
     },
   });
 }
+
+/** 清理保存分享图超时定时器（成功/失败/卸载均调用，幂等） */
+function clearImageSaveTimeout() {
+  if (saveImageTimeout) {
+    clearTimeout(saveImageTimeout)
+    saveImageTimeout = null
+  }
+}
+
+// 页面卸载时清理未决的保存超时定时器，避免离开页面后仍弹「保存超时」toast
+onUnload(() => {
+  clearImageSaveTimeout()
+})
 </script>
 
 <style scoped lang="scss">

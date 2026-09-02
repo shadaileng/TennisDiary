@@ -4,8 +4,6 @@ import type {
   Analysis,
   AnalysisCreate,
   CaptionResult,
-  Checkin,
-  CheckinCreate,
   Diary,
   DiaryCreate,
   DiaryUpdate,
@@ -101,18 +99,6 @@ export function createWeight(body: WeightCreate): Promise<WeightRecord> {
 /** 删除体重记录 */
 export function deleteWeight(id: number): Promise<MessageResponse> {
   return del<MessageResponse>(`/weights/${id}`);
-}
-
-// ==================== 打卡 ====================
-
-/** 当前用户打卡记录列表 */
-export function getCheckins(): Promise<Checkin[]> {
-  return get<Checkin[]>("/checkin");
-}
-
-/** 签到（同用户+同课程+同日期幂等） */
-export function createCheckin(body: CheckinCreate): Promise<Checkin> {
-  return post<Checkin>("/checkin", body);
 }
 
 // ==================== 统计 ====================

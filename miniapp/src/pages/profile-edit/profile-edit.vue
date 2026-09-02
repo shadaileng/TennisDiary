@@ -21,10 +21,24 @@
 
     <!-- 资料表单（每字段自动保存） -->
     <view class="form-section">
-      <!-- 昵称 -->
+      <!-- 昵称（微信：点击先请求隐私授权，授权后切换 nickname 输入可弹微信昵称选择） -->
       <view class="form-row">
         <text class="form-label">昵称</text>
         <input
+          v-if="!nicknameNickNameEnabled"
+          v-model="nickname"
+          type="text"
+          class="form-input"
+          :maxlength="24"
+          placeholder="设置昵称"
+          @click="ensurePrivacyForNickname"
+          @blur="saveNickname"
+          @confirm="saveNickname"
+        />
+        <input
+          v-else
+          :key="nicknameInputKey"
+          ref="nicknameInputRef"
           v-model="nickname"
           type="nickname"
           class="form-input"
@@ -72,14 +86,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import { uploadAvatar, updateProfile } from "@/services/auth";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import { resolveUploadUrl, todayStr } from "@/utils";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { createTraceId, logError, logInfo, logWarn } from "@/utils/eventLogger";
+import { checkPrivacySetting, requirePrivacyAuthorize } from "@/utils/privacy";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
@@ -95,6 +110,21 @@ const today = todayStr();
 /** 用于展示的头像完整 URL（相对路径拼 BASE_URL） */
 const avatarUrl = ref("");
 
+/** 昵称输入框组件引用（切换为 type="nickname" 后用于聚焦拉起微信昵称选择） */
+const nicknameInputRef = ref<any>(null);
+/** 昵称输入 key，切换类型时强制重建 input */
+const nicknameInputKey = ref(0);
+/**
+ * 是否已启用微信 nickname 能力（type="nickname"）。
+ * 未授权前保持普通 text 输入，避免渲染层 errno:104 降级报错；
+ * 授权通过后置 true 重建为 nickname 输入并聚焦以弹出微信昵称选择。
+ */
+const nicknameNickNameEnabled = ref(false);
+/** 是否正在拉起隐私授权（防重入） */
+const privacyPrompting = ref(false);
+/** 是否已完成过隐私授权引导（授权成功或用户拒绝都算，避免每次点击都弹） */
+const privacyAttempted = ref(false);
+
 onShow(() => {
   if (!authStore.isLoggedIn) return;
   const user = authStore.user;
@@ -102,7 +132,61 @@ onShow(() => {
   genderIndex.value = user?.gender ?? 0;
   birthday.value = user?.birthday || "";
   avatarUrl.value = resolveUploadUrl(user?.avatar_url || "");
+  // 进入页面时恢复普通输入（避免回填后 type=nickname 触发降级）
+  nicknameNickNameEnabled.value = false;
+  privacyAttempted.value = false;
 });
+
+/**
+ * 点击昵称输入：未启用 nickname 能力时，在用户手势内请求微信隐私授权。
+ * 授权通过 → 重建为 type="nickname" 并聚焦，弹出微信昵称选择面板；
+ * 拒绝/低版本 → 保持普通输入，可手动填昵称（一次轻提示）。
+ */
+async function ensurePrivacyForNickname() {
+  // #ifdef MP-WEIXIN
+  if (nicknameNickNameEnabled.value || privacyPrompting.value || privacyAttempted.value) return;
+
+  // 已授权（点头像授权过）可直接启用 nickname
+  const setting = await checkPrivacySetting();
+  if (!setting.needAuthorization) {
+    nicknameNickNameEnabled.value = true;
+    privacyAttempted.value = true;
+    await focusNickName();
+    return;
+  }
+
+  privacyPrompting.value = true;
+  logInfo("昵称隐私授权引导", { privacy_contract: setting.privacyContractName }, undefined, "privacy_nickname_request");
+  try {
+    const granted = await requirePrivacyAuthorize();
+    if (granted) {
+      nicknameNickNameEnabled.value = true;
+      privacyAttempted.value = true;
+      logInfo("昵称隐私授权通过", undefined, undefined, "privacy_nickname_agree");
+      await focusNickName();
+    } else {
+      privacyAttempted.value = true;
+      logWarn("昵称隐私授权被拒，使用手动输入", undefined, "business", "privacy_nickname_denied");
+      uni.showToast({ title: "未授权隐私，可手动输入昵称", icon: "none" });
+    }
+  } catch (err: any) {
+    privacyAttempted.value = true;
+    logWarn("昵称隐私授权异常", { error: err?.message }, "business", "privacy_nickname_error");
+  } finally {
+    privacyPrompting.value = false;
+  }
+  // #endif
+}
+
+/** 切换为 nickname 输入后聚焦以弹出微信昵称选择 */
+async function focusNickName() {
+  nicknameInputKey.value += 1;
+  await nextTick();
+  const input = nicknameInputRef.value;
+  if (input && typeof input.focus === "function") {
+    input.focus();
+  }
+}
 
 function onGenderChange(e: any) {
   const idx = Number(e.detail.value);

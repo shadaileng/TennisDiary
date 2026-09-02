@@ -4,6 +4,32 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.5] - 2026-09-02
+
+### Fixed
+
+- 小程序事件日志 `logWarn` 达到批量阈值（≥5）时整批丢失的 P0 缺陷（127）：`batchFlush()` 仅设置 3s 定时器、回调时才读取待发数组，而旧 `logWarn` 在触发阈值后随即清空数组，导致该批 warn 3s 后读到空数组全部丢失。改为抽出 `flushBatchNow()`（清定时器+取走批次+逐条上报），`logWarn` ≥5 条立即发送（真正实现「≥5 立即触发」），否则走 3s 防抖；`logInfo` 维持批量 3s。
+
+### Changed
+
+- 小程序 console 噪音清理（127）：删除 `App.vue` 生命周期日志、`services/request.ts` 每请求 success/fail 日志，以及各 store/页面 `logError` 后重复的 `console.error` 双写（4 store + stats/share/analyze 页），仅保留 `eventLogger` 上报失败的合理提示。
+- 小程序上传/请求封装统一（127）：`pages/coach/analyze.vue` 裸 `uni.uploadFile`（手拼 baseURL + `"td_token"` 魔法字符串）改走 `utils/upload.ts` 的 `uploadRaw`，token/URL/响应解析统一；`services/analysisStatus.ts` token 键改 `STORAGE_KEYS.token`。
+- 小程序死代码清理（127）：`analysisStatus.ts` 删除 SSE 全套死代码（`SSESubscriber`/`isChunkedSupported`/`arrayBufferToString`/`getAnalysisStatus`），精简为纯轮询；`services/auth.ts` 删除无引用 `getMe`；`services/data.ts` 删除无引用 `getCheckins`/`createCheckin`；`utils/index.ts` `resolveUploadUrl` 合并 `gears`/`videos` 相同分支并更正注释。
+- 小程序定时器生命周期修复（127）：`pages/share/share.vue` 保存图片超时定时器提升为模块级句柄并新增 `onUnload` 清理，避免离开页面后仍弹「保存超时」toast。
+- 文档同步（127）：新增 `docs/plans/127-小程序端代码卫生与健壮性优化.md`，同步 AGENTS.md 进度表、docs/README.md、config.mts 侧边栏。
+
+## [1.77.4] - 2026-09-02
+
+### Fixed
+
+- 小程序昵称输入隐私授权修复为**主动引导**方案（126）：真机实测 v2.0.0「依赖微信自动弹窗」不可控——`input type="nickname"` 未授权时静默降级为 `text` 且不触发 `onNeedPrivacyAuthorization`。改为：进入页面保持普通 `text` 输入避免降级；点击昵称（用户手势内）先 `checkPrivacySetting` 查状态，需授权时 `requirePrivacyAuthorize` 拉起官方弹窗，同意后 `:key` 重建为 `type="nickname"` 并聚焦弹出微信昵称选择，拒绝则保持手动输入一次轻提示；`privacyPrompting`/`privacyAttempted` 防重入与防反复打扰。新增 `privacy.ts` 的 `checkPrivacySetting`/`requirePrivacyAuthorize`/`openPrivacyContract`（回调式 API Promise 化，低版本基础库兜底），`env.d.ts` 隐私接口类型改为回调式。
+
+### Changed
+
+- 小程序渲染层错误埋点分级（126）：`App.vue` `wx.onError` 白名单（`showShareMenu`/`getPrivacySetting`/`nickname`/`showNicknameAccessory`）由「整段过滤」改为按 `logWarn` 低打扰上报，其余仍按 `logFatal` 上报，避免掩盖真实逻辑层错误。
+- 小程序「我的」页登录并发守卫（126）：`doLogin` 增加 `loggingIn` 标记，快速连点不重复弹 `showLoading`，保证与 `hideLoading` 配对。
+- 小程序资料编辑页清理重复的 `onShow` 块（126）。
+
 ## [1.77.3] - 2026-09-02
 
 ### Added

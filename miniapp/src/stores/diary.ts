@@ -55,7 +55,6 @@ export const useDiaryStore = defineStore("diary", {
         this.diaries = await getDiaries();
       } catch (e) {
         logError("日记列表加载失败", { error: (e as Error).message }, undefined, "diary_list_load_failed", undefined, createTraceId());
-        console.error("[diary] 拉取日记列表失败", e);
       } finally {
         this.loading = false;
       }

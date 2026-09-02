@@ -347,7 +347,6 @@ onShow(() => {
     })
     .catch((e) => {
       logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "stats_load_failed", undefined, traceId);
-      console.error("[stats] 拉取统计数据失败", e);
     })
     .finally(() => {
       statsLoading.value = false;

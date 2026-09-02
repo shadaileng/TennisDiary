@@ -1,4 +1,4 @@
-import { get, post, put } from "./request";
+import { post, put } from "./request";
 import { uploadFile } from "@/utils/upload";
 
 import type { LoginRequest, LoginResponse, User, UserUpdate } from "@/types";
@@ -8,7 +8,6 @@ import type { LoginRequest, LoginResponse, User, UserUpdate } from "@/types";
  *
  * 对接后台：
  * - POST /api/auth/login  微信登录（返回 Token + User）
- * - GET  /api/auth/me     获取当前用户（需 JWT）
  * - PUT  /api/auth/me     更新用户资料（需 JWT）
  * - POST /api/upload/avatar 上传头像（需 JWT）
  */
@@ -33,11 +32,6 @@ export function getLoginCode(): Promise<string> {
 export function login(data: LoginRequest): Promise<LoginResponse> {
   // 登录接口无需携带鉴权头；401 属登录失败，交由调用方展示，不触发全局登出引导
   return post<LoginResponse>("/auth/login", data, { auth: false, handle401: false });
-}
-
-/** 获取当前登录用户 */
-export function getMe(): Promise<User> {
-  return get<User>("/auth/me");
 }
 
 /** 更新用户资料（昵称/头像） */
