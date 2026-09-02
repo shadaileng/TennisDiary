@@ -212,30 +212,6 @@
               </p>
             </div>
           </div>
-
-          <!-- 派生文件列表 -->
-          <div v-if="selectedFile.derived_files?.length" class="border-t pt-4">
-            <h3 class="text-sm font-medium text-gray-500 mb-2">
-              关联文件（{{ selectedFile.derived_files.length }}）
-            </h3>
-            <div class="space-y-2">
-              <div
-                v-for="derived in selectedFile.derived_files"
-                :key="derived.id"
-                class="bg-gray-50 rounded p-3 text-sm flex justify-between items-start gap-3"
-              >
-                <div class="min-w-0">
-                  <p class="font-mono text-xs break-all">{{ derived.rel_path }}</p>
-                  <p class="text-xs text-gray-500 mt-1">
-                    {{ derived.upload_source }} · {{ derived.mime_type || '--' }}
-                  </p>
-                </div>
-                <span class="text-xs text-gray-500 whitespace-nowrap">
-                  {{ formatSize(derived.size_bytes) }}
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- 弹窗底部 -->
@@ -545,13 +521,10 @@ import {
   cleanupFiles,
   scanOrphanFiles,
   registerFiles,
-  registerAllFiles,
   cleanupOrphanFiles,
-  getPreviewInfo,
   getDownloadUrl,
   repairFiles,
   type AdminFile,
-  type PreviewInfo,
   type FileStats,
   type ScanResultResponse,
   type RepairResult,
@@ -604,7 +577,7 @@ const repairResult = ref<RepairResult | null>(null)
 
 // 预览相关状态
 const previewVisible = ref(false)
-const previewInfo = ref<PreviewInfo | null>(null)
+const previewInfo = ref<{ id: number; original_name: string; mime_type: string; size_bytes: number; preview_url: string } | null>(null)
 
 function formatSize(bytes: number): string {
   if (!bytes) return '0 B'
@@ -696,14 +669,15 @@ const cancelDownload = () => {
   dl.value.visible = false
 }
 
-const openPreview = async (file: AdminFile) => {
-  try {
-    const info = await getPreviewInfo(file.id)
-    previewInfo.value = info
-    previewVisible.value = true
-  } catch (e) {
-    console.error('Failed to load preview:', e)
+const openPreview = (file: AdminFile) => {
+  previewInfo.value = {
+    id: file.id,
+    original_name: file.original_name,
+    mime_type: file.mime_type,
+    size_bytes: file.size_bytes,
+    preview_url: `/api/admin/system/files/${file.rel_path}`,
   }
+  previewVisible.value = true
 }
 
 const onPreviewDownload = (fileId: number) => {
@@ -856,7 +830,7 @@ const confirmRegisterSingle = async (relPath: string) => {
 const confirmRegisterAll = async () => {
   if (confirm('确定要将所有未注册文件纳入管理吗？')) {
     try {
-      const res = await registerAllFiles()
+      const res = await registerFiles([])
       alert(`成功注册 ${res.registered} 个文件`)
       scanResult.value = null
       await fetchFiles()

@@ -1,15 +1,5 @@
 import request from './index'
 
-export interface DerivedFileInfo {
-  id: number
-  rel_path: string
-  upload_source: string
-  business_type: string | null
-  business_id: number | null
-  size_bytes: number
-  mime_type: string
-}
-
 export interface AdminFile {
   id: number
   user_id: number
@@ -23,7 +13,6 @@ export interface AdminFile {
   business_type: string | null
   business_id: number | null
   created_at: number
-  derived_files: DerivedFileInfo[]
   usage_status: string
   usage_reason: string
 }
@@ -72,10 +61,6 @@ export function getFiles(params: {
   return request.get('/api/admin/files', { params })
 }
 
-export function getFile(fileId: number): Promise<AdminFile> {
-  return request.get(`/api/admin/files/${fileId}`)
-}
-
 export function getFileStats(): Promise<FileStats> {
   return request.get('/api/admin/files/stats/summary')
 }
@@ -105,25 +90,8 @@ export function registerFiles(files: string[], defaultUserId: number = 0): Promi
   return request.post('/api/admin/files/register', { files, default_user_id: defaultUserId })
 }
 
-export function registerAllFiles(defaultUserId: number = 0): Promise<{ registered: number }> {
-  return request.post('/api/admin/files/register-all', null, { params: { default_user_id: defaultUserId } })
-}
-
 export function cleanupOrphanFiles(files: string[]): Promise<{ cleaned: number }> {
   return request.post('/api/admin/files/cleanup-orphans', { files })
-}
-
-export interface PreviewInfo {
-  id: number
-  mime_type: string
-  rel_path: string
-  size_bytes: number
-  original_name: string
-  preview_url: string
-}
-
-export function getPreviewInfo(fileId: number): Promise<PreviewInfo> {
-  return request.get(`/api/admin/files/${fileId}/preview`)
 }
 
 export function getDownloadUrl(fileId: number): string {

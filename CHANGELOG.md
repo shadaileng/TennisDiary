@@ -4,6 +4,20 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.1] - 2026-09-02
+
+### Changed
+
+- Admin 文件管理端点精简：删除 `GET /files/{id}`（未使用）、`GET /files/{id}/preview`（前端直接构造 URL）、`POST /files/register-all`（合并到 `/register` 空列表触发），端点数 13→11（125）。
+- Admin 文件管理 Schema 精简：移除 `DerivedFileInfo` 类和 `AdminFileResponse.derived_files` 字段（列表不展示，详情端点已删），Schema 类 7→5（125）。
+- Admin 文件注册接口统一：`POST /register` 支持空 `files` 列表自动扫描并注册全部孤儿，替代原 `register-all` 端点（125）。
+
+### Fixed
+
+- Admin 文件列表 N+1 查询修复：移除 `_file_to_response` 中每条文件单独查询派生文件的逻辑（表格不展示），每页省 20 次查询（125）。
+- Admin 文件列表分类查询统一：非 `usage_status` 筛选路径也使用 `bulk_classify_files` 批量分类，替代逐条 `classify_file_usage`（每次查 3 张表），classify 查询从 O(N×K) 降到 O(N)（125）。
+- Admin 文件统计 `unreferenced_count` 查询优化：用 `bulk_classify_files` 替代全表逐条分类循环（125）。
+
 ## [1.77.0] - 2026-09-01
 
 ### Added

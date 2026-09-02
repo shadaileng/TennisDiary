@@ -1,11 +1,13 @@
-"""Admin 文件管理路由测试（5.4 Admin 端点）
+"""Admin 文件管理路由测试
 
 覆盖：
-- GET  /api/admin/files          列表（分页 + 过滤）
-- GET  /api/admin/files/{id}     详情（含 derived_files）
+- GET  /api/admin/files          列表（分页 + 过滤 + 分类）
 - DELETE /api/admin/files/{id}   软删除（引用归零 + 共享路径检查）
 - POST /api/admin/files/cleanup  清理旧文件
 - GET  /api/admin/files/stats    统计摘要
+- POST /api/admin/files/scan     扫描孤儿
+- POST /api/admin/files/register 注册孤儿（含空列表=全量注册）
+- POST /api/admin/files/repair   修复 MIME
 """
 
 import hashlib
@@ -106,38 +108,6 @@ class TestAdminFileList:
         data = resp.json()["data"]
         assert len(data["items"]) == 2
         assert data["total"] >= 5
-
-
-class TestAdminFileDetail:
-    """GET /api/admin/files/{file_id}"""
-
-    def test_detail_includes_derived(self, auth_client, test_db):
-        uid = _next_uid()
-        biz_id = uid
-        main = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=f"derived-main-{uid}.jpg",
-            business_type="analysis",
-            business_id=biz_id,
-        )
-        _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=f"derived-sub-{uid}.jpg",
-            business_type="analysis",
-            business_id=biz_id,
-            upload_source="video_frame",
-        )
-        resp = auth_client.get(f"/api/admin/files/{main.id}")
-        assert resp.status_code == 200
-        detail = resp.json()["data"]
-        assert len(detail["derived_files"]) == 1
-        assert f"derived-sub-{uid}" in detail["derived_files"][0]["rel_path"]
-
-    def test_detail_not_found(self, auth_client):
-        resp = auth_client.get("/api/admin/files/999999")
-        assert resp.status_code == 404
 
 
 class TestAdminFileDelete:
@@ -401,19 +371,17 @@ class TestAdminFileRegister:
         assert resp.status_code == 200
         assert resp.json()["data"]["registered"] == 0
 
-
-class TestAdminFileRegisterAll:
-    """POST /api/admin/files/register-all"""
-
-    def test_register_all_files(self, auth_client, test_db):
-        """一键注册所有未注册文件"""
+    def test_register_empty_list_scans_and_registers_all(self, auth_client, test_db):
+        """空文件列表触发扫描并注册全部孤儿"""
         uid = _next_uid()
-        # 创建几个未注册的文件
         for i in range(2):
             rel = f"register-all-test-{uid}/{i}.jpg"
             _write_file(rel, f"content-{i}".encode())
 
-        resp = auth_client.post("/api/admin/files/register-all")
+        resp = auth_client.post(
+            "/api/admin/files/register",
+            json={"files": [], "default_user_id": uid},
+        )
         assert resp.status_code == 200
         assert resp.json()["data"]["registered"] >= 2
 
@@ -448,23 +416,7 @@ def _write_real_mp4(rel_path: str) -> None:
 
 
 class TestAdminFileRepairMime:
-    """文件修复 + 预览兜底（Step 116）：确保 mp4 不会被当成 audio"""
-
-    def test_preview_fallback_mp4_empty_mime(self, auth_client, test_db):
-        """mime_type 为空的 mp4 记录，预览端点兜底返回 video/mp4（不依赖 mimetypes）"""
-        uid = _next_uid()
-        rel = f"videos/{uid}/sample.mp4"
-        _write_real_mp4(rel)
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            mime_type="",  # 模拟上传时客户端未带 Content-Type 的存量空值
-            upload_source="video",
-        )
-        resp = auth_client.get(f"/api/admin/files/{rec.id}/preview")
-        assert resp.status_code == 200
-        assert resp.json()["data"]["mime_type"] == "video/mp4"
+    """文件修复（Step 116）：确保 mp4 不会被当成 audio"""
 
     def test_repair_fixes_empty_mime_mp4(self, auth_client, test_db):
         """repair 端点扫描并修正空 mime_type 的 mp4 记录为 video/mp4"""

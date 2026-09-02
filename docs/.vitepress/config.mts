@@ -175,6 +175,7 @@ export default defineConfig({
             { text: '117：原视频信息表与衍生文件登记（已归档）', link: '/plans/117-原视频信息表与衍生文件登记' },
 
             { text: '124：Admin 分析报告时间修复与筛选功能', link: '/plans/124-Admin分析报告时间修复与筛选功能' },
+            { text: '125：Admin 文件管理简化与查询优化', link: '/plans/125-Admin文件管理简化与查询优化' },
           ],
         },
         {

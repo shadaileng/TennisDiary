@@ -20,18 +20,6 @@ class FileUsageStatus:
     ORPHAN = "orphan"
 
 
-class DerivedFileInfo(BaseModel):
-    """关联文件信息（derived files）"""
-
-    id: int = Field(description="文件记录 ID")
-    rel_path: str = Field(description="相对路径")
-    upload_source: str = Field(description="上传来源")
-    business_type: str | None = Field(default=None, description="业务类型")
-    business_id: int | None = Field(default=None, description="业务记录 ID")
-    size_bytes: int = Field(description="文件大小（字节）")
-    mime_type: str = Field(description="MIME 类型")
-
-
 class AdminFileResponse(BaseModel):
     """Admin 文件列表响应"""
 
@@ -47,9 +35,6 @@ class AdminFileResponse(BaseModel):
     business_type: str | None = Field(default=None, description="业务类型")
     business_id: int | None = Field(default=None, description="业务记录 ID")
     created_at: float = Field(description="创建时间戳")
-    derived_files: list[DerivedFileInfo] = Field(
-        default_factory=list, description="关联的派生文件列表"
-    )
     usage_status: str = Field(description="使用状态：in_use/unreferenced/marked_deleted/orphan")
     usage_reason: str = Field(default="", description="使用状态原因说明")
 
@@ -90,7 +75,10 @@ class ScanResultResponse(BaseModel):
 class RegisterFilesRequest(BaseModel):
     """注册文件请求"""
 
-    files: list[str] = Field(description="要注册的文件相对路径列表")
+    files: list[str] = Field(
+        default_factory=list,
+        description="要注册的文件相对路径列表（空列表=扫描并注册全部孤儿）",
+    )
     default_user_id: int = Field(default=0, description="默认用户 ID（路径无法推断时使用）")
 
 

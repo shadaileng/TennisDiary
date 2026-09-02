@@ -21,7 +21,6 @@ from app.schemas.admin_file import (
     AdminFileResponse,
     BatchDeleteRequest,
     CleanupOrphansRequest,
-    DerivedFileInfo,
     RegisterFilesRequest,
     ScanResultResponse,
 )
@@ -38,32 +37,7 @@ def _file_to_response(
     db: Session,
     classifications: dict | None = None,
 ) -> AdminFileResponse:
-    """将 File ORM 转换为 AdminFileResponse，包含派生文件查询"""
-    derived_files = []
-    if file_record.business_type and file_record.business_id:
-        derived_records = (
-            db.query(File)
-            .filter(
-                File.business_type == file_record.business_type,
-                File.business_id == file_record.business_id,
-                File.id != file_record.id,
-                File.deleted_at.is_(None),
-            )
-            .all()
-        )
-        derived_files = [
-            DerivedFileInfo(
-                id=d.id,
-                rel_path=d.rel_path,
-                upload_source=d.upload_source,
-                business_type=d.business_type,
-                business_id=d.business_id,
-                size_bytes=d.size_bytes,
-                mime_type=d.mime_type,
-            )
-            for d in derived_records
-        ]
-
+    """将 File ORM 转换为 AdminFileResponse"""
     if classifications and file_record.id in classifications:
         usage_status, usage_reason = classifications[file_record.id]
     else:
@@ -82,7 +56,6 @@ def _file_to_response(
         business_type=file_record.business_type,
         business_id=file_record.business_id,
         created_at=file_record.created_at,
-        derived_files=derived_files,
         usage_status=usage_status,
         usage_reason=usage_reason,
     )
@@ -127,29 +100,16 @@ def list_files(
 
     total = query.count()
     files = query.order_by(File.created_at.desc()).offset(offset).limit(limit).all()
+    classifications = file_service.bulk_classify_files(db, files)
 
     return ApiResponse(
         data=AdminFileListResponse(
-            items=[_file_to_response(f, db) for f in files],
+            items=[_file_to_response(f, db, classifications) for f in files],
             total=total,
             offset=offset,
             limit=limit,
         )
     )
-
-
-@router.get("/{file_id}", response_model=ApiResponse[AdminFileResponse])
-def get_file(
-    file_id: int,
-    admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """文件详情（含派生文件列表）"""
-    file_record = db.query(File).filter(File.id == file_id, File.deleted_at.is_(None)).first()
-    if file_record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
-
-    return ApiResponse(data=_file_to_response(file_record, db))
 
 
 @router.get("/stats/summary", response_model=ApiResponse[dict])
@@ -166,12 +126,10 @@ def file_stats(
     # marked_deleted：已软删等待物理清理
     marked_deleted = db.query(File).filter(File.deleted_at.isnot(None)).count()
 
-    # unreferenced：通过 classify 逐条判定（stats 低频调用，可接受 N 次查询）
-    unreferenced_count = 0
-    for f in db.query(File).filter(File.deleted_at.is_(None)).all():
-        status, _ = file_service.classify_file_usage(db, f)
-        if status != "in_use":
-            unreferenced_count += 1
+    # unreferenced：通过批量 classify 判定
+    all_files = db.query(File).filter(File.deleted_at.is_(None)).all()
+    classifications = file_service.bulk_classify_files(db, all_files)
+    unreferenced_count = sum(1 for st, _ in classifications.values() if st != "in_use")
 
     # 按来源分组统计
     source_stats = (
@@ -322,10 +280,18 @@ def register_files(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """将选中的文件注册到 File 表"""
+    """将文件注册到 File 表；files 为空时扫描并注册全部孤儿"""
+    if body.files:
+        rel_paths = body.files
+    else:
+        scan_result = file_service.scan_orphan_files(db)
+        rel_paths = [o["rel_path"] for o in scan_result["orphans"]]
+        if not rel_paths:
+            return ApiResponse(data={"registered": 0}, message="没有发现未注册的文件")
+
     registered = file_service.register_orphan_files(
         db,
-        rel_paths=body.files,
+        rel_paths=rel_paths,
         default_user_id=body.default_user_id,
     )
     db.commit()
@@ -333,7 +299,7 @@ def register_files(
         "Admin 注册孤立文件",
         admin_id=admin.id,
         count=len(registered),
-        paths=body.files[:5],  # 只记录前5个
+        paths=rel_paths[:5],
     )
     return ApiResponse(
         data={"registered": len(registered)},
@@ -341,40 +307,7 @@ def register_files(
     )
 
 
-@router.post("/register-all", response_model=ApiResponse[dict])
-@audit(action="REGISTER_ALL", resource_type="file_register")
-def register_all_files(
-    default_user_id: int = Query(0, description="默认用户 ID（路径无法推断时使用）"),
-    admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """一键注册所有未注册文件"""
-    # 先扫描
-    scan_result = file_service.scan_orphan_files(db)
-    orphan_paths = [o["rel_path"] for o in scan_result["orphans"]]
-
-    if not orphan_paths:
-        return ApiResponse(data={"registered": 0}, message="没有发现未注册的文件")
-
-    # 批量注册
-    registered = file_service.register_orphan_files(
-        db,
-        rel_paths=orphan_paths,
-        default_user_id=default_user_id,
-    )
-    db.commit()
-    log.info(
-        "Admin 一键注册所有孤立文件",
-        admin_id=admin.id,
-        count=len(registered),
-    )
-    return ApiResponse(
-        data={"registered": len(registered)},
-        message=f"成功注册 {len(registered)} 个文件",
-    )
-
-
-# ==================== 下载 & 预览 ====================
+# ==================== 下载 ====================
 
 _RANGE_RE = re.compile(r"bytes=(\d*)-(\d*)")
 
@@ -479,43 +412,6 @@ def download_file(
         abs_path,
         media_type=media_type,
         filename=filename,
-    )
-
-
-@router.get("/{file_id}/preview")
-def preview_file(
-    file_id: int,
-    admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """获取文件预览信息（mime_type + rel_path + size_bytes），前端据此构造预览 URL"""
-    file_record = db.query(File).filter(File.id == file_id).first()
-    if file_record is None:
-        raise HTTPException(status_code=404, detail="文件记录不存在")
-
-    abs_path = file_service.resolve_safe_path(file_record.rel_path)
-    if abs_path is None or not os.path.isfile(abs_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
-
-    mime_type = file_record.mime_type
-    if not mime_type:
-        # 确定性扩展名映射兜底：避免 mimetypes.guess_type 在不同镜像把 .mp4 解析成 audio/mp4
-        mime_type = (
-            EXTENSION_MIME.get(
-                os.path.splitext(file_record.original_name or file_record.rel_path)[1].lower()
-            )
-            or "application/octet-stream"
-        )
-
-    return ApiResponse(
-        data={
-            "id": file_record.id,
-            "mime_type": mime_type,
-            "rel_path": file_record.rel_path,
-            "size_bytes": file_record.size_bytes,
-            "original_name": file_record.original_name,
-            "preview_url": f"/api/admin/system/files/{file_record.rel_path}",
-        }
     )
 
 
