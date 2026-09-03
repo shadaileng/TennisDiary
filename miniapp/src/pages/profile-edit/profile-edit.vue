@@ -21,10 +21,24 @@
 
     <!-- 资料表单（每字段自动保存） -->
     <view class="form-section">
-      <!-- 昵称 -->
+      <!-- 昵称（微信：点击先请求隐私授权，授权后切换 nickname 输入可弹微信昵称选择） -->
       <view class="form-row">
         <text class="form-label">昵称</text>
         <input
+          v-if="!nicknameNickNameEnabled"
+          v-model="nickname"
+          type="text"
+          class="form-input"
+          :maxlength="24"
+          placeholder="设置昵称"
+          @click="ensurePrivacyForNickname"
+          @blur="saveNickname"
+          @confirm="saveNickname"
+        />
+        <input
+          v-else
+          :key="nicknameInputKey"
+          ref="nicknameInputRef"
           v-model="nickname"
           type="nickname"
           class="form-input"
@@ -72,14 +86,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import { onShow } from "@dcloudio/uni-app";
 
 import { uploadAvatar, updateProfile } from "@/services/auth";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import { resolveUploadUrl, todayStr } from "@/utils";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { createTraceId, logError, logInfo, logWarn } from "@/utils/eventLogger";
+import { checkPrivacySetting, requirePrivacyAuthorize } from "@/utils/privacy";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
@@ -95,6 +110,21 @@ const today = todayStr();
 /** 用于展示的头像完整 URL（相对路径拼 BASE_URL） */
 const avatarUrl = ref("");
 
+/** 昵称输入框组件引用（切换为 type="nickname" 后用于聚焦拉起微信昵称选择） */
+const nicknameInputRef = ref<any>(null);
+/** 昵称输入 key，切换类型时强制重建 input */
+const nicknameInputKey = ref(0);
+/**
+ * 是否已启用微信 nickname 能力（type="nickname"）。
+ * 未授权前保持普通 text 输入，避免渲染层 errno:104 降级报错；
+ * 授权通过后置 true 重建为 nickname 输入并聚焦以弹出微信昵称选择。
+ */
+const nicknameNickNameEnabled = ref(false);
+/** 是否正在拉起隐私授权（防重入） */
+const privacyPrompting = ref(false);
+/** 是否已完成过隐私授权引导（授权成功或用户拒绝都算，避免每次点击都弹） */
+const privacyAttempted = ref(false);
+
 onShow(() => {
   if (!authStore.isLoggedIn) return;
   const user = authStore.user;
@@ -102,7 +132,61 @@ onShow(() => {
   genderIndex.value = user?.gender ?? 0;
   birthday.value = user?.birthday || "";
   avatarUrl.value = resolveUploadUrl(user?.avatar_url || "");
+  // 进入页面时恢复普通输入（避免回填后 type=nickname 触发降级）
+  nicknameNickNameEnabled.value = false;
+  privacyAttempted.value = false;
 });
+
+/**
+ * 点击昵称输入：未启用 nickname 能力时，在用户手势内请求微信隐私授权。
+ * 授权通过 → 重建为 type="nickname" 并聚焦，弹出微信昵称选择面板；
+ * 拒绝/低版本 → 保持普通输入，可手动填昵称（一次轻提示）。
+ */
+async function ensurePrivacyForNickname() {
+  // #ifdef MP-WEIXIN
+  if (nicknameNickNameEnabled.value || privacyPrompting.value || privacyAttempted.value) return;
+
+  // 已授权（点头像授权过）可直接启用 nickname
+  const setting = await checkPrivacySetting();
+  if (!setting.needAuthorization) {
+    nicknameNickNameEnabled.value = true;
+    privacyAttempted.value = true;
+    await focusNickName();
+    return;
+  }
+
+  privacyPrompting.value = true;
+  logInfo("昵称隐私授权引导", { privacy_contract: setting.privacyContractName }, undefined, "privacy_nickname_request");
+  try {
+    const granted = await requirePrivacyAuthorize();
+    if (granted) {
+      nicknameNickNameEnabled.value = true;
+      privacyAttempted.value = true;
+      logInfo("昵称隐私授权通过", undefined, undefined, "privacy_nickname_agree");
+      await focusNickName();
+    } else {
+      privacyAttempted.value = true;
+      logWarn("昵称隐私授权被拒，使用手动输入", undefined, "business", "privacy_nickname_denied");
+      uni.showToast({ title: "未授权隐私，可手动输入昵称", icon: "none" });
+    }
+  } catch (err: any) {
+    privacyAttempted.value = true;
+    logWarn("昵称隐私授权异常", { error: err?.message }, "business", "privacy_nickname_error");
+  } finally {
+    privacyPrompting.value = false;
+  }
+  // #endif
+}
+
+/** 切换为 nickname 输入后聚焦以弹出微信昵称选择 */
+async function focusNickName() {
+  nicknameInputKey.value += 1;
+  await nextTick();
+  const input = nicknameInputRef.value;
+  if (input && typeof input.focus === "function") {
+    input.focus();
+  }
+}
 
 function onGenderChange(e: any) {
   const idx = Number(e.detail.value);
@@ -142,18 +226,48 @@ async function handleAvatarChangeH5() {
 
 async function uploadAndSaveAvatar(tempUrl: string) {
   const traceId = createTraceId();
-  logInfo("上传头像", { trace_id: traceId }, "avatar_upload", traceId);
+  const t0 = Date.now();
+
+  logInfo("头像更新开始", { trace_id: traceId }, undefined, "avatar_update_start", traceId);
+
+  // 端点1: 上传头像文件
+  logInfo("头像上传开始", { trace_id: traceId }, undefined, "avatar_upload_start", traceId);
+  const tUpload = Date.now();
+  let url: string;
   try {
-    const url = await uploadAvatar(tempUrl);
+    url = await uploadAvatar(tempUrl);
+    logInfo("头像上传成功", {
+      trace_id: traceId, duration_ms: Date.now() - tUpload, avatar_url: url,
+    }, undefined, "avatar_upload_success", traceId);
+  } catch (err: any) {
+    logError("头像上传失败", {
+      trace_id: traceId, duration_ms: Date.now() - tUpload, error: err?.message,
+    }, undefined, "avatar_upload_failed", undefined, traceId);
+    throw err;
+  }
+
+  // 端点2: 保存头像URL到用户资料
+  logInfo("保存头像资料开始", { trace_id: traceId }, undefined, "profile_save_avatar_start", traceId);
+  const tSave = Date.now();
+  try {
     avatarUrl.value = resolveUploadUrl(url);
     const result = await updateProfile({ avatar_url: url });
     authStore.updateUser(result.user);
-    logInfo("头像上传成功", { trace_id: traceId }, "avatar_uploaded", traceId);
-    uni.showToast({ title: "头像已更新", icon: "success" });
+    logInfo("保存头像资料成功", {
+      trace_id: traceId, duration_ms: Date.now() - tSave,
+    }, undefined, "profile_save_avatar_success", traceId);
   } catch (err: any) {
-    logError("头像上传失败", { trace_id: traceId, error: err?.message }, "avatar_upload_failed", undefined, traceId);
-    uni.showToast({ title: err?.message || "更换失败", icon: "none" });
+    logError("保存头像资料失败", {
+      trace_id: traceId, duration_ms: Date.now() - tSave, error: err?.message,
+    }, undefined, "profile_save_avatar_failed", undefined, traceId);
+    throw err;
   }
+
+  // 整体成功
+  logInfo("头像更新完成", {
+    trace_id: traceId, total_duration_ms: Date.now() - t0,
+  }, undefined, "avatar_update_success", traceId);
+  uni.showToast({ title: "头像已更新", icon: "success" });
 }
 
 /** 昵称失焦保存（空值忽略） */
@@ -176,7 +290,7 @@ async function saveField(payload: Record<string, unknown>, successMsg: string) {
 
 function doLogout() {
   const traceId = createTraceId();
-  logInfo("准备退出登录", { trace_id: traceId }, "logout_start", traceId);
+  logInfo("准备退出登录", { trace_id: traceId }, undefined, "logout_start", traceId);
   uni.showModal({
     title: "确认退出",
     content: "退出登录后记录仍保留在本地。",
@@ -184,7 +298,7 @@ function doLogout() {
     success: (res) => {
       if (!res.confirm) return;
       authStore.logout();
-      logInfo("退出登录成功", { trace_id: traceId }, "logout", traceId);
+      logInfo("退出登录成功", { trace_id: traceId }, undefined, "logout", traceId);
       uni.showToast({ title: "已退出", icon: "success" });
       setTimeout(() => uni.switchTab({ url: "/pages/mine/mine" }), 300);
     },

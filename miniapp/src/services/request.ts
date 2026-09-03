@@ -174,7 +174,6 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
       timeout,
       success: (res) => {
         setGlobalLoading(false);
-        console.log("[request success]", method, url, res.statusCode);
         const statusCode = res.statusCode;
         if (statusCode >= 200 && statusCode < 300) {
           // 处理统一响应格式
@@ -193,7 +192,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
                 url,
                 statusCode,
                 code: apiRes.code,
-              }, "api_error");
+              }, undefined, "api_error");
               reject(new ApiError(statusCode, apiRes.message || "请求失败"));
             }
           } else {
@@ -203,6 +202,9 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           return;
         }
         if (statusCode === 401 && handle401) {
+          if (!url.includes("/auth/")) {
+            logWarn("请求返回401但非登录接口", { method, url, statusCode });
+          }
           clearAuth();
           promptLogin();
         }
@@ -211,17 +213,16 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           url,
           statusCode,
           code: (res.data as ApiResponse<unknown> | null)?.code,
-        }, "http_error");
+        }, undefined, "http_error");
         reject(new ApiError(statusCode, parseDetail(res)));
       },
       fail: (err) => {
         setGlobalLoading(false);
-        console.error("[request fail]", method, url, err);
         logError(`网络请求失败 ${method} ${url}: ${err.errMsg || "未知错误"}`, {
           method,
           url,
           status: -1,
-        }, "network_error");
+        }, "network", "network_error");
         reject(new ApiError(-1, err.errMsg || "网络请求失败"));
       },
     });

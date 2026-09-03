@@ -133,6 +133,9 @@ const showThemePicker = ref(false);
 /** 统计徽章数据（登录后拉取，失败静默降级） */
 const stats = ref<Stats | null>(null);
 
+/** 登录中标记（防双击并发，保证 showLoading/hideLoading 配对） */
+const loggingIn = ref(false);
+
 /** 头像完整展示 URL */
 const userAvatar = computed(() => resolveUploadUrl(authStore.user?.avatar_url || ""));
 
@@ -162,13 +165,13 @@ onShow(() => {
 /** 拉取统计数据，失败静默降级为 0，不阻塞页面 */
 async function loadStats() {
   const traceId = createTraceId();
-  logInfo("加载统计总览", { trace_id: traceId }, "mine_stats_load", traceId);
+  logInfo("加载统计总览", { trace_id: traceId }, undefined, "mine_stats_load", traceId);
   try {
     stats.value = await getStats();
-    logInfo("统计总览加载成功", { trace_id: traceId }, "mine_stats_loaded", traceId);
+    logInfo("统计总览加载成功", { trace_id: traceId, total_sessions: stats.value?.total_sessions, total_duration: stats.value?.total_duration, total_analyses: stats.value?.total_analyses }, undefined, "mine_stats_loaded", traceId);
   } catch (e) {
     stats.value = null;
-    logError("统计总览加载失败", { trace_id: traceId, error: (e as Error).message }, "mine_stats_load_failed", undefined, traceId);
+    logError("统计总览加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "mine_stats_load_failed", undefined, traceId);
   }
 }
 
@@ -189,6 +192,9 @@ function goEditProfile() {
 }
 
 async function doLogin() {
+  // 并发守卫：登录中忽略重复点击，避免 showLoading/hideLoading 不配对
+  if (loggingIn.value) return;
+  loggingIn.value = true;
   uni.showLoading({ title: "登录中", mask: true });
   try {
     await authStore.login();
@@ -198,6 +204,8 @@ async function doLogin() {
     uni.hideLoading();
     const msg = e instanceof Error ? e.message : "登录失败";
     uni.showToast({ title: msg, icon: "none" });
+  } finally {
+    loggingIn.value = false;
   }
 }
 </script>

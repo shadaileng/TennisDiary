@@ -35,6 +35,7 @@ from app.routers.admin import checkins as admin_checkins
 from app.routers.admin import config as admin_config
 from app.routers.admin import diaries as admin_diaries
 from app.routers.admin import events as admin_events
+from app.routers.admin import files as admin_files
 from app.routers.admin import gears as admin_gears
 from app.routers.admin import posts as admin_posts
 from app.routers.admin import roles as admin_roles
@@ -169,6 +170,7 @@ app.include_router(admin_config.router)
 app.include_router(admin_ai_providers.router)
 app.include_router(admin_events.router)
 app.include_router(admin_audit_logs.router)
+app.include_router(admin_files.router)
 
 # CORS 配置（开发阶段允许所有来源）
 app.add_middleware(

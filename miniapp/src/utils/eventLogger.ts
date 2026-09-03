@@ -44,14 +44,15 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 /** 获取设备信息 */
 function getDeviceInfo(): Record<string, any> {
   try {
-    const info = uni.getSystemInfoSync();
+    const device = uni.getDeviceInfo();
+    const window = uni.getWindowInfo();
     return {
-      platform: info.platform,
-      model: info.model,
-      system: info.system,
-      screenWidth: info.screenWidth,
-      screenHeight: info.screenHeight,
-      brand: info.brand,
+      platform: device.platform,
+      model: device.model,
+      system: device.system,
+      screenWidth: window.screenWidth,
+      screenHeight: window.screenHeight,
+      brand: device.brand,
     };
   } catch {
     return {};
@@ -139,7 +140,7 @@ function flushOne(payload: EventLogPayload): void {
       "Content-Type": "application/json",
       ...(token ? { 'X-Auth-Token': token } : {}),
     },
-    timeout: 5000,
+    timeout: 3000,
     success() {
       // 静默成功
     },
@@ -150,14 +151,23 @@ function flushOne(payload: EventLogPayload): void {
   });
 }
 
-/** 批量防抖 flush（info/warn 使用） */
+/** 取走当前待发送批次并逐条上报 */
+function flushBatchNow(): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  const batch = [...pendingBatch];
+  pendingBatch = [];
+  batch.forEach(flushOne);
+}
+
+/** 批量防抖 flush（info/warn 使用）：3s 后取走并发送当前批次 */
 function batchFlush(): void {
   if (flushTimer) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => {
     flushTimer = null;
-    const batch = [...pendingBatch];
-    pendingBatch = [];
-    batch.forEach(flushOne);
+    flushBatchNow();
   }, BATCH_FLUSH_INTERVAL_MS);
 }
 
@@ -169,11 +179,17 @@ export function createTraceId(): string {
 }
 
 /** 记录信息事件（批量上报） */
-export function logInfo(message: string, extra?: Record<string, any>, action?: string, traceId?: string): void {
+export function logInfo(
+  message: string,
+  extra?: Record<string, any>,
+  type?: EventType,
+  action?: string,
+  traceId?: string,
+): void {
   const currentTraceId = traceId || createTraceId();
   pendingBatch.push({
     level: "info",
-    type: "business",
+    type: type || "business",
     traceId: currentTraceId,
     action,
     message,
@@ -183,19 +199,25 @@ export function logInfo(message: string, extra?: Record<string, any>, action?: s
 }
 
 /** 记录警告事件（批量上报，≥5 条立即触发） */
-export function logWarn(message: string, extra?: Record<string, any>, action?: string, traceId?: string): void {
+export function logWarn(
+  message: string,
+  extra?: Record<string, any>,
+  type?: EventType,
+  action?: string,
+  traceId?: string,
+): void {
   const currentTraceId = traceId || createTraceId();
   pendingBatch.push({
     level: "warn",
-    type: "business",
+    type: type || "business",
     traceId: currentTraceId,
     action,
     message,
     extra,
   });
+  // ≥5 条立即发送（避免阈值批次被清空丢失）；否则走 3s 批量防抖
   if (pendingBatch.length >= BATCH_THRESHOLD) {
-    batchFlush();
-    pendingBatch = [];
+    flushBatchNow();
   } else {
     batchFlush();
   }
@@ -205,6 +227,7 @@ export function logWarn(message: string, extra?: Record<string, any>, action?: s
 export function logError(
   message: string,
   extra?: Record<string, any>,
+  type?: EventType,
   action?: string,
   stack?: string,
   traceId?: string,
@@ -212,7 +235,7 @@ export function logError(
   const currentTraceId = traceId || createTraceId();
   flushOne({
     level: "error",
-    type: "business",
+    type: type || "business",
     traceId: currentTraceId,
     action,
     message,

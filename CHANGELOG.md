@@ -4,6 +4,357 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.7] - 2026-09-02
+
+### Added
+
+- 小程序日记表单「花费明细」新增高频费用学习标签（128）：本地 Pinia store（`stores/costTags.ts`）持久化各费用名目使用频次（storage 键 `td_cost_tags`），首装以默认种子兜底（场地费/教练费/网球/饮料/手胶/穿线）。表单花费卡片头部下方常驻展示频次最高的 6 个快捷标签：点击无同名明细则新增一行并自动聚焦金额输入，已有同名则不重复添加、仅聚焦已有行并轻提示；保存日记成功后 `recordUsed` 累计本次使用的名目频次、首次填写的费用类型自动入池。`App.vue` onLaunch 初始化候选池。
+
+### Changed
+
+- 文档（128）：新增 `docs/plans/128-日记花费明细学习标签.md`，同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
+
+## [1.77.6] - 2026-09-02
+
+### Fixed
+
+- 小程序日记表单「配套装备」选择与手输被挤压（108）：从已有装备选择功能合入即存在结构缺陷——`width:100%` 的「从已有装备选择」选择器被塞进不换行的 flex 单行 `.form-gear-row` 内，把名称/体验输入框与删除键压缩到几乎不可见，导致选择装备后看不到名称填入、手输框也点不到。修复：`.form-gear-row` 加 `flex-wrap`，`.form-gear-select` 改 `flex:0 0 100%` 使其独立换行为上方一整行，输入框与删除键正常排布在下行（上下堆叠，符合 UI 设计）。新增 `gearSelectLabel(i)` 选中回显：已填名称（选择或手输）时按钮文案显示 `✓ 名称`，否则显示默认「📋 从已有装备选择」，消除"赋值后无反馈"的困惑。`type-check` + `build:mp-weixin` 通过。
+
+### Changed
+
+- 文档（108）：方案文档置为 🏁 已完成（v1.1.0），记录根因 git diff 与修复方案；同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度。
+
+## [1.77.5] - 2026-09-02
+
+### Fixed
+
+- 小程序事件日志 `logWarn` 达到批量阈值（≥5）时整批丢失的 P0 缺陷（127）：`batchFlush()` 仅设置 3s 定时器、回调时才读取待发数组，而旧 `logWarn` 在触发阈值后随即清空数组，导致该批 warn 3s 后读到空数组全部丢失。改为抽出 `flushBatchNow()`（清定时器+取走批次+逐条上报），`logWarn` ≥5 条立即发送（真正实现「≥5 立即触发」），否则走 3s 防抖；`logInfo` 维持批量 3s。
+
+### Changed
+
+- 小程序 console 噪音清理（127）：删除 `App.vue` 生命周期日志、`services/request.ts` 每请求 success/fail 日志，以及各 store/页面 `logError` 后重复的 `console.error` 双写（4 store + stats/share/analyze 页），仅保留 `eventLogger` 上报失败的合理提示。
+- 小程序上传/请求封装统一（127）：`pages/coach/analyze.vue` 裸 `uni.uploadFile`（手拼 baseURL + `"td_token"` 魔法字符串）改走 `utils/upload.ts` 的 `uploadRaw`，token/URL/响应解析统一；`services/analysisStatus.ts` token 键改 `STORAGE_KEYS.token`。
+- 小程序死代码清理（127）：`analysisStatus.ts` 删除 SSE 全套死代码（`SSESubscriber`/`isChunkedSupported`/`arrayBufferToString`/`getAnalysisStatus`），精简为纯轮询；`services/auth.ts` 删除无引用 `getMe`；`services/data.ts` 删除无引用 `getCheckins`/`createCheckin`；`utils/index.ts` `resolveUploadUrl` 合并 `gears`/`videos` 相同分支并更正注释。
+- 小程序定时器生命周期修复（127）：`pages/share/share.vue` 保存图片超时定时器提升为模块级句柄并新增 `onUnload` 清理，避免离开页面后仍弹「保存超时」toast。
+- 文档同步（127）：新增 `docs/plans/127-小程序端代码卫生与健壮性优化.md`，同步 AGENTS.md 进度表、docs/README.md、config.mts 侧边栏。
+
+## [1.77.4] - 2026-09-02
+
+### Fixed
+
+- 小程序昵称输入隐私授权修复为**主动引导**方案（126）：真机实测 v2.0.0「依赖微信自动弹窗」不可控——`input type="nickname"` 未授权时静默降级为 `text` 且不触发 `onNeedPrivacyAuthorization`。改为：进入页面保持普通 `text` 输入避免降级；点击昵称（用户手势内）先 `checkPrivacySetting` 查状态，需授权时 `requirePrivacyAuthorize` 拉起官方弹窗，同意后 `:key` 重建为 `type="nickname"` 并聚焦弹出微信昵称选择，拒绝则保持手动输入一次轻提示；`privacyPrompting`/`privacyAttempted` 防重入与防反复打扰。新增 `privacy.ts` 的 `checkPrivacySetting`/`requirePrivacyAuthorize`/`openPrivacyContract`（回调式 API Promise 化，低版本基础库兜底），`env.d.ts` 隐私接口类型改为回调式。
+
+### Changed
+
+- 小程序渲染层错误埋点分级（126）：`App.vue` `wx.onError` 白名单（`showShareMenu`/`getPrivacySetting`/`nickname`/`showNicknameAccessory`）由「整段过滤」改为按 `logWarn` 低打扰上报，其余仍按 `logFatal` 上报，避免掩盖真实逻辑层错误。
+- 小程序「我的」页登录并发守卫（126）：`doLogin` 增加 `loggingIn` 标记，快速连点不重复弹 `showLoading`，保证与 `hideLoading` 配对。
+- 小程序资料编辑页清理重复的 `onShow` 块（126）。
+
+## [1.77.3] - 2026-09-02
+
+### Added
+
+- 小程序渲染层错误全局埋点：`App.vue` 添加 `wx.onError` 监听，上报非关键渲染层错误（126）。
+
+## [1.77.2] - 2026-09-02
+
+### Fixed
+
+- 小程序昵称输入隐私授权修复：`input type="nickname"` 点击时调用 `wx.requirePrivacyAuthorize` 弹出官方隐私授权弹窗，解决 `errno:104` 降级问题（126）。
+
+## [1.77.1] - 2026-09-02
+
+### Changed
+
+- Admin 文件管理端点精简：删除 `GET /files/{id}`（未使用）、`GET /files/{id}/preview`（前端直接构造 URL）、`POST /files/register-all`（合并到 `/register` 空列表触发），端点数 13→11（125）。
+- Admin 文件管理 Schema 精简：移除 `DerivedFileInfo` 类和 `AdminFileResponse.derived_files` 字段（列表不展示，详情端点已删），Schema 类 7→5（125）。
+- Admin 文件注册接口统一：`POST /register` 支持空 `files` 列表自动扫描并注册全部孤儿，替代原 `register-all` 端点（125）。
+
+### Fixed
+
+- Admin 文件列表 N+1 查询修复：移除 `_file_to_response` 中每条文件单独查询派生文件的逻辑（表格不展示），每页省 20 次查询（125）。
+- Admin 文件列表分类查询统一：非 `usage_status` 筛选路径也使用 `bulk_classify_files` 批量分类，替代逐条 `classify_file_usage`（每次查 3 张表），classify 查询从 O(N×K) 降到 O(N)（125）。
+- Admin 文件统计 `unreferenced_count` 查询优化：用 `bulk_classify_files` 替代全表逐条分类循环（125）。
+
+## [1.77.0] - 2026-09-01
+
+### Added
+
+- Admin 分析报告筛选功能：后端新增 `date_from`/`date_to`/`kind`/`mode`/`status` 五个筛选参数，前端新增筛选区域 UI（日期范围、类型、模式、状态下拉）+ 查询/重置按钮（124）。
+- Admin 分析报告行点击查看详情：表格行直接点击打开详情弹窗，无需点击"查看"按钮（124）。
+- Admin Table 组件样式增强：单元格交界添加短竖线分隔（16px 居中），操作列使用 flex 居中显示。
+
+### Changed
+
+- Admin 分析报告列宽优化：隐藏冗余的 `date` 列，为各列添加 `width` 属性（124）。
+- Admin Table 组件单元格 padding 调整：`py-4`（16px）→ `py-2.5`（10px），行高更紧凑。
+- Admin 分析报告封面图片尺寸缩小：`h-10 w-16`（40x64px）→ `h-8 w-12`（32x48px）。
+
+### Fixed
+
+- Admin 分析报告创建时间显示 1970/1/22：前端错误使用 `formatDate`（期望 ISO 字符串），改为 `formatTs`（Unix 秒级时间戳）（124）。
+- Admin 分析报告排序混乱：只按 `date` 排序导致同一天内记录顺序不稳定，新增 `id` 作为二级排序（124）。
+
+## [1.76.13] - 2026-09-01
+
+### Fixed
+
+- 综合分析骨骼视频帧数修复：`pipeline._compute_pose` 在 full 模式下传入 `full_frames=True`，骨架视频帧数与原视频一致（123）。
+- 骨架缩略图独立化：`pose_service` 编码骨架视频后自动提取首帧作为 `_thumb.jpg`，不再依赖 `sk_0000.jpg`（123）。
+- 骨架帧不落库不登记：`pipeline._write_pose_result` 和 `pose._persist_pose` 不再将骨架帧写入 DB 或注册为 File 记录，分析完成后自动清理（123）。
+- 中间帧统一清理：`pipeline._cleanup_intermediate_frames` 同时清理 `_f*.jpg`（抽样帧）和 `_sk*.jpg`（骨架帧）（123）。
+- 删除分析兜底清理：`file_service.decrement_analysis_files` 调用 `_cleanup_orphan_intermediate_frames` 兜底清理残留文件（123）。
+- Admin 分析弹窗骨架帧替换为视频播放器，解决图片列表过长问题（123）。
+
+## [1.76.12] - 2026-08-31
+
+### Added
+
+- 裁剪视频纳入文件管理：管线 `_process_video` 中将裁剪视频（`_seg0.mp4`）登记到 File 表（`upload_source=video_playback`），Admin 文件管理界面可见。
+- 管线完成后自动清理采样帧：`_finalize` 中删除 `_f{i}.jpg` 文件（AI/姿态推理的中间数据），释放磁盘空间。
+
+### Changed
+
+- `pose.skeleton_thumb` 冗余字段移除：pose JSON 不再包含 `skeleton_thumb`，改用 `analysis.thumb`；Admin 分析详情页适配为读取 `a.thumb`。
+
+## [1.76.11] - 2026-08-31
+
+### Added
+
+- `compute_md5_and_size()`：一次磁盘读取同时计算 MD5 和文件大小，避免重复 I/O。
+- `batch_get_or_create_files()`：批量文件登记函数，一次查询 MD5 去重 + 一次 bulk insert，替代逐帧串行调用。
+- `tests/test_file_service_batch.py`：10 个测试用例覆盖批量函数的正常/异常/混合场景。
+
+### Changed
+
+- `pose_service` 骨架帧预计算：`_analyze_full_frames` 和 `_analyze_sampled_frames` 在写入磁盘时同步计算 MD5/size，返回结构改为 `[{rel_path, md5, size, upload_source}, ...]`。
+- `pipeline._write_pose_result` 改为批量模式：骨架帧/视频/封面合并为一次 `batch_get_or_create_files` 调用，两次 `db.commit()` 合并为一次。
+- 状态查询端点返回 `skeleton_video_info` / `skeleton_thumb_info` 替代原有 `skeleton_video_url` / `skeleton_thumb`。
+
+### Fixed
+
+- Pipeline 写表步骤 N+1 查询问题：骨架帧逐帧串行 `get_or_create_file` 改为批量插入，DB 操作从 ~427 次降至 ~3 次，写表耗时从 56.5s 降至 <1s。
+- `ensure_unique_name` 批量优化：批量预查询 original_name 集合，内存内计算唯一名称，避免逐条 DB 查询。
+- pose JSON 写入格式兼容旧版：`_write_pose_result` 写入 DB 前将 `skeleton_frames` 从字典数组转为字符串数组，保持前端期望的旧格式；同时迁移修复已有 Analysis 记录。
+
+## [1.76.10] - 2026-08-30
+
+### Added
+
+- Pipeline 各步骤耗时日志：`run_pipeline` / `_process_video` / `_compute_ai` / `_compute_pose` / `_finalize` 各阶段增加 `time.time()` 计时，日志输出 `管线-视频处理耗时` / `管线-AI评分耗时` / `管线-姿态推理耗时` / `管线-并行计算耗时` / `管线-写表耗时` / `管线完成 total=`。
+- `pipeline_status` JSON 增加顶层计时字段：`started_at` / `completed_at` / `total_duration_s` / `parallel_duration_s`，每个步骤 dict 增加 `duration_s`。
+
+### Changed
+
+- 前端移除旧 118 串行调用：删除 `analyze.vue` 中 `startAnalysis()` 函数（~190行）、`useUnifiedMode` flag、旧 imports；`handleStartAnalysis()` 直接调用 `startAnalysisUnified()`。
+- 前端 `data.ts` 移除旧端点函数：`uploadVideo()` / `analyzeSwing()` / `analyzePose()` / `createAnalysisInit()` / `finalizeAnalysis()`，保留 `generateCaption()` / `createAnalysis()` / `getAnalyses()` 等。
+
+### Fixed
+
+- 管线并发 Session 冲突修复：`PipelineEngine` 拆分为「计算并行 + 写表串行」架构，AI 与姿态检测在 ThreadPoolExecutor 并行执行，DB 写入（score/summary/pose/骨架文件登记）在主线程串行完成，消除 SQLite `InterfaceError: concurrent operations are not permitted`。
+- 管线后台任务 async→def：`run_in_threadpool` 包裹的后台任务函数改为同步 def，避免 Starlette 线程池不执行协程导致事件循环阻塞。
+- 事件端点 async→def：`/api/events` 端点改为同步 def，修复阻塞事件循环导致小程序埋点上报超时。
+- `_compute_ai` 不再使用 DB：AI 配置由主线程预读传入，线程内仅执行纯计算，避免跨线程 Session 冲突。
+- `probe_frame_rate` 帧率探测修复：`-show_entries stream=r_frame_rate,avg_frame_rate` 多行输出导致 `split("/")` 解析失败，回退默认30fps；改为只请求 `r_frame_rate` 并加 `split("\n")[0]` 防御。
+- 骨架视频帧率上限移除：`min(30.0, fps)` 硬上限导致60fps视频骨架播放速度减半，移除后保持原帧率。
+- 批量文件登记 savepoint 隔离：`get_or_create_file` 内 `db.flush()` 约束失败后 session 进入 prepared 状态，后续操作全部报错；改为 `db.begin_nested()` savepoint，单条失败仅回滚该条。
+- `get_or_create_file` 批量插入去重：加 `db.flush()` 确保后续 `ensure_unique_name` 能看到前一条记录，避免同名冲突。
+- `get_or_create_file` MD5/size 内部计算：调用方只需传 `abs_path`，消除各处重复的 `compute_md5_from_path` / `compute_md5_from_bytes` + `get_file_size` 调用。
+- 文件登记统一为 `get_or_create_file`：删除 `register_ai_files` 函数，所有文件登记走同一入口，按 `upload_source` 区分类型。
+- 管线并行步骤异常收集：AI+pose 两个 future 的异常均被捕获，合并错误信息，不再静默丢失。
+- 管线失败状态提示：历史列表显示红色 ✕ 徽章 + "分析失败"，报告页顶部红色横幅。
+- 文件登记统一为 `get_or_create_file`：`analyses.py`、`pose.py`、`video.py`、`upload.py` 所有文件登记调用统一，删除 `register_ai_files` 函数。
+
+## [1.76.9] - 2026-08-30
+
+### Fixed
+
+- 文件名全局唯一：`ensure_unique_name` 去掉 `user_id` 过滤，全用户范围检查重名；DB 唯一约束从 `(user_id, original_name)` 改为 `(original_name)`；`register_ai_files` 每次 `db.add` 后 `flush` 确保同批次去重可见。
+
+## [1.76.8] - 2026-08-30
+
+### Fixed
+
+- `ensure_unique_name` 去重检查包含软删除记录：原逻辑仅查 `deleted_at IS NULL`，但 UNIQUE 约束 `(user_id, original_name)` 包含所有行，软删除记录仍占位导致 INSERT 报 `UNIQUE constraint failed`。
+
+## [1.76.7] - 2026-08-30
+
+### Fixed
+
+- 秒传路径修复：`video.py` 秒传分支错误使用新生成的 UUID 路径（`rel_video`），应使用已有文件的 `file_record.rel_path`，导致 ffprobe 仍指向不存在的文件。
+
+## [1.76.6] - 2026-08-30
+
+### Fixed
+
+- 秒传路径物理文件存在性校验：`get_or_create_file` 增加磁盘文件检查，DB 记录存在但文件已清理时自动降级为普通上传（生成新 UUID 路径），避免 ffprobe 报 `No such file or directory`。回退 always-write 方案，恢复秒传复用已有文件路径的设计。
+
+## [1.76.5] - 2026-08-30
+
+### Fixed
+
+- 视频上传秒传路径修复：秒传（mirage）仅复用 DB 记录，原始文件可能已被清理导致 ffprobe 报 `No such file or directory`。移除 `is_mirage` 条件，始终将上传内容写入磁盘。
+
+## [1.76.4] - 2026-08-30
+
+### Fixed
+
+- 统一日志格式为 f-string：loguru 不支持 `%s` printf 风格参数（被忽略显示为字面量），项目内 17 处日志统一改为 f-string。
+- 修正 AGENTS.md 过时的日志格式规则：明确禁止对异常对象直接 `f"...{exc}"` 拼接（`str()` 含 `{}` 触发 loguru 二次格式化崩溃），允许 `f"...{type(exc).__name__}"` 安全写法。
+
+## [1.76.3] - 2026-08-30
+
+### Fixed
+
+- 视频上传排查日志：写入后记录文件存在性/size/inode，`detect_media_mime` ffprobe 失败时记录 stderr，异常处理器输出完整 `str(exc)` 消息。移除无效的 probe_duration 重试逻辑。
+
+## [1.76.2] - 2026-08-30
+
+### Fixed
+
+- 视频上传 MIME 检测顺序修复：`detect_media_mime` 移到文件写入+size 校验之后，避免对尚未落盘的文件调用 ffprobe。
+- `probe_duration` 文件存在性重试：写入后最多重试 3 次（每次 100ms），防止 Windows 文件系统延迟导致 ffprobe 找不到文件。
+- 修复 `video_service.py` 7 处 f-string 日志违规（AGENTS.md 禁止 loguru 用 f-string）。
+
+## [1.76.1] - 2026-08-30
+
+### Fixed
+
+- 文件注册表去重遗漏：`register_ai_files`（骨架帧注册）和 `register_orphan_files`（孤立文件注册）创建 File 记录时未调用 `ensure_unique_name()`，导致同名文件触发 UNIQUE constraint failed。补齐去重逻辑，冲突时自动追加 `_1`、`_2` 后缀。
+
+## [1.76.0] - 2026-08-29
+
+### Added
+
+- 电子教练分析流水线重构（118）：点击即建 analysis_id，上传/AI评分/姿态三步携带 analysis_id 分步更新同一分析记录；新增 `analysis_video_info` 表登记原视频/裁剪/播放短片/骨架衍生文件；播放短片纳入文件管理，分类边界对齐（原片/抽帧为 unreferenced）；小程序 `startAnalysis` 改为 init→upload→(AI+姿态)→finalize 五步流水线。
+
+## [1.75.6] - 2026-08-28
+
+### Added
+
+- 文件类型探测与 MIME 修复（116）：新增 `app/services/file_type_detector.py` 探测模块（ffprobe + magic bytes 双重检测，17 种媒体类型映射）；Admin 文件管理新增 MIME 分类筛选；批量修复脚本扫描并修正历史文件 `mime_type` 字段。
+
+## [1.75.5] - 2026-08-27
+
+### Fixed
+
+- 文件/备份下载强制 octet-stream 附件并支持 token 双通道鉴权：`admin/system/files` 和 `backups` 下载端点统一返回 `application/octet-stream` + `Content-Disposition: attachment`，阻止浏览器预览行为；支持 `?token=` 查询参数与 `X-Auth-Token` 请求头双通道鉴权，解决 `<a>` 标签原生下载无法携带自定义头的问题。
+- `start-server.py` 跨平台化并启用 uvicorn 热重载：改用 `sys.executable` 确保虚拟环境 Python 路径正确，`--reload` 参数移至默认启用。
+- 修复 `test_cleanup_orphans` 依赖覆盖泄漏：测试 fixture 中 `monkeypatch` 的环境变量在测试结束后未恢复，影响后续用例。
+
+## [1.75.4] - 2026-08-27
+
+### Added
+
+- 提交门禁改跑 fast 轻量子集：`pre-commit` hook 改为仅执行 `pytest -m fast`（纯函数/模型/校验，不依赖 DB 与 TestClient），全量集成测试移交 CI 并行执行；引入 `pytest-testmon` 实现增量测试（只跑受影响用例）。
+- 测试并行化提速：引入 `pytest-xdist`（`-n auto` 并行）+ `StaticPool` 内存库 + session 级 `client` fixture，本地全量测试从 ~2min 降至 ~1min；`verify.sh` 同步改用 `-n auto`。
+
+## [1.75.3] - 2026-08-26
+
+### Added
+
+- Admin 备份下载进度条：备份管理页下载复用 `downloadAdminFile` 的 `onProgress` 回调驱动 `DownloadProgress` 进度条（文件名/已下载/总大小/百分比/取消），与文件管理页下载体验一致。
+
+## [1.75.2] - 2026-08-26
+
+### Added
+
+- Admin 文件流式下载（114）：Chromium 浏览器使用 `showSaveFilePicker` + `WritableStream` 实现零内存流式写入磁盘 + `DownloadProgress` 进度条（文件名/已下载/总大小/百分比/取消按钮），非 Chromium 浏览器自动 fallback 到 `<a>` 标签原生下载。
+
+## [1.75.1] - 2026-08-26
+
+### Fixed
+
+- Admin 文件下载 MP4 另存为卡死修复（114）：Chrome 对 `video/mp4` 自动发送 Range 请求尝试预览，与另存为对话框并发导致 UI 线程死锁。修复方案：删除 Range 分片逻辑，改用 `StreamingResponse` 强制 `Content-Type: application/octet-stream` + `Content-Disposition: attachment`，阻止 Chrome 视频预览行为。前端下载改用 `<a>` 标签替代 `window.open`。12 个后端测试通过。
+
+## [1.75.0] - 2026-08-26
+
+### Added
+
+- Admin 文件预览与分片下载（114）：新增 `GET /{file_id}/download` 端点，支持 Range 请求头实现分片下载（206 Partial Content），前端 1MB 分片 + 右下角进度条（文件名/百分比/已下载/总大小/取消按钮）；新增 `GET /{file_id}/preview` 端点返回 mime_type + preview_url，前端预览弹窗按类型渲染 img/video/audio，不支持的格式提示。表格行操作和详情弹窗底部均增加「预览」「下载」按钮。10 个后端测试通过。
+
+## [1.74.2] - 2026-08-26
+
+### Fixed
+
+- 文件统计「可清除」计数修复：仅统计 `unreferenced` 状态文件，排除已软删的 `marked_deleted`（删除不可逆文件后计数保持不变）。
+- 文件列表「可清除」状态筛选：前端将 `filterUsageStatus` 传给后端 `usage_status` 参数，由后端实时分类后筛选+分页，修复之前 client-side 过滤当前页数据导致筛选结果为空的问题。
+- 文件详情弹窗文件名换行：原始文件名添加 `break-all`，长文件名按字符换行不再撑开弹窗。
+
+### Performance
+
+- usage_status 筛选批量分类：新增 `bulk_classify_files` 预加载全部用户/装备/分析记录，一次分类所有文件，避免 N+1 逐条查询（109 个文件从 ~110 次查询降至 ~5 次）。
+
+## [1.74.1] - 2026-08-25
+
+### Fixed
+
+- Admin 表格宽度优化：移除 `min-w-full` 防止表格挤压侧边栏；新增 `table-layout: fixed` 真正固定列宽（`width` 从最小宽度升级为固定宽度）；支持 `wrap` 列属性，长文本无空格文件名改用 `word-break: break-all` 强制换行；其他列固定宽度、文件名列自适应填满剩余空间。公共 Table 组件增强（`columns` 新增 `wrap`/`align`/`headerClass`/`className` 属性），8 个使用页零影响。
+
+## [1.74.0] - 2026-08-25
+
+### Added
+
+- 多选删除可清除文件（113）：Admin 文件管理列表支持多选并批量删除「可清除」文件（usage_status≠in_use）。公共 Table 组件增强（`columns` 支持 width/align/className，内置 `selectable` 多选列、`rowSelectable` 谓词、`selection-change` 事件、`clearSelection` 暴露方法，8 个使用页零影响）；后端抽出 `file_service.soft_delete_file` 复用单条删除逻辑，新增 `POST /api/admin/files/batch-delete` 返回 `{deleted, skipped, disk_removed, errors}`（空列表返回 400）；前端「批量删除 (N)」按钮仅对可清除文件可选。4 个后端测试通过。
+
+## [1.73.0] - 2026-08-25
+
+### Added
+
+- 立即清理孤儿文件（112）：Admin 扫描弹窗新增「立即清理」按钮，物理删除选中的孤儿文件（未在 File 表中注册的文件）。`file_service.cleanup_orphan_paths(rel_paths)` 物理删除并返回成功数；`POST /api/admin/files/cleanup-orphans` 接受 `CleanupOrphansRequest{files}`，带审计日志。
+
+### Fixed
+
+- 修复文件统计「可清除」计数恒为 0：原用 `ref_count<=0` 聚合，但秒传机制使所有文件 `ref_count>=1`，改为逐条调用 `classify_file_usage` 计数，与列表端点逻辑一致（本地实测 in_use=65 / unreferenced=121）。
+
+## [1.72.0] - 2026-08-25
+
+### Added
+
+- 文件使用标记（111）：基于数据库引用核查标记文件「使用中 / 可清除」。新增 `file_service.classify_file_usage(db, file_record) -> (usage_status, usage_reason)`，按优先级判定：已软删→marked_deleted；ref_count<=0→unreferenced；business_type+business_id 精确路径匹配→in_use/unreferenced；否则按 upload_source 主动查业务表（avatar→User、gear_image→Gear、video/video_frame/skeleton→Analysis）推断；均无引用→unreferenced。`AdminFileResponse`/`OrphanFileInfo` 新增 `usage_status`/`usage_reason`；Admin 列表/统计/扫描弹窗展示状态徽标 + 按状态客户端过滤。24 个后端测试通过。
+
+### Fixed
+
+- 修正 `classify_file_usage` 逻辑：移除 `business_id=None` 硬截断，改为按 `upload_source` 主动查业务表推断，使未绑定 business_id 的新上传文件（头像/装备图/视频）也能正确分类为「使用中」而非一律「可清除」。
+
+## [1.71.0] - 2026-08-24
+
+### Added
+
+- 文件扫描功能（110）：Admin 文件管理新增扫描 uploads 目录功能，可发现未在 File 表中注册的孤立文件；支持批量/单个/一键"纳入管理"操作，自动推断 user_id 和 upload_source；前端新增扫描按钮与扫描结果弹窗。7 个新测试通过。
+
+## [1.70.0] - 2026-08-24
+
+### Added
+
+- 文件管理系统（109）：后端新增独立 File 模型 + MD5 秒传 + ref_count 引用计数 + 软删除联动，统一路径工具到 file_service.py；新增 Admin 文件管理 API（list/detail/stats/delete/cleanup）+ Admin 文件管理前端页；小程序统一上传工具 uploadRaw/uploadFile + 事件钩子，重构 uploadAvatar/uploadGearImage/uploadVideo 三个函数；约束修复（移除 md5 UNIQUE → 新增 original_name UNIQUE，秒传恢复为新建独立记录 + 复用物理路径 + 原记录 ref_count 递增）。430 测试通过。
+
+## [1.69.4] - 2026-08-23
+
+### Fixed
+
+- 小程序：埋点上报优化（107）：新增 `type` 参数支持网络/业务事件分类；`request.ts` 网络错误标记为 `network` 类型；电子教练分析流程拆分为 4 个端点级事件（video_upload/ai_swing/ai_pose/analysis_create）共享同一 traceId；头像更新/分享数据加载增加链路追踪；修复 11 处缺失 trace_id 的日志调用；补全 profile_update/diary_create 业务参数；移除无意义的页面浏览事件。
+- 管理端：事件日志详情弹窗增加 trace_id 一键复制按钮（剪贴板 API + textarea 降级 + toast 提示）。
+
+## [1.66.11] - 2026-08-22
+
+### Fixed
+
+- 小程序：移除电子教练选择视频的 15 秒超时限制，避免大视频在系统相册压缩时误报"选择视频超时"。
+
+## [1.69.3] - 2026-08-22
+
+### Fixed
+
+- 后端：装备图片上传改用服务端文件存储（base64→URL），新增 `/api/upload/gear-image` 端点（含 `imgSecCheck`）；`media.py` `_owned()` 支持 `gears/` 路径；`decorators/audit.py` 修复 `current_user` 提取（审计日志不再 `user_id=None`）。
+- 前端：装备表单/列表图片改用 `resolveUploadUrl()` 显示；`choosePhoto()` 错误传播修复 + `onPickPhoto` 错误提示。
+
+## [1.69.2] - 2026-08-22
+
+### Fixed
+
+- 小程序：iOS 端电子教练选择视频转圈兼容性修复（103）：`uni.chooseVideo` → `uni.chooseMedia` 迁移（已废弃 API 替换），`mediaType: ['video']` 避免 iOS mix 模式 bug，新增 15 秒选择超时检测防止无限转圈，增强隐私声明未配置错误提示。
+
 ## [1.69.1] - 2026-08-22
 
 ### Fixed

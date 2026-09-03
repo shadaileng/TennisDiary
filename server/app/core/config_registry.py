@@ -211,6 +211,24 @@ CONFIG_ITEMS: list[ConfigItemDef] = [
         VALUE_TYPE_STR,
         "POSE_MODEL_PATH",
     ),
+    _it(
+        "pose.full_frames_enabled",
+        "pose",
+        "启用自动逐帧",
+        "短视频自动使用逐帧生成骨架视频（帧数与原视频一致）",
+        VALUE_TYPE_BOOL,
+        "POSE_FULL_FRAMES_ENABLED",
+        editable=True,
+    ),
+    _it(
+        "pose.full_frames_threshold",
+        "pose",
+        "逐帧生成阈值",
+        "视频时长≤此值（秒）时自动使用逐帧骨架生成；0=禁用自动判断",
+        VALUE_TYPE_INT,
+        "POSE_FULL_FRAMES_THRESHOLD",
+        editable=True,
+    ),
     # ===== 日志 =====
     _it(
         "log.level",

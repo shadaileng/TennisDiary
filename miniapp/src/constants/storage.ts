@@ -13,4 +13,6 @@ export const STORAGE_KEYS = {
   settings: "td_settings",
   /** 待上报的离线事件日志（上报失败时缓存，启动时补发） */
   eventLogPending: "td_event_log_pending",
+  /** 费用明细学习标签候选池（高频名目 + 频次，本地持久化） */
+  costTags: "td_cost_tags",
 } as const;

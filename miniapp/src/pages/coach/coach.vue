@@ -29,17 +29,23 @@
         <view class="history-thumb">
           <image v-if="a.thumb" :src="resolveUploadUrl(a.thumb)" mode="aspectFill" class="history-thumb-img" />
           <text v-else class="history-thumb-placeholder">🎾</text>
-          <text v-if="a.pose?.detected" class="thumb-badge">🦴</text>
+          <text v-if="a.status === 'failed'" class="thumb-badge thumb-badge-fail">✕</text>
+          <text v-else-if="a.pose?.detected" class="thumb-badge">🦴</text>
         </view>
         <view class="history-info">
           <view class="history-tags">
             <text class="tag-kind">{{ a.kind }}</text>
             <text class="tag-mode">{{ a.mode === "single" ? "单次挥拍" : "综合分析" }} · {{ a.date }}</text>
           </view>
-          <text class="history-summary">{{ a.summary || "暂无摘要" }}</text>
+          <text class="history-summary">
+            {{ a.status === "failed" ? "分析失败" : (a.summary || "暂无摘要") }}
+          </text>
         </view>
         <view class="history-score">
-          <template v-if="(a.score || 0) > 0">
+          <template v-if="a.status === 'failed'">
+            <text class="score-fail">失败</text>
+          </template>
+          <template v-else-if="(a.score || 0) > 0">
             <text class="score-value">{{ a.score }}</text>
             <text class="score-label">评分</text>
           </template>
@@ -69,14 +75,14 @@ const analyses = ref<Analysis[]>([]);
 
 onShow(async () => {
   const traceId = createTraceId();
-  logInfo("加载历史分析", { trace_id: traceId }, "analyses_load", traceId);
+  logInfo("加载历史分析", { trace_id: traceId }, undefined, "analyses_load", traceId);
   try {
     const data = await getAnalyses();
     analyses.value = data.items || [];
-    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, "analyses_loaded", traceId);
+    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, undefined, "analyses_loaded", traceId);
   } catch (e) {
     analyses.value = [];
-    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, "analyses_load_failed", undefined, traceId);
+    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "analyses_load_failed", undefined, traceId);
   }
 });
 
@@ -249,6 +255,12 @@ function goReport(id: number) {
   justify-content: center;
 }
 
+.thumb-badge-fail {
+  background: #E74C3C;
+  color: $color-white;
+  font-size: 10px;
+}
+
 .history-info {
   flex: 1;
   min-width: 0;
@@ -306,5 +318,11 @@ function goReport(id: number) {
 .score-local {
   font-size: 11px;
   color: $color-olive-light;
+}
+
+.score-fail {
+  font-size: 11px;
+  color: #E74C3C;
+  font-weight: 600;
 }
 </style>

@@ -44,7 +44,7 @@ def audit(action: str, resource_type: str, resource_id_key: str | None = None):
 
             # 自动提取身份（从依赖注入的参数中）
             admin = kwargs.get("admin")
-            user = kwargs.get("user")
+            user = kwargs.get("user") or kwargs.get("current_user")
             if admin:
                 request.state.audit_admin = admin
             if user:

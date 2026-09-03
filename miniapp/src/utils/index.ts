@@ -8,6 +8,7 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
+import { uploadFile } from "@/utils/upload";
 
 import type { CostItem } from "@/types";
 
@@ -37,6 +38,8 @@ export const SESSION_TYPES = ["训练", "比赛", "发球机", "发球练习"] a
 export const GEAR_CATEGORIES = ["球拍", "球鞋", "衣服", "袜子", "帽子", "毛巾", "网球", "其他"] as const;
 /** 动作分析种类 */
 export const ANALYSIS_KINDS = ["综合", "正手", "反手", "截击", "发球", "高压"] as const;
+/** 费用明细快捷标签默认种子（首装/候选池为空时兜底，保证首用即有快捷项；后续由真实填写项按频次挤出） */
+export const DEFAULT_COST_PRESETS = ["场地费", "教练费", "网球", "饮料", "手胶", "穿线"] as const;
 
 // ==================== 日期 / 时间 ====================
 
@@ -114,8 +117,9 @@ export function maskMiddle(value: string | number, keep = 4): string {
 /**
  * 将后端返回的上传文件相对 url 转为可展示的完整 URL。
  * - 头像 `avatars/<user_id>/<uuid>.<ext>` → `/api/upload/avatar/<user_id>/<uuid>.<ext>`
- * - 视频/帧/骨架 `videos/<user_id>/<file>` → `/api/media/videos/<user_id>/<file>?token=`
- *   （小程序 <image>/<video> 无法携带自定义头，媒体组件需 query 传 token）
+ * - 装备图片 / 视频/帧/骨架（`gears/`、`videos/` 开头的相对路径）
+ *   → `/api/media/<url>?token=`（小程序 <image>/<video> 无法携带自定义头，
+ *   媒体组件需 query 传 token，故装备图与视频统一走 media 端点）
  * - 绝对地址（http/data）原样返回
  */
 export function resolveUploadUrl(url: string): string {
@@ -125,7 +129,7 @@ export function resolveUploadUrl(url: string): string {
   if (parts[0] === "avatars" && parts[1] && parts.length >= 3) {
     return `${BASE_URL}${API_PREFIX}/upload/avatar/${parts[1]}/${parts.slice(2).join("/")}`;
   }
-  if (parts[0] === "videos" && parts[1] && parts.length >= 3) {
+  if ((parts[0] === "gears" || parts[0] === "videos") && parts[1] && parts.length >= 3) {
     const token = (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
     const sep = token ? `?token=${encodeURIComponent(token)}` : "";
     return `${BASE_URL}${API_PREFIX}/media/${url}${sep}`;
@@ -136,14 +140,30 @@ export function resolveUploadUrl(url: string): string {
 // ==================== 图片 ====================
 
 /**
- * 选择一张图片并压缩为 dataURL（供 photo 字段存储）。
+ * 上传装备封面图片到服务器，返回相对路径。
+ * 内部使用 uploadFile 统一上传工具，事件钩子由调用方按需注入。
+ */
+export function uploadGearImage(
+  filePath: string,
+  hooks?: { onSuccess?: (url: string, durationMs: number) => void; onFailed?: (error: Error, durationMs: number) => void; onMirage?: (url: string, durationMs: number) => void },
+): Promise<string> {
+  return uploadFile({
+    path: "/upload/gear-image",
+    filePath,
+    onSuccess: (data, durationMs) => hooks?.onSuccess?.(data.url as string, durationMs),
+    onFailed: (error, durationMs) => hooks?.onFailed?.(error, durationMs),
+    onMirage: (data, durationMs) => hooks?.onMirage?.(data.url as string, durationMs),
+  }).then((r) => r.url);
+}
+
+/**
+ * 选择一张图片并上传到服务器（供 photo 字段存储）。
  *
- * 流程：uni.chooseMedia 选图 → uni.compressImage 压缩 → getFileSystemManager
- * 读 base64 → 拼 `data:image/jpeg;base64,` 前缀。
+ * 流程：uni.chooseMedia 选图 → uni.compressImage 压缩 → 上传到服务器。
  * 用户取消选择时返回空字符串。
  */
 export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     uni.chooseMedia({
       count: 1,
       mediaType: ["image"],
@@ -160,23 +180,15 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
           compressedWidth: maxW,
           success: (cres) => {
             const target = cres.tempFilePath || tempPath;
-            uni.getFileSystemManager().readFile({
-              filePath: target,
-              encoding: "base64",
-              success: (fres) => {
-                resolve(`data:image/jpeg;base64,${fres.data}`);
-              },
-              fail: () => resolve(`data:image/jpeg;base64,`),
-            });
+            uploadGearImage(target)
+              .then((url) => resolve(url))
+              .catch((err) => reject(err));
           },
           fail: () => {
-            // 压缩失败时退化为原路径 base64
-            uni.getFileSystemManager().readFile({
-              filePath: tempPath,
-              encoding: "base64",
-              success: (fres) => resolve(`data:image/jpeg;base64,${fres.data}`),
-              fail: () => resolve(""),
-            });
+            // 压缩失败时直接上传原图
+            uploadGearImage(tempPath)
+              .then((url) => resolve(url))
+              .catch((err) => reject(err));
           },
         });
       },

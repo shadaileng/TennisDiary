@@ -65,7 +65,15 @@
           <text class="form-card-title">花费明细</text>
           <text class="form-link" @tap="addCost">＋ 添加</text>
         </view>
-        <text v-if="form.costs.length === 0" class="form-hint">如：场地费 / 教练费 / 网球</text>
+        <view v-if="costTags.length > 0" class="form-cost-tags">
+          <view
+            v-for="p in costTags"
+            :key="p"
+            class="form-cost-tag pill pill--inactive"
+            @tap="tapCostPreset(p)"
+          >{{ p }}</view>
+        </view>
+        <text v-if="form.costs.length === 0" class="form-hint">点击上方常用项或「＋ 添加」记录花费</text>
         <view v-for="(c, i) in form.costs" :key="i" class="form-cost-row">
           <input
             class="field-input"
@@ -81,8 +89,10 @@
               type="digit"
               placeholder="0"
               placeholder-class="field-placeholder"
+              :focus="focusCostIdx === i"
               :value="c.amount ? String(c.amount) : ''"
               @input="onCostAmount(i, $event)"
+              @blur="onCostBlur"
             />
           </view>
           <text class="form-delete" @tap="removeCost(i)">×</text>
@@ -101,6 +111,9 @@
         </view>
         <text v-if="form.gears.length === 0" class="form-hint">球馆 / 球拍 / 穿搭及使用体验</text>
         <view v-for="(g, i) in form.gears" :key="i" class="form-gear-row">
+          <view v-if="gearStore.gears.length > 0" class="form-gear-select" @tap="showGearPicker(i)">
+            <text class="form-gear-select-text">{{ gearSelectLabel(i) }}</text>
+          </view>
           <view class="form-gear-fields">
             <input
               class="field-input"
@@ -158,7 +171,7 @@ import { onLoad } from "@dcloudio/uni-app";
 import EmojiScale from "@/components/EmojiScale.vue";
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useDiaryStore } from "@/stores";
+import { useCostTagsStore, useDiaryStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
 import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
@@ -166,7 +179,9 @@ import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import type { SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
+const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
+const costTagsStore = useCostTagsStore();
 const { themeStyle, themeBg } = useThemeStyle();
 
 interface CostItemInput {
@@ -211,13 +226,23 @@ const costTotalText = computed(() =>
   settingsStore.hideAmounts ? "¥**" : fmtMoney(sumCosts(form.costs)),
 );
 
+/** 高频费用快捷标签（本地学习 top6） */
+const costTags = computed(() => costTagsStore.topPresets);
+/** 当前需要自动聚焦金额框的费用行下标（null 表示无） */
+const focusCostIdx = ref<number | null>(null);
+
 onLoad(async (query) => {
+  // 加载装备列表
+  gearStore.fetchList();
+  // 清除可能的金额框自动聚焦残留
+  focusCostIdx.value = null;
+
   const id = query?.id;
   if (!id) return;
   editingId.value = Number(id);
   uni.setNavigationBarTitle({ title: "编辑日记" });
   const traceId = createTraceId();
-  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, "diary_detail_load", traceId);
+  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, undefined, "diary_detail_load", traceId);
   try {
     const d = await getDiary(editingId.value);
     form.date = d.date;
@@ -230,7 +255,7 @@ onLoad(async (query) => {
     form.gears = d.gears.map((g) => ({ name: g.name, feeling: g.feeling }));
     form.notes = d.notes || "";
   } catch (e) {
-    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, "diary_detail_load_failed", undefined, traceId);
+    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, undefined, "diary_detail_load_failed", undefined, traceId);
     uni.showToast({ title: "日记加载失败", icon: "none" });
   }
 });
@@ -249,10 +274,12 @@ function onDurationInput(e: any) {
 
 function addCost() {
   form.costs.push({ name: "", amount: 0 });
+  focusCostIdx.value = null;
 }
 
 function removeCost(i: number) {
   form.costs.splice(i, 1);
+  if (focusCostIdx.value === i) focusCostIdx.value = null;
 }
 
 function onCostName(i: number, e: any) {
@@ -263,8 +290,46 @@ function onCostAmount(i: number, e: any) {
   form.costs[i].amount = Number(e.detail.value) || 0;
 }
 
+/** 金额框失焦：清除自动聚焦标记，避免页面重渲染/返回时残留 focus */
+function onCostBlur() {
+  focusCostIdx.value = null;
+}
+
+/** 点击高频费用标签：无同名明细则新增一行并聚焦金额输入；已有同名则不重复添加，仅聚焦已有行并轻提示 */
+function tapCostPreset(preset: string) {
+  const idx = form.costs.findIndex((c) => c.name === preset);
+  if (idx >= 0) {
+    focusCostIdx.value = idx;
+    uni.showToast({ title: `已添加「${preset}」，直接填金额即可`, icon: "none" });
+    return;
+  }
+  form.costs.push({ name: preset, amount: 0 });
+  // 下一渲染周期再聚焦，确保行已插入
+  focusCostIdx.value = form.costs.length - 1;
+}
+
 function addGear() {
   form.gears.push({ name: "", feeling: "" });
+}
+
+function showGearPicker(i: number) {
+  const names = gearStore.gears.map((g) => g.name);
+  if (names.length === 0) {
+    uni.showToast({ title: "暂无装备，请手动输入", icon: "none" });
+    return;
+  }
+  uni.showActionSheet({
+    itemList: names,
+    success: (res) => {
+      form.gears[i].name = names[res.tapIndex];
+    },
+  });
+}
+
+/** 装备行顶部按钮文案：已选/手输过名称则回显，否则显示默认引导 */
+function gearSelectLabel(i: number): string {
+  const name = form.gears[i]?.name?.trim();
+  return name ? `✓ ${name}` : "📋 从已有装备选择";
 }
 
 function removeGear(i: number) {
@@ -307,6 +372,8 @@ async function save() {
     } else {
       await diaryStore.create(body);
     }
+    // 保存成功后累计本次使用的费用名目频次（去重），首次名目自动入池
+    costTagsStore.recordUsed(body.costs.map((c) => c.name));
     uni.showToast({ title: isEditing.value ? "日记已更新" : "日记已保存", icon: "success" });
     setTimeout(() => safeNavigateBack("/pages/diary/diary"), 500);
   } catch (e) {
@@ -457,6 +524,20 @@ function confirmRemove() {
   }
 }
 
+.form-cost-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-sm;
+  margin-bottom: $space-md;
+}
+
+.form-cost-tag {
+  /* 胶囊点击反馈：浅底加深，避免与训练时长单选的高亮态混淆 */
+  background-color: var(--color-page-bg, #F2F2EF);
+  color: $color-olive-light;
+  border: 1px solid var(--color-border, #E7E9DF);
+}
+
 .form-cost-row {
   display: flex;
   align-items: center;
@@ -511,9 +592,26 @@ function confirmRemove() {
 
 .form-gear-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: $space-sm;
   margin-bottom: $space-sm;
+}
+
+.form-gear-select {
+  flex: 0 0 100%;
+  width: 100%;
+  background-color: var(--color-page-bg, #F2F2EF);
+  border-radius: 12px;
+  padding: 10px 16px;
+  box-sizing: border-box;
+}
+
+.form-gear-select-text {
+  font-size: 13px;
+  color: $color-olive-light;
+  line-height: 1.4;
+  word-break: break-all;
 }
 
 .form-gear-fields {

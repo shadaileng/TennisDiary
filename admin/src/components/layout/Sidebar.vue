@@ -71,7 +71,8 @@ import {
   WrenchIcon,
   ScaleIcon,
   ChartBarIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  FolderIcon
 } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
@@ -81,7 +82,8 @@ const openMenus = ref<string[]>([])
 
 const iconMap: Record<string, any> = {
   HomeIcon, UsersIcon, ShieldCheckIcon, UserGroupIcon,
-  DocumentTextIcon, WrenchIcon, ScaleIcon, ChartBarIcon, Cog6ToothIcon
+  DocumentTextIcon, WrenchIcon, ScaleIcon, ChartBarIcon, Cog6ToothIcon,
+  FolderIcon
 }
 
 // 从路由自动生成菜单（含子菜单展开）

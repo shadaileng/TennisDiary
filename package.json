@@ -1,6 +1,6 @@
 {
   "name": "workspace",
-  "version": "1.66.10",
+  "version": "1.67.9",
   "description": "",
   "main": "index.js",
   "directories": {
@@ -12,6 +12,7 @@
     "docs:preview": "vitepress preview docs",
     "admin:dev": "pnpm --filter admin dev --host 0.0.0.0",
     "server:dev": "python scripts/start-server.py",
+    "server:test": "cd server && uv run pytest -n auto",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

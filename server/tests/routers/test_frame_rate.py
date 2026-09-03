@@ -7,7 +7,7 @@ from typing import ClassVar
 
 import pytest
 
-from app.services import video_service
+from app.services import file_service, video_service
 
 # ==================== 服务层单测：probe_frame_rate ====================
 
@@ -112,7 +112,7 @@ class TestProcessVideoFrameRate:
             "extract_frames",
             lambda path, times, **kw: [b"\xff\xd8f" + bytes([i]) for i in range(len(times))],
         )
-        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setattr(file_service.settings, "UPLOAD_DIR", str(tmp_path))
         result = video_service.process_video(str(video_path), "single", 2.0)
         assert "frame_rate" in result
         assert result["frame_rate"] == 29.97
@@ -132,7 +132,7 @@ class TestProcessVideoFrameRate:
             "extract_frames",
             lambda path, times, **kw: [b"\xff\xd8f" + bytes([i]) for i in range(len(times))],
         )
-        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setattr(file_service.settings, "UPLOAD_DIR", str(tmp_path))
         result = video_service.process_video(str(video_path), "single", 2.0)
         assert result["frame_rate"] == 30.0
 
@@ -310,7 +310,13 @@ class TestPoseAnalyzeFrameRate:
         received_kwargs = {}
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
         ):
             received_kwargs["frame_rate"] = frame_rate
             return self.FAKE_RESULT
@@ -330,7 +336,13 @@ class TestPoseAnalyzeFrameRate:
         received_kwargs = {}
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
         ):
             received_kwargs["frame_rate"] = frame_rate
             return self.FAKE_RESULT
@@ -349,7 +361,13 @@ class TestPoseAnalyzeFrameRate:
         received_kwargs = {}
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
         ):
             received_kwargs.update(
                 {

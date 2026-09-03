@@ -11,6 +11,7 @@ from app.models.gear import Gear
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.schemas.schemas import GearCreate, GearResponse, GearUpdate
+from app.services import file_service
 
 log = get_logger("user")
 
@@ -88,6 +89,12 @@ def update_gear(
     """编辑装备 — 仅更新传入的字段"""
     gear = _get_owned_gear(db, gear_id, current_user)
 
+    # 如果图片更新，递减旧图片的引用计数
+    if body.photo is not None and body.photo != gear.photo:
+        old_photo = gear.photo
+        if old_photo:
+            file_service.decrement_ref_count(db, current_user.id, old_photo)
+
     if body.category is not None:
         gear.category = body.category
     if body.name is not None:
@@ -114,8 +121,13 @@ def delete_gear(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除装备"""
+    """删除装备（同时递减关联文件引用计数）"""
     gear = _get_owned_gear(db, gear_id, current_user)
+
+    # 递减装备图片的引用计数
+    if gear.photo:
+        file_service.decrement_ref_count(db, current_user.id, gear.photo)
+
     db.delete(gear)
     db.commit()
     log.info("删除装备成功", user_id=current_user.id, gear_id=gear_id)

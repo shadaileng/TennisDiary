@@ -7,9 +7,11 @@
 from app.models.admin import Admin
 from app.models.ai_provider import AiProvider
 from app.models.analysis import Analysis
+from app.models.analysis_video_info import AnalysisVideoInfo
 from app.models.checkin import Checkin
 from app.models.diary import Diary
 from app.models.event_log import EventLog
+from app.models.file import File
 from app.models.gear import Gear
 from app.models.post import Post
 from app.models.role import Role
@@ -21,9 +23,11 @@ __all__ = [
     "Admin",
     "AiProvider",
     "Analysis",
+    "AnalysisVideoInfo",
     "Checkin",
     "Diary",
     "EventLog",
+    "File",
     "Gear",
     "Post",
     "Role",

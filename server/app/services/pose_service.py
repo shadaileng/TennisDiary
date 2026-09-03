@@ -211,6 +211,19 @@ def _decode_frame(frame: str) -> bytes:
         raise ValueError("帧数据不是有效的 base64") from exc
 
 
+def _load_frames_from_urls(frame_urls: list[str]) -> list[str]:
+    """从文件路径读取帧，返回 base64 dataURL 列表"""
+    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+    frames = []
+    for url in frame_urls:
+        path = os.path.normpath(os.path.join(upload_dir, url))
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                data = base64.b64encode(f.read()).decode()
+            frames.append(f"data:image/jpeg;base64,{data}")
+    return frames
+
+
 def draw_skeleton(image_bytes: bytes, landmarks: list[dict]) -> bytes:
     """在帧上叠加绘制 Pose 骨架（对齐 Web drawSkeleton），返回新 JPEG bytes
 
@@ -287,9 +300,47 @@ def _resolve_video_dir(video_url: str) -> tuple[str, str] | None:
     return os.path.dirname(candidate), base
 
 
+def _should_use_full_frames(
+    full_frames: bool | None,
+    save_skeleton: bool,
+    video_url: str | None,
+    duration: float | None,
+) -> bool:
+    """判断是否使用逐帧生成骨架视频
+
+    优先级：
+    1. 前端参数 full_frames=true  → 强制逐帧
+    2. 前端参数 full_frames=false → 强制抽样
+    3. 配置 pose.full_frames_enabled=false → 禁用自动，走抽样
+    4. duration ≤ pose.full_frames_threshold → 自动逐帧
+    5. 其他 → 抽样（7-8帧）
+    """
+    if not save_skeleton or not video_url:
+        return False
+
+    # 显式指定
+    if full_frames is True:
+        return True
+    if full_frames is False:
+        return False
+
+    # 检查配置是否启用
+    if not settings.POSE_FULL_FRAMES_ENABLED:
+        return False
+
+    # 自动判断：时长 ≤ 阈值
+    threshold = settings.POSE_FULL_FRAMES_THRESHOLD
+    if threshold > 0 and duration is not None and duration <= threshold:
+        return True
+
+    return False
+
+
 def _rel_url(abs_path: str) -> str:
-    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）"""
-    return os.path.relpath(abs_path, settings.UPLOAD_DIR).replace(os.sep, "/")
+    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）- 使用 file_service"""
+    from app.services.file_service import abs_path_to_rel
+
+    return abs_path_to_rel(abs_path)
 
 
 def find_ffmpeg() -> str | None:
@@ -310,6 +361,126 @@ def find_ffmpeg() -> str | None:
     return None
 
 
+def _extract_first_frame(video_path: str, out_path: str) -> bool:
+    """从视频提取首帧保存为 JPEG，返回是否成功"""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        return False
+    proc = subprocess.run(
+        [ffmpeg, "-y", "-i", video_path, "-vframes", "1", "-q:v", "2", out_path],
+        capture_output=True,
+        timeout=30,
+    )
+    return proc.returncode == 0 and os.path.isfile(out_path)
+
+
+def extract_all_frames(video_path: str, width: int = 640) -> list[bytes]:
+    """从视频文件逐帧抽取所有帧，返回 JPEG bytes 列表"""
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        return []
+
+    cmd = [
+        ffmpeg,
+        "-i",
+        video_path,
+        "-vf",
+        f"scale={width}:-1",
+        "-q:v",
+        "2",
+        "-f",
+        "image2pipe",
+        "-vcodec",
+        "mjpeg",
+        "pipe:1",
+    ]
+    proc = subprocess.run(cmd, capture_output=True, timeout=300)
+    if proc.returncode != 0:
+        log.warning("逐帧抽取失败", rc=proc.returncode)
+        return []
+
+    # 分割 JPEG 帧（FFDFFD8 开头）
+    frames = []
+    data = proc.stdout
+    start = 0
+    while start < len(data):
+        # 查找下一个 JPEG SOI 标记
+        next_start = data.find(b"\xff\xd8", start + 1)
+        if next_start == -1:
+            frame = data[start:]
+        else:
+            frame = data[start:next_start]
+        if len(frame) > 100:  # 过滤碎片
+            frames.append(frame)
+        if next_start == -1:
+            break
+        start = next_start
+    return frames
+
+
+def analyze_video_file(
+    video_path: str,
+    video_url: str,
+    frame_rate: float | None = None,
+) -> dict:
+    """从视频文件逐帧读取并处理，生成骨架视频（帧数与原视频一致）
+
+    返回 {frames, metrics, detected, skeleton_video_url, skeleton_thumb}
+    """
+    frames = extract_all_frames(video_path)
+    if not frames:
+        raise ValueError("未能从视频中抽取任何帧")
+
+    video_dir = os.path.dirname(video_path)
+    base = os.path.splitext(os.path.basename(video_path))[0]
+
+    results: list[dict] = []
+    metrics = None
+    detected = False
+    skeleton_paths: list[str] = []
+
+    for i, frame_bytes in enumerate(frames):
+        landmarks = detect_pose(frame_bytes)
+        if landmarks is None:
+            results.append({"landmarks": []})
+        else:
+            detected = True
+            results.append({"landmarks": landmarks})
+            if metrics is None:
+                metrics = measure_angles(landmarks)
+
+        # 生成骨架帧
+        if landmarks is not None:
+            sk_bytes = draw_skeleton(frame_bytes, landmarks)
+        else:
+            sk_bytes = frame_bytes
+        sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
+        with open(sk_path, "wb") as out:
+            out.write(sk_bytes)
+        skeleton_paths.append(sk_path)
+
+    # 编码骨架视频（帧率 = 帧数 / 时长，确保播放时长与原视频一致）
+    skeleton_video_url = None
+    skeleton_thumb = _rel_url(skeleton_paths[0]) if skeleton_paths else None
+
+    if skeleton_paths and frame_rate:
+        # 用原视频帧率编码，帧数一致则播放时长一致
+        effective_fps = max(1.0, frame_rate)
+        out_name = f"{base}_skeleton.mp4"
+        out_path = os.path.join(video_dir, out_name)
+        encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
+        if encoded and os.path.isfile(out_path):
+            skeleton_video_url = _rel_url(out_path)
+
+    return {
+        "frames": results,
+        "metrics": metrics,
+        "detected": detected,
+        "skeleton_video_url": skeleton_video_url,
+        "skeleton_thumb": skeleton_thumb,
+    }
+
+
 def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) -> bool:
     """用 ffmpeg 将骨架帧序列编码为 H.264 mp4（微信可播）；失败返回 False 不抛错
 
@@ -328,7 +499,7 @@ def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) 
     frame_base = os.path.splitext(os.path.basename(first_frame))[0]  # e.g. "abc_sk0000"
     pattern = os.path.join(frame_dir, f"{frame_base.rsplit('_sk', 1)[0]}_sk%04d.jpg")
 
-    effective_fps = max(1.0, min(30.0, fps))
+    effective_fps = max(1.0, fps)
     cmd = [
         ffmpeg,
         "-y",
@@ -354,11 +525,13 @@ def encode_skeleton_video(skeleton_paths: list[str], out_path: str, fps: float) 
 
 
 def analyze_frames(
-    frames: list[str],
+    frames: list[str] | None = None,
     video_url: str | None = None,
     save_skeleton: bool = False,
     duration: float | None = None,
     frame_rate: float | None = None,
+    full_frames: bool | None = None,
+    frame_urls: list[str] | None = None,
 ) -> dict:
     """逐帧推理编排，返回 {frames, metrics, detected, skeleton_*}
 
@@ -368,15 +541,154 @@ def analyze_frames(
     - skeleton_frames: 骨架帧相对 URL 数组（仅 save_skeleton + video_url 时）
     - skeleton_video_url: 骨架关键帧动画 mp4 相对 URL（ffmpeg 可用时）
     - skeleton_thumb: 封面骨架帧相对 URL（取首次可测帧，否则第一帧）
+    - full_frames: None=自动判断，true=强制逐帧，false=强制抽样
+    - frame_urls: 帧文件相对路径数组（优先使用）
     """
+    # 优先使用 frame_urls
+    if frame_urls:
+        frames = _load_frames_from_urls(frame_urls)
+    if not frames:
+        raise ValueError("无有效帧数据")
+
+    # 判断是否使用逐帧生成
+    use_full = _should_use_full_frames(full_frames, save_skeleton, video_url, duration)
+
+    if use_full:
+        # 逐帧生成：从视频文件读取全部帧
+        return _analyze_full_frames(video_url, frame_rate)
+    else:
+        # 抽样生成：处理传入的 frames
+        return _analyze_sampled_frames(frames, video_url, save_skeleton, duration, frame_rate)
+
+
+def _analyze_full_frames(
+    video_url: str | None,
+    frame_rate: float | None,
+) -> dict:
+    """从视频文件逐帧读取并处理，生成骨架视频（帧数与原视频一致）"""
+    if not video_url:
+        raise ValueError("video_url 不能为空")
+
+    resolved = _resolve_video_dir(video_url)
+    if resolved is None:
+        raise ValueError("video_url 非法或不存在")
+    video_dir, base = resolved
+
+    video_path = os.path.join(video_dir, f"{base}.mp4")
+    if not os.path.isfile(video_path):
+        raise ValueError("视频文件不存在")
+
+    extracted_frames = extract_all_frames(video_path)
+    if not extracted_frames:
+        raise ValueError("未能从视频中抽取任何帧")
+
+    from app.services import file_service
+
+    results: list[dict] = []
+    metrics = None
+    detected = False
+    skeleton_paths: list[str] = []
+    skeleton_info: list[dict] = []  # 包含预计算 MD5/size
+
+    for i, frame_bytes in enumerate(extracted_frames):
+        landmarks = detect_pose(frame_bytes)
+        if landmarks is None:
+            results.append({"landmarks": []})
+        else:
+            detected = True
+            results.append({"landmarks": landmarks})
+            if metrics is None:
+                metrics = measure_angles(landmarks)
+
+        # 生成骨架帧
+        if landmarks is not None:
+            sk_bytes = draw_skeleton(frame_bytes, landmarks)
+        else:
+            sk_bytes = frame_bytes
+        sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
+        with open(sk_path, "wb") as out:
+            out.write(sk_bytes)
+
+        # 预计算 MD5 + size（一次磁盘读取）
+        md5, size = file_service.compute_md5_and_size(sk_path)
+
+        skeleton_paths.append(sk_path)
+        skeleton_info.append(
+            {
+                "rel_path": _rel_url(sk_path),
+                "md5": md5,
+                "size": size,
+                "upload_source": "skeleton_frame",
+            }
+        )
+
+    # 编码骨架视频
+    skeleton_video_url = None
+    skeleton_video_info = None
+    skeleton_thumb = None
+    skeleton_thumb_info = None
+
+    if skeleton_paths and frame_rate:
+        effective_fps = max(1.0, frame_rate)
+        out_name = f"{base}_skeleton.mp4"
+        out_path = os.path.join(video_dir, out_name)
+        encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
+        if encoded and os.path.isfile(out_path):
+            skeleton_video_url = _rel_url(out_path)
+            md5, size = file_service.compute_md5_and_size(out_path)
+            skeleton_video_info = {
+                "rel_path": skeleton_video_url,
+                "md5": md5,
+                "size": size,
+                "upload_source": "skeleton_video",
+            }
+
+            # 提取骨架视频首帧作为永久缩略图（独立文件，不依赖 sk*.jpg）
+            thumb_name = f"{base}_thumb.jpg"
+            thumb_path = os.path.join(video_dir, thumb_name)
+            _extract_first_frame(out_path, thumb_path)
+            if os.path.isfile(thumb_path):
+                md5, size = file_service.compute_md5_and_size(thumb_path)
+                skeleton_thumb = _rel_url(thumb_path)
+                skeleton_thumb_info = {
+                    "rel_path": skeleton_thumb,
+                    "md5": md5,
+                    "size": size,
+                    "upload_source": "skeleton_thumb",
+                }
+
+    return {
+        "frames": results,
+        "metrics": metrics,
+        "detected": detected,
+        "skeleton_frames": skeleton_info,
+        "skeleton_video_url": skeleton_video_url,
+        "skeleton_video_info": skeleton_video_info,
+        "skeleton_thumb": skeleton_thumb,
+        "skeleton_thumb_info": skeleton_thumb_info,
+    }
+
+
+def _analyze_sampled_frames(
+    frames: list[str],
+    video_url: str | None,
+    save_skeleton: bool,
+    duration: float | None,
+    frame_rate: float | None,
+) -> dict:
+    """处理抽样的帧（原有逻辑）"""
+    from app.services import file_service
+
     results: list[dict] = []
     metrics = None
     detected = False
     metrics_sk_idx: int | None = None
     skeleton_paths: list[str] = []
-    skeleton_rel: list[str] = []
+    skeleton_info: list[dict] = []  # 包含预计算 MD5/size
     skeleton_thumb = None
+    skeleton_thumb_info = None
     skeleton_video_url = None
+    skeleton_video_info = None
 
     video_dir = None
     base = None
@@ -392,26 +704,42 @@ def analyze_frames(
         landmarks = detect_pose(image_bytes)
         if landmarks is None:
             results.append({"landmarks": []})
-            continue
-        detected = True
-        results.append({"landmarks": landmarks})
-        if metrics is None:
-            metrics = measure_angles(landmarks)
-            metrics_sk_idx = sk_idx
+        else:
+            detected = True
+            results.append({"landmarks": landmarks})
+            if metrics is None:
+                metrics = measure_angles(landmarks)
+                metrics_sk_idx = sk_idx
+        # 所有帧都生成骨架帧：有人绘制骨架，无人使用原图
         if save_skeleton and video_dir is not None:
-            sk_bytes = draw_skeleton(image_bytes, landmarks)
+            if landmarks is not None:
+                sk_bytes = draw_skeleton(image_bytes, landmarks)
+            else:
+                sk_bytes = image_bytes  # 无人检测时使用原图
             sk_path = os.path.join(video_dir, f"{base}_sk{sk_idx:04d}.jpg")
             with open(sk_path, "wb") as out:
                 out.write(sk_bytes)
+
+            # 预计算 MD5 + size（一次磁盘读取）
+            md5, size = file_service.compute_md5_and_size(sk_path)
+
             skeleton_paths.append(sk_path)
-            skeleton_rel.append(_rel_url(sk_path))
+            skeleton_info.append(
+                {
+                    "rel_path": _rel_url(sk_path),
+                    "md5": md5,
+                    "size": size,
+                    "upload_source": "skeleton_frame",
+                }
+            )
             sk_idx += 1
 
-    if skeleton_rel:
-        if metrics_sk_idx is not None and metrics_sk_idx < len(skeleton_rel):
-            skeleton_thumb = skeleton_rel[metrics_sk_idx]
+    if skeleton_info:
+        if metrics_sk_idx is not None and metrics_sk_idx < len(skeleton_info):
+            skeleton_thumb_info = skeleton_info[metrics_sk_idx]
         else:
-            skeleton_thumb = skeleton_rel[0]
+            skeleton_thumb_info = skeleton_info[0]
+        skeleton_thumb = skeleton_thumb_info["rel_path"]
     if skeleton_paths and video_dir is not None:
         # 骨骼视频帧率 = 帧数/时长，确保播放时长与原视频一致
         effective_fps = (len(skeleton_paths) / duration) if duration else 2.0
@@ -420,12 +748,35 @@ def analyze_frames(
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
         if encoded and os.path.isfile(out_path):
             skeleton_video_url = _rel_url(out_path)
+            md5, size = file_service.compute_md5_and_size(out_path)
+            skeleton_video_info = {
+                "rel_path": skeleton_video_url,
+                "md5": md5,
+                "size": size,
+                "upload_source": "skeleton_video",
+            }
+
+            # 提取骨架视频首帧作为永久缩略图（独立文件，不依赖 sk*.jpg）
+            thumb_name = f"{base}_thumb.jpg"
+            thumb_path = os.path.join(video_dir, thumb_name)
+            _extract_first_frame(out_path, thumb_path)
+            if os.path.isfile(thumb_path):
+                md5, size = file_service.compute_md5_and_size(thumb_path)
+                skeleton_thumb = _rel_url(thumb_path)
+                skeleton_thumb_info = {
+                    "rel_path": skeleton_thumb,
+                    "md5": md5,
+                    "size": size,
+                    "upload_source": "skeleton_thumb",
+                }
 
     return {
         "frames": results,
         "metrics": metrics,
         "detected": detected,
-        "skeleton_frames": skeleton_rel,
+        "skeleton_frames": skeleton_info,
         "skeleton_video_url": skeleton_video_url,
+        "skeleton_video_info": skeleton_video_info,
         "skeleton_thumb": skeleton_thumb,
+        "skeleton_thumb_info": skeleton_thumb_info,
     }

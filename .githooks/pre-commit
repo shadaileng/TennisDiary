@@ -22,8 +22,10 @@ uv run ruff format --check . || {
     exit 1
 }
 
-echo "==> [2/2] pytest 测试"
-uv run pytest -q || {
+echo "==> [2/2] pytest 测试（仅 fast 轻量子集，全量由 CI 并行执行）"
+# 提交门禁仅跑标记为 fast 的纯函数/模型/校验类用例（不依赖 DB 与 TestClient，秒级）；
+# 全量集成测试交由 CI（.github/workflows/test-server.yml，pytest -n auto）执行。
+uv run pytest -q -n auto -m fast || {
     echo "❌ 测试未通过，请修复后再提交"
     exit 1
 }

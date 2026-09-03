@@ -10,7 +10,7 @@
 2. **绝不后台自启服务**（`nohup`/`&`/`subprocess.Popen` 等）。服务由人类启动。
 3. **提交前必须跑验证**。后端 `ruff check` + `ruff format` + `pytest`；前端 `type-check` + `build`。任一失败/有变更 → **先修复，禁止提交**。
 4. **改共享响应模型前，先 `grep` 全量构造点**，确认新增/必填字段在每处都已传入；优先用工厂函数或 `model_validate`。
-5. **异常日志**用 `%s` 风格，**禁止** `f"...{exc}"` 拼接（会触发 loguru 二次 `.format()` 崩溃，掩盖真实错误）。
+5. **异常日志**禁止直接插值异常对象 `f"...{exc}"`（异常 `str()` 含 `{}` 会导致 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误）。应写 `log.error(f"处理失败: {type(exc).__name__}")` 或 `log.error("处理失败: %s", exc)`。
 
 > 任何一条被违反，都是事故。宁可停下询问人类，也不要绕过。
 
@@ -80,12 +80,16 @@ AI 协作者**只能提交（commit），不能推送（push）**。所有推送
 修改后端代码后，提交前必须依次执行：
 
 ```bash
-cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q
+cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast
 ```
+
+> 提交门禁仅跑 `fast` 轻量子集（纯函数/模型/校验，不依赖 DB 与 TestClient，秒级）。
+> 全量集成测试由 CI（`.github/workflows/test-server.yml`，`pytest -n auto`）在 push/PR 时并行执行。
+> 本地想跑全量：`uv run pytest -n auto`；只跑受影响用例：`uv run pytest --testmon -n auto`。
 
 - `ruff check` 有 error 时禁止提交，先修复
 - `ruff format` 有变更时先格式化再提交
-- `pytest` 有失败时禁止提交，先修复
+- `pytest -m fast` 有失败时禁止提交，先修复（全量失败由 CI 拦截）
 
 修改前端代码后，提交前必须依次执行：
 
@@ -153,7 +157,7 @@ cd admin && pnpm build                 # 构建管理端
 
 1. **改动字段前先全量检索构造点**：`grep "<ModelName>"` 找出所有 `ModelName(...)` 手写构造与 `model_validate` 调用点，逐一核对新增/必填字段是否都已传入。
 2. **优先用工厂函数或 `model_validate`**，而非在各路由重复手写字段构造。新增必填字段时，工厂函数只需改一处，避免散落各处的 `ModelName(id=..., ...)` 漏改导致 `ValidationError` → 500。参考 `app/routers/admin/admins.py` 的 `_admin_to_response`。
-3. **异常日志禁止对异常对象用 f-string 拼接**：`logger.error(f"未处理的异常: {exc}")` 会因异常 `str()` 含 `{}` 触发 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误。一律使用 `%s` 风格：`logger.error("未处理的异常: %s", exc, exc_info=True)`。
+3. **异常日志禁止对异常对象用 f-string 拼接**：`logger.error(f"未处理的异常: {exc}")` 会因异常 `str()` 含 `{}` 触发 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误。应写 `log.error(f"未处理的异常: {type(exc).__name__}")` 或 `log.error("未处理的异常: %s", exc)`。
 4. 修改后必须运行该模型的全部相关测试（`pytest tests/routers/admin/test_auth.py` 等），确认无 `ValidationError` 后再提交。
 
 ### 6.2 前端
@@ -253,6 +257,23 @@ cd admin && pnpm build                 # 构建管理端
 | 99 | 电子教练时间轴多段剪辑（剪映式轨道 + 固定播放头 + 放大镜缩放控件 + 开闭段多段流程 + 开放起点标记 + 击球瞬间自动跟随 + 服务端 ffmpeg 裁切拼接） | ✅ |
 | 101 | 后端日志细化与异常静默处理修复（全面审计 11 个文件 25+ 处异常处理：`pass` → log、`from None` → `from exc` + log、`exc_info=True`、`print()` → loguru） | ✅ |
 | 102 | 操作审计日志（中间件+装饰器架构，41端点全量装饰器含登录，独立审计库 `audit.db`，Admin 查询端点 + 前端审计日志页，13 测试通过，created_at 用 UTC Z 后缀消除时区依赖） | ✅ |
+| 103 | 小程序 iOS 端 chooseVideo 选择视频转圈兼容性修复（`uni.chooseVideo` → `uni.chooseMedia` 迁移 + 15s 超时检测 + 隐私声明错误提示增强） | ✅ |
+| 104 | 微信内容安全API集成（`imgSecCheck`/`mediaCheckAsync` + 装备图片 base64→URL 迁移 + gear-image 端点 + 审计装饰器修复） | 🚧 进行中 |
+| 105 | 骨架视频逐帧生成条件分支（`full_frames` 参数 + 配置阈值 + 自动判断，短视频 ≤3秒自动逐帧生成） | ✅ |
+| 106 | 帧引用传递优化（前端改传 `frame_urls` 替代 `frames` base64，传输量从 4.2MB 降至 600B） | ✅ |
+| 107 | 小程序埋点上报优化（事件链路端点级追踪 + 参数补全 + 网络类型分类 + Admin trace_id 复制） | ✅ |
+| 110 | Admin 分页组件页码按钮优化（首尾常驻 + 中间最多 3 个连续数字 + `…` 分隔 + 当前页高亮） | ✅ |
+| 118 | 分析流水线重构与视频信息表（点击即建 analysis_id；上传/AI评分/姿态三步携带 analysis_id 分步更新同一行；analysis_video_info 表登记原视频/裁剪/播放短片/骨架衍生文件；播放短片纳入文件管理 + 分类边界对齐；小程序 startAnalysis 五步流水线） | ✅ |
+| 119 | 电子教练后台任务队列与管线模式（统一上传端点 + BackgroundTasks 异步管线 + pipeline_status JSON 追踪 + 轮询/SSE 混合订阅 + 自动重试；计算并行+写表串行架构；修复 probe_frame_rate 多行输出、骨架帧率上限、批量登记 savepoint 隔离、并行步骤异常收集） | ✅ |
+| 120 | Pipeline 耗时日志与前端旧模式清理（各步骤 duration_s + 顶层计时 + 前端移除旧 118 串行调用） | ✅ |
+| 121 | Pipeline 写表步骤批量插入优化（预计算 MD5/size + 批量文件登记 + 合并 commit，56.5s→<1s） | ✅ |
+| 122 | 管线文件管理优化（裁剪视频纳入文件管理 + 采样帧清理 + 移除 skeleton_thumb 冗余字段） | 🚧 |
+| 124 | Admin 分析报告时间修复与筛选功能（修复创建时间显示 1970/1/22 + 排序混乱 + 添加筛选条件与查询按钮） | ✅ |
+| 125 | Admin 文件管理简化与查询优化（删减 get_file/preview/register-all 端点 + 移除 DerivedFileInfo + 统一 bulk_classify_files + 列表 N+1 修复） | ✅ |
+| 126 | 小程序昵称输入隐私授权修复 v3（主动隐私引导：未授权用 text 输入防降级 + 手势内 `requirePrivacyAuthorize` + 授权后切 nickname 聚焦；渲染层错误分级埋点；登录并发守卫） | ✅ |
+| 127 | 小程序端代码卫生与健壮性优化（eventLogger `logWarn` 阈值丢日志 P0 修复 + console 噪音清理 + analyze 裸上传统一 `uploadRaw` + analysisStatus SSE 死代码/token 收口 + getMe/checkins 死导出清理 + resolveUploadUrl 分支合并 + share 定时器 onUnload 清理） | ✅ |
+| 108 | 日记装备关联选择与手写（从已有装备选择 + 手动输入；修复装备选择区 flex 布局挤压：`.form-gear-row` 加 `flex-wrap` + 选择器 `flex:0 0 100%` 独立换行 + 选中/手输名称回显 `✓`） | ✅ |
+| 128 | 日记花费明细学习标签（costTags store 本地持久化名目频次 + `td_cost_tags` 键 + 默认种子六项 + 保存后 recordUsed 累计/首次入池 + form.vue top6 胶囊标签区与点击新增/聚焦金额交互） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

@@ -239,7 +239,13 @@ class TestAnalyzeFramesSaveSkeleton:
                 f.write(b"mp4")
             return True
 
+        def fake_extract_frame(video_path, out_path):
+            with open(out_path, "wb") as f:
+                f.write(b"\xff\xd8thumb\xff\xd9")
+            return True
+
         monkeypatch.setattr(ps, "encode_skeleton_video", fake_encode)
+        monkeypatch.setattr(ps, "_extract_first_frame", fake_extract_frame)
         self._setup_video(data_dir)
         monkeypatch.setattr(ps.settings, "UPLOAD_DIR", str(data_dir / "uploads"))
 
@@ -249,12 +255,15 @@ class TestAnalyzeFramesSaveSkeleton:
             save_skeleton=True,
             duration=10.0,
         )
-        assert result["skeleton_frames"] == [
-            "videos/1/abc_sk0000.jpg",
-            "videos/1/abc_sk0001.jpg",
-        ]
+        # skeleton_frames 现在返回字典列表（包含 rel_path, md5, size, upload_source）
+        assert len(result["skeleton_frames"]) == 2
+        assert result["skeleton_frames"][0]["rel_path"] == "videos/1/abc_sk0000.jpg"
+        assert result["skeleton_frames"][1]["rel_path"] == "videos/1/abc_sk0001.jpg"
+        assert result["skeleton_frames"][0]["upload_source"] == "skeleton_frame"
         assert result["skeleton_video_url"] == "videos/1/abc_skeleton.mp4"
-        assert result["skeleton_thumb"] == "videos/1/abc_sk0000.jpg"
+        # skeleton_thumb 现在指向独立缩略图（_thumb.jpg），不再是 sk_0000.jpg
+        assert result["skeleton_thumb"] is not None
+        assert "thumb" in result["skeleton_thumb"]
         assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0000.jpg").is_file()
         assert (data_dir / "uploads" / "videos" / "1" / "abc_sk0001.jpg").is_file()
 
@@ -333,13 +342,19 @@ class TestPoseAnalyze:
         from app.routers import pose as pose_router
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
-        monkeypatch.setattr(
-            pose_router.pose_service,
-            "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None: (
-                self.FAKE_RESULT
-            ),
-        )
+
+        def fake_analyze(
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
+        ):
+            return self.FAKE_RESULT
+
+        monkeypatch.setattr(pose_router.pose_service, "analyze_frames", fake_analyze)
         response = auth_client.post("/api/pose/analyze", json=self.VALID_PAYLOAD)
         assert response.status_code == 200
         data = response.json()["data"]
@@ -352,15 +367,23 @@ class TestPoseAnalyze:
         from app.routers import pose as pose_router
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
-        monkeypatch.setattr(
-            pose_router.pose_service,
-            "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None: {
+
+        def fake_analyze(
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
+        ):
+            return {
                 "frames": [{"landmarks": []}],
                 "metrics": None,
                 "detected": False,
-            },
-        )
+            }
+
+        monkeypatch.setattr(pose_router.pose_service, "analyze_frames", fake_analyze)
         response = auth_client.post("/api/pose/analyze", json=self.VALID_PAYLOAD)
         assert response.status_code == 200
         data = response.json()["data"]
@@ -381,7 +404,15 @@ class TestPoseAnalyze:
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
 
-        def boom(frames, video_url=None, save_skeleton=False, duration=None):
+        def boom(
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
+        ):
             raise pose_service.PoseUnavailableError("模型加载失败")
 
         monkeypatch.setattr(pose_router.pose_service, "analyze_frames", boom)
@@ -394,12 +425,12 @@ class TestPoseAnalyze:
         assert response.status_code in (401, 403)
 
     def test_analyze_empty_frames(self, auth_client, monkeypatch):
-        """空 frames → 422 参数校验失败"""
+        """空 frames → 400 无有效帧数据"""
         from app.routers import pose as pose_router
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
         response = auth_client.post("/api/pose/analyze", json={"frames": []})
-        assert response.status_code == 422
+        assert response.status_code == 400
 
     def test_analyze_save_skeleton(self, auth_client, monkeypatch):
         """save_skeleton + video_url → 200 + 骨架三字段透传"""
@@ -414,7 +445,13 @@ class TestPoseAnalyze:
         }
 
         def fake_analyze(
-            frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
         ):
             assert video_url == "videos/1/abc.mp4"
             assert save_skeleton is True
@@ -438,13 +475,19 @@ class TestPoseAnalyze:
         from app.routers import pose as pose_router
 
         monkeypatch.setattr(pose_router.pose_service, "is_available", lambda: True)
-        monkeypatch.setattr(
-            pose_router.pose_service,
-            "analyze_frames",
-            lambda frames, video_url=None, save_skeleton=False, duration=None, frame_rate=None: (
-                _throw(ValueError("video_url 非法或不存在"))
-            ),
-        )
+
+        def fake_analyze(
+            frames,
+            video_url=None,
+            save_skeleton=False,
+            duration=None,
+            frame_rate=None,
+            full_frames=None,
+            frame_urls=None,
+        ):
+            return _throw(ValueError("video_url 非法或不存在"))
+
+        monkeypatch.setattr(pose_router.pose_service, "analyze_frames", fake_analyze)
         payload = {**self.VALID_PAYLOAD, "video_url": "../evil.mp4", "save_skeleton": True}
         response = auth_client.post("/api/pose/analyze", json=payload)
         assert response.status_code == 400

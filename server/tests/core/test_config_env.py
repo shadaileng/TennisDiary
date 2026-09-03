@@ -1,5 +1,9 @@
 """配置环境感知加载测试（Step 73）"""
 
+import pytest
+
+pytestmark = pytest.mark.fast
+
 
 def test_app_env_is_test():
     """pytest 运行时应注入 APP_ENV=test"""

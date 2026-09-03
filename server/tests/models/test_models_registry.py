@@ -5,7 +5,11 @@
 若新增模型未在 __init__ 导出，此处将失败。
 """
 
+import pytest
+
 from app.core.database import Base
+
+pytestmark = pytest.mark.fast
 
 EXPECTED_TABLES = {
     "users",

@@ -166,12 +166,20 @@ class CheckinResponse(CheckinCreate):
 
 
 class AnalyzeRequest(BaseModel):
-    """AI 分析请求：frames 为按时间顺序抽取的关键帧（base64/dataURL）"""
+    """AI 分析请求：优先使用 frame_urls（后端读文件），兼容 frames（前端直传）"""
 
-    frames: list[str] = Field(min_length=1, description="关键帧 base64/dataURL 数组")
+    frames: list[str] | None = Field(
+        default=None, description="关键帧 base64/dataURL 数组（兼容旧版）"
+    )
+    frame_urls: list[str] | None = Field(
+        default=None, description="帧文件相对路径数组（推荐，后端读文件）"
+    )
     kind: str = Field(default="综合", description="击球类型（正手/反手/发球/截击/高压/综合）")
     mode: Literal["single", "full"] = Field(
         default="single", description="single=单次挥拍 / full=综合分析"
+    )
+    analysis_id: int | None = Field(
+        default=None, description="关联分析记录 ID（118 流水线：分步更新同一行）"
     )
 
 
@@ -183,7 +191,7 @@ class DimensionScore(BaseModel):
 
 class ImprovementItem(BaseModel):
     issue: str
-    advice: str
+    advice: str = ""
 
 
 class AnalysisReportSchema(BaseModel):
@@ -210,10 +218,27 @@ class AnalysisCreate(BaseModel):
     pose: dict | None = None
 
 
+class AnalysisInitRequest(BaseModel):
+    """分析初始化请求（118 流水线步骤1）：仅建记录占位，返回 analysis_id"""
+
+    date: str = Field(description="分析日期 YYYY-MM-DD")
+    kind: str = Field(default="综合", description="击球类型")
+    mode: str = Field(default="single", description="single / full")
+
+
+class AnalysisUpdate(BaseModel):
+    """分析更新请求（118 流水线步骤5 finalize）：仅置状态"""
+
+    status: Literal["completed"] | None = Field(
+        default=None, description="置 completed 收尾；最终是否落库由后端按 video_url 判定"
+    )
+
+
 class AnalysisResponse(AnalysisCreate):
     id: int
     user_id: int
     created_at: float
+    status: str = "processing"
 
     model_config = {"from_attributes": True}
 

@@ -11,7 +11,6 @@ import re
 import shutil
 import subprocess
 
-from app.core.config import settings
 from app.core.logging import get_logger
 
 log = get_logger("user")
@@ -138,7 +137,7 @@ def probe_frame_rate(path: str) -> float:
                 "-select_streams",
                 "v:0",
                 "-show_entries",
-                "stream=r_frame_rate,avg_frame_rate",
+                "stream=r_frame_rate",
                 "-of",
                 "default=nw=1:nk=1",
                 path,
@@ -147,7 +146,9 @@ def probe_frame_rate(path: str) -> float:
             timeout=30,
         )
         if proc.returncode == 0:
-            frame_rate_str = proc.stdout.decode().strip()
+            raw = proc.stdout.decode().strip()
+            # ffprobe 可能输出多行（每行一个 stream），只取第一行
+            frame_rate_str = raw.split("\n")[0].strip() if raw else ""
             if frame_rate_str:
                 try:
                     # 处理分数格式如 "30000/1001"
@@ -156,7 +157,7 @@ def probe_frame_rate(path: str) -> float:
                         return float(num) / float(den)
                     return float(frame_rate_str)
                 except (ValueError, ZeroDivisionError):
-                    log.debug(f"帧率字符串解析失败: {frame_rate_str!r}，使用默认 30fps")
+                    log.debug("帧率字符串解析失败: %r，使用默认 30fps", frame_rate_str)
     return 30.0  # 默认帧率
 
 
@@ -419,7 +420,7 @@ def process_video(
         working = trim_and_concat(path, segments, mode)
         log.info(f"trim_and_concat returned: working={working} exists={os.path.isfile(working)}")
         if working != path and os.path.isfile(path):
-            os.unlink(path)  # 裁剪后原完整视频不再保留
+            pass  # 保留原片，不删除（118：原视频应由文件管理手动操作）
         # 重探测裁剪产物的时长/帧率（拼接结果实际值）
         duration = probe_duration(working)
         frame_rate = probe_frame_rate(working)
@@ -450,8 +451,10 @@ def process_video(
         frame_path = os.path.join(video_dir, frame_name)
         with open(frame_path, "wb") as out:
             out.write(frame)
-        rel_frame = os.path.relpath(frame_path, settings.UPLOAD_DIR).replace(os.sep, "/")
-        frame_urls.append(f"videos/{rel_frame}")
+        from app.services.file_service import abs_path_to_rel
+
+        rel_frame = abs_path_to_rel(frame_path)
+        frame_urls.append(rel_frame)
 
     return {
         "frames": [_to_data_url(f) for f in frames],

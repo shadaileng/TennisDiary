@@ -19,5 +19,7 @@ class Analysis(Base):
     highlights = Column(Text, nullable=True)  # JSON: 高光帧路径数组
     video_url = Column(String(255), nullable=True)  # 视频文件相对路径（75-2 返回）
     pose = Column(Text, nullable=True)  # JSON: 姿态分析结果（骨架帧/视频/三角度）
+    status = Column(String(16), default="processing", nullable=False)  # processing/completed/failed
+    pipeline_status = Column(Text, nullable=True)  # JSON: 管线状态（步骤/进度/重试）
     created_at = Column(Float, default=0)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

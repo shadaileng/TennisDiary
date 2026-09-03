@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.fast
+
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "debug-ai.py"
 
 

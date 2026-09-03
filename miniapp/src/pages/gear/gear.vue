@@ -75,7 +75,7 @@
         <!-- 照片封面 / 无照片渐变 -->
         <image
           v-if="g.photo"
-          :src="g.photo"
+          :src="resolveUploadUrl(g.photo)"
           mode="aspectFill"
           class="gear-card-image"
         />
@@ -110,9 +110,8 @@ import MoneyToggle from "@/components/MoneyToggle.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
-import { GEAR_CATEGORIES, fmtMoney } from "@/utils";
+import { GEAR_CATEGORIES, fmtMoney, resolveUploadUrl } from "@/utils";
 import type { Gear } from "@/types";
-
 const authStore = useAuthStore();
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();

@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.core.auth import get_current_user, get_current_user_media
 from app.core.database import Base, get_db
@@ -68,7 +69,13 @@ def test_engine():
 
     fd, path = tempfile.mkstemp(suffix=".db", prefix="test_")
     os.close(fd)
-    engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+    # 内存库 + StaticPool：单连接避免跨线程 "no such table"，同时消除每用例文件
+    # create/drop/unlink 的 I/O 开销，显著加快测试。每个用例仍是独立引擎，隔离性不变。
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
@@ -106,16 +113,26 @@ def mock_user():
 # ==================== FastAPI TestClient ====================
 
 
+@pytest.fixture(scope="session")
+def _app_client(_init_test_database):
+    """session 级 TestClient：整个测试会话只创建一次（lifespan 仅执行一次），
+    避免每个用例重复初始化应用与默认数据，显著降低开销。"""
+    with TestClient(app) as c:
+        yield c
+
+
 @pytest.fixture(scope="function")
-def client(test_db):
-    """注入测试数据库和 mock 鉴权的 TestClient"""
+def client(test_db, _app_client):
+    """注入测试数据库的 TestClient（底层 client 为 session 级，仅 override 每用例设置）"""
 
     def override_get_db():
         yield test_db
 
+    saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_db] = override_get_db
-    yield TestClient(app)
+    yield _app_client
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)
 
 
 @pytest.fixture(scope="function")
@@ -128,7 +145,9 @@ def auth_client(client, mock_user, test_db):
     def override_get_current_user_media():
         return mock_user
 
+    saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_current_user_media] = override_get_current_user_media
     yield client
     app.dependency_overrides.clear()
+    app.dependency_overrides.update(saved)

@@ -4,7 +4,81 @@
       <h1 class="text-2xl font-bold text-gray-800">分析报告</h1>
     </div>
 
-    <Table :columns="columns" :data="analyses">
+    <!-- 筛选条件 -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+      <div class="flex flex-wrap gap-x-6 gap-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
+          <input
+            type="date"
+            v-model="filterForm.date_from"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
+          <input
+            type="date"
+            v-model="filterForm.date_to"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">类型</label>
+          <select
+            v-model="filterForm.kind"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+          >
+            <option value="">全部</option>
+            <option>综合</option>
+            <option>正手</option>
+            <option>反手</option>
+            <option>截击</option>
+            <option>发球</option>
+            <option>高压</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">模式</label>
+          <select
+            v-model="filterForm.mode"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+          >
+            <option value="">全部</option>
+            <option value="single">单次挥拍</option>
+            <option value="full">综合分析</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">状态</label>
+          <select
+            v-model="filterForm.status"
+            class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-olive-500"
+          >
+            <option value="">全部</option>
+            <option value="processing">处理中</option>
+            <option value="completed">已完成</option>
+            <option value="failed">失败</option>
+          </select>
+        </div>
+        <div class="flex items-end gap-2">
+          <button
+            @click="handleSearch"
+            class="px-4 py-2 bg-olive-600 text-white rounded-md hover:bg-olive-700"
+          >
+            查询
+          </button>
+          <button
+            @click="handleReset"
+            class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+          >
+            重置
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <Table :columns="columns" :data="analyses" :row-clickable="true" @row-click="viewAnalysis">
       <template #cell-user="{ row }">
         {{ row.user?.nickname || '--' }}
       </template>
@@ -29,7 +103,7 @@
         <img
           v-if="row.thumb && fileUrl(row.thumb)"
           :src="fileUrl(row.thumb)"
-          class="h-10 w-16 object-cover rounded"
+          class="h-8 w-12 object-cover rounded"
           alt="封面"
         />
         <span v-else class="text-gray-400">--</span>
@@ -41,16 +115,10 @@
       </template>
 
       <template #cell-created_at="{ value }">
-        {{ formatDate(value) }}
+        {{ formatTs(value) }}
       </template>
 
       <template #actions="{ row }">
-        <button
-          @click="viewAnalysis(row)"
-          class="text-olive-600 hover:text-olive-800 mr-3"
-        >
-          查看
-        </button>
         <button
           @click="confirmDelete(row)"
           class="text-red-600 hover:text-red-800"
@@ -155,30 +223,21 @@
               <div class="text-xs text-gray-500">躯干倾斜</div>
             </div>
           </div>
-          <div class="flex gap-2 flex-wrap">
+          <div v-if="fileUrl(pose.skeleton_video_url)" class="mb-3">
+            <video
+              :src="fileUrl(pose.skeleton_video_url)"
+              controls
+              class="w-full max-w-md rounded border border-gray-200"
+              preload="metadata"
+            />
+          </div>
+          <div v-else-if="fileUrl(detail.thumb)" class="mb-3">
             <img
-              v-if="fileUrl(pose.skeleton_thumb)"
-              :src="fileUrl(pose.skeleton_thumb)"
+              :src="fileUrl(detail.thumb)"
               class="h-24 w-auto object-contain rounded border border-gray-200"
               alt="骨架封面"
             />
-            <img
-              v-for="(f, i) in pose.skeleton_frames || []"
-              :key="i"
-              :src="fileUrl(f)"
-              class="h-24 w-32 object-cover rounded border border-gray-200"
-              :alt="`骨架帧${i + 1}`"
-            />
           </div>
-          <a
-            v-if="fileUrl(pose.skeleton_video_url)"
-            :href="fileUrl(pose.skeleton_video_url)"
-            target="_blank"
-            rel="noopener"
-            class="inline-block mt-2 text-sm text-olive-600 hover:underline"
-          >
-            打开骨架视频 ↗
-          </a>
         </div>
 
         <!-- 封面 / 高光帧 -->
@@ -211,17 +270,16 @@ import { getAnalyses, getAnalysis, deleteAnalysis, type Analysis, type AnalysisR
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Modal from '@/components/common/Modal.vue'
-import { formatDate } from '@/utils/date'
+import { formatTs } from '@/utils/date'
 
 const columns = [
-  { key: 'id', title: 'ID' },
-  { key: 'user', title: '用户' },
-  { key: 'date', title: '日期' },
-  { key: 'kind', title: '类型' },
-  { key: 'mode', title: '模式' },
-  { key: 'thumb', title: '封面' },
-  { key: 'score', title: '评分' },
-  { key: 'created_at', title: '创建时间' }
+  { key: 'id', title: 'ID', width: 60 },
+  { key: 'user', title: '用户', width: 120 },
+  { key: 'kind', title: '类型', width: 60 },
+  { key: 'mode', title: '模式', width: 90 },
+  { key: 'thumb', title: '封面', width: 70 },
+  { key: 'score', title: '评分', width: 60 },
+  { key: 'created_at', title: '创建时间', width: 170 }
 ]
 
 const analyses = ref<Analysis[]>([])
@@ -231,6 +289,34 @@ const pageSize = ref(20)
 const showDetail = ref(false)
 const selectedAnalysis = ref<Analysis | null>(null)
 const detail = ref<Analysis | null>(null)
+
+// 筛选表单
+const filterForm = ref({
+  date_from: '',
+  date_to: '',
+  kind: '',
+  mode: '',
+  status: '',
+})
+
+// 查询（重置分页到第 1 页）
+const handleSearch = () => {
+  currentPage.value = 1
+  fetchAnalyses()
+}
+
+// 重置筛选条件
+const handleReset = () => {
+  filterForm.value = {
+    date_from: '',
+    date_to: '',
+    kind: '',
+    mode: '',
+    status: '',
+  }
+  currentPage.value = 1
+  fetchAnalyses()
+}
 
 const report = computed<AnalysisReport | null>(() => {
   const r = detail.value?.report
@@ -278,7 +364,11 @@ const barColor = (score: number) => {
 const fetchAnalyses = async () => {
   try {
     const offset = (currentPage.value - 1) * pageSize.value
-    const res = await getAnalyses({ offset, limit: pageSize.value })
+    const res = await getAnalyses({
+      offset,
+      limit: pageSize.value,
+      ...filterForm.value,
+    })
     analyses.value = res.items
     total.value = res.total
   } catch (e) {

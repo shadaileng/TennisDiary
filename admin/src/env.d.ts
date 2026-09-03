@@ -10,3 +10,20 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+// File System Access API（Chromium）
+interface Window {
+  showSaveFilePicker(options?: {
+    suggestedName?: string
+    types?: Array<{ description: string; accept: Record<string, string[]> }>
+  }): Promise<FileSystemFileHandle>
+}
+
+interface FileSystemFileHandle {
+  createWritable(): Promise<FileSystemWritableFileStream>
+}
+
+interface FileSystemWritableFileStream extends WritableStream<Uint8Array> {
+  write(data: Uint8Array | string): Promise<void>
+  close(): Promise<void>
+}

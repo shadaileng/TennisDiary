@@ -10,7 +10,7 @@
           :class="form.photo ? 'photo-upload--has-photo' : ''"
           @tap="onPickPhoto"
         >
-          <image v-if="form.photo" :src="form.photo" mode="aspectFill" class="photo-upload-img" />
+          <image v-if="form.photo" :src="resolveUploadUrl(form.photo)" mode="aspectFill" class="photo-upload-img" />
           <view v-else class="photo-upload-placeholder">
             <text class="photo-upload-icon">📷</text>
             <text class="photo-upload-hint">点击上传封面图</text>
@@ -95,7 +95,7 @@ import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useGearStore, useSettingsStore } from "@/stores";
 import { getGear } from "@/services/data";
-import { GEAR_CATEGORIES, choosePhoto, safeNavigateBack, todayStr } from "@/utils";
+import { GEAR_CATEGORIES, choosePhoto, resolveUploadUrl, safeNavigateBack, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const gearStore = useGearStore();
@@ -130,7 +130,7 @@ onLoad(async (query) => {
       editingId.value = Number(id);
   uni.setNavigationBarTitle({ title: "编辑装备" });
   const traceId = createTraceId();
-  logInfo("加载装备详情", { trace_id: traceId, gear_id: editingId.value }, "gear_detail_load", traceId);
+  logInfo("加载装备详情", { trace_id: traceId, gear_id: editingId.value }, undefined, "gear_detail_load", traceId);
   try {
     const g = await getGear(editingId.value);
     form.category = g.category || "球拍";
@@ -140,7 +140,7 @@ onLoad(async (query) => {
     form.feeling = g.feeling || "";
     form.photo = g.photo || "";
   } catch (e) {
-    logError("装备详情加载失败", { trace_id: traceId, gear_id: editingId.value, error: (e as Error).message }, "gear_detail_load_failed", undefined, traceId);
+    logError("装备详情加载失败", { trace_id: traceId, gear_id: editingId.value, error: (e as Error).message }, undefined, "gear_detail_load_failed", undefined, traceId);
     uni.showToast({ title: "装备加载失败", icon: "none" });
   }
 });
@@ -163,17 +163,19 @@ function onFeelingInput(e: any) {
 
 async function onPickPhoto() {
   const traceId = createTraceId();
-  logInfo("选择装备封面照片", { trace_id: traceId }, "gear_photo_choose", traceId);
+  logInfo("选择装备封面照片", { trace_id: traceId }, undefined, "gear_photo_choose", traceId);
   try {
     const dataUrl = await choosePhoto(900, 0.8);
     if (dataUrl) {
       form.photo = dataUrl;
-      logInfo("装备封面照片选择成功", { trace_id: traceId }, "gear_photo_selected", traceId);
+      logInfo("装备封面照片选择成功", { trace_id: traceId }, undefined, "gear_photo_selected", traceId);
     } else {
-      logInfo("用户取消选择照片或选择失败", { trace_id: traceId }, "gear_photo_cancel", traceId);
+      logInfo("用户取消选择照片或选择失败", { trace_id: traceId }, undefined, "gear_photo_cancel", traceId);
     }
   } catch (e) {
-    logError("选择装备照片失败", { trace_id: traceId, error: (e as Error).message }, "gear_photo_failed", undefined, traceId);
+    const msg = (e as Error).message || "上传失败";
+    logError("选择装备照片失败", { trace_id: traceId, error: msg }, undefined, "gear_photo_failed", undefined, traceId);
+    uni.showToast({ title: msg, icon: "none" });
   }
 }
 

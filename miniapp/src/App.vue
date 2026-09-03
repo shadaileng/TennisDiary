@@ -3,27 +3,43 @@
 </template>
 
 <script setup lang="ts">
-import { onLaunch, onShow, onHide, onError } from "@dcloudio/uni-app";
+import { onLaunch, onError } from "@dcloudio/uni-app";
 import Loading from "@/components/Loading.vue";
 import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
-import { logFatal, flushPendingEvents } from "@/utils/eventLogger";
+import { useCostTagsStore } from "@/stores/costTags";
+import { logFatal, logWarn, flushPendingEvents } from "@/utils/eventLogger";
 
 onLaunch(() => {
   // 恢复持久化的登录态与偏好设置；不主动静默登录，未登录即为游客
   const auth = useAuthStore();
   auth.init();
   useSettingsStore().init();
+  // 恢复本地费用学习标签候选池
+  useCostTagsStore().init();
   // 启动时补发离线事件
   flushPendingEvents();
-  console.log("App Launch");
+
+  // #ifdef MP-WEIXIN
+  // 监听渲染层错误（小程序逻辑层与渲染层分离，onError 仅捕获逻辑层错误）
+  wx.onError((errMsg: string) => {
+    if (typeof errMsg !== "string" || !errMsg) return;
+    // 已知且无危害的降级错误：作为 warn 上报（低打扰），其余按致命错误上报
+    if (errMsg.includes("showShareMenu") || errMsg.includes("getPrivacySetting")) {
+      logWarn("渲染层已知降级", { errMsg });
+      return;
+    }
+    // nickname 输入在隐私未授权时会静默降级为普通输入（errno:104）：
+    // 属预期内交互降级，作为 warn 上报后台，便于追踪但不应掩盖更严重的逻辑错误
+    if (errMsg.includes("showNicknameAccessory") || errMsg.includes("nickname")) {
+      logWarn("渲染层 nickname 降级", { errMsg });
+      return;
+    }
+    logFatal("渲染层错误", { errMsg });
+  });
+  // #endif
 });
-onShow(() => {
-  console.log("App Show");
-});
-onHide(() => {
-  console.log("App Hide");
-});
+
 
 // 全局错误捕获
 onError((err: any) => {

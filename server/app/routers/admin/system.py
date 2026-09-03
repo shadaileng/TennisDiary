@@ -13,17 +13,23 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from jose import JWTError, jwt
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_admin
+from app.core.auth import (
+    ADMIN_JWT_ALGORITHM,
+    ADMIN_JWT_SECRET,
+    get_current_admin,
+)
 from app.core.backup_meta import BACKUP_META_DB_NAME, get_backup_meta_db
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import EXTENSION_MIME
 from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
@@ -347,25 +353,13 @@ async def ai_connect_test(
     )
 
 
-# 静态文件服务允许的媒体类型（与用户端 files.py 一致，Admin 端内联一份）
-_ADMIN_MEDIA_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".mp4": "video/mp4",
-    ".mov": "video/quicktime",
-}
-
-
+# 静态文件服务允许的媒体类型（与用户端 files.py 一致，复用共享 EXTENSION_MIME）
 def _resolve_admin_file_path(filename: str) -> Path | None:
-    """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None"""
-    upload_dir = os.path.abspath(settings.UPLOAD_DIR)
-    candidate = os.path.normpath(os.path.join(upload_dir, filename))
-    if candidate != upload_dir and not candidate.startswith(upload_dir + os.sep):
-        return None
-    return Path(candidate)
+    """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None（使用 file_service）"""
+    from app.services.file_service import resolve_safe_path
+
+    abs_path = resolve_safe_path(filename)
+    return Path(abs_path) if abs_path else None
 
 
 @router.get("/files/{filename:path}", response_class=FileResponse)
@@ -382,7 +376,7 @@ def serve_admin_file(
         raise HTTPException(status_code=404, detail="文件不存在")
     if not path.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
-    media_type = _ADMIN_MEDIA_TYPES.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
+    media_type = EXTENSION_MIME.get(path.suffix.lower()) or mimetypes.guess_type(path.name)[0]
     return FileResponse(path, media_type=media_type or "application/octet-stream")
 
 
@@ -501,9 +495,30 @@ def list_backups(
 @router.get("/backup/download/{backup_id}", response_class=FileResponse)
 def download_backup(
     backup_id: str,
-    admin: Admin = Depends(get_current_admin),
+    request: Request,
+    token: str | None = Query(None, description="可选 token 查询参数（供 window.open 使用）"),
+    db: Session = Depends(get_db),
 ):
-    """下载备份文件"""
+    """下载备份文件（手动鉴权：优先 header，回退 query 参数）"""
+    from app.models.admin import Admin as AdminModel
+
+    header_token = request.headers.get("X-Auth-Token")
+    jwt_token = header_token or token
+    if not jwt_token:
+        raise HTTPException(status_code=401, detail="未登录")
+    try:
+        payload = jwt.decode(jwt_token, ADMIN_JWT_SECRET, algorithms=[ADMIN_JWT_ALGORITHM])
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail="无效的 token") from exc
+    if payload.get("type") != "admin":
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+    sub = payload.get("sub")
+    if not sub or not sub.startswith("admin:"):
+        raise HTTPException(status_code=401, detail="无效的 token")
+    admin_id = int(sub.split(":")[1])
+    admin = db.query(AdminModel).filter(AdminModel.id == admin_id).first()
+    if admin is None or not admin.is_active:
+        raise HTTPException(status_code=401, detail="管理员不存在或已禁用")
     backup_path = _resolve_backup(backup_id)
     return FileResponse(backup_path, media_type="application/gzip", filename=backup_path.name)
 

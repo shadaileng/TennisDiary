@@ -5,8 +5,9 @@ import subprocess
 
 import pytest
 
+from app.models.file import File
 from app.schemas.common import ErrorCode
-from app.services import video_service
+from app.services import file_service, video_service
 from app.services.video_service import (
     FfmpegUnavailableError,
     InvalidCutError,
@@ -166,7 +167,7 @@ class TestProcessVideoLimits:
             "extract_frames",
             lambda path, times, **kw: [b"\xff\xd8f" + bytes([i]) for i in range(len(times))],
         )
-        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setattr(file_service.settings, "UPLOAD_DIR", str(tmp_path))
         result = video_service.process_video(str(video_path), "single", 2.0)
         assert result["duration"] == 8.0
         assert result["frame_rate"] == 30.0
@@ -264,7 +265,7 @@ class TestProcessVideoTrim:
         original = video_dir / "test.mp4"
         original.write_bytes(b"fake-video")
 
-        monkeypatch.setattr(video_service.settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setattr(file_service.settings, "UPLOAD_DIR", str(tmp_path))
         # 裁剪后重新探测统一返回 30，仅验证流程与标志
         monkeypatch.setattr(video_service, "probe_duration", lambda p: 30.0)
         monkeypatch.setattr(video_service, "find_ffmpeg", lambda: "/usr/bin/ffmpeg")
@@ -497,3 +498,47 @@ class TestVideoUpload:
         assert response.status_code == 400
         assert response.json()["code"] == ErrorCode.INVALID_REQUEST
         assert "无法解析视频时长" in response.json()["message"]
+
+    def test_upload_stores_video_mime(self, auth_client, data_dir, test_db, monkeypatch):
+        """上传视频后 File 记录的 mime_type == video/mp4（Step 116：服务端 ffprobe 探测落库）"""
+        from app.routers import video as video_router
+
+        monkeypatch.setattr(
+            video_router.video_service,
+            "process_video",
+            lambda path, mode, hit_time, cuts=None: {"frames": [], "duration": 8.0},
+        )
+        # 生成一段极小的真实 mp4，确保 ffprobe 能识别为视频流
+        ffmpeg = video_service.find_ffmpeg()
+        if ffmpeg is None:
+            pytest.skip("ffmpeg 未安装，跳过真实视频 MIME 探测测试")
+        mp4_path = data_dir / "real.mp4"
+        subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=blue:s=64x64:d=0.2",
+                "-pix_fmt",
+                "yuv420p",
+                str(mp4_path),
+            ],
+            capture_output=True,
+            timeout=60,
+            check=True,
+        )
+        files = {"file": ("swing.mp4", mp4_path.read_bytes(), "video/mp4")}
+        response = auth_client.post(
+            "/api/video/upload", files=files, data={"mode": "single", "hit_time": "0.1"}
+        )
+        assert response.status_code == 200
+        rec = (
+            test_db.query(File)
+            .filter(File.original_name == "swing.mp4")
+            .order_by(File.id.desc())
+            .first()
+        )
+        assert rec is not None
+        assert rec.mime_type == "video/mp4"
