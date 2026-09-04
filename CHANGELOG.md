@@ -4,6 +4,20 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.78.0] - 2026-09-04
+
+### Added
+
+- 文件登记 MIME 类型兜底与分类源补全（131）：Step 116 只修了上传端点的 mime 探测，骨架视频/封面、裁剪播放短片、报告落库、孤儿文件注册等登记入口仍依赖调用方手传 `mime_type`，而这些调用方全都没传，导致大量骨架衍生文件落库为空（如 `1788331858328_8f1245f6_seg0_thumb.jpg` 文件类型显示 `--`）。修复：`file_service` 新增 `resolve_mime_type()` 由登记函数统一兜底——调用方有值则不覆盖，`get_or_create_file` / `register_orphan_files` 走 PIL/ffprobe 真实探测，`batch_get_or_create_files` 仅用确定性扩展名映射（零磁盘 I/O，保住 121 优化契约）；秒传分支改为 `existing.mime_type or <探测值>`，存量空值不再被复制扩散。新增 `ANALYSIS_MATCH_SOURCES`（含 `skeleton_video`/`skeleton_thumb`/`skeleton_frame`），修复骨架文件在无 `business_id` 时被误判「未绑定业务记录」；报告落库 `upload_source` 细化为 video/analysis_thumb/skeleton_video/skeleton_thumb/skeleton_frame；统一分析上传改用 `detect_media_mime` 与 video.py 对齐。存量空 mime 由 Admin「修复文件类型」按钮补齐。新增 25 条用例，全量无回归。
+
+### Fixed
+
+- 测试脆弱性治理（132）：全量 `pytest` 长期 10 failed，逐一排查确认均为改动前既有的脆弱测试。A 类死测试/过期断言：秒传共享删除用例插入两条同名 `original_name` 违反 `files.original_name` 唯一约束；两处用例引用 Step 125 已删除的 `register_ai_files`（改走 `batch_get_or_create_files`）；两处断言已下线的 preview 端点返回 200（另有两处断言 404 属假绿，整类删除）；裁剪用例断言「原文件已删」与 118 起保留原片语义冲突（改为断言保留）。B/C 类 fixture 作用域错配：admin `conftest` 的 module 级 `test_db`/`client` 与根 `conftest` 的 function 级 `client` 都用 `clear() + update(saved)` 操作 `app.dependency_overrides`，互相抹掉对方覆盖使请求打到错误数据库；`auth_client` 又把 admin token 写进 session 级共享 TestClient 默认头且从不清理，导致 media query token 用例 401。修复：两处 `client` fixture 改为精准增删（`set_override` 保存旧值 + teardown 还原），`auth_client` teardown 移除 `X-Auth-Token` 头，新增 autouse fixture 在每个用例前后 `test_db.rollback()` 杜绝 `PendingRollbackError` 级联，并把 roles/ai-providers 两个顺序依赖用例改为自包含。受影响子集 145 passed / 0 failed。
+
+### Changed
+
+- 文档（131/132）：新增 `docs/plans/131-文件登记MIME类型兜底与分类源补全.md`、`docs/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md`，同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、`.vitepress/config.mts` 侧边栏。
+
 ## [1.77.8] - 2026-09-04
 
 ### Fixed

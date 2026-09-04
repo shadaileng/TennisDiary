@@ -181,6 +181,7 @@ export default defineConfig({
             { text: '124：Admin 分析报告时间修复与筛选功能', link: '/plans/124-Admin分析报告时间修复与筛选功能' },
             { text: '125：Admin 文件管理简化与查询优化', link: '/plans/125-Admin文件管理简化与查询优化' },
             { text: '130：Admin 跨域静态资源 URL 统一解析', link: '/plans/130-Admin跨域静态资源URL统一解析' },
+            { text: '131：文件登记 MIME 类型兜底与分类源补全', link: '/plans/131-文件登记MIME类型兜底与分类源补全' },
           ],
         },
         {
@@ -213,6 +214,7 @@ export default defineConfig({
              { text: '121：写表步骤批量插入优化', link: '/plans/121-写表步骤批量插入优化' },
              { text: '122：管线文件管理优化', link: '/plans/122-管线文件管理优化' },
              { text: '123：综合分析骨骼视频完整绘制与骨架帧清理', link: '/plans/123-综合分析骨骼视频完整绘制与骨架帧清理' },
+             { text: '132：测试脆弱性治理（死测试清理 + fixture 作用域修复）', link: '/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复' },
 ],
         },
         {

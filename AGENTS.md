@@ -276,6 +276,8 @@ cd admin && pnpm build                 # 构建管理端
 | 128 | 日记花费明细学习标签（costTags store 本地持久化名目频次 + `td_cost_tags` 键 + 默认种子六项 + 保存后 recordUsed 累计/首次入池 + form.vue top6 胶囊标签区与点击新增/聚焦金额交互） | ✅ |
 | 130 | Admin 跨域静态资源 URL 统一解析（原生 img/video/下载相对路径打到前端域名 404；公共 `utils/fileUrl.ts` 兼容 base64 dataURL，6 处接入） | ✅ |
 | 129 | 日记装备统计游客本地降级与登录同步（未登录本地完整使用日记/装备/统计+体重，pendingRepo 本地仓库 + 本地聚合 + 登录后 syncPendingLocalData 静默同步；封面游客选图即检——后端匿名 `/api/upload/guest-gear-check` imgSecCheck 仅检即弃不落盘 + 同步正式上传兜底受检） | ✅ |
+| 131 | 文件登记 MIME 类型兜底与分类源补全（登记函数 `resolve_mime_type` 统一兜底：骨架视频/封面、裁剪短片、报告落库、孤儿注册不再落空；批量路径仅扩展名映射零 I/O；`ANALYSIS_MATCH_SOURCES` 补全 skeleton_video/thumb/frame；报告落库 `upload_source` 细化；统一分析上传对齐 ffprobe 探测） | ✅ |
+| 132 | 测试脆弱性治理（死测试清理：秒传同名 original_name、已删除 `register_ai_files`、已下线 preview 端点、裁剪"原文件已删"过期断言；fixture 作用域修复：`dependency_overrides` 精准增删、共享 TestClient 鉴权头清理、module 级会话自动回滚、顺序依赖用例自包含） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
