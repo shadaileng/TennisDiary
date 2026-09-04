@@ -180,6 +180,7 @@ export default defineConfig({
 
             { text: '124：Admin 分析报告时间修复与筛选功能', link: '/plans/124-Admin分析报告时间修复与筛选功能' },
             { text: '125：Admin 文件管理简化与查询优化', link: '/plans/125-Admin文件管理简化与查询优化' },
+            { text: '130：Admin 跨域静态资源 URL 统一解析', link: '/plans/130-Admin跨域静态资源URL统一解析' },
           ],
         },
         {

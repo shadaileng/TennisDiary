@@ -90,7 +90,7 @@
 
           <div v-if="selectedGear.photo">
             <span class="text-sm font-medium text-gray-500">图片</span>
-            <img :src="selectedGear.photo" class="mt-1 w-40 h-40 object-cover rounded border border-gray-200" />
+            <img :src="fileUrl(selectedGear.photo)" class="mt-1 w-40 h-40 object-cover rounded border border-gray-200" />
           </div>
         </div>
 
@@ -114,6 +114,7 @@ import { getGears, deleteGear, type Gear } from '@/api/gears'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatTs } from '@/utils/date'
+import { fileUrl } from '@/utils/fileUrl'
 
 const columns = [
   { key: 'id', title: 'ID' },

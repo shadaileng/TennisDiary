@@ -535,6 +535,7 @@ import StatCard from '@/components/common/StatCard.vue'
 import FilePreview from '@/components/common/FilePreview.vue'
 import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import { downloadAdminFile } from '@/utils/download'
+import { fileUrl } from '@/utils/fileUrl'
 import { formatTs } from '@/utils/date'
 
 const columns = [
@@ -675,7 +676,7 @@ const openPreview = (file: AdminFile) => {
     original_name: file.original_name,
     mime_type: file.mime_type,
     size_bytes: file.size_bytes,
-    preview_url: `/api/admin/system/files/${file.rel_path}`,
+    preview_url: fileUrl(file.rel_path),
   }
   previewVisible.value = true
 }

@@ -1,4 +1,5 @@
 import request from './index'
+import { fileDownloadUrl } from '@/utils/fileUrl'
 
 export interface AdminFile {
   id: number
@@ -95,7 +96,7 @@ export function cleanupOrphanFiles(files: string[]): Promise<{ cleaned: number }
 }
 
 export function getDownloadUrl(fileId: number): string {
-  return `/api/admin/files/${fileId}/download`
+  return fileDownloadUrl(fileId)
 }
 
 export interface RepairResultDetail {

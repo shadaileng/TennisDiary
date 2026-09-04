@@ -4,6 +4,16 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.77.8] - 2026-09-04
+
+### Fixed
+
+- Admin 文件管理预览图片 404（130）：Admin 静态站点（`admin.example.com`）与后端 API（`api.example.com`）跨域部署且无同源反代，而 `<img>`/`<video>`/`fetch`/`<a download>` 等浏览器原生请求不走 axios，`baseURL` 不生效——相对路径被解析到前端自身域名。`views/files/index.vue` 的 `openPreview` 直出 `/api/admin/system/files/${rel_path}` 必然 404。同此根因的还有装备详情装备图（相对路径）与文件下载（`api/files.ts` `getDownloadUrl` 返回相对路径，下载走 `fetch`/`<a>` 非 axios）。修复：新增 `admin/src/utils/fileUrl.ts` 统一解析——`fileUrl`（静态文件端点）、`avatarUrl`（头像，`avatars/`→`avatar/`）、`fileDownloadUrl`（下载端点），`http(s)://` 与 `data:` 一律原样直出，其余补 `VITE_API_BASE_URL`；接入 files/gears 两处修复项，并把 analyses/users/event-logs 三处本地重复实现收敛为公共导入（头像解析顺带补 `data:` 判定）。装备图因此兼容小程序游客态写入的 base64 dataURL（`gears.photo` 后端不校验形态，可为基础库相对路径 / `data:` / 完整 URL）。`type-check` + `build` 通过。
+
+### Changed
+
+- 文档（130）：新增 `docs/plans/130-Admin跨域静态资源URL统一解析.md`（跨域拓扑、7 处全量扫描清单、修复方案、验证标准），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
+
 ## [1.77.7] - 2026-09-02
 
 ### Added

@@ -146,6 +146,7 @@ docs/
 │   ├── 127-小程序端代码卫生与健壮性优化.md
 │   ├── 128-日记花费明细学习标签.md
 │   ├── 129-日记装备统计游客本地降级与登录同步.md
+│   ├── 130-Admin跨域静态资源URL统一解析.md
 │   └── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -277,6 +278,7 @@ docs/
 | 127：小程序端代码卫生与健壮性优化 | v1.0.0 | 方案 | `plans/127-小程序端代码卫生与健壮性优化.md` | eventLogger 丢日志修复 + console 噪音清理 + 上传/请求封装统一 + 死代码清理 | 🏁 已完成 |
 | 128：日记花费明细学习标签 | v1.0.1 | 方案 | `plans/128-日记花费明细学习标签.md` | 日记表单花费明细高频费用快捷标签：本地 store 存储 + 使用频次学习，动态展示 top6 | 🏁 已完成 |
 | 129：日记装备统计游客本地降级与登录同步 | v1.1.1 | 方案 | `plans/129-日记装备统计游客本地降级与登录同步.md` | 日记/装备/统计页游客本地降级（本地 storage + 登录后自动静默同步后台）；封面游客选图即检（后端匿名仅检端点） | 📋 待执行 |
+| 130：Admin 跨域静态资源 URL 统一解析 | v1.0.0 | 方案 | `plans/130-Admin跨域静态资源URL统一解析.md` | 修复 Admin 原生请求（预览/装备图/下载）相对路径打到前端域名 404；抽取 `utils/fileUrl.ts` 统一解析并兼容 base64 dataURL | 🏁 已完成 |
 
 ## 文档类型说明
 
@@ -417,6 +419,7 @@ docs/
 | 127-小程序端代码卫生与健壮性优化 | 小程序前端 | 🏁 已完成 | 2026-09-02 | eventLogger P0 丢日志修复 + console 清理 + 上传/请求封装统一 + 死代码清理；miniapp type-check + build:mp-weixin 通过 |
 | 128-日记花费明细学习标签 | 小程序前端 | 🏁 已完成 | 2026-09-02 | costTags store + 默认种子 + form.vue 标签区/交互/recordUsed；miniapp type-check + build:mp-weixin 通过 |
 | 129-日记装备统计游客本地降级与登录同步 | 小程序前端 + 后端检查端点 | 📋 待执行 | 2026-09-04 | - |
+| 130-Admin跨域静态资源URL统一解析 | 后台管理端优化 | 🏁 已完成 | 2026-09-04 | 公共 `utils/fileUrl.ts`（fileUrl/avatarUrl/fileDownloadUrl）+ 6 处接入；admin type-check + build 通过 |
 
 ## 约定
 

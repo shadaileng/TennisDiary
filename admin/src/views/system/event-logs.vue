@@ -194,7 +194,7 @@
               <div class="mt-1 flex items-center gap-2">
                 <img
                   v-if="userCache[selectedEvent.user_id!]?.avatar_url"
-                  :src="resolveAvatarUrl(userCache[selectedEvent.user_id!].avatar_url)"
+                  :src="avatarUrl(userCache[selectedEvent.user_id!].avatar_url)"
                   class="w-6 h-6 rounded-full object-cover"
                 />
                 <span class="text-sm text-gray-900">{{ userDisplayName(selectedEvent.user_id) }}</span>
@@ -283,6 +283,7 @@ import { getEventLogs, type EventLog } from '@/api/events'
 import { getUser, type User } from '@/api/users'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatTs } from '@/utils/date'
+import { avatarUrl } from '@/utils/fileUrl'
 
 const events = ref<EventLog[]>([])
 const total = ref(0)
@@ -334,13 +335,6 @@ const userDisplayName = (userId: number | null): string => {
   const user = userCache.value[userId]
   if (!user) return String(userId)
   return user.nickname || String(userId)
-}
-
-const resolveAvatarUrl = (url: string): string => {
-  if (url.startsWith('http')) return url
-  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-  const path = url.replace(/^avatars\//, 'avatar/')
-  return `${baseURL}/api/upload/${path}`
 }
 
 const copyToClipboard = async (text: string) => {

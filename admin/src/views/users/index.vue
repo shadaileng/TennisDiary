@@ -9,7 +9,7 @@
       <template #cell-avatar_url="{ row }">
         <img
           v-if="row.avatar_url"
-          :src="getAvatarUrl(row.avatar_url)"
+          :src="avatarUrl(row.avatar_url)"
           class="w-8 h-8 rounded-full"
           alt="avatar"
         />
@@ -52,7 +52,7 @@
         <div class="flex flex-col items-center mb-6">
           <img
             v-if="selectedUser.avatar_url"
-            :src="getAvatarUrl(selectedUser.avatar_url)"
+            :src="avatarUrl(selectedUser.avatar_url)"
             class="w-20 h-20 rounded-full mb-3"
             alt="avatar"
           />
@@ -96,6 +96,7 @@ import { getUsers, deleteUser, type User } from '@/api/users'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatDate, formatIso } from '@/utils/date'
+import { avatarUrl } from '@/utils/fileUrl'
 import Modal from '@/components/common/Modal.vue'
 
 const columns = [
@@ -123,14 +124,6 @@ const genderText = (gender: number | null): string => {
 const maskOpenid = (openid: string): string => {
   if (!openid || openid.length < 8) return openid || '--'
   return openid.slice(0, 4) + '****' + openid.slice(-4)
-}
-
-const getAvatarUrl = (avatarUrl: string | null | undefined): string => {
-  if (!avatarUrl) return ''
-  if (avatarUrl.startsWith('http')) return avatarUrl
-  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-  const path = avatarUrl.replace(/^avatars\//, 'avatar/')
-  return `${baseURL}/api/upload/${path}`
 }
 
 const fetchUsers = async () => {
