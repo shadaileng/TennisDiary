@@ -1,13 +1,11 @@
 <template>
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="stats-page">
-    <!-- 游客空态：未登录不发请求，引导登录 -->
-    <view v-if="authStore.isGuest" class="stats-empty-guide">
-      <Empty icon="🔒" text="登录后即可查看打球数据与体重趋势" button-text="去登录" @action="goMine" />
+    <!-- 游客横幅：本地数据提示 -->
+    <view v-if="authStore.isGuest" class="guest-banner">
+      <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
-    <!-- 已登录内容 -->
-    <template v-else>
     <!-- 汇总卡片 -->
     <view class="stats-summary">
       <view class="stats-summary-header">
@@ -101,7 +99,7 @@
       <view v-else-if="weightStore.weights.length > 0" class="stats-weight-list">
         <view
           v-for="w in weightStore.sortedWeights"
-          :key="w.id"
+          :key="getEntryId(w)"
           class="stats-weight-item"
         >
           <text class="stats-weight-item-date">{{ w.date }}</text>
@@ -109,7 +107,7 @@
           <text v-if="w.bust || w.waist || w.hip" class="stats-weight-item-dims">
             {{ dimensionsText(w) }}
           </text>
-          <text class="stats-weight-item-delete" @tap="confirmRemove(w.id)">×</text>
+          <text class="stats-weight-item-delete" @tap="confirmRemove(getEntryId(w))">×</text>
         </view>
       </view>
     </view>
@@ -152,7 +150,6 @@
         <view class="stats-form-save press-btn" @tap="save">保存记录</view>
       </view>
     </Popup>
-    </template>
   </view>
 </template>
 
@@ -167,19 +164,17 @@ import Popup from "@/components/Popup.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
 import { getStats } from "@/services/data";
+import { getPendingDiaries, getPendingGears } from "@/services/pendingRepo";
+import { aggregateLocalStats } from "@/services/localStats";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
-import type { Stats, WeightRecord } from "@/types";
+import { getEntryId } from "@/types";
+import type { AnyWeight, Stats, WeightRecord } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
 const weightStore = useWeightStore();
 const settingsStore = useSettingsStore();
 const { themeStyle, themeBg } = useThemeStyle();
-
-/** 跳转到「我的」页登录（游客空态按钮） */
-function goMine() {
-  uni.switchTab({ url: "/pages/mine/mine" });
-}
 
 // ==================== 汇总 ====================
 
@@ -219,7 +214,7 @@ const form = reactive({
 });
 
 /** 最近一条（按日期升序最后一条） */
-const latest = computed<WeightRecord | null>(() => {
+const latest = computed<AnyWeight | null>(() => {
   const list = weightStore.sortedWeights;
   return list.length ? list[list.length - 1] : null;
 });
@@ -247,7 +242,7 @@ const weightData = computed(() =>
     .map((w) => ({ label: w.date.slice(5), value: w.weight })),
 );
 
-function dimensionsText(w: WeightRecord): string {
+function dimensionsText(w: AnyWeight): string {
   const parts = [
     w.bust ? `胸${w.bust}` : "",
     w.waist ? `腰${w.waist}` : "",
@@ -308,7 +303,7 @@ async function save() {
   }
 }
 
-function confirmRemove(id: number) {
+function confirmRemove(id: number | string) {
   uni.showModal({
     title: "删除记录",
     content: "删除这条体重记录？",
@@ -330,11 +325,12 @@ function confirmRemove(id: number) {
 
 onShow(() => {
   const traceId = createTraceId();
-  // 游客态：不发请求，清空数据并展示游客引导
   if (authStore.isGuest) {
-    weightStore.setWeights([]);
-    stats.value = null;
+    // 游客态：本地聚合（日记/装备），体重取本地仓库；均不发请求
+    weightStore.fetchList();
+    stats.value = aggregateLocalStats(getPendingDiaries(), getPendingGears());
     statsLoading.value = false;
+    logInfo("游客本地统计聚合", { trace_id: traceId, total_sessions: stats.value.total_sessions }, undefined, "stats_guest_local", traceId);
     return;
   }
   logInfo("加载统计数据", { trace_id: traceId }, undefined, "stats_load", traceId);
@@ -362,8 +358,14 @@ onShow(() => {
   padding-bottom: $space-3xl;
 }
 
-.stats-empty-guide {
-  padding-top: $space-3xl;
+.guest-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: var(--color-accent-soft, #F0F5CE);
+  color: var(--color-accent-dark, #A8B822);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 // 汇总

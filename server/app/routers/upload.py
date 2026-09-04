@@ -3,11 +3,12 @@
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.mime import detect_image_mime
@@ -16,6 +17,7 @@ from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import file_service
 from app.services.content_security import ContentSecurityError, check_image_sync
+from app.services.wx_service import code_to_openid
 
 log = get_logger("user")
 
@@ -201,3 +203,79 @@ def upload_gear_image(
 
     log.info("装备图片上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
     return ApiResponse(data={"url": rel_path, "mirage": is_mirage})
+
+
+@router.post("/guest-gear-check", response_model=ApiResponse[dict])
+async def guest_gear_check(
+    file: UploadFile = File(...),
+    code: str = Form(...),
+):
+    """游客装备封面「仅检即弃」内容安全检查（免鉴权）
+
+    - 不依赖 get_current_user、不建用户记录：游客无 token，需在保存封面当下联网做 imgSecCheck
+    - code 为 wx.login 一次性 code → code_to_openid 换 openid（imgSecCheck 强要求 openid）
+    - 写临时文件 → check_image_sync(imgSecCheck) → try/finally 即删
+    - 不落盘、不建 File 记录、不写 DB（与 /gear-image 的「正式受检落盘」分离）
+    - fail-open：微信/网络侧异常时返回 safe:true 放行（前端存本地 dataURL，
+      同步正式上传 /gear-image 仍二次受检，最终入库封面必然通过官方检查）
+
+    Returns:
+        {"safe": true}（通过 / fail-open）
+        违规 → 400
+    """
+    # 1) 类型校验
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _ALLOWED_EXT:
+        log.warning("游客封面检查拒绝：非法扩展名", ext=ext)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅支持 jpg/jpeg/png/webp 图片",
+        )
+
+    # 2) 大小校验（imgSecCheck 限 ≤1MB）
+    content = file.file.read()
+    if len(content) > 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片过大，请压缩后重试",
+        )
+
+    # 3) wx.login code → openid
+    try:
+        openid = await code_to_openid(code)
+    except (ValueError, RuntimeError) as exc:
+        log.warning("游客封面检查：code 换 openid 失败: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="登录态已过期，请重新进入小程序",
+        ) from exc
+
+    # 4) 写临时文件 → imgSecCheck → finally 即删
+    tmp_dir = os.path.join(settings.UPLOAD_DIR, "check_tmp")
+    os.makedirs(tmp_dir, exist_ok=True)
+    abs_path = os.path.join(tmp_dir, f"{uuid.uuid4().hex}{ext}")
+    try:
+        with open(abs_path, "wb") as out:
+            out.write(content)
+        check_image_sync(abs_path, openid)
+        log.info("游客封面检查通过", openid=_mask_openid(openid))
+    except ContentSecurityError:
+        log.warning("游客封面检查不通过", openid=_mask_openid(openid))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片可能包含违规信息，请更换后重试",
+        ) from None
+    except Exception as exc:
+        # fail-open：微信/网络异常放行（正式上传兜底受检）；不把调用方错误当违规
+        log.error("游客封面安全检查异常，放行: %s", exc, exc_info=True)
+        return ApiResponse(data={"safe": True})
+    finally:
+        file_service.safe_unlink(abs_path)
+    return ApiResponse(data={"safe": True})
+
+
+def _mask_openid(openid: str) -> str:
+    """openid 脱敏（审计/日志不落明文隐私）"""
+    if not openid:
+        return ""
+    return f"{openid[:4]}***{openid[-4:]}" if len(openid) > 8 else "***"

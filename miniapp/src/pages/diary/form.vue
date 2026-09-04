@@ -171,12 +171,12 @@ import { onLoad } from "@dcloudio/uni-app";
 import EmojiScale from "@/components/EmojiScale.vue";
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useCostTagsStore, useDiaryStore, useGearStore } from "@/stores";
+import { useAuthStore, useCostTagsStore, useDiaryStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
 import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
-import type { SessionType } from "@/types";
+import type { AnyDiary, SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
 const gearStore = useGearStore();
@@ -218,7 +218,7 @@ const form = reactive<DiaryFormState>({
   notes: "",
 });
 
-let editingId = ref<number | null>(null);
+let editingId = ref<number | string | null>(null);
 const isEditing = computed(() => editingId.value != null);
 const saving = ref(false);
 
@@ -239,12 +239,19 @@ onLoad(async (query) => {
 
   const id = query?.id;
   if (!id) return;
-  editingId.value = Number(id);
+  editingId.value = id;
   uni.setNavigationBarTitle({ title: "编辑日记" });
   const traceId = createTraceId();
-  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, undefined, "diary_detail_load", traceId);
+  logInfo("加载日记详情", { trace_id: traceId, diary_id: id }, undefined, "diary_detail_load", traceId);
   try {
-    const d = await getDiary(editingId.value);
+    let d: AnyDiary;
+    if (useAuthStore().isGuest) {
+      const local = diaryStore.getLocalDiary(String(id));
+      if (!local) throw new Error("本地日记不存在");
+      d = local;
+    } else {
+      d = await getDiary(Number(id));
+    }
     form.date = d.date;
     form.time = d.time || "";
     form.type = d.type;

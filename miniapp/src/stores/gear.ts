@@ -1,8 +1,17 @@
 import { defineStore } from "pinia";
 
 import { createGear, deleteGear, getGears, updateGear } from "@/services/data";
-import type { Gear, GearCreate, GearUpdate } from "@/types";
+import {
+  getPendingGears,
+  upsertPendingGear,
+  updatePendingGear,
+  removePendingGear,
+  genLocalId,
+} from "@/services/pendingRepo";
+import { useAuthStore } from "@/stores/auth";
+import type { AnyGear, Gear, GearCreate, GearUpdate, LocalGear } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { todayStr } from "@/utils";
 
 function getCurrentPage(): string {
   try {
@@ -13,15 +22,26 @@ function getCurrentPage(): string {
   }
 }
 
+/** 类型守卫：云端装备（有数字 id） */
+function isCloudGear(x: AnyGear): x is Gear {
+  return typeof (x as Gear).id === "number";
+}
+
+/** 当前是否为游客态 */
+function isGuestNow(): boolean {
+  return useAuthStore().isGuest;
+}
+
 interface GearState {
-  gears: Gear[]
+  gears: AnyGear[]
   loading: boolean
 }
 
 /**
- * 装备数据 store
+ * 装备数据 store（Step 129 双路径）
  *
- * 管理装备列表，action 对接 /api/gears 接口。
+ * 登录态逻辑与现状一致（对接 /api/gears）；游客态读写本地待同步仓库。
+ * 日志收敛：不再打印 photo/dataURL 大字段。
  */
 export const useGearStore = defineStore("gear", {
   state: (): GearState => ({
@@ -31,8 +51,8 @@ export const useGearStore = defineStore("gear", {
 
   getters: {
     /** 按种类分组的装备 */
-    groupedByCategory: (state): Record<string, Gear[]> => {
-      const map: Record<string, Gear[]> = {};
+    groupedByCategory: (state): Record<string, AnyGear[]> => {
+      const map: Record<string, AnyGear[]> = {};
       for (const g of state.gears) {
         const key = g.category || "未分类";
         (map[key] ??= []).push(g);
@@ -42,12 +62,21 @@ export const useGearStore = defineStore("gear", {
   },
 
   actions: {
-    setGears(list: Gear[]) {
+    setGears(list: AnyGear[]) {
       this.gears = list;
     },
 
-    /** 拉取装备列表（GET /api/gears） */
+    /** 取单条本地待同步装备（游客态编辑回填） */
+    getLocalGear(localId: string): LocalGear | undefined {
+      return getPendingGears().find((g) => g.localId === localId);
+    },
+
+    /** 拉取装备列表（GET /api/gears）；游客态从本地仓库载入 */
     async fetchList() {
+      if (isGuestNow()) {
+        this.gears = getPendingGears();
+        return;
+      }
       this.loading = true;
       try {
         this.gears = await getGears();
@@ -58,11 +87,29 @@ export const useGearStore = defineStore("gear", {
       }
     },
 
-    /** 添加装备（POST /api/gears），成功后插入列表头部 */
-    async create(body: GearCreate): Promise<Gear> {
+    /** 添加装备：登录态 POST；游客态写入本地仓库（封面 dataURL） */
+    async create(body: GearCreate): Promise<AnyGear> {
+      if (isGuestNow()) {
+        const now = Math.floor(Date.now() / 1000);
+        const item: LocalGear = {
+          localId: genLocalId("g"),
+          pending: true,
+          backendId: null,
+          category: body.category || "",
+          name: body.name || "",
+          buy_date: body.buy_date || todayStr(),
+          price: body.price || 0,
+          feeling: body.feeling || "",
+          photo: body.photo || "",
+          createdAt: now,
+        };
+        upsertPendingGear(item);
+        this.gears = getPendingGears();
+        return item;
+      }
       const traceId = createTraceId();
       try {
-        logInfo("添加装备", { trace_id: traceId, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling, photo: body.photo }, undefined, "gear_create", traceId);
+        logInfo("添加装备", { trace_id: traceId, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling }, undefined, "gear_create", traceId);
         const g = await createGear(body);
         this.gears = [g, ...this.gears];
         logInfo("装备添加成功", { trace_id: traceId, gear_id: g.id, category: g.category, name: g.name }, undefined, "gear_created", traceId);
@@ -73,13 +120,18 @@ export const useGearStore = defineStore("gear", {
       }
     },
 
-    /** 编辑装备（PUT /api/gears/{id}），成功后替换列表项 */
-    async update(id: number, body: GearUpdate): Promise<Gear> {
+    /** 编辑装备：登录态 PUT；游客态按 localId 更新本地项 */
+    async update(id: number | string, body: GearUpdate): Promise<AnyGear> {
+      if (isGuestNow()) {
+        updatePendingGear(String(id), body as Partial<LocalGear>);
+        this.gears = getPendingGears();
+        return this.gears.find((x) => (x as LocalGear).localId === String(id))!;
+      }
       const traceId = createTraceId();
       try {
         logInfo("编辑装备", { trace_id: traceId, gear_id: id, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling }, undefined, "gear_update", traceId);
-        const g = await updateGear(id, body);
-        this.gears = this.gears.map((x) => (x.id === id ? g : x));
+        const g = await updateGear(id as number, body);
+        this.gears = this.gears.map((x) => (isCloudGear(x) && x.id === id ? g : x));
         logInfo("装备更新成功", { trace_id: traceId, gear_id: id, category: g.category, name: g.name }, undefined, "gear_updated", traceId);
         return g;
       } catch (e) {
@@ -88,13 +140,18 @@ export const useGearStore = defineStore("gear", {
       }
     },
 
-    /** 删除装备（DELETE /api/gears/{id}），成功后从列表移除 */
-    async remove(id: number) {
+    /** 删除装备：登录态 DELETE；游客态按 localId 删除本地项 */
+    async remove(id: number | string) {
+      if (isGuestNow()) {
+        removePendingGear(String(id));
+        this.gears = getPendingGears();
+        return;
+      }
       const traceId = createTraceId();
       try {
         logInfo("删除装备", { trace_id: traceId, gear_id: id }, undefined, "gear_delete", traceId);
-        await deleteGear(id);
-        this.gears = this.gears.filter((x) => x.id !== id);
+        await deleteGear(id as number);
+        this.gears = this.gears.filter((x) => !(isCloudGear(x) && x.id === id));
         logInfo("装备删除成功", { trace_id: traceId, gear_id: id }, undefined, "gear_deleted", traceId);
       } catch (e) {
         logError("装备删除失败", { trace_id: traceId, gear_id: id, error: (e as Error).message }, undefined, "gear_delete_failed", undefined, traceId);

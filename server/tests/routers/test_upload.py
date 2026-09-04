@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from app.core.config import settings
 from app.models.file import File
+from app.services.content_security import ContentSecurityError
 
 
 class TestUploadAvatar:
@@ -87,3 +88,85 @@ class TestDownloadAvatar:
         """公开访问无需鉴权，文件不存在时返回 404"""
         response = client.get("/api/upload/avatar/1/nonexistent.png")
         assert response.status_code == 404
+
+
+class TestGuestGearCheck:
+    """测试 POST /api/upload/guest-gear-check（游客装备封面「仅检即弃」，免鉴权）
+
+    不真调微信：mock code_to_openid 与 check_image_sync。断言通过/违规/fail-open/
+    无效 code/非法扩展名，并确认临时文件不残留（不落盘）。
+    """
+
+    def _png_bytes(self) -> bytes:
+        # 最小 PNG 头，仅用于校验扩展名与检查链路
+        return b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + b"\x00" * 8
+
+    def _assert_no_tmp_leftover(self) -> None:
+        tmp_dir = os.path.join(settings.UPLOAD_DIR, "check_tmp")
+        if os.path.isdir(tmp_dir):
+            assert os.listdir(tmp_dir) == []
+
+    @patch("app.routers.upload.code_to_openid", return_value="o_openid_guest_0001")
+    @patch("app.routers.upload.check_image_sync", return_value=True)
+    def test_guest_check_safe_without_auth(self, _mock_check, _mock_openid, client):
+        """未登录游客上传合规封面 → 200 {safe:true}，不落盘"""
+        response = client.post(
+            "/api/upload/guest-gear-check",
+            data={"code": "wx_code_guest_001"},
+            files={"file": ("g.png", io.BytesIO(self._png_bytes()), "image/png")},
+        )
+        assert response.status_code == 200
+        assert response.json()["data"]["safe"] is True
+        _mock_openid.assert_called_once_with("wx_code_guest_001")
+        _mock_check.assert_called_once()
+        self._assert_no_tmp_leftover()
+
+    @patch("app.routers.upload.code_to_openid", return_value="o_openid_guest_0001")
+    @patch(
+        "app.routers.upload.check_image_sync",
+        side_effect=ContentSecurityError(87014, "内容可能包含违规信息"),
+    )
+    def test_guest_check_reject_unsafe(self, _mock_check, _mock_openid, client):
+        """违规封面 → 400，临时文件被清理"""
+        response = client.post(
+            "/api/upload/guest-gear-check",
+            data={"code": "wx_code_guest_001"},
+            files={"file": ("g.png", io.BytesIO(self._png_bytes()), "image/png")},
+        )
+        assert response.status_code == 400
+        # 违规即拦截：body 结构由全局异常处理器决定，这里只断言拦截状态与不落盘
+        _mock_check.assert_called_once()
+        self._assert_no_tmp_leftover()
+
+    @patch("app.routers.upload.code_to_openid", side_effect=ValueError("invalid code"))
+    def test_guest_check_invalid_code(self, _mock_openid, client):
+        """wx.login code 无效 → 400"""
+        response = client.post(
+            "/api/upload/guest-gear-check",
+            data={"code": "bad_code"},
+            files={"file": ("g.png", io.BytesIO(self._png_bytes()), "image/png")},
+        )
+        assert response.status_code == 400
+        _mock_openid.assert_called_once_with("bad_code")
+
+    @patch("app.routers.upload.code_to_openid", return_value="o_openid_guest_0001")
+    @patch("app.routers.upload.check_image_sync", side_effect=RuntimeError("network down"))
+    def test_guest_check_fail_open(self, _mock_check, _mock_openid, client):
+        """微信/网络异常 → 200 {safe:true} fail-open（正式上传兜底受检）"""
+        response = client.post(
+            "/api/upload/guest-gear-check",
+            data={"code": "wx_code_guest_001"},
+            files={"file": ("g.png", io.BytesIO(self._png_bytes()), "image/png")},
+        )
+        assert response.status_code == 200
+        assert response.json()["data"]["safe"] is True
+        self._assert_no_tmp_leftover()
+
+    def test_guest_check_reject_extension(self, client):
+        """非法扩展名 → 400，不触发 code 换取"""
+        response = client.post(
+            "/api/upload/guest-gear-check",
+            data={"code": "wx_code_guest_001"},
+            files={"file": ("evil.txt", io.BytesIO(b"hello"), "text/plain")},
+        )
+        assert response.status_code == 400

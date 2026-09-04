@@ -93,10 +93,11 @@ import { onLoad } from "@dcloudio/uni-app";
 
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useGearStore, useSettingsStore } from "@/stores";
+import { useAuthStore, useGearStore, useSettingsStore } from "@/stores";
 import { getGear } from "@/services/data";
-import { GEAR_CATEGORIES, choosePhoto, resolveUploadUrl, safeNavigateBack, todayStr } from "@/utils";
+import { GEAR_CATEGORIES, choosePhoto, compressToDataURL, guestCheckGearImage, resolveUploadUrl, safeNavigateBack, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import type { AnyGear } from "@/types";
 
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
@@ -120,19 +121,26 @@ const form = reactive<GearFormState>({
   photo: "",
 });
 
-let editingId = ref<number | null>(null);
+let editingId = ref<number | string | null>(null);
 const isEditing = computed(() => editingId.value != null);
 const saving = ref(false);
 
 onLoad(async (query) => {
   const id = query?.id;
   if (!id) return;
-      editingId.value = Number(id);
+  editingId.value = id;
   uni.setNavigationBarTitle({ title: "编辑装备" });
   const traceId = createTraceId();
-  logInfo("加载装备详情", { trace_id: traceId, gear_id: editingId.value }, undefined, "gear_detail_load", traceId);
+  logInfo("加载装备详情", { trace_id: traceId, gear_id: id }, undefined, "gear_detail_load", traceId);
   try {
-    const g = await getGear(editingId.value);
+    let g: AnyGear;
+    if (useAuthStore().isGuest) {
+      const local = gearStore.getLocalGear(String(id));
+      if (!local) throw new Error("本地装备不存在");
+      g = local;
+    } else {
+      g = await getGear(Number(id));
+    }
     form.category = g.category || "球拍";
     form.name = g.name || "";
     form.buy_date = g.buy_date || todayStr();
@@ -165,12 +173,41 @@ async function onPickPhoto() {
   const traceId = createTraceId();
   logInfo("选择装备封面照片", { trace_id: traceId }, undefined, "gear_photo_choose", traceId);
   try {
-    const dataUrl = await choosePhoto(900, 0.8);
-    if (dataUrl) {
-      form.photo = dataUrl;
-      logInfo("装备封面照片选择成功", { trace_id: traceId }, undefined, "gear_photo_selected", traceId);
+    // 选图（统一走 chooseMedia，避免 iOS 转圈兼容问题）
+    const tempPath = await new Promise<string>((resolve, reject) => {
+      uni.chooseMedia({
+        count: 1,
+        mediaType: ["image"],
+        sizeType: ["compressed"],
+        success: (res) => {
+          const p = res.tempFiles?.[0]?.tempFilePath;
+          if (p) resolve(p);
+          else reject(new Error("未选择图片"));
+        },
+        fail: (err) => reject(new Error(err.errMsg || "选择失败")),
+      });
+    });
+    if (useAuthStore().isGuest) {
+      // 游客态：本地内容安全即检（仅检即弃），通过后存本地 dataURL
+      const code = await new Promise<string>((resolve) => {
+        uni.login({ success: (r) => resolve(r.code || ""), fail: () => resolve("") });
+      });
+      const safe = await guestCheckGearImage(tempPath, code);
+      if (!safe) {
+        uni.showToast({ title: "图片未通过内容安全检测", icon: "none" });
+        return;
+      }
+      form.photo = await compressToDataURL(tempPath);
+      logInfo("游客装备封面即检通过(本地保存)", { trace_id: traceId }, undefined, "gear_photo_guest_checked", traceId);
     } else {
-      logInfo("用户取消选择照片或选择失败", { trace_id: traceId }, undefined, "gear_photo_cancel", traceId);
+      // 登录态：压缩并上传到服务端（服务端受检）
+      const dataUrl = await choosePhoto(900, 0.8);
+      if (dataUrl) {
+        form.photo = dataUrl;
+        logInfo("装备封面照片选择成功", { trace_id: traceId }, undefined, "gear_photo_selected", traceId);
+      } else {
+        logInfo("用户取消选择照片或选择失败", { trace_id: traceId }, undefined, "gear_photo_cancel", traceId);
+      }
     }
   } catch (e) {
     const msg = (e as Error).message || "上传失败";

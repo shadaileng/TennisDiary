@@ -367,3 +367,66 @@ export interface Stats {
   total_analyses: number
   avg_score: number
 }
+
+// ==================== 游客本地待同步（Step 129） ====================
+
+/**
+ * 本地待同步实体的公共标记字段。
+ * - localId：本地唯一标识（形如 `d_${时间戳}_${rand}`），代替数字 id（游客态无云端 id）
+ * - pending：是否待同步（游客本地创建未上传即 true；本阶段登录后本地项被同步清理，故编辑仅作用于本地项）
+ * - backendId：登录同步成功回填后台 id（schema 预留，便于将来多端合并；本阶段始终为 null）
+ * - createdAt：本地创建时间戳(秒)，用于列表排序/展示兜底
+ */
+interface PendingMeta {
+  localId: string
+  pending: true
+  backendId: number | null
+  createdAt: number
+}
+
+/** 本地待同步日记（字段对齐 Diary） */
+export interface LocalDiary extends PendingMeta {
+  date: string // YYYY-MM-DD
+  time: string
+  type: SessionType
+  duration: number
+  intensity: 1 | 2 | 3 | 4 | 5
+  mood: 1 | 2 | 3 | 4 | 5
+  costs: CostItem[]
+  gears: GearUse[]
+  notes: string
+}
+
+/** 本地待同步装备（字段对齐 Gear，photo 为本地 dataURL） */
+export interface LocalGear extends PendingMeta {
+  category: string
+  name: string
+  buy_date: string
+  price: number
+  feeling: string
+  photo: string
+}
+
+/** 本地待同步体重记录（字段对齐 WeightRecord） */
+export interface LocalWeight extends PendingMeta {
+  date: string
+  weight: number
+  bust?: number
+  waist?: number
+  hip?: number
+}
+
+/** 列表/表单可同时消费云端与本地实体的联合视图类型 */
+export type AnyDiary = Diary | LocalDiary
+export type AnyGear = Gear | LocalGear
+export type AnyWeight = WeightRecord | LocalWeight
+
+/** 取实体主键：本地项返回 localId(string)，云端项返回 id(number) */
+export function getEntryId<T extends { localId?: string; id?: number }>(x: T): number | string {
+  return x.localId != null ? x.localId : (x.id as number)
+}
+
+/** 是否为本地待同步项（游客本地数据，无云端 id） */
+export function isLocalEntry(x: { localId?: string; id?: number }): x is { localId: string } & typeof x {
+  return x.localId != null
+}

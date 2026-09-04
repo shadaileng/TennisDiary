@@ -1,13 +1,11 @@
 <template>
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="gear-page">
-    <!-- 游客空态：未登录不发请求，引导登录 -->
-    <view v-if="authStore.isGuest" class="gear-empty-guide">
-      <Empty icon="🔒" text="登录后即可管理装备库" button-text="去登录" @action="goMine" />
+    <!-- 游客横幅：本地数据提示 -->
+    <view v-if="authStore.isGuest" class="guest-banner">
+      <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
-    <!-- 已登录内容 -->
-    <template v-else>
     <!-- Sticky 容器：Hero + 筛选栏 -->
     <view class="gear-sticky">
       <!-- Hero：装备投入 -->
@@ -68,9 +66,9 @@
     <view v-else class="gear-grid">
       <view
         v-for="g in filtered"
-        :key="g.id"
+        :key="getEntryId(g)"
         class="gear-card"
-        @tap="goEdit(g.id)"
+        @tap="goEdit(getEntryId(g))"
       >
         <!-- 照片封面 / 无照片渐变 -->
         <image
@@ -97,7 +95,6 @@
 
     <!-- FAB -->
     <view class="gear-fab" @tap="goCreate">+</view>
-    </template>
   </view>
 </template>
 
@@ -111,16 +108,12 @@ import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { GEAR_CATEGORIES, fmtMoney, resolveUploadUrl } from "@/utils";
-import type { Gear } from "@/types";
+import { getEntryId } from "@/types";
+import type { AnyGear } from "@/types";
 const authStore = useAuthStore();
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
 const { themeStyle, themeBg } = useThemeStyle();
-
-/** 跳转到「我的」页登录（游客空态按钮） */
-function goMine() {
-  uni.switchTab({ url: "/pages/mine/mine" });
-}
 
 const catFilter = ref("全部");
 const monthFilter = ref("全部");
@@ -179,7 +172,7 @@ const totalLabel = computed(() =>
 
 const totalText = computed(() => (settingsStore.hideAmounts ? "¥**" : fmtMoney(total.value)));
 
-function priceText(g: Gear): string {
+function priceText(g: AnyGear): string {
   return settingsStore.hideAmounts ? "¥**" : fmtMoney(g.price);
 }
 
@@ -192,14 +185,14 @@ function goCreate() {
   uni.navigateTo({ url: "/pages/gear/form" });
 }
 
-function goEdit(id: number) {
+function goEdit(id: number | string) {
   uni.navigateTo({ url: `/pages/gear/form?id=${id}` });
 }
 
 onShow(() => {
-  // 游客态：不发请求，清空列表并展示游客引导
   if (authStore.isGuest) {
-    gearStore.setGears([]);
+    // 游客态：不发请求，直接载入本地待同步装备（仅本机可见）
+    gearStore.fetchList();
     return;
   }
   gearStore.fetchList();
@@ -215,8 +208,14 @@ onShow(() => {
   flex-direction: column;
 }
 
-.gear-empty-guide {
-  flex: 1;
+.guest-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: var(--color-accent-soft, #F0F5CE);
+  color: var(--color-accent-dark, #A8B822);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 // Sticky 容器

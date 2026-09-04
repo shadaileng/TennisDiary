@@ -116,6 +116,7 @@ import { onShow } from "@dcloudio/uni-app";
 
 import Popup from "@/components/Popup.vue";
 import { getStats } from "@/services/data";
+import { syncPendingLocalData } from "@/services/sync";
 import { THEMES } from "@/stores/settings";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -200,6 +201,10 @@ async function doLogin() {
     await authStore.login();
     uni.hideLoading();
     uni.showToast({ title: "登录成功", icon: "success" });
+    // 静默同步游客态本地数据到云端（失败不影响登录态）
+    syncPendingLocalData().catch((err) => {
+      logError("游客本地数据同步失败", { error: (err as Error).message }, undefined, "mine_sync_failed", undefined, createTraceId());
+    });
   } catch (e) {
     uni.hideLoading();
     const msg = e instanceof Error ? e.message : "登录失败";

@@ -15,4 +15,10 @@ export const STORAGE_KEYS = {
   eventLogPending: "td_event_log_pending",
   /** 费用明细学习标签候选池（高频名目 + 频次，本地持久化） */
   costTags: "td_cost_tags",
+  /** 本地待同步日记（游客态本地 storage，Step 129） */
+  pendingDiaries: "td_pending_diaries",
+  /** 本地待同步装备（游客态本地 storage，Step 129） */
+  pendingGears: "td_pending_gears",
+  /** 本地待同步体重记录（游客态本地 storage，Step 129） */
+  pendingWeights: "td_pending_weights",
 } as const;

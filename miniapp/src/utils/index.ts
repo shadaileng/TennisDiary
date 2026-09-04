@@ -8,7 +8,7 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
-import { uploadFile } from "@/utils/upload";
+import { uploadFile, uploadRaw } from "@/utils/upload";
 
 import type { CostItem } from "@/types";
 
@@ -194,6 +194,42 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
       },
       fail: () => resolve(""),
     });
+  });
+}
+
+/**
+ * 游客态封面内容安全即检（仅检即弃，不落盘）。
+ * 调用匿名端点 /api/upload/guest-gear-check，返回是否安全（true=放行）。
+ * 网络/异常按 fail-open 处理：返回 true，保证本地点开可用性。
+ */
+export function guestCheckGearImage(filePath: string, code: string): Promise<boolean> {
+  return uploadRaw<{ safe?: boolean }>({
+    path: "/upload/guest-gear-check",
+    filePath,
+    formData: { code },
+  })
+    .then((d) => !!d.safe)
+    .catch(() => true);
+}
+
+/**
+ * 将本地图片文件读为 dataURL（base64）。
+ * 用于游客态装备封面本地保存：选图后先压成 dataURL 存本地仓库，
+ * 登录同步时再转临时文件走正式受检上传。
+ */
+export function compressToDataURL(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      const fs = uni.getFileSystemManager();
+      fs.readFile({
+        filePath,
+        encoding: "base64",
+        success: (r) => resolve(`data:image/jpeg;base64,${r.data as string}`),
+        fail: (err) => reject(new Error(err.errMsg || "图片读取失败")),
+      });
+    } catch (e) {
+      reject(e as Error);
+    }
   });
 }
 

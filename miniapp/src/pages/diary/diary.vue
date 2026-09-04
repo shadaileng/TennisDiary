@@ -1,13 +1,11 @@
 <template>
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="diary-page">
-    <!-- 游客空态：未登录不发请求，引导登录 -->
-    <view v-if="authStore.isGuest" class="diary-empty-guide">
-      <Empty icon="🔒" text="登录后即可记录与同步网球数据" button-text="去登录" @action="goMine" />
+    <!-- 游客横幅：本地数据提示 -->
+    <view v-if="authStore.isGuest" class="guest-banner">
+      <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
-    <!-- 已登录内容 -->
-    <template v-else>
     <!-- Hero：累计时长 -->
     <view class="diary-hero">
       <!-- 装饰光晕 -->
@@ -61,9 +59,9 @@
         <view class="diary-month-items">
           <view
             v-for="d in group.items"
-            :key="d.id"
+            :key="getEntryId(d)"
             class="diary-card"
-            @tap="goEdit(d.id)"
+            @tap="goEdit(getEntryId(d))"
           >
             <view class="diary-card-icon">
               {{ typeIcon(d.type) }}
@@ -92,7 +90,6 @@
 
     <!-- FAB -->
     <view class="diary-fab" @tap="goCreate">+</view>
-    </template>
   </view>
 </template>
 
@@ -106,16 +103,12 @@ import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";
-import type { Diary } from "@/types";
+import { getEntryId } from "@/types";
+import type { AnyDiary } from "@/types";
 const authStore = useAuthStore();
 const diaryStore = useDiaryStore();
 const settingsStore = useSettingsStore();
 const { themeStyle, themeBg } = useThemeStyle();
-
-/** 跳转到「我的」页登录（游客空态按钮） */
-function goMine() {
-  uni.switchTab({ url: "/pages/mine/mine" });
-}
 
 /** 类型 emoji 图标 */
 const TYPE_ICON: Record<string, string> = {
@@ -141,11 +134,11 @@ function moodEmoji(v: number): string {
   return MOOD.find((m) => m.v === v)?.emoji || "";
 }
 
-function costOf(d: Diary): number {
+function costOf(d: AnyDiary): number {
   return sumCosts(d.costs);
 }
 
-function costText(d: Diary): string {
+function costText(d: AnyDiary): string {
   return settingsStore.hideAmounts ? "¥**" : fmtMoney(costOf(d));
 }
 
@@ -158,7 +151,7 @@ const hoursPct = computed(() => Math.min(100, (totalHours.value / 10000) * 100))
 
 /** 按月分组（日期倒序） */
 const groups = computed(() => {
-  const map: Record<string, Diary[]> = {};
+  const map: Record<string, AnyDiary[]> = {};
   for (const d of diaryStore.sortedDiaries) {
     const m = d.date.slice(0, 7);
     (map[m] ??= []).push(d);
@@ -173,7 +166,7 @@ function monthTitle(month: string): string {
   return `${y} 年 ${m} 月`;
 }
 
-function monthCost(items: Diary[]): number {
+function monthCost(items: AnyDiary[]): number {
   return items.reduce((s, d) => s + sumCosts(d.costs), 0);
 }
 
@@ -181,14 +174,14 @@ function goCreate() {
   uni.navigateTo({ url: "/pages/diary/form" });
 }
 
-function goEdit(id: number) {
+function goEdit(id: number | string) {
   uni.navigateTo({ url: `/pages/diary/form?id=${id}` });
 }
 
 onShow(() => {
-  // 游客态：不发请求，清空列表并展示游客引导
   if (authStore.isGuest) {
-    diaryStore.setDiaries([]);
+    // 游客态：不发请求，直接载入本地待同步日记（仅本机可见）
+    diaryStore.fetchList();
     return;
   }
   diaryStore.fetchList();
@@ -204,8 +197,14 @@ onShow(() => {
   flex-direction: column;
 }
 
-.diary-empty-guide {
-  flex: 1;
+.guest-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: var(--color-accent-soft, #F0F5CE);
+  color: var(--color-accent-dark, #A8B822);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 // Hero
