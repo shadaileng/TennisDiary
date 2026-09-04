@@ -274,6 +274,7 @@ cd admin && pnpm build                 # 构建管理端
 | 127 | 小程序端代码卫生与健壮性优化（eventLogger `logWarn` 阈值丢日志 P0 修复 + console 噪音清理 + analyze 裸上传统一 `uploadRaw` + analysisStatus SSE 死代码/token 收口 + getMe/checkins 死导出清理 + resolveUploadUrl 分支合并 + share 定时器 onUnload 清理） | ✅ |
 | 108 | 日记装备关联选择与手写（从已有装备选择 + 手动输入；修复装备选择区 flex 布局挤压：`.form-gear-row` 加 `flex-wrap` + 选择器 `flex:0 0 100%` 独立换行 + 选中/手输名称回显 `✓`） | ✅ |
 | 128 | 日记花费明细学习标签（costTags store 本地持久化名目频次 + `td_cost_tags` 键 + 默认种子六项 + 保存后 recordUsed 累计/首次入池 + form.vue top6 胶囊标签区与点击新增/聚焦金额交互） | ✅ |
+| 129 | 日记装备统计游客本地降级与登录同步（未登录本地完整使用日记/装备/统计+体重，pendingRepo 本地仓库 + 本地聚合 + 登录后 syncPendingLocalData 静默同步；封面游客选图即检——后端匿名 `/api/upload/guest-gear-check` imgSecCheck 仅检即弃不落盘 + 同步正式上传兜底受检） | 🚧 进行中 |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
