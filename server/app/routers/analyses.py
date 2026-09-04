@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
+from app.core.mime import detect_media_mime
 from app.decorators.audit import audit
 from app.models.analysis import Analysis
 from app.models.user import User
@@ -123,6 +124,27 @@ def init_analysis(
     return ApiResponse(data={"id": analysis.id})
 
 
+def _infer_file_source(rel_path: str, video_url: str | None, thumb: str | None) -> str:
+    """推断登记文件的 upload_source（131：细化骨架/封面来源，支撑文件分类）
+
+    此前除 video_url 外一律登记为 skeleton，封面、骨架视频、骨架帧混为一谈，
+    分类时无法区分。细化后各来源均落在 file_service.ANALYSIS_MATCH_SOURCES 内，
+    分类行为与原先一致但更准确。
+    """
+    if video_url and rel_path == video_url:
+        return "video"
+    if thumb and rel_path == thumb:
+        return "analysis_thumb"
+    name = os.path.basename(rel_path).lower()
+    if name.endswith("_skeleton.mp4"):
+        return "skeleton_video"
+    if name.endswith(("_thumb.jpg", "_thumb.jpeg", "_thumb.png")):
+        return "skeleton_thumb"
+    if name.endswith((".jpg", ".jpeg", ".png", ".webp")):
+        return "skeleton_frame"
+    return "skeleton"
+
+
 @router.post("", response_model=ApiResponse[AnalysisResponse])
 @audit(action="CREATE", resource_type="analysis")
 def create_analysis(
@@ -178,7 +200,7 @@ def create_analysis(
                 continue
             try:
                 with db.begin_nested():
-                    source = "video" if rel_path == body.video_url else "skeleton"
+                    source = _infer_file_source(rel_path, body.video_url, body.thumb)
                     file_service.get_or_create_file(
                         db=db,
                         user_id=current_user.id,
@@ -377,7 +399,8 @@ async def start_analysis(
         abs_path=video_path,
         upload_source="video",
         original_name=file.filename or "video.mp4",
-        mime_type=file.content_type or "",
+        # 131：与 video.py 对齐，服务端 ffprobe 探测优先于客户端 Content-Type
+        mime_type=detect_media_mime(video_path),
     )
     db.commit()
 

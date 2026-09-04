@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.core.mime import detect_mime_type
+from app.core.mime import detect_mime_type, mime_type_from_ext
 from app.models.analysis import Analysis
 from app.models.file import File
 from app.models.gear import Gear
@@ -22,8 +22,18 @@ log = get_logger("user")
 # 文件使用边界（118 §5.8）：小程序实际消费判定
 # 原片 / 抽帧帧图不被小程序直接消费，可直接清除（unreferenced）
 NON_CONSUMED_SOURCES = {"video", "video_frame"}
-# 播放短片 / 骨架 / 封面 / 头像 / 装备图被小程序直接消费，需按业务路径匹配
-CONSUMED_SOURCES = {"video_playback", "skeleton", "analysis_thumb", "avatar", "gear_image"}
+# 需按 Analysis 路径匹配判定的上传源：播放短片 / 骨架产物 / 封面
+# 131：补全实际登记值 skeleton_video/thumb/frame（此前只有存量 skeleton，导致误判未绑定业务）
+ANALYSIS_MATCH_SOURCES = {
+    "video_playback",
+    "skeleton",
+    "skeleton_video",
+    "skeleton_thumb",
+    "skeleton_frame",
+    "analysis_thumb",
+}
+# 被小程序直接消费的源（含头像 / 装备图，二者另有独立匹配分支）
+CONSUMED_SOURCES = ANALYSIS_MATCH_SOURCES | {"avatar", "gear_image"}
 
 
 # ==================== 路径工具 ====================
@@ -146,6 +156,34 @@ def compute_md5_and_size(abs_path: str, chunk_size: int = 8192) -> tuple[str | N
 # ==================== File 记录操作 ====================
 
 
+def resolve_mime_type(
+    abs_path: str | None,
+    upload_source: str = "",
+    mime_type: str = "",
+    probe: bool = True,
+) -> str:
+    """补齐文件登记的 mime_type（131：登记入口统一兜底）
+
+    Step 116 只覆盖了上传端点，骨架视频/封面、裁剪短片、报告落库、孤儿注册等
+    入口都没有传 mime_type，落库为空字符串。此处由登记函数统一兜底：
+
+    - mime_type 非空：尊重调用方传入值（上传端点已做服务端探测），不覆盖
+    - probe=True：detect_mime_type 真实探测（PIL/ffprobe，读盘）
+    - probe=False：仅确定性扩展名映射（零磁盘 I/O，供批量登记热路径使用）
+    """
+    if mime_type:
+        return mime_type
+    if not abs_path:
+        return ""
+    if not probe:
+        return mime_type_from_ext(abs_path)
+    try:
+        return detect_mime_type(abs_path, upload_source)
+    except Exception as exc:  # noqa: BLE001 - 探测失败不应阻断登记
+        log.warning("MIME 探测失败，回退扩展名: path=%s error=%s", abs_path, exc)
+        return mime_type_from_ext(abs_path)
+
+
 def get_or_create_file(
     db: Session,
     user_id: int,
@@ -174,6 +212,9 @@ def get_or_create_file(
         size_bytes = os.path.getsize(abs_path) if os.path.isfile(abs_path) else 0
     if size_bytes is None:
         size_bytes = 0
+    # 131：登记兜底——调用方未传 mime 时按物理文件探测（已传值的不覆盖）
+    abs_file = abs_path or (rel_path_to_abs(rel_path) if rel_path else None)
+    mime_type = resolve_mime_type(abs_file, upload_source, mime_type)
     # 查询是否存在相同 MD5 的有效记录
     existing = (
         db.query(File)
@@ -201,7 +242,8 @@ def get_or_create_file(
             original_name=unique_name,
             rel_path=existing.rel_path,  # 复用路径
             size_bytes=existing.size_bytes,
-            mime_type=existing.mime_type,
+            # 131：存量记录 mime 为空时用本次探测值补齐，避免空值被秒传复制
+            mime_type=existing.mime_type or mime_type,
             upload_source=upload_source,
             business_type=business_type,
             business_id=business_id,
@@ -252,8 +294,9 @@ def batch_get_or_create_files(
 ) -> list[File]:
     """批量登记文件：一次查询 MD5 + original_name，一次 bulk insert
 
-    files: 预计算结果列表，每项包含 rel_path, md5, size, upload_source
-    注意：调用方必须确保 md5/size 已预计算，本函数不做任何磁盘读取
+    files: 预计算结果列表，每项包含 rel_path, md5, size, upload_source，可选 mime_type
+    注意：调用方必须确保 md5/size 已预计算，本函数不做任何磁盘读取；
+    mime_type 缺失时仅用确定性扩展名映射补齐（131），真实类型由修复功能兜底
     """
     if not files:
         return []
@@ -301,6 +344,8 @@ def batch_get_or_create_files(
         existing = existing_map.get(md5)
         original_name = os.path.basename(info["rel_path"])
         base, ext = os.path.splitext(original_name)
+        # 131：批量路径禁止磁盘 I/O，仅用确定性扩展名映射补齐（info 可显式传 mime_type）
+        info_mime = info.get("mime_type") or mime_type_from_ext(info["rel_path"])
 
         # 生成唯一名称（批量模式，内存内计算）
         unique_name = original_name
@@ -320,7 +365,8 @@ def batch_get_or_create_files(
                 original_name=unique_name,
                 rel_path=existing.rel_path,
                 size_bytes=existing.size_bytes,
-                mime_type=existing.mime_type,
+                # 131：存量记录 mime 为空时用扩展名映射补齐
+                mime_type=existing.mime_type or info_mime,
                 upload_source=info["upload_source"],
                 business_type=business_type,
                 business_id=business_id,
@@ -337,6 +383,7 @@ def batch_get_or_create_files(
                 original_name=unique_name,
                 rel_path=info["rel_path"],
                 size_bytes=info.get("size", 0),
+                mime_type=info_mime,
                 upload_source=info["upload_source"],
                 business_type=business_type,
                 business_id=business_id,
@@ -737,6 +784,8 @@ def register_orphan_files(
             original_name=original_name,
             rel_path=rel_path,
             size_bytes=size,
+            # 131：孤儿注册同样按物理文件探测 mime（此处已读盘算 MD5）
+            mime_type=resolve_mime_type(abs_path, upload_source),
             upload_source=upload_source,
             ref_count=1,
             created_at=time.time(),
@@ -829,7 +878,7 @@ def classify_file_usage(db: Session, file_record: File) -> tuple[str, str]:
             return "unreferenced", "验证异常"
 
     # 被消费源（播放短片 / 骨架 / 封面等）：按用户 Analysis 路径匹配兜底
-    if src in CONSUMED_SOURCES:
+    if src in ANALYSIS_MATCH_SOURCES:
         try:
             analyses = db.query(Analysis).filter(Analysis.user_id == uid).all()
             for a in analyses:
@@ -870,7 +919,7 @@ def bulk_classify_files(db: Session, files: list[File]) -> dict[int, tuple[str, 
             user_ids.add(f.user_id)
         if f.upload_source == "gear_image":
             video_user_ids.add(f.user_id)
-        if f.upload_source in ("video_playback", "skeleton", "analysis_thumb"):
+        if f.upload_source in ANALYSIS_MATCH_SOURCES:
             video_user_ids.add(f.user_id)
 
     users = (
@@ -956,7 +1005,7 @@ def bulk_classify_files(db: Session, files: list[File]) -> dict[int, tuple[str, 
                 result[f.id] = ("unreferenced", "装备记录引用已失效")
             continue
 
-        if src in ("video_playback", "skeleton", "analysis_thumb"):
+        if src in ANALYSIS_MATCH_SOURCES:
             matched = any(_check_analysis(a, rel) for a in video_analyses.get(uid, []))
             if matched:
                 result[f.id] = ("in_use", "分析报告引用有效")

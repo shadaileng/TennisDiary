@@ -74,6 +74,14 @@ def _ext_mime(path: str) -> str | None:
     return EXTENSION_MIME.get(ext)
 
 
+def mime_type_from_ext(path: str) -> str:
+    """仅按扩展名推断 MIME（无磁盘 I/O），未知返回空字符串
+
+    用于批量登记等禁止读盘的热路径（131）：确定性映射，不依赖运行时环境。
+    """
+    return _ext_mime(path) or ""
+
+
 def detect_image_mime(path: str) -> str:
     """图片 MIME：优先用 PIL 读取真实格式，回退扩展名映射，再回退 octet-stream"""
     try:
