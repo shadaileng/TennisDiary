@@ -110,6 +110,29 @@ def mock_user():
     return MockUser()
 
 
+# ==================== dependency_overrides 精准管理 ====================
+
+_MISSING = object()
+
+
+def set_override(key, value):
+    """精准注册一项 dependency override，返回还原回调。
+
+    不使用 `clear() + update(saved)` 全量替换：那样会抹掉其它作用域（如 admin
+    模块级 fixture）注册的 override，导致后续请求打到错误的数据库（Step 132）。
+    """
+    previous = app.dependency_overrides.get(key, _MISSING)
+    app.dependency_overrides[key] = value
+
+    def restore():
+        if previous is _MISSING:
+            app.dependency_overrides.pop(key, None)
+        else:
+            app.dependency_overrides[key] = previous
+
+    return restore
+
+
 # ==================== FastAPI TestClient ====================
 
 
@@ -128,11 +151,9 @@ def client(test_db, _app_client):
     def override_get_db():
         yield test_db
 
-    saved = dict(app.dependency_overrides)
-    app.dependency_overrides[get_db] = override_get_db
+    restore = set_override(get_db, override_get_db)
     yield _app_client
-    app.dependency_overrides.clear()
-    app.dependency_overrides.update(saved)
+    restore()
 
 
 @pytest.fixture(scope="function")
@@ -145,9 +166,8 @@ def auth_client(client, mock_user, test_db):
     def override_get_current_user_media():
         return mock_user
 
-    saved = dict(app.dependency_overrides)
-    app.dependency_overrides[get_current_user] = override_get_current_user
-    app.dependency_overrides[get_current_user_media] = override_get_current_user_media
+    restore_user = set_override(get_current_user, override_get_current_user)
+    restore_media = set_override(get_current_user_media, override_get_current_user_media)
     yield client
-    app.dependency_overrides.clear()
-    app.dependency_overrides.update(saved)
+    restore_user()
+    restore_media()

@@ -140,7 +140,15 @@ class TestAdminFileDelete:
         _write_file(rel)
         md5 = hashlib.md5(f"shared-{uid1}".encode()).hexdigest()
         r1 = _insert_file(test_db, user_id=uid1, rel_path=rel, md5=md5, upload_source="avatar")
-        _insert_file(test_db, user_id=uid2, rel_path=rel, md5=md5, upload_source="gear_image")
+        # 秒传语义：物理路径与 MD5 共用，但 original_name 全局唯一（109 唯一约束）
+        _insert_file(
+            test_db,
+            user_id=uid2,
+            rel_path=rel,
+            md5=md5,
+            original_name=f"shared-keep-{uid2}.jpg",
+            upload_source="gear_image",
+        )
 
         auth_client.delete(f"/api/admin/files/{r1.id}")
         abs_path = os.path.join(os.path.abspath(settings.UPLOAD_DIR), rel)

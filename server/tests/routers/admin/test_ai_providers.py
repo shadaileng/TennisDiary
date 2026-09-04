@@ -9,7 +9,6 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.models.admin import Admin
 from app.models.ai_provider import AiProvider
-from app.models.role import Role
 from app.models.system_config import SystemConfig
 from app.services import config_service
 
@@ -73,9 +72,9 @@ class TestProviderList:
         finally:
             client.headers["X-Auth-Token"] = admin_token
 
-    def test_list_forbidden_without_permission(self, client, test_db):
+    def test_list_forbidden_without_permission(self, client, test_db, test_roles):
         """普通管理员（无 system:config）→ 403"""
-        role = test_db.query(Role).filter(Role.code == "admin").first()
+        role = test_roles["admin"]
         admin = Admin(
             username="normal_admin",
             password_hash=hash_password("testpass123"),
@@ -472,9 +471,12 @@ class TestCheckModels:
         )
         assert response.status_code == 422
 
-    def test_forbidden_without_permission(self, client, test_db):
-        """普通管理员（无 system:config）→ 403"""
-        role = test_db.query(Role).filter(Role.code == "admin").first()
+    def test_forbidden_without_permission(self, client, test_db, test_roles):
+        """普通管理员（无 system:config）→ 403
+
+        显式依赖 test_roles fixture：不依赖其它用例是否曾间接创建角色（Step 132）。
+        """
+        role = test_roles["admin"]
         admin = Admin(
             username="check_normal",
             password_hash=hash_password("testpass123"),

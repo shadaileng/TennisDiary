@@ -563,26 +563,39 @@ class TestAIAnalysisFiles:
         count = decrement_analysis_files(test_db, analysis)
         assert count == 2
 
-    def test_register_ai_files_creates_records(self, test_db):
-        """register_ai_files 为骨架文件创建 File 记录"""
-        from app.services.file_service import register_ai_files
+    def test_register_skeleton_files_creates_records(self, test_db):
+        """骨架文件批量登记创建 File 记录
+
+        Step 125 移除 register_ai_files，改由 batch_get_or_create_files 统一登记。
+        """
+        from app.services.file_service import batch_get_or_create_files
 
         uid = _next_uid()
         abs_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), f"analyses/{uid}")
         os.makedirs(abs_dir, exist_ok=True)
+        files = []
         for name in ["sk_a.jpg", "sk_b.jpg"]:
-            with open(os.path.join(abs_dir, name), "wb") as f:
+            abs_path = os.path.join(abs_dir, name)
+            with open(abs_path, "wb") as f:
                 f.write(b"skeleton-data")
+            files.append(
+                {
+                    "rel_path": f"analyses/{uid}/{name}",
+                    "md5": hashlib.md5(b"skeleton-data").hexdigest(),
+                    "size": os.path.getsize(abs_path),
+                    "upload_source": "skeleton_frame",
+                }
+            )
 
-        records = register_ai_files(
+        records = batch_get_or_create_files(
             test_db,
             user_id=uid,
-            paths=[f"analyses/{uid}/sk_a.jpg", f"analyses/{uid}/sk_b.jpg"],
+            files=files,
             business_type="analysis",
             business_id=10,
         )
         assert len(records) == 2
-        assert all(r.upload_source == "skeleton" for r in records)
+        assert all(r.upload_source == "skeleton_frame" for r in records)
         assert all(r.business_type == "analysis" for r in records)
 
 
@@ -593,23 +606,37 @@ class TestSkeletonRegistration:
     """5.6 骨架帧注册后关联到 Analysis"""
 
     def test_skeleton_files_linked_to_analysis(self, test_db):
-        """register_ai_files 创建的记录可被 decrement_analysis_files 递减"""
+        """批量登记的骨架文件可被 decrement_analysis_files 递减"""
         import json
 
-        from app.services.file_service import decrement_analysis_files, register_ai_files
+        from app.services.file_service import (
+            batch_get_or_create_files,
+            decrement_analysis_files,
+        )
 
         uid = _next_uid()
         abs_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), f"skeletons/{uid}")
         os.makedirs(abs_dir, exist_ok=True)
         paths = [f"skeletons/{uid}/frame1.jpg", f"skeletons/{uid}/frame2.jpg"]
+        files = []
         for i, name in enumerate(["frame1.jpg", "frame2.jpg"]):
-            with open(os.path.join(abs_dir, name), "wb") as f:
-                f.write(f"skel-data-{i}".encode())
+            content = f"skel-data-{i}".encode()
+            abs_path = os.path.join(abs_dir, name)
+            with open(abs_path, "wb") as f:
+                f.write(content)
+            files.append(
+                {
+                    "rel_path": f"skeletons/{uid}/{name}",
+                    "md5": hashlib.md5(content).hexdigest(),
+                    "size": len(content),
+                    "upload_source": "skeleton_frame",
+                }
+            )
 
-        register_ai_files(
+        batch_get_or_create_files(
             test_db,
             user_id=uid,
-            paths=paths,
+            files=files,
             business_type="analysis",
             business_id=5,
         )

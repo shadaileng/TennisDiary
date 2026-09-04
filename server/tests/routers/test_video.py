@@ -293,7 +293,8 @@ class TestProcessVideoTrim:
         assert result["trimmed"] is True
         assert result["segments"] == cuts
         assert result["duration"] == 30.0  # 裁剪后重新探测
-        assert not os.path.isfile(original)  # 原文件已删
+        # 118 起保留原片（video_service.process_video 不删源文件），由文件管理统一处理
+        assert os.path.isfile(original)
         assert "test_concat" in result["frame_urls"][0]  # 抽帧基于裁剪产物命名
 
     def test_validation_error_propagates(self, monkeypatch, tmp_path):
