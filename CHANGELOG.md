@@ -18,7 +18,7 @@
 
 - 文档（131/132）：新增 `docs/plans/131-文件登记MIME类型兜底与分类源补全.md`、`docs/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md`，同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、`.vitepress/config.mts` 侧边栏。
 
-## [1.77.8] - 2026-09-04
+## [1.77.9] - 2026-09-04
 
 ### Fixed
 
@@ -27,6 +27,17 @@
 ### Changed
 
 - 文档（130）：新增 `docs/plans/130-Admin跨域静态资源URL统一解析.md`（跨域拓扑、7 处全量扫描清单、修复方案、验证标准），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
+
+## [1.77.8] - 2026-09-04
+
+### Added
+
+- 日记/装备/统计游客本地降级（129）：未登录用户可完整使用日记、装备、统计（数据总览 + 体重管理）三个模块——列表浏览、新增、编辑、删除、体重记录全部落地本地 `storage`，页面顶部显示「本地模式，登录后自动同步」横幅，取代原先只展示「🔒 去登录」引导空态。新增 `services/pendingRepo.ts`（本地待同步仓库，storage 持久化，含 `localId`/`pending` 标记）、`services/localStats.ts`（本地聚合，口径对齐后端 `/api/stats`）、`services/sync.ts`（登录成功后逐条 `POST` 静默同步，成功清理本地项、失败保留待下次登录重试）；`stores/diary.ts`、`stores/gear.ts`、`stores/weight.ts` 改为双路径（游客读写本地 / 登录走云端），列表与表单对 `Diary | LocalDiary`（装备、体重同理）透明，主键由 `getEntryId()` 统一取 `id` 或 `localId`。统计页「数据总览」6 卡改为本地实时聚合，体重三格/趋势/增删基于本地项。登出与 401 后本地 pending 保留，各 tab 页 `onShow` 按 `isGuest` 从本地仓库重载内存，避免云端数据串显（多账号隔离）。
+- 装备封面游客「选图即检」（129）：后端新增免鉴权端点 `POST /api/upload/guest-gear-check`（`uni.login` 一次性 code → `code_to_openid` → `check_image_sync`，**检查即弃**：不落盘、不建 File 记录、不写 DB，接口故障 fail-open）；游客选图由拆分出的 `compressToDataURL()` 压缩为本地 `data:` 后即时联网受检，`safe:true` 才写入 `form.photo`，违规/损坏图当场 toast 拦截；登录后同步仍走 `/api/upload/gear-image` 正式受检上传，构成双保险。新增 5 条端点用例（免鉴权通过 / 违规拦截 / code 非法 / 检查故障放行 / 扩展名非法），并断言临时文件清理。
+
+### Changed
+
+- 文档（129）：新增 `docs/plans/129-日记装备统计游客本地降级与登录同步.md`（v1.1.1，含封面安全检查路线 C 决策与勘误补强），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
 
 ## [1.77.7] - 2026-09-02
 
