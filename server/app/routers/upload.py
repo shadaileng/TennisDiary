@@ -14,7 +14,7 @@ from app.core.logging import get_logger
 from app.core.mime import detect_image_mime
 from app.decorators.audit import audit
 from app.models.user import User
-from app.schemas.common import ApiResponse
+from app.schemas.common import ApiResponse, ErrorCode
 from app.services import file_service
 from app.services.content_security import ContentSecurityError, check_image_sync
 from app.services.wx_service import code_to_openid
@@ -266,9 +266,14 @@ async def guest_gear_check(
             detail="图片可能包含违规信息，请更换后重试",
         ) from None
     except Exception as exc:
-        # fail-open：微信/网络异常放行（正式上传兜底受检）；不把调用方错误当违规
-        log.error("游客封面安全检查异常，放行: %s", exc, exc_info=True)
-        return ApiResponse(data={"safe": True})
+        # 技术故障：返回明确错误码，前端据此拒绝保存
+        log.error("游客封面安全检查异常: %s", exc, exc_info=True)
+        return ApiResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            message="安全检查服务异常，请重试",
+            success=False,
+            data=None,
+        )
     finally:
         file_service.safe_unlink(abs_path)
     return ApiResponse(data={"safe": True})

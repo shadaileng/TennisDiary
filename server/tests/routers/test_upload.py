@@ -152,14 +152,17 @@ class TestGuestGearCheck:
     @patch("app.routers.upload.code_to_openid", return_value="o_openid_guest_0001")
     @patch("app.routers.upload.check_image_sync", side_effect=RuntimeError("network down"))
     def test_guest_check_fail_open(self, _mock_check, _mock_openid, client):
-        """微信/网络异常 → 200 {safe:true} fail-open（正式上传兜底受检）"""
+        """微信/网络异常 → 200 {code:50001, success:false} 前端据此拒绝保存"""
         response = client.post(
             "/api/upload/guest-gear-check",
             data={"code": "wx_code_guest_001"},
             files={"file": ("g.png", io.BytesIO(self._png_bytes()), "image/png")},
         )
         assert response.status_code == 200
-        assert response.json()["data"]["safe"] is True
+        data = response.json()
+        assert data["code"] == 50001
+        assert data["success"] is False
+        assert data["data"] is None
         self._assert_no_tmp_leftover()
 
     def test_guest_check_reject_extension(self, client):

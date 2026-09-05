@@ -200,16 +200,14 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
 /**
  * 游客态封面内容安全即检（仅检即弃，不落盘）。
  * 调用匿名端点 /api/upload/guest-gear-check，返回是否安全（true=放行）。
- * 网络/异常按 fail-open 处理：返回 true，保证本地点开可用性。
+ * 技术故障时向上传播异常，由调用方 toast 提示用户。
  */
 export function guestCheckGearImage(filePath: string, code: string): Promise<boolean> {
   return uploadRaw<{ safe?: boolean }>({
     path: "/upload/guest-gear-check",
     filePath,
     formData: { code },
-  })
-    .then((d) => !!d.safe)
-    .catch(() => true);
+  }).then((d) => d.safe === true);
 }
 
 /**
