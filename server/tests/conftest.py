@@ -2,7 +2,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.core.auth import get_current_user, get_current_user_media
 from app.core.database import Base, get_db
@@ -58,23 +57,15 @@ def data_dir(_isolate_data_dirs):
 
 @pytest.fixture(scope="function")
 def test_engine():
-    """每个测试函数使用独立的 SQLite 临时文件数据库
-
-    注意：不能使用 :memory:，因为 FastAPI async handler 在 TestClient 的
-    asyncio portal 中运行时可能使用不同线程，而 :memory: 数据库在不同连接间
-    是独立的，会导致 "no such table" 错误。
-    """
+    """每个测试函数使用独立的 SQLite 临时文件数据库"""
     import os
     import tempfile
 
     fd, path = tempfile.mkstemp(suffix=".db", prefix="test_")
     os.close(fd)
-    # 内存库 + StaticPool：单连接避免跨线程 "no such table"，同时消除每用例文件
-    # create/drop/unlink 的 I/O 开销，显著加快测试。每个用例仍是独立引擎，隔离性不变。
     engine = create_engine(
-        "sqlite://",
+        f"sqlite:///{path}",
         connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
     yield engine

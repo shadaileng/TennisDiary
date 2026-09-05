@@ -12,11 +12,11 @@
 
 ### Fixed
 
-- 测试脆弱性治理（132）：全量 `pytest` 长期 10 failed，逐一排查确认均为改动前既有的脆弱测试。A 类死测试/过期断言：秒传共享删除用例插入两条同名 `original_name` 违反 `files.original_name` 唯一约束；两处用例引用 Step 125 已删除的 `register_ai_files`（改走 `batch_get_or_create_files`）；两处断言已下线的 preview 端点返回 200（另有两处断言 404 属假绿，整类删除）；裁剪用例断言「原文件已删」与 118 起保留原片语义冲突（改为断言保留）。B/C 类 fixture 作用域错配：admin `conftest` 的 module 级 `test_db`/`client` 与根 `conftest` 的 function 级 `client` 都用 `clear() + update(saved)` 操作 `app.dependency_overrides`，互相抹掉对方覆盖使请求打到错误数据库；`auth_client` 又把 admin token 写进 session 级共享 TestClient 默认头且从不清理，导致 media query token 用例 401。修复：两处 `client` fixture 改为精准增删（`set_override` 保存旧值 + teardown 还原），`auth_client` teardown 移除 `X-Auth-Token` 头，新增 autouse fixture 在每个用例前后 `test_db.rollback()` 杜绝 `PendingRollbackError` 级联，并把 roles/ai-providers 两个顺序依赖用例改为自包含。受影响子集 145 passed / 0 failed。
+- 测试脆弱性治理（132/133）：全量 `pytest` 长期 10 failed，逐一排查确认均为改动前既有的脆弱测试。A 类死测试/过期断言：秒传共享删除用例插入两条同名 `original_name` 违反 `files.original_name` 唯一约束；两处用例引用 Step 125 已删除的 `register_ai_files`（改走 `batch_get_or_create_files`）；两处断言已下线的 preview 端点返回 200（另有两处断言 404 属假绿，整类删除）；裁剪用例断言「原文件已删」与 118 起保留原片语义冲突（改为断言保留）。B/C 类 fixture 作用域错配：admin `conftest` 的 module 级 `test_db`/`client` 与根 `conftest` 的 function 级 `client` 都用 `clear() + update(saved)` 操作 `app.dependency_overrides`，互相抹掉对方覆盖使请求打到错误数据库；`auth_client` 又把 admin token 写进 session 级共享 TestClient 默认头且从不清理，导致 media query token 用例 401。修复：两处 `client` fixture 改为精准增删（`set_override` 保存旧值 + teardown 还原），`auth_client` teardown 移除 `X-Auth-Token` 头，新增 autouse fixture 在每个用例前后 `test_db.rollback()` 杜绝 `PendingRollbackError` 级联，并把 roles/ai-providers 两个顺序依赖用例改为自包含。受影响子集 145 passed / 0 failed。CI 并行（ubuntu-latest, 4 workers）仍报 223 errors：root `conftest.py` 的 `test_engine` 使用 `sqlite://` + `StaticPool`，CI 并行时 SQLite 连接未正确回收导致 `create_all` 重复建表（`table ai_providers already exists`）；`test_cleanup_orphans.py` 本地 `test_engine` 与 admin conftest module-scoped `test_engine` 同名冲突 → `ScopeMismatch`。修复：`test_engine` 改用 file-based SQLite 临时文件，移除 `StaticPool`；本地 `test_engine` 重命名为 `cleanup_engine`。全量 563 passed / 0 errors。
 
 ### Changed
 
-- 文档（131/132）：新增 `docs/plans/131-文件登记MIME类型兜底与分类源补全.md`、`docs/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md`，同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、`.vitepress/config.mts` 侧边栏。
+- 文档（132/133）：新增/更新 `docs/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md`（含 CI 并行 StaticPool 修复），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、`.vitepress/config.mts` 侧边栏。
 
 ## [1.77.9] - 2026-09-04
 

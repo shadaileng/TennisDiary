@@ -282,7 +282,7 @@ docs/
 | 129：日记装备统计游客本地降级与登录同步 | v1.1.1 | 方案 | `plans/129-日记装备统计游客本地降级与登录同步.md` | 日记/装备/统计页游客本地降级（本地 storage + 登录后自动静默同步后台）；封面游客选图即检（后端匿名仅检端点） | 📋 待执行 |
 | 130：Admin 跨域静态资源 URL 统一解析 | v1.0.0 | 方案 | `plans/130-Admin跨域静态资源URL统一解析.md` | 修复 Admin 原生请求（预览/装备图/下载）相对路径打到前端域名 404；抽取 `utils/fileUrl.ts` 统一解析并兼容 base64 dataURL | 🏁 已完成 |
 | 131：文件登记 MIME 类型兜底与分类源补全 | v1.1.0 | 方案 | `plans/131-文件登记MIME类型兜底与分类源补全.md` | 登记函数统一补齐 `mime_type`（骨架/封面/短片/孤儿不再为空）+ 骨架类 `upload_source` 分类源补全 | 🏁 已完成 |
-| 132：测试脆弱性治理（死测试清理 + fixture 作用域修复） | v1.1.0 | 方案 | `plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md` | 清理 6 个死测试/过期断言 + 修复 `dependency_overrides` 与共享 TestClient 污染，全量测试归零失败 | 🏁 已完成 |
+| 132：测试脆弱性治理（死测试清理 + fixture 作用域修复 + CI 并行 StaticPool 冲突修复） | v1.1.0 | 方案 | `plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md` | 清理 6 个死测试/过期断言 + 修复 `dependency_overrides` 与共享 TestClient 污染 + `test_engine` 改 file-based SQLite 消除 CI 并行冲突，全量 563 passed / 0 errors | 🏁 已完成 |
 
 ## 文档类型说明
 
@@ -425,7 +425,7 @@ docs/
 | 129-日记装备统计游客本地降级与登录同步 | 小程序前端 + 后端检查端点 | 📋 待执行 | 2026-09-04 | - |
 | 130-Admin跨域静态资源URL统一解析 | 后台管理端优化 | 🏁 已完成 | 2026-09-04 | 公共 `utils/fileUrl.ts`（fileUrl/avatarUrl/fileDownloadUrl）+ 6 处接入；admin type-check + build 通过 |
 | 131-文件登记MIME类型兜底与分类源补全 | 后台/文件管理 | 🏁 已完成 | 2026-09-04 | `resolve_mime_type` 登记兜底（批量路径零 I/O）+ `ANALYSIS_MATCH_SOURCES` 分类源补全 + 报告落库 source 细化；25 用例通过，全量无回归 |
-| 132-测试脆弱性治理 | 测试与工程优化 | 🏁 已完成 | 2026-09-04 | 死测试清理（register_ai_files/preview/同名 original_name/原片删除断言）+ fixture 精准增删 + 鉴权头清理 + 会话自动回滚；受影响子集 145 passed / 0 failed |
+| 132-测试脆弱性治理 | 测试与工程优化 | 🏁 已完成 | 2026-09-05 | 死测试清理 + fixture 精准增删 + 鉴权头清理 + 会话自动回滚 + CI 并行 StaticPool 冲突修复（`test_engine` 改 file-based SQLite）；全量 563 passed / 0 errors |
 
 ## 约定
 

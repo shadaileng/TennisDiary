@@ -41,12 +41,27 @@ def _write_file(rel_path: str, content: bytes = b"orphan-content") -> str:
 
 
 @pytest.fixture(scope="function")
-def admin_client(test_engine):
+def cleanup_engine():
+    fd, path = tempfile.mkstemp(suffix=".db", prefix="test_cleanup_")
+    os.close(fd)
+    eng = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=eng)
+    yield eng
+    Base.metadata.drop_all(bind=eng)
+    eng.dispose()
+    try:
+        os.unlink(path)
+    except PermissionError:
+        pass
+
+
+@pytest.fixture(scope="function")
+def admin_client(cleanup_engine):
     from jose import jwt as _jwt
 
     from app.core.auth import ADMIN_JWT_ALGORITHM, ADMIN_JWT_SECRET
 
-    TestSession = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    TestSession = sessionmaker(autocommit=False, autoflush=False, bind=cleanup_engine)
     db = TestSession()
 
     def override_get_db():
@@ -87,18 +102,6 @@ def admin_client(test_engine):
     client = TestClient(app, headers=headers)
     yield client
     app.dependency_overrides.clear()
-
-
-@pytest.fixture(scope="function")
-def test_engine():
-    fd, path = tempfile.mkstemp(suffix=".db", prefix="test_cleanup_")
-    os.close(fd)
-    eng = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=eng)
-    yield eng
-    Base.metadata.drop_all(bind=eng)
-    eng.dispose()
-    os.unlink(path)
 
 
 class TestCleanupOrphans:

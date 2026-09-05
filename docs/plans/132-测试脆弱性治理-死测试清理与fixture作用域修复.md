@@ -3,15 +3,16 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 132 |
-> | 文档版本 | v1.0.0 |
-> | 文档状态 | 📋 待执行 |
-> | 最后更新 | 2026-09-04 |
-> | 对应功能/内容 | 全量测试 10 个失败用例治理：死测试清理 + fixture 作用域/污染修复 |
+> | 文档版本 | v1.1.0 |
+> | 文档状态 | ✅ 已完成 |
+> | 最后更新 | 2026-09-05 |
+> | 对应功能/内容 | 全量测试治理：死测试清理 + fixture 作用域/污染修复 + CI 并行 StaticPool 冲突修复 |
 >
 > **变更历史**
 >
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
+> | 2026-09-05 | v1.1.0 | 新增 Step 133：CI 并行 StaticPool 内存库冲突 + fixture 命名冲突修复 |
 > | 2026-09-04 | v1.0.0 | 初版：三类根因分析与修复方案 |
 >
 > **关联文档**：[109-文件管理系统](./109-文件管理系统.md)、[115-pytest测试提速方案](./115-pytest测试提速方案.md)、[125-Admin文件管理简化与查询优化](./125-Admin文件管理简化与查询优化.md)、[131-文件登记MIME类型兜底与分类源补全](./131-文件登记MIME类型兜底与分类源补全.md)
@@ -122,3 +123,48 @@ module 级 `test_db` 在前一用例 flush 失败后未 rollback，同模块后�
 2. **秒传语义**：`files.original_name` 有 UNIQUE 约束是 109 的既定设计（展示名唯一、物理路径可复用），测试构造须遵守。
 3. **module 级 DB 共享**：autouse rollback 只回滚未提交事务，不影响用例内已 `commit` 的数据。
 4. **日志规范**：异常统一 `%s` 风格（AGENTS.md 核心约束 5）。
+
+---
+
+# Step 133：CI 并行测试 223 errors 修复（StaticPool 内存库冲突 + fixture 命名冲突）
+
+## 一、背景与动机
+
+Step 132 修复后本地全量 `563 passed / 0 errors`，但 CI（GitHub Actions ubuntu-latest, Python 3.14.7, `pytest -n auto` 4 workers）仍报 **223 errors / 2 failed**。错误模式高度一致：gw2（admin 测试）全通过，gw0/gw1/gw3 从第一个用例即 ERROR。
+
+## 二、根因分析
+
+### 根因 1：root conftest `test_engine` 使用 `sqlite://` + `StaticPool`
+
+```python
+# tests/conftest.py（修复前）
+engine = create_engine("sqlite://", poolclass=StaticPool)
+Base.metadata.create_all(bind=engine)
+```
+
+- `StaticPool` 维持单连接，CI 并行 4 workers 时 SQLite 连接未正确回收，第二个用例的 `create_all` 发现表已存在 → `OperationalError: table ai_providers already exists`
+- admin conftest 的 `test_engine` 使用 **file-based** SQLite 临时文件，无此问题，故 gw2 通过
+
+### 根因 2：`test_cleanup_orphans.py` fixture 命名冲突
+
+```python
+# tests/routers/admin/test_cleanup_orphans.py（修复前）
+@pytest.fixture(scope="function")
+def test_engine():  # ← 与 admin conftest 的 module-scoped test_engine 同名
+```
+
+admin conftest 的 `test_db`（module-scoped）依赖 `test_engine`，解析到本地 function-scoped 版本 → `ScopeMismatch`
+
+## 三、修复方案
+
+| 修改文件 | 内容 |
+|---------|------|
+| `tests/conftest.py` | `test_engine` 从 `sqlite://` + `StaticPool` 改为 `sqlite:///临时文件`（与 admin conftest 方案一致），移除未使用的 `StaticPool` import |
+| `tests/routers/admin/test_cleanup_orphans.py` | 本地 `test_engine` 重命名为 `cleanup_engine`，`admin_client` fixture 依赖同步更新；teardown 添加 `PermissionError` 容错（Windows 文件锁） |
+
+## 四、验收标准
+
+- [x] `uv run pytest -v -n auto` → **563 passed, 0 errors**
+- [x] `ruff check` → All checks passed
+- [x] `ruff format --check` → 125 files already formatted
+- [x] `pytest -m fast` → 66 passed（提交门禁通过）
