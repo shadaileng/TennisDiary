@@ -234,6 +234,7 @@ const focusCostIdx = ref<number | null>(null);
 onLoad(async (query) => {
   // 加载装备列表
   gearStore.fetchList();
+  logInfo("日记表单加载装备列表", { isGuest: useAuthStore().isGuest, gears_count: gearStore.gears.length }, undefined, "diary_gear_fetch_list", createTraceId());
   // 清除可能的金额框自动聚焦残留
   focusCostIdx.value = null;
 
@@ -320,6 +321,7 @@ function addGear() {
 }
 
 function showGearPicker(i: number) {
+  logInfo("点击从已有装备选择", { i, gears_count: gearStore.gears.length, names: gearStore.gears.map(g => g.name) }, undefined, "diary_gear_picker_tap", createTraceId());
   const names = gearStore.gears.map((g) => g.name);
   if (names.length === 0) {
     uni.showToast({ title: "暂无装备，请手动输入", icon: "none" });
