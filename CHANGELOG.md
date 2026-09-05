@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.78.1] - 2026-09-05
+
+### Fixed
+
+- 小程序体重趋势图绘制顺序修复：`weightData` 用 `.sort(ascending)` 对相同日期记录无效（稳定排序保留原降序），导致图表与列表同向（最新在左）。改为 `.reverse()` 直接转升序，游客/登录模式通用。
+
 ## [1.78.0] - 2026-09-04
 
 ### Added

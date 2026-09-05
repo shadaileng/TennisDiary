@@ -234,11 +234,11 @@ const deltaColor = computed(() =>
   delta.value < 0 ? "stats-weight-card-value--down" : delta.value > 0 ? "stats-weight-card-value--up" : "",
 );
 
-/** 体重折线数据（最近 14 条，升序） */
+/** 体重折线数据（最近 14 条，升序：旧→新） */
 const weightData = computed(() =>
   [...weightStore.weights]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-14)
+    .reverse()
+    .slice(0, 14)
     .map((w) => ({ label: w.date.slice(5), value: w.weight })),
 );
 
