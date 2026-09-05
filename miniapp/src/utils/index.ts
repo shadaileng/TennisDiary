@@ -248,6 +248,37 @@ export function compressToDataURL(filePath: string): Promise<string> {
 }
 
 /**
+ * 压缩图片并转为 dataURL（用于游客态本地存储）
+ *
+ * 流程：uni.compressImage 压缩 → uni.getFileSystemManager 读取为 base64
+ * 压缩参数：最大宽度 800px，质量 70%，平衡清晰度与存储大小
+ */
+export function compressImageToDataURL(
+  filePath: string,
+  options?: { width?: number; quality?: number },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const { width = 800, quality = 70 } = options || {};
+
+    uni.compressImage({
+      src: filePath,
+      quality,
+      compressedWidth: width,
+      success: (res) => {
+        const fs = uni.getFileSystemManager();
+        fs.readFile({
+          filePath: res.tempFilePath || filePath,
+          encoding: "base64",
+          success: (r) => resolve(`data:image/jpeg;base64,${r.data as string}`),
+          fail: (err) => reject(new Error(err.errMsg || "图片读取失败")),
+        });
+      },
+      fail: (err) => reject(new Error(err.errMsg || "图片压缩失败")),
+    });
+  });
+}
+
+/**
  * 安全返回上一页：若栈深不足（当前为首页）则跳转到 tabBar 首页。
  * 适用于 form 页面保存/删除后返回，避免 navigateBack 在栈底抛错。
  */

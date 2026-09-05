@@ -95,7 +95,7 @@ import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useGearStore, useSettingsStore } from "@/stores";
 import { getGear } from "@/services/data";
-import { GEAR_CATEGORIES, choosePhoto, compressToDataURL, guestCheckGearImage, resolveUploadUrl, safeNavigateBack, todayStr } from "@/utils";
+import { GEAR_CATEGORIES, choosePhoto, compressImageToDataURL, guestCheckGearImage, resolveUploadUrl, safeNavigateBack, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import type { AnyGear } from "@/types";
 
@@ -204,7 +204,7 @@ async function onPickPhoto() {
         uni.showToast({ title: "图片未通过内容安全检测", icon: "none" });
         return;
       }
-      form.photo = await compressToDataURL(tempPath);
+      form.photo = await compressImageToDataURL(tempPath);
       logInfo("游客装备封面即检通过(本地保存)", { trace_id: traceId }, undefined, "gear_photo_guest_checked", traceId);
     } else {
       // 登录态：压缩并上传到服务端（服务端受检）

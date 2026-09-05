@@ -103,7 +103,10 @@ export const useGearStore = defineStore("gear", {
           photo: body.photo || "",
           createdAt: now,
         };
-        upsertPendingGear(item);
+        const saved = upsertPendingGear(item);
+        if (!saved) {
+          throw new Error("本地保存失败，请尝试登录后同步到云端");
+        }
         this.gears = getPendingGears();
         return item;
       }
@@ -123,7 +126,10 @@ export const useGearStore = defineStore("gear", {
     /** 编辑装备：登录态 PUT；游客态按 localId 更新本地项 */
     async update(id: number | string, body: GearUpdate): Promise<AnyGear> {
       if (isGuestNow()) {
-        updatePendingGear(String(id), body as Partial<LocalGear>);
+        const saved = updatePendingGear(String(id), body as Partial<LocalGear>);
+        if (!saved) {
+          throw new Error("本地保存失败，请尝试登录后同步到云端");
+        }
         this.gears = getPendingGears();
         return this.gears.find((x) => (x as LocalGear).localId === String(id))!;
       }
@@ -143,7 +149,10 @@ export const useGearStore = defineStore("gear", {
     /** 删除装备：登录态 DELETE；游客态按 localId 删除本地项 */
     async remove(id: number | string) {
       if (isGuestNow()) {
-        removePendingGear(String(id));
+        const removed = removePendingGear(String(id));
+        if (!removed) {
+          throw new Error("本地删除失败，请重试");
+        }
         this.gears = getPendingGears();
         return;
       }
