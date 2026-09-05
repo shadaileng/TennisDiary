@@ -192,19 +192,20 @@ async function onPickPhoto() {
       const code = await new Promise<string>((resolve) => {
         uni.login({ success: (r) => resolve(r.code || ""), fail: () => resolve("") });
       });
-      try {
-        const safe = await guestCheckGearImage(tempPath, code);
-        if (!safe) {
-          uni.showToast({ title: "图片未通过内容安全检测", icon: "none" });
-          return;
-        }
-        form.photo = await compressToDataURL(tempPath);
-        logInfo("游客装备封面即检通过(本地保存)", { trace_id: traceId }, undefined, "gear_photo_guest_checked", traceId);
-      } catch (checkErr) {
-        logError("游客封面安全检查失败", { error: (checkErr as Error).message }, undefined, "gear_photo_guest_check_failed", undefined, traceId);
-        uni.showToast({ title: "安全检查失败，请重试", icon: "none" });
+      const result = await guestCheckGearImage(tempPath, code);
+      if (!result.ok) {
+        // 技术故障：网络错误/服务器异常
+        logError("游客封面安全检查失败", { code: result.code, error: result.message }, undefined, "gear_photo_guest_check_failed", undefined, traceId);
+        uni.showToast({ title: result.message, icon: "none" });
         return;
       }
+      if (!result.safe) {
+        // 明确违规：后端 imgSecCheck 拒绝
+        uni.showToast({ title: "图片未通过内容安全检测", icon: "none" });
+        return;
+      }
+      form.photo = await compressToDataURL(tempPath);
+      logInfo("游客装备封面即检通过(本地保存)", { trace_id: traceId }, undefined, "gear_photo_guest_checked", traceId);
     } else {
       // 登录态：压缩并上传到服务端（服务端受检）
       const dataUrl = await choosePhoto(900, 0.8);

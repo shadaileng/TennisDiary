@@ -197,17 +197,33 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
   });
 }
 
+/** 游客态封面安全检查结果 */
+export type GuestCheckResult =
+  | { ok: true; safe: boolean }
+  | { ok: false; code: number; message: string };
+
 /**
  * 游客态封面内容安全即检（仅检即弃，不落盘）。
- * 调用匿名端点 /api/upload/guest-gear-check，返回是否安全（true=放行）。
- * 技术故障时向上传播异常，由调用方 toast 提示用户。
+ * 调用匿名端点 /api/upload/guest-gear-check，返回检查详情。
+ * - ok=true, safe=true → 图片安全，可保存
+ * - ok=true, safe=false → 图片违规（后端明确拒绝）
+ * - ok=false → 技术故障（网络/服务器错误），需提示用户重试
  */
-export function guestCheckGearImage(filePath: string, code: string): Promise<boolean> {
+export function guestCheckGearImage(filePath: string, code: string): Promise<GuestCheckResult> {
   return uploadRaw<{ safe?: boolean }>({
     path: "/upload/guest-gear-check",
     filePath,
     formData: { code },
-  }).then((d) => d.safe === true);
+  })
+    .then((d): GuestCheckResult => ({ ok: true, safe: d.safe === true }))
+    .catch((err): GuestCheckResult => {
+      const e = err as Error & { status?: number; detail?: string };
+      return {
+        ok: false,
+        code: e.status || 0,
+        message: e.detail || e.message || "安全检查失败",
+      };
+    });
 }
 
 /**
