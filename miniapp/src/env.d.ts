@@ -52,4 +52,9 @@ declare const wx: {
   }): void
 
   onNeedPrivacyAuthorization(resolve: (options: { buttonId?: string; event: 'agree' | 'disagree' | 'exposureAuthorization' }) => void, eventInfo: { referrer: string }): void
+
+  /** 运行时环境变量（微信小程序全局） */
+  env: {
+    USER_DATA_PATH: string
+  }
 }

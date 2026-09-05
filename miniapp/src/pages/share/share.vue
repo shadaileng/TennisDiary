@@ -205,7 +205,6 @@ function draw() {
               } else {
                 fileName = `网球技术评分-${dateStr}.png`
               }
-              // @ts-ignore wx is WeChat mini-program global
               const savePath = `${wx.env.USER_DATA_PATH}/${fileName}`
               const data = fs.readFileSync(r.tempFilePath)
               fs.writeFileSync(savePath, data)
