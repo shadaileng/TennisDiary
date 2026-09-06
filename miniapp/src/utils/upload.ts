@@ -49,6 +49,26 @@ function getToken(): string {
   return (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
 }
 
+/**
+ * 计算文件 MD5
+ *
+ * @param filePath 本地文件路径（uni.chooseMedia 返回的临时路径）
+ * @returns MD5 十六进制字符串
+ */
+function computeFileMD5(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const fs = uni.getFileSystemManager();
+    fs.getFileInfo({
+      filePath,
+      digestAlgorithm: "md5",
+      success(res) {
+        resolve(res.digest as string);
+      },
+      fail: reject,
+    });
+  });
+}
+
 /** 解析上传失败响应 detail */
 function parseError(raw: string): string {
   try {
@@ -149,4 +169,105 @@ export function uploadFile(options: UploadOptions & UploadHooks<{ url?: string }
     url: data.url as string,
     mirage: data.mirage ?? false,
   }));
+}
+
+// ==================== 两步上传（预检 + 按需上传） ====================
+
+/** 预检响应 */
+export interface CheckResult {
+  hit: boolean;
+  safe?: boolean;
+  url?: string;
+}
+
+/**
+ * 文件秒传预检（MD5 + size 查询，不上传文件）
+ *
+ * @param md5Val 文件 MD5
+ * @param sizeBytes 文件大小（字节）
+ * @returns CheckResult
+ */
+export async function checkFile(md5Val: string, sizeBytes: number): Promise<CheckResult> {
+  const res = await new Promise<CheckResult>((resolve, reject) => {
+    uni.request({
+      url: `${BASE_URL}${API_PREFIX}/upload/check`,
+      method: "POST",
+      header: {
+        "X-Auth-Token": getToken(),
+        "content-type": "application/json",
+      },
+      data: {
+        md5: md5Val,
+        size_bytes: sizeBytes,
+      },
+      success: (r) => {
+        if (r.statusCode < 200 || r.statusCode >= 300) {
+          reject(new Error("预检失败"));
+          return;
+        }
+        const data = r.data as { code: number; data?: CheckResult };
+        if (data.code !== 0 || !data.data) {
+          reject(new Error(data.code !== 0 ? "预检失败" : "预检响应解析失败"));
+          return;
+        }
+        resolve(data.data);
+      },
+      fail: (err) => reject(new Error(err.errMsg || "预检请求失败")),
+    });
+  });
+
+  return res;
+}
+
+/**
+ * 两步上传：先预检 MD5，命中则零流量返回 URL，未命中则正常上传。
+ *
+ * @param filePath 本地文件路径
+ * @param type 上传类型（gear-image / avatar）
+ * @returns URL 字符串
+ * @throws 图片内容可能包含违规信息，请检查后重试
+ */
+export async function uploadFileWithCheck(
+  filePath: string,
+  type: "gear-image" | "avatar",
+): Promise<string> {
+  // Step 1: 并行计算 MD5 + 获取文件大小
+  const [fileMd5, fileSize] = await Promise.all([
+    computeFileMD5(filePath),
+    new Promise<number>((resolve, reject) => {
+      uni.getFileSystemManager().getFileInfo({
+        filePath,
+        success: (info) => resolve(info.size),
+        fail: reject,
+      });
+    }),
+  ]);
+
+  // Step 2: 预检
+  try {
+    const checkResult = await checkFile(fileMd5, fileSize);
+
+    if (checkResult.hit && checkResult.safe && checkResult.url) {
+      // 命中 + 安全通过，直接返回 URL
+      return checkResult.url;
+    }
+
+    if (checkResult.hit && !checkResult.safe) {
+      // 命中 + 安全不通过，抛出错误让上层处理
+      throw new Error("图片内容可能包含违规信息，请检查后重试");
+    }
+  } catch (err) {
+    // 安全检查不通过，直接向上抛出
+    if ((err as Error).message === "图片内容可能包含违规信息，请检查后重试") {
+      throw err;
+    }
+    // 其他错误静默忽略，继续上传
+  }
+
+  // Step 3: 未命中，正常上传
+  const result = await uploadFile({
+    path: `/upload/${type}`,
+    filePath,
+  });
+  return result.url;
 }

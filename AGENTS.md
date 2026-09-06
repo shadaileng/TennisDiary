@@ -281,6 +281,7 @@ cd admin && pnpm build                 # 构建管理端
 | 133 | 游客装备封面安全检查 fail-open 修复（后端技术故障返回 `{code:50001, success:false}` 而非 `{safe:true}`；前端移除 `.catch(() => true)`，异常向上传播；调用方捕获异常并 toast「安全检查失败，请重试」） | ✅ |
 | 134 | 游客装备封面保存失败问题修复（新增 `compressImageToDataURL()` 先压缩再转 dataURL；gearStore.create/update/remove 检查写入结果，失败时抛错；错误提示区分本地保存失败/删除失败） | ✅ |
 | 135 | 游客同步顺序修复与业务时间字段（新增 `business_time` 字段记录真实创建时间 + sync.ts 升序排序双重保障） | ✅ |
+| 136 | 文件秒传预检与安全检查标记（`/upload/check` 端点 MD5 预检三态响应 + `security_checked` 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

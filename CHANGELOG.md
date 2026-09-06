@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.80.0] - 2026-09-06
+
+### Added
+
+- 文件秒传预检与安全检查标记（136）：新增 `/upload/check` 端点（MD5 + size 预检，三态响应：命中+安全通过/命中+安全未通过/未命中），`files` 表新增 `security_checked` 字段（0=未检/1=通过），上传端点改为「安全检查不通过仍落盘但标记 security_checked=0」；前端新增 `uploadFileWithCheck` 两步上传（先 MD5 预检，命中零流量返回 URL，未命中正常上传），装备封面/头像表单接入预检流程。新增 Alembic 迁移、13 条端点用例、270+ 行方案文档。
+
 ## [1.79.0] - 2026-09-05
 
 ### Added

@@ -3,7 +3,7 @@
 import os
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -70,24 +70,16 @@ def upload_avatar(
         ) from exc
 
     # 内容安全检查
+    security_ok = True
     try:
         check_image_sync(abs_path, str(current_user.id))
     except ContentSecurityError:
-        file_service.safe_unlink(abs_path)
+        security_ok = False
         log.warning("头像内容安全检查不通过", user_id=current_user.id)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="头像内容可能包含违规信息，请检查后重试",
-        ) from None
     except Exception as exc:
-        file_service.safe_unlink(abs_path)
         log.error("头像安全检查异常: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="内容安全检查失败，请稍后重试",
-        ) from exc
 
-    # 创建 File 记录（秒传检测，MD5 由 get_or_create_file 从磁盘计算）
+    # 创建 File 记录（无论安全检查结果，均落盘纳入管理）
     file_record, is_mirage = file_service.get_or_create_file(
         db=db,
         user_id=current_user.id,
@@ -97,6 +89,9 @@ def upload_avatar(
         original_name=original_name,
         mime_type=file.content_type or "",
     )
+    # 安全检查通过才标记 security_checked=1
+    if security_ok:
+        file_record.security_checked = 1
     db.commit()
 
     # 秒传：删除刚写入的重复文件
@@ -107,6 +102,13 @@ def upload_avatar(
     # 用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
     file_record.mime_type = detect_image_mime(abs_path)
     db.commit()
+
+    # 安全检查不通过，返回错误
+    if not security_ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="头像内容可能包含违规信息，请检查后重试",
+        ) from None
 
     log.info("头像上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
     return ApiResponse(data={"url": rel_path, "mirage": is_mirage})
@@ -168,24 +170,16 @@ def upload_gear_image(
     file_record_mime = detect_image_mime(abs_path)
 
     # 内容安全检查
+    security_ok = True
     try:
         check_image_sync(abs_path, str(current_user.id))
     except ContentSecurityError:
-        file_service.safe_unlink(abs_path)
+        security_ok = False
         log.warning("装备图片内容安全检查不通过", user_id=current_user.id)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="图片内容可能包含违规信息，请检查后重试",
-        ) from None
     except Exception as exc:
-        file_service.safe_unlink(abs_path)
         log.error("装备图片安全检查异常: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="内容安全检查失败，请稍后重试",
-        ) from exc
 
-    # 创建 File 记录（秒传检测，MD5 由 get_or_create_file 从磁盘计算）
+    # 创建 File 记录（无论安全检查结果，均落盘纳入管理）
     _file_record, is_mirage = file_service.get_or_create_file(
         db=db,
         user_id=current_user.id,
@@ -195,11 +189,21 @@ def upload_gear_image(
         original_name=original_name,
         mime_type=file_record_mime,
     )
+    # 安全检查通过才标记 security_checked=1
+    if security_ok:
+        _file_record.security_checked = 1
     db.commit()
 
     # 秒传：删除刚写入的重复文件
     if is_mirage:
         file_service.safe_unlink(abs_path)
+
+    # 安全检查不通过，返回错误
+    if not security_ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="图片内容可能包含违规信息，请检查后重试",
+        ) from None
 
     log.info("装备图片上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
     return ApiResponse(data={"url": rel_path, "mirage": is_mirage})
@@ -284,3 +288,49 @@ def _mask_openid(openid: str) -> str:
     if not openid:
         return ""
     return f"{openid[:4]}***{openid[-4:]}" if len(openid) > 8 else "***"
+
+
+@router.post("/check", response_model=ApiResponse[dict])
+def check_file(
+    md5: str = Body(...),
+    size_bytes: int = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """文件秒传预检（MD5 + size 精确匹配）
+
+    - 不上传文件，仅按 MD5 查询已有文件记录
+    - 命中 + 安全通过 → {hit: true, safe: true, url}
+    - 命中 + 安全未通过 → {hit: true, safe: false}
+    - 未命中 → {hit: false}
+    """
+    from app.models.file import File as FileModel
+
+    # Step 1: 按 MD5 查询
+    existing = (
+        db.query(FileModel)
+        .filter(
+            FileModel.user_id == current_user.id,
+            FileModel.md5 == md5,
+            FileModel.deleted_at.is_(None),
+            FileModel.ref_count > 0,
+        )
+        .first()
+    )
+
+    if not existing:
+        return ApiResponse(data={"hit": False})
+
+    # 物理文件是否存在
+    existing_abs = file_service.rel_path_to_abs(existing.rel_path)
+    if not os.path.isfile(existing_abs):
+        return ApiResponse(data={"hit": False})
+
+    # Step 2: 返回安全检查状态
+    return ApiResponse(
+        data={
+            "hit": True,
+            "safe": bool(existing.security_checked),
+            "url": existing.rel_path if existing.security_checked else None,
+        }
+    )

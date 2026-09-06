@@ -149,6 +149,8 @@ docs/
     │   ├── 130-Admin跨域静态资源URL统一解析.md
     │   ├── 131-文件登记MIME类型兜底与分类源补全.md
     │   ├── 132-测试脆弱性治理-死测试清理与fixture作用域修复.md
+    │   ├── 135-游客同步顺序修复与业务时间字段.md
+    │   ├── 136-文件秒传预检与安全检查标记.md
     │   └── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -283,6 +285,8 @@ docs/
 | 130：Admin 跨域静态资源 URL 统一解析 | v1.0.0 | 方案 | `plans/130-Admin跨域静态资源URL统一解析.md` | 修复 Admin 原生请求（预览/装备图/下载）相对路径打到前端域名 404；抽取 `utils/fileUrl.ts` 统一解析并兼容 base64 dataURL | 🏁 已完成 |
 | 131：文件登记 MIME 类型兜底与分类源补全 | v1.1.0 | 方案 | `plans/131-文件登记MIME类型兜底与分类源补全.md` | 登记函数统一补齐 `mime_type`（骨架/封面/短片/孤儿不再为空）+ 骨架类 `upload_source` 分类源补全 | 🏁 已完成 |
 | 132：测试脆弱性治理（死测试清理 + fixture 作用域修复 + CI 并行 StaticPool 冲突修复） | v1.1.0 | 方案 | `plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md` | 清理 6 个死测试/过期断言 + 修复 `dependency_overrides` 与共享 TestClient 污染 + `test_engine` 改 file-based SQLite 消除 CI 并行冲突，全量 563 passed / 0 errors | 🏁 已完成 |
+| 135：游客同步顺序修复与业务时间字段 | v1.0.0 | 方案 | `plans/135-游客同步顺序修复与业务时间字段.md` | 新增 `business_time` 字段记录真实创建时间 + 同步排序修复（升序上传） | 🏁 已完成 |
+| 136：文件秒传预检与安全检查标记 | v1.4.0 | 方案 | `plans/136-文件秒传预检与安全检查标记.md` | `/upload/check` 端点（JSON Body 三态响应）+ `security_checked` 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一 | 🏁 已完成 |
 
 ## 文档类型说明
 
@@ -426,6 +430,8 @@ docs/
 | 130-Admin跨域静态资源URL统一解析 | 后台管理端优化 | 🏁 已完成 | 2026-09-04 | 公共 `utils/fileUrl.ts`（fileUrl/avatarUrl/fileDownloadUrl）+ 6 处接入；admin type-check + build 通过 |
 | 131-文件登记MIME类型兜底与分类源补全 | 后台/文件管理 | 🏁 已完成 | 2026-09-04 | `resolve_mime_type` 登记兜底（批量路径零 I/O）+ `ANALYSIS_MATCH_SOURCES` 分类源补全 + 报告落库 source 细化；25 用例通过，全量无回归 |
 | 132-测试脆弱性治理 | 测试与工程优化 | 🏁 已完成 | 2026-09-05 | 死测试清理 + fixture 精准增删 + 鉴权头清理 + 会话自动回滚 + CI 并行 StaticPool 冲突修复（`test_engine` 改 file-based SQLite）；全量 563 passed / 0 errors |
+| 135-游客同步顺序修复与业务时间字段 | 小程序前端 + 后端 + Admin | 🏁 已完成 | 2026-09-05 | 新增 business_time 字段 + 同步排序修复 |
+| 136-文件秒传预检与安全检查标记 | 后端 + 小程序前端 | 🏁 已完成 | 2026-09-06 | `/upload/check` 端点 + security_checked 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一；type-check + build 通过 |
 
 ## 约定
 

@@ -8,7 +8,7 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
-import { uploadFile, uploadRaw } from "@/utils/upload";
+import { uploadFile, uploadFileWithCheck, uploadRaw } from "@/utils/upload";
 
 import type { CostItem } from "@/types";
 
@@ -141,19 +141,22 @@ export function resolveUploadUrl(url: string): string {
 
 /**
  * 上传装备封面图片到服务器，返回相对路径。
- * 内部使用 uploadFile 统一上传工具，事件钩子由调用方按需注入。
+ * 内部使用 uploadFileWithCheck 统一上传工具，先预检 MD5 再按需上传。
  */
 export function uploadGearImage(
   filePath: string,
   hooks?: { onSuccess?: (url: string, durationMs: number) => void; onFailed?: (error: Error, durationMs: number) => void; onMirage?: (url: string, durationMs: number) => void },
 ): Promise<string> {
-  return uploadFile({
-    path: "/upload/gear-image",
-    filePath,
-    onSuccess: (data, durationMs) => hooks?.onSuccess?.(data.url as string, durationMs),
-    onFailed: (error, durationMs) => hooks?.onFailed?.(error, durationMs),
-    onMirage: (data, durationMs) => hooks?.onMirage?.(data.url as string, durationMs),
-  }).then((r) => r.url);
+  const startTime = Date.now();
+  return uploadFileWithCheck(filePath, "gear-image")
+    .then((url) => {
+      hooks?.onSuccess?.(url, Date.now() - startTime);
+      return url;
+    })
+    .catch((err) => {
+      hooks?.onFailed?.(err, Date.now() - startTime);
+      throw err;
+    });
 }
 
 /**
