@@ -280,7 +280,7 @@ cd admin && pnpm build                 # 构建管理端
 | 132 | 测试脆弱性治理（死测试清理：秒传同名 original_name、已删除 `register_ai_files`、已下线 preview 端点、裁剪"原文件已删"过期断言；fixture 作用域修复：`dependency_overrides` 精准增删、共享 TestClient 鉴权头清理、module 级会话自动回滚、顺序依赖用例自包含；CI 并行 StaticPool 内存库冲突修复：`test_engine` 改 file-based SQLite、`test_cleanup_orphans` fixture 重命名消除 ScopeMismatch） | ✅ |
 | 133 | 游客装备封面安全检查 fail-open 修复（后端技术故障返回 `{code:50001, success:false}` 而非 `{safe:true}`；前端移除 `.catch(() => true)`，异常向上传播；调用方捕获异常并 toast「安全检查失败，请重试」） | ✅ |
 | 134 | 游客装备封面保存失败问题修复（新增 `compressImageToDataURL()` 先压缩再转 dataURL；gearStore.create/update/remove 检查写入结果，失败时抛错；错误提示区分本地保存失败/删除失败） | ✅ |
-| 135 | 小程序体重趋势图绘制顺序修复（`weightData` `.sort(ascending)` 相同日期稳定排序保留原降序，改为 `.reverse()` 直接转升序，游客/登录通用） | ✅ |
+| 135 | 游客同步顺序修复与业务时间字段（新增 `business_time` 字段记录真实创建时间 + sync.ts 升序排序双重保障） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 

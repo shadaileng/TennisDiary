@@ -86,6 +86,7 @@ export interface Diary {
   gears: GearUse[]
   notes: string
   created_at: number // 时间戳（秒）
+  business_time?: number // 业务时间（游客同步用）
 }
 
 /** 创建日记入参 — 后台 DiaryCreate */
@@ -99,6 +100,7 @@ export interface DiaryCreate {
   costs?: CostItem[]
   gears?: GearUse[]
   notes?: string
+  business_time?: number
 }
 
 /** 更新日记入参 — 后台 DiaryUpdate（字段可选） */
@@ -116,6 +118,7 @@ export interface Gear {
   feeling: string
   photo: string // dataURL 或文件路径
   created_at: number // 时间戳（秒）
+  business_time?: number // 业务时间（游客同步用）
 }
 
 /** 创建装备入参 — 后台 GearCreate */
@@ -126,6 +129,7 @@ export interface GearCreate {
   price?: number
   feeling?: string
   photo?: string
+  business_time?: number
 }
 
 /** 更新装备入参 — 后台 GearUpdate */
@@ -142,6 +146,7 @@ export interface WeightRecord {
   waist?: number
   hip?: number
   created_at: number // 时间戳（秒）
+  business_time?: number // 业务时间（游客同步用）
 }
 
 /** 创建体重记录入参 — 后台 WeightCreate */
@@ -151,6 +156,7 @@ export interface WeightCreate {
   bust?: number
   waist?: number
   hip?: number
+  business_time?: number
 }
 
 // ==================== 动作分析 ====================
@@ -395,6 +401,7 @@ export interface LocalDiary extends PendingMeta {
   costs: CostItem[]
   gears: GearUse[]
   notes: string
+  business_time: number
 }
 
 /** 本地待同步装备（字段对齐 Gear，photo 为本地 dataURL） */
@@ -405,6 +412,7 @@ export interface LocalGear extends PendingMeta {
   price: number
   feeling: string
   photo: string
+  business_time: number
 }
 
 /** 本地待同步体重记录（字段对齐 WeightRecord） */
@@ -414,6 +422,7 @@ export interface LocalWeight extends PendingMeta {
   bust?: number
   waist?: number
   hip?: number
+  business_time: number
 }
 
 /** 列表/表单可同时消费云端与本地实体的联合视图类型 */

@@ -20,6 +20,7 @@ class Diary(Base):
     gears = Column(Text, default="[]")  # JSON: [{"name":"","feeling":""}]
     notes = Column(Text, default="")
     created_at = Column(Float, default=0)
+    business_time = Column(Float, nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     def get_costs(self) -> list[dict]:

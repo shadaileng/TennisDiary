@@ -60,6 +60,7 @@ def create_gear(
         feeling=body.feeling,
         photo=body.photo,
         created_at=time.time(),
+        business_time=body.business_time,
     )
     db.add(gear)
     db.commit()

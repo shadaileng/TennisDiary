@@ -17,6 +17,10 @@
         {{ formatTs(value) }}
       </template>
 
+      <template #cell-business_time="{ value }">
+        {{ value ? formatTs(value) : '--' }}
+      </template>
+
       <template #actions="{ row }">
         <button
           @click="confirmDelete(row)"
@@ -81,6 +85,10 @@
               <span class="text-sm font-medium text-gray-500">创建时间</span>
               <p class="mt-1 text-sm text-gray-900">{{ formatTs(selectedGear.created_at) }}</p>
             </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">业务时间</span>
+              <p class="mt-1 text-sm text-gray-900">{{ selectedGear.business_time ? formatTs(selectedGear.business_time) : '--' }}</p>
+            </div>
           </div>
 
           <div v-if="selectedGear.feeling" class="mb-4">
@@ -122,7 +130,8 @@ const columns = [
   { key: 'name', title: '名称' },
   { key: 'category', title: '种类' },
   { key: 'price', title: '价格' },
-  { key: 'created_at', title: '创建时间' }
+  { key: 'created_at', title: '创建时间' },
+  { key: 'business_time', title: '业务时间' }
 ]
 
 const gears = ref<Gear[]>([])

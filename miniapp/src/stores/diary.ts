@@ -106,6 +106,7 @@ export const useDiaryStore = defineStore("diary", {
           gears: body.gears || [],
           notes: body.notes || "",
           createdAt: now,
+          business_time: now,
         };
         upsertPendingDiary(item);
         this.diaries = getPendingDiaries();

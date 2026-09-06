@@ -15,4 +15,5 @@ class Gear(Base):
     feeling = Column(Text, default="")
     photo = Column(Text, default="")  # dataURL 或文件路径
     created_at = Column(Float, default=0)
+    business_time = Column(Float, nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

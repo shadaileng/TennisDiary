@@ -9,6 +9,7 @@ export interface Weight {
   waist: number | null
   hip: number | null
   created_at: number
+  business_time: number | null
   user?: {
     id: number
     nickname: string

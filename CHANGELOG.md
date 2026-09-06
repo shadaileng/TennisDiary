@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.79.0] - 2026-09-05
+
+### Added
+
+- 游客同步顺序修复与业务时间字段（135）：新增 `business_time` 字段（Float，UTC Unix 时间戳），记录用户真实创建时间。游客同步时传入本地 `createdAt`，正常创建时为 `null`；`sync.ts` 对 pending 列表按 `createdAt` 升序排序再上传，确保服务器 `created_at` 相对顺序正确（双重保障）。三表（diaries/gears/weight_records）ORM 模型、6 个 Pydantic Schema、3 个路由文件、3 个 Admin 页面（列+弹窗）、小程序类型定义/Store/sync 全链路接入。
+
 ## [1.78.1] - 2026-09-05
 
 ### Fixed

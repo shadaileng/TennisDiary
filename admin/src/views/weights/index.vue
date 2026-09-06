@@ -17,6 +17,10 @@
         {{ formatTs(value) }}
       </template>
 
+      <template #cell-business_time="{ value }">
+        {{ value ? formatTs(value) : '--' }}
+      </template>
+
       <template #actions="{ row }">
         <button
           @click="confirmDelete(row)"
@@ -85,6 +89,10 @@
               <span class="text-sm font-medium text-gray-500">创建时间</span>
               <p class="mt-1 text-sm text-gray-900">{{ formatTs(selectedWeight.created_at) }}</p>
             </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">业务时间</span>
+              <p class="mt-1 text-sm text-gray-900">{{ selectedWeight.business_time ? formatTs(selectedWeight.business_time) : '--' }}</p>
+            </div>
           </div>
         </div>
 
@@ -114,7 +122,8 @@ const columns = [
   { key: 'user', title: '用户' },
   { key: 'date', title: '日期' },
   { key: 'weight', title: '体重' },
-  { key: 'created_at', title: '创建时间' }
+  { key: 'created_at', title: '创建时间' },
+  { key: 'business_time', title: '业务时间' }
 ]
 
 const weights = ref<Weight[]>([])

@@ -13,6 +13,7 @@ export interface Diary {
   gears: string
   notes: string
   created_at: number
+  business_time: number | null
   user?: {
     id: number
     nickname: string

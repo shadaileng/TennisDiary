@@ -102,6 +102,7 @@ export const useGearStore = defineStore("gear", {
           feeling: body.feeling || "",
           photo: body.photo || "",
           createdAt: now,
+          business_time: now,
         };
         const saved = upsertPendingGear(item);
         if (!saved) {

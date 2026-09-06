@@ -87,6 +87,7 @@ export const useWeightStore = defineStore("weight", {
           waist: body.waist,
           hip: body.hip,
           createdAt: now,
+          business_time: now,
         };
         upsertPendingWeight(item);
         this.weights = getPendingWeights();

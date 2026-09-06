@@ -71,6 +71,7 @@ class DiaryCreate(BaseModel):
     costs: list[CostItem] = []
     gears: list[GearUse] = []
     notes: str = ""
+    business_time: float | None = None
 
 
 class DiaryUpdate(BaseModel):
@@ -92,6 +93,7 @@ class DiaryResponse(DiaryCreate):
     user_id: int
     created_at: float
     created_at_datetime: str | None = None
+    business_time: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -106,6 +108,7 @@ class GearCreate(BaseModel):
     price: float = 0
     feeling: str = ""
     photo: str = ""
+    business_time: float | None = None
 
 
 class GearUpdate(BaseModel):
@@ -123,6 +126,7 @@ class GearResponse(GearCreate):
     id: int
     user_id: int
     created_at: float
+    business_time: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -136,12 +140,14 @@ class WeightCreate(BaseModel):
     bust: float | None = None
     waist: float | None = None
     hip: float | None = None
+    business_time: float | None = None
 
 
 class WeightResponse(WeightCreate):
     id: int
     user_id: int
     created_at: float
+    business_time: float | None = None
 
     model_config = {"from_attributes": True}
 

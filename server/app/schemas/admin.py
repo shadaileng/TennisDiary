@@ -237,6 +237,7 @@ class DiaryAdminResponse(BaseModel):
     gears: str  # JSON字符串
     notes: str
     created_at: float
+    business_time: float | None = None
     user: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -254,6 +255,7 @@ class GearAdminResponse(BaseModel):
     feeling: str
     photo: str
     created_at: float
+    business_time: float | None = None
     user: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -270,6 +272,7 @@ class WeightAdminResponse(BaseModel):
     waist: float | None = None
     hip: float | None = None
     created_at: float
+    business_time: float | None = None
     user: dict | None = None
 
     model_config = {"from_attributes": True}

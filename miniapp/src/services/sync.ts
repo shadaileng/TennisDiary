@@ -65,7 +65,7 @@ function dataUrlToTempFile(dataUrl: string): Promise<string> {
 }
 
 async function syncWeights(): Promise<{ ok: number; fail: number }> {
-  const list = getPendingWeights();
+  const list = [...getPendingWeights()].sort((a, b) => a.createdAt - b.createdAt);
   let ok = 0;
   let fail = 0;
   for (const w of list) {
@@ -76,6 +76,7 @@ async function syncWeights(): Promise<{ ok: number; fail: number }> {
         bust: w.bust,
         waist: w.waist,
         hip: w.hip,
+        business_time: w.business_time,
       } as WeightCreate);
       removePendingWeight(w.localId);
       ok++;
@@ -87,7 +88,7 @@ async function syncWeights(): Promise<{ ok: number; fail: number }> {
 }
 
 async function syncDiaries(): Promise<{ ok: number; fail: number }> {
-  const list = getPendingDiaries();
+  const list = [...getPendingDiaries()].sort((a, b) => a.createdAt - b.createdAt);
   let ok = 0;
   let fail = 0;
   for (const d of list) {
@@ -102,6 +103,7 @@ async function syncDiaries(): Promise<{ ok: number; fail: number }> {
         costs: d.costs,
         gears: d.gears,
         notes: d.notes,
+        business_time: d.business_time,
       } as DiaryCreate);
       removePendingDiary(d.localId);
       ok++;
@@ -113,7 +115,7 @@ async function syncDiaries(): Promise<{ ok: number; fail: number }> {
 }
 
 async function syncGears(): Promise<{ ok: number; fail: number }> {
-  const list = getPendingGears();
+  const list = [...getPendingGears()].sort((a, b) => a.createdAt - b.createdAt);
   let ok = 0;
   let fail = 0;
   for (const g of list) {
@@ -133,6 +135,7 @@ async function syncGears(): Promise<{ ok: number; fail: number }> {
         price: g.price,
         feeling: g.feeling,
         photo,
+        business_time: g.business_time,
       } as GearCreate);
       removePendingGear(g.localId);
       ok++;

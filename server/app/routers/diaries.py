@@ -36,6 +36,7 @@ def diary_to_response(diary: Diary) -> DiaryResponse:
         gears=gears,
         notes=diary.notes,
         created_at=diary.created_at,
+        business_time=diary.business_time,
     )
 
 
@@ -84,6 +85,7 @@ def create_diary(
         gears=json.dumps([g.model_dump() for g in body.gears], ensure_ascii=False),
         notes=body.notes,
         created_at=time.time(),
+        business_time=body.business_time,
     )
     db.add(diary)
     db.commit()
