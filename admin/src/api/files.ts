@@ -49,6 +49,24 @@ export interface ScanResultResponse {
   orphan_files: number
   orphans: OrphanFileInfo[]
   total_orphan_size: number
+  status_counts?: Record<string, number>
+}
+
+export interface MigrateResult {
+  dry_run: boolean
+  scanned: number
+  renamed: number
+  already_named: number
+  reused: number
+  records_updated: number
+  business_updated: number
+  duplicates_merged: number
+  conflicts: { from: string; to: string; md5: string }[]
+  missing_files: string[]
+}
+
+export function migrateFilesToMd5(dryRun: boolean = true): Promise<MigrateResult> {
+  return request.post('/api/admin/files/migrate-md5', null, { params: { dry_run: dryRun } })
 }
 
 export function getFiles(params: {

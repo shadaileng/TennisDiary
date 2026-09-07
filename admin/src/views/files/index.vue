@@ -21,8 +21,10 @@
           <option value="">全部状态</option>
           <option value="in_use">使用中</option>
           <option value="unreferenced">可清除·引用失效</option>
-          <option value="marked_deleted">可清除·已软删</option>
+          <option value="missing">可清除·文件缺失</option>
           <option value="orphan">可清除·孤儿</option>
+          <option value="unregistered_ref">异常·业务引用未登记</option>
+          <option value="marked_deleted">可清除·已软删</option>
         </select>
         <input
           v-model="filterUserId"
@@ -36,6 +38,13 @@
           class="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors whitespace-nowrap disabled:opacity-50"
         >
           {{ scanning ? '扫描中...' : '扫描孤立文件' }}
+        </button>
+        <button
+          @click="runMigrate"
+          :disabled="migrating"
+          class="px-3 py-2 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-colors whitespace-nowrap disabled:opacity-50"
+        >
+          {{ migrating ? '迁移中...' : '存量迁移(MD5命名)' }}
         </button>
         <button
           @click="confirmRepair"
@@ -522,6 +531,7 @@ import {
   scanOrphanFiles,
   registerFiles,
   cleanupOrphanFiles,
+  migrateFilesToMd5,
   getDownloadUrl,
   repairFiles,
   type AdminFile,
@@ -603,12 +613,38 @@ const fetchFiles = async () => {
   }
 }
 
+const migrating = ref(false)
+
+const runMigrate = async () => {
+  if (migrating.value) return
+  migrating.value = true
+  try {
+    const preview = await migrateFilesToMd5(true)
+    const summary = `扫描 ${preview.scanned} 条，待重命名 ${preview.renamed}，已合规 ${preview.already_named}，冲突 ${preview.conflicts.length}，文件缺失 ${preview.missing_files.length}`
+    if (!confirm(`预演结果：${summary}\n\n确定执行迁移吗？（幂等，可重复执行）`)) {
+      return
+    }
+    const result = await migrateFilesToMd5(false)
+    alert(
+      `迁移完成：重命名 ${result.renamed}，回填业务表 ${result.business_updated} 处，合并重复记录 ${result.duplicates_merged} 条`
+    )
+    await Promise.all([fetchFiles(), fetchStats()])
+  } catch (e) {
+    console.error('Failed to migrate files:', e)
+    alert('迁移失败，请查看控制台日志')
+  } finally {
+    migrating.value = false
+  }
+}
+
 const usageBadgeLabel = (status: string): string => {
   const map: Record<string, string> = {
     in_use: '使用中',
     unreferenced: '可清除',
+    missing: '可清除·文件缺失',
     marked_deleted: '可清除',
     orphan: '可清除·孤儿',
+    unregistered_ref: '异常·未登记',
   }
   return map[status] || status
 }
@@ -617,8 +653,10 @@ const usageBadgeClass = (status: string): string => {
   const map: Record<string, string> = {
     in_use: 'bg-green-100 text-green-700',
     unreferenced: 'bg-orange-100 text-orange-700',
+    missing: 'bg-orange-100 text-orange-700',
     marked_deleted: 'bg-gray-200 text-gray-600',
     orphan: 'bg-red-100 text-red-700',
+    unregistered_ref: 'bg-purple-100 text-purple-700',
   }
   return map[status] || 'bg-gray-100 text-gray-600'
 }
