@@ -184,6 +184,7 @@ export default defineConfig({
             { text: '125：Admin 文件管理简化与查询优化', link: '/plans/125-Admin文件管理简化与查询优化' },
             { text: '130：Admin 跨域静态资源 URL 统一解析', link: '/plans/130-Admin跨域静态资源URL统一解析' },
             { text: '131：文件登记 MIME 类型兜底与分类源补全', link: '/plans/131-文件登记MIME类型兜底与分类源补全' },
+            { text: '138：文件管理重构（统一门面 + MD5 命名 + 引用计数 + 扫描挂钩）', link: '/plans/138-文件管理重构' },
           ],
         },
         {

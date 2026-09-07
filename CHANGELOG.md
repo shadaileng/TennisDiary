@@ -4,6 +4,21 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.81.0] - 2026-09-07
+
+### Added
+
+- 文件管理重构（138）：后端文件操作全面收口到 `file_service` 统一门面，内部分工为 `file_store`（物理存储：MD5 命名、路径推导、写盘删盘、MIME 兜底）、`file_refs`（业务引用注册表，声明哪些表哪些字段引用受管文件，支持 column / json_list / json_dict / 外键列四类提取器）、`file_ref_service`（引用计数唯一变更实现）。路由层与 `pose_service`/`video_service`/`pipeline` 禁止自造文件名、自写盘、自改 `ref_count`、直接操作 File 模型，由 `tests/test_file_architecture.py` 架构守卫测试持续约束。受管文件名统一为 `{md5}.{后缀}`，存于 `UPLOAD_DIR/{avatars|gears|videos}/{user_id}/`（目录结构不变，小程序端无需改动）。新增 `file_bindings` 绑定表作为引用计数的唯一事实来源，`bind`/`unbind`/`rebind` 幂等，业务关联时自动 +1、删除或换图时自动 -1，归零后由 `cleanup_unbound` 在宽限期回收。扫描改为基于业务引用注册表的五态分类：`in_use` / `unreferenced` / `missing` / `orphan` / `unregistered_ref`。新增 `migrate_to_md5`（支持预演、幂等）与 Alembic 迁移 `b7d41e0c9a35`、`d4e8b2f17c09`；管理端新增「存量迁移」按钮（先预演后执行）。
+
+### Changed
+
+- 文件记录唯一性语义调整（138）：`files` 表新增部分唯一索引 `(user_id, md5) WHERE deleted_at IS NULL`，同一用户同一内容只保留一条记录；移除与之冲突的 `uq_files_original_name` 全局同名约束。`ref_count` 默认值改为 `0`，语义由「重复记录条数」变为「业务引用次数」。秒传语义由「新建记录复用路径」改为「按 MD5 命中已有记录直接返回同一路径」。
+
+### Fixed
+
+- `server/.gitignore` 的 `models/` 规则未锚定到根目录，会连带忽略 `server/app/models/` 下的 ORM 模型源文件，导致新增模型文件不被 git 跟踪。改为 `/models/` 仅忽略根级 MediaPipe 模型目录。
+- 文档构建（VitePress）：`docs/plans/38-*.md` 三处代码块误将「行号:行号:路径」当作语言标记，另有 `24-*.md`、`63-*.md` 使用 `env` 语言（不在 shiki 默认 bundle 中），导致 `pnpm run docs:build` 报 "language is not loaded" 并失败。修正后构建通过。
+
 ## [1.80.0] - 2026-09-06
 
 ### Added
