@@ -18,7 +18,8 @@ htmlcov/
 .testmondata
 
 # MediaPipe 姿态模型（约 5.7MB 二进制，不纳入仓库；用 scripts/download-pose-model.sh 下载）
-models/
+# 注意：必须锚定到 server 根目录，否则会连带忽略 app/models/ 下的 ORM 模型源文件
+/models/
 !models/.gitkeep
 
 # IDE
