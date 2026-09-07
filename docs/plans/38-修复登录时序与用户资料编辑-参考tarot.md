@@ -29,7 +29,7 @@
 
 `auth store` 的 `login()` 采用「先取 token → 再 getMe → 最后 setAuth」三步流程：
 
-```65:80:miniapp/src/stores/auth.ts
+```ts
     async login() {
       const code = await getLoginCode();
       const token = await loginApi({ code });
@@ -46,7 +46,7 @@
 2. 紧接着执行 `getMe()` → `GET /auth/me`（默认 `auth:true`）。此时 `request.ts` 的 `getToken()` 读取 storage 仍为空（`setAuth` 尚未执行）。
 3. `request.ts` 未登录门控短路：
 
-```93:97:miniapp/src/services/request.ts
+```ts
   if (auth && !getToken()) {
     promptLogin();
     return Promise.reject(new ApiError(401, "请先登录"));
@@ -61,7 +61,7 @@
 
 tarot 的登录接口 `POST /api/auth/wechat-login` **一次请求同时返回 `{ token, user, isNewUser }`**，前端拿到后立即 `setStoredToken` + `setUserInfo`：
 
-```99:103:docs/reference/tarot/src/services/auth.ts
+```ts
 const result = await apiPost<LoginResult>(API_ENDPOINTS.AUTH.WECHAT_LOGIN, { code: res.code }, { auth: false })
 setStoredToken(result.token)
 setUserInfo(result.user)

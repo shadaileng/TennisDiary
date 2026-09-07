@@ -111,7 +111,7 @@ Tailwind 编译产物（`app.wxss` 末尾）：
 
 复制 `.env.example` 为 `.env`，填入：
 
-```env
+```bash
 WX_APPID=wxXXXXXXXXXXXXXX
 WX_SECRET=            # 用户补充真实值后登录才可用
 ```
