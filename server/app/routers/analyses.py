@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
-from app.core.mime import detect_media_mime
 from app.decorators.audit import audit
 from app.models.analysis import Analysis
 from app.models.user import User
@@ -191,26 +190,25 @@ def create_analysis(
         if skeleton_thumb:
             files_to_register.append(skeleton_thumb)
 
-    # 批量注册文件（统一使用 get_or_create_file，每文件 savepoint 隔离）
-    if files_to_register:
-        for rel_path in files_to_register:
-            abs_path = file_service.rel_path_to_abs(rel_path)
-            if not os.path.exists(abs_path):
-                log.warning("文件不存在，跳过登记", rel_path=rel_path)
-                continue
-            try:
-                with db.begin_nested():
-                    source = _infer_file_source(rel_path, body.video_url, body.thumb)
-                    file_service.get_or_create_file(
-                        db=db,
-                        user_id=current_user.id,
-                        rel_path=rel_path,
-                        abs_path=abs_path,
-                        upload_source=source,
-                        original_name=os.path.basename(rel_path),
-                    )
-            except Exception as e:  # noqa: BLE001 - 文件登记失败不应阻断流程
-                log.warning("文件登记失败", rel_path=rel_path, error=type(e).__name__)
+    # 登记并绑定到该分析记录（已登记的文件按 MD5 命中复用，仅补绑定）
+    for rel_path in dict.fromkeys(files_to_register):
+        if not file_service.exists(rel_path):
+            log.warning("文件不存在，跳过登记", rel_path=rel_path)
+            continue
+        try:
+            with db.begin_nested():
+                source = _infer_file_source(rel_path, body.video_url, body.thumb)
+                file_service.register(
+                    db=db,
+                    user_id=current_user.id,
+                    src_path=file_service.abs_of(rel_path),
+                    category=source,
+                    original_name=os.path.basename(rel_path),
+                    ext=os.path.splitext(rel_path)[1],
+                    business=("analysis", analysis.id),
+                )
+        except Exception as exc:  # noqa: BLE001 - 文件登记失败不应阻断流程
+            log.warning("文件登记失败", rel_path=rel_path, error=type(exc).__name__)
 
     db.commit()
     db.refresh(analysis)
@@ -290,11 +288,13 @@ def delete_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除分析报告（同时递减所有关联文件引用计数：视频、帧、骨架产物）"""
+    """删除分析报告（同时解除所有关联文件的业务绑定：视频、帧、骨架产物）"""
     analysis = _get_owned_analysis(db, analysis_id, current_user)
 
-    # 递减所有关联文件的引用计数
-    file_service.decrement_analysis_files(db, analysis)
+    # 解除分析记录引用的全部文件绑定（ref_count 自动 -1）
+    file_service.unbind_record(db, "analysis", analysis.id)
+    # 兜底清理登记后残留的中间产物（_f*.jpg / _sk*.jpg）
+    file_service.cleanup_intermediates(current_user.id)
 
     db.delete(analysis)
     db.commit()
@@ -318,22 +318,22 @@ def _initial_pipeline_status() -> dict:
     }
 
 
-async def _save_uploaded_file(file: UploadFile, user_id: int) -> str:
-    """保存上传的视频文件到磁盘，返回绝对路径"""
-    from app.core.config import settings
-
-    upload_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), "videos", str(user_id))
-    os.makedirs(upload_dir, exist_ok=True)
+async def _save_uploaded_file(db: Session, file: UploadFile, user_id: int) -> str:
+    """保存上传的视频文件到受管目录并登记，返回受管绝对路径"""
+    from app.services import file_service
 
     ext = os.path.splitext(file.filename or "video.mp4")[1] or ".mp4"
-    filename = f"{int(time.time() * 1000)}_{os.urandom(4).hex()}{ext}"
-    file_path = os.path.join(upload_dir, filename)
-
     content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
 
-    return file_path
+    record, _ = file_service.register(
+        db=db,
+        user_id=user_id,
+        content=content,
+        category="video",
+        original_name=file.filename or "video.mp4",
+        ext=ext,
+    )
+    return file_service.abs_of(record.rel_path)
 
 
 def _run_analysis_pipeline(analysis_id: int, video_path: str, metadata: dict) -> None:
@@ -385,23 +385,9 @@ async def start_analysis(
     db.refresh(analysis)
     analysis_id = analysis.id
 
-    # 2. 保存视频文件
-    video_path = await _save_uploaded_file(file, current_user.id)
-
-    # 3. 文件纳入管理（统一使用 get_or_create_file）
-    from app.services import file_service
-
-    rel_video = file_service.abs_path_to_rel(video_path)
-    file_service.get_or_create_file(
-        db=db,
-        user_id=current_user.id,
-        rel_path=rel_video,
-        abs_path=video_path,
-        upload_source="video",
-        original_name=file.filename or "video.mp4",
-        # 131：与 video.py 对齐，服务端 ffprobe 探测优先于客户端 Content-Type
-        mime_type=detect_media_mime(video_path),
-    )
+    # 2. 保存视频文件并登记进文件管理（文件名由门面按 MD5 统一推导）
+    video_path = await _save_uploaded_file(db, file, current_user.id)
+    file_service.bind(db, current_user.id, file_service.rel_of(video_path), "analysis", analysis_id)
     db.commit()
 
     # 4. 解析 cuts

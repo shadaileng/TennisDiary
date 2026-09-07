@@ -12,6 +12,7 @@ from app.models.checkin import Checkin
 from app.models.diary import Diary
 from app.models.event_log import EventLog
 from app.models.file import File
+from app.models.file_binding import FileBinding
 from app.models.gear import Gear
 from app.models.post import Post
 from app.models.role import Role
@@ -28,6 +29,7 @@ __all__ = [
     "Diary",
     "EventLog",
     "File",
+    "FileBinding",
     "Gear",
     "Post",
     "Role",

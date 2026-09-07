@@ -79,15 +79,23 @@ def update_me(
     """更新当前用户资料（昵称/头像），仅更新传入字段"""
     update_data = body.model_dump(exclude_unset=True)
 
-    # 如果头像更新，递减旧头像的引用计数
-    if "avatar" in update_data and update_data["avatar"] != current_user.avatar:
-        old_avatar = current_user.avatar
-        if old_avatar:
-            file_service.decrement_ref_count(db, current_user.id, old_avatar)
+    # 头像更新：按最终引用集合重绑（旧头像 -1，新头像 +1，幂等）
+    avatar_changed = "avatar" in update_data and update_data["avatar"] != current_user.avatar
+    new_avatar = update_data.get("avatar") or ""
 
     for key, value in update_data.items():
         if value is not None:
             setattr(current_user, key, value)
+
+    if avatar_changed:
+        file_service.rebind(
+            db,
+            current_user.id,
+            "user",
+            current_user.id,
+            [new_avatar] if new_avatar else [],
+            field="avatar_url",
+        )
 
     db.commit()
     db.refresh(current_user)

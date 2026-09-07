@@ -6,18 +6,21 @@ from pydantic import BaseModel, Field
 class FileUsageStatus:
     """文件使用状态常量（纯字符串集合，不依赖枚举类，保持与 str 字段兼容）。
 
-    取值含义：
+    取值含义（138：扫描改为基于业务引用注册表的五态分类）：
     - in_use：使用中（业务记录仍引用该文件）
-    - unreferenced：引用失效（业务记录不存在或不再引用；或不被小程序直接消费
-      （原视频整片/抽帧帧图），可清除）
-    - marked_deleted：已软删（deleted_at 非空，等待物理清理，可清除）
+    - unreferenced：已登记但无任何业务引用（可清除）
+    - missing：已登记但物理文件缺失
     - orphan：磁盘孤儿（文件在磁盘但 File 表无记录）
+    - unregistered_ref：业务记录引用了未登记的路径
+    - marked_deleted：已软删（deleted_at 非空，等待物理清理，可清除）
     """
 
     IN_USE = "in_use"
     UNREFERENCED = "unreferenced"
-    MARKED_DELETED = "marked_deleted"
+    MISSING = "missing"
     ORPHAN = "orphan"
+    UNREGISTERED_REF = "unregistered_ref"
+    MARKED_DELETED = "marked_deleted"
 
 
 class AdminFileResponse(BaseModel):
@@ -63,13 +66,17 @@ class OrphanFileInfo(BaseModel):
 
 
 class ScanResultResponse(BaseModel):
-    """扫描结果"""
+    """扫描结果（138：五态分类）"""
 
     total_files: int = Field(description="uploads 目录总文件数")
     registered_files: int = Field(description="已注册文件数")
-    orphan_files: int = Field(description="未注册文件数")
-    orphans: list[OrphanFileInfo] = Field(description="未注册文件列表")
-    total_orphan_size: int = Field(description="未注册文件总大小（字节）")
+    orphan_files: int = Field(description="待处理文件数（孤儿 / 未登记引用 / 文件缺失）")
+    orphans: list[OrphanFileInfo] = Field(description="待处理文件列表")
+    total_orphan_size: int = Field(description="待处理文件总大小（字节）")
+    status_counts: dict[str, int] = Field(
+        default_factory=dict,
+        description="五态计数：in_use/unreferenced/missing/orphan/unregistered_ref",
+    )
 
 
 class RegisterFilesRequest(BaseModel):

@@ -1,4 +1,4 @@
-"""Admin 文件管理路由"""
+"""Admin 文件管理路由（138：全部经 file_service 门面操作）"""
 
 import os
 import re
@@ -15,7 +15,6 @@ from app.core.logging import get_logger
 from app.core.mime import EXTENSION_MIME
 from app.decorators.audit import audit
 from app.models.admin import Admin
-from app.models.file import File
 from app.schemas.admin_file import (
     AdminFileListResponse,
     AdminFileResponse,
@@ -31,9 +30,12 @@ log = get_logger("admin")
 
 router = APIRouter(prefix="/api/admin/files", tags=["admin-files"])
 
+# 扫描结果中需要管理员介入处理的状态
+_PROBLEM_STATUSES = ("orphan", "unregistered_ref", "missing")
+
 
 def _file_to_response(
-    file_record: File,
+    file_record,
     db: Session,
     classifications: dict | None = None,
 ) -> AdminFileResponse:
@@ -41,7 +43,7 @@ def _file_to_response(
     if classifications and file_record.id in classifications:
         usage_status, usage_reason = classifications[file_record.id]
     else:
-        usage_status, usage_reason = file_service.classify_file_usage(db, file_record)
+        usage_status, usage_reason = file_service.classify(db, [file_record])[file_record.id]
 
     return AdminFileResponse(
         id=file_record.id,
@@ -73,19 +75,12 @@ def list_files(
     db: Session = Depends(get_db),
 ):
     """文件管理列表（支持按用户/来源/业务类型/使用状态过滤）"""
-    query = db.query(File).filter(File.deleted_at.is_(None))
+    filters = dict(user_id=user_id, upload_source=upload_source, business_type=business_type)
 
-    if user_id is not None:
-        query = query.filter(File.user_id == user_id)
-    if upload_source:
-        query = query.filter(File.upload_source == upload_source)
-    if business_type:
-        query = query.filter(File.business_type == business_type)
-
-    # usage_status 是实时计算的，无法用 SQL WHERE，需在 Python 中筛选
+    # usage_status 由业务引用实时计算，无法下推 SQL，需在 Python 中筛选
     if usage_status:
-        all_files = query.order_by(File.created_at.desc()).all()
-        classifications = file_service.bulk_classify_files(db, all_files)
+        all_files = file_service.query_files(db, **filters)
+        classifications = file_service.classify(db, all_files)
         matched = [f for f in all_files if classifications.get(f.id, ("", ""))[0] == usage_status]
         total = len(matched)
         paginated = matched[offset : offset + limit]
@@ -98,9 +93,9 @@ def list_files(
             )
         )
 
-    total = query.count()
-    files = query.order_by(File.created_at.desc()).offset(offset).limit(limit).all()
-    classifications = file_service.bulk_classify_files(db, files)
+    total = file_service.count_files(db, **filters)
+    files = file_service.query_files(db, offset=offset, limit=limit, **filters)
+    classifications = file_service.classify(db, files)
 
     return ApiResponse(
         data=AdminFileListResponse(
@@ -118,37 +113,16 @@ def file_stats(
     db: Session = Depends(get_db),
 ):
     """文件统计摘要（总数、总大小、按来源分组 + 使用状态计数）"""
-    from sqlalchemy import func
-
-    total_count = db.query(File).filter(File.deleted_at.is_(None)).count()
-    total_size = db.query(func.sum(File.size_bytes)).filter(File.deleted_at.is_(None)).scalar() or 0
-
-    # marked_deleted：已软删等待物理清理
-    marked_deleted = db.query(File).filter(File.deleted_at.isnot(None)).count()
-
-    # unreferenced：通过批量 classify 判定
-    all_files = db.query(File).filter(File.deleted_at.is_(None)).all()
-    classifications = file_service.bulk_classify_files(db, all_files)
+    all_files = file_service.query_files(db)
+    classifications = file_service.classify(db, all_files)
     unreferenced_count = sum(1 for st, _ in classifications.values() if st != "in_use")
-
-    # 按来源分组统计
-    source_stats = (
-        db.query(File.upload_source, func.count(File.id), func.sum(File.size_bytes))
-        .filter(File.deleted_at.is_(None))
-        .group_by(File.upload_source)
-        .all()
-    )
-
-    by_source = {
-        source: {"count": count, "size_bytes": size or 0} for source, count, size in source_stats
-    }
 
     return ApiResponse(
         data={
-            "total_count": total_count,
-            "total_size_bytes": total_size,
-            "by_source": by_source,
-            "marked_deleted_count": marked_deleted,
+            "total_count": len(all_files),
+            "total_size_bytes": file_service.total_size(db),
+            "by_source": file_service.source_stats(db),
+            "marked_deleted_count": file_service.count_deleted(db),
             "unreferenced_count": unreferenced_count,
         }
     )
@@ -161,21 +135,14 @@ def delete_file(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """删除文件记录（软删；引用归零且无其他记录共享物理文件时一并删除磁盘文件）"""
-    file_record = db.query(File).filter(File.id == file_id, File.deleted_at.is_(None)).first()
-    if file_record is None:
+    """删除文件记录（软删：解除全部业务绑定并归零引用计数）"""
+    file_record = file_service.get_by_id(db, file_id)
+    if file_record is None or file_record.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
-    removed_disk = file_service.soft_delete_file(db, file_record)
-
+    file_service.soft_delete(db, file_id)
     db.commit()
-    log.info(
-        "Admin 删除文件成功",
-        file_id=file_id,
-        admin_id=admin.id,
-        ref_count=file_record.ref_count,
-        removed_disk=removed_disk,
-    )
+    log.info("Admin 删除文件成功", file_id=file_id, admin_id=admin.id)
     return ApiResponse(message="删除成功")
 
 
@@ -186,47 +153,22 @@ def batch_delete_files(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """批量删除文件（软删；复用单条删除的引用递减与物理清理逻辑）"""
-    deleted = 0
-    skipped = 0
-    disk_removed = 0
-    errors: list[str] = []
-
+    """批量删除文件（软删 + 解绑）"""
     if not body.file_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="file_ids 不能为空")
 
-    for file_id in body.file_ids:
-        file_record = db.query(File).filter(File.id == file_id, File.deleted_at.is_(None)).first()
-        if file_record is None:
-            skipped += 1
-            errors.append(f"文件不存在或已删除: {file_id}")
-            continue
-        try:
-            removed = file_service.soft_delete_file(db, file_record)
-            deleted += 1
-            if removed:
-                disk_removed += 1
-        except Exception as exc:
-            log.error("批量删除文件失败: %s", exc, exc_info=True)
-            errors.append(f"删除失败: {file_id}")
-            continue
-
+    result = file_service.soft_delete_batch(db, body.file_ids)
+    errors = [f"文件不存在或已删除: {file_id}" for file_id in result.get("missing_ids", [])]
     db.commit()
-    log.info(
-        "Admin 批量删除文件",
-        admin_id=admin.id,
-        deleted=deleted,
-        skipped=skipped,
-        disk_removed=disk_removed,
-    )
+    log.info("Admin 批量删除文件", admin_id=admin.id, **result)
     return ApiResponse(
         data={
-            "deleted": deleted,
-            "skipped": skipped,
-            "disk_removed": disk_removed,
+            "deleted": result["deleted"],
+            "skipped": result["missing"],
+            "disk_removed": result["disk_removed"],
             "errors": errors,
         },
-        message=f"删除完成：成功 {deleted} 个，跳过 {skipped} 个",
+        message=f"删除完成：成功 {result['deleted']} 个，跳过 {result['missing']} 个",
     )
 
 
@@ -238,7 +180,7 @@ def cleanup_files(
     db: Session = Depends(get_db),
 ):
     """物理文件清理：删除已软删超过 N 天的记录及其磁盘文件"""
-    cleaned = file_service.cleanup_orphan_files(db, days=days)
+    cleaned = file_service.cleanup(db, days=days)
     db.commit()
     log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id)
     return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
@@ -251,26 +193,49 @@ def cleanup_orphan_files(
     admin: Admin = Depends(get_current_admin),
 ):
     """物理删除指定的孤儿文件（不在 File 表中注册的文件）"""
-    cleaned = file_service.cleanup_orphan_paths(body.files)
+    cleaned = file_service.cleanup_paths(body.files)
     log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id, paths=body.files[:5])
     return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
 
 
 @router.post("/scan", response_model=ApiResponse[ScanResultResponse])
 @audit(action="SCAN", resource_type="file_scan")
-def scan_orphan_files(
+def scan_files(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """扫描 uploads 目录，返回未在 File 表中注册的孤立文件列表"""
-    result = file_service.scan_orphan_files(db)
+    """扫描受管文件与磁盘，基于业务引用注册表输出五态分类"""
+    result = file_service.scan(db)
+    problems = [i for i in result["items"] if i["status"] in _PROBLEM_STATUSES]
+
     log.info(
-        "Admin 扫描孤立文件",
+        "Admin 扫描文件",
         admin_id=admin.id,
         total=result["total_files"],
-        orphan=result["orphan_files"],
+        registered=result["registered_files"],
+        status_counts=result["status_counts"],
     )
-    return ApiResponse(data=ScanResultResponse(**result))
+    return ApiResponse(
+        data=ScanResultResponse(
+            total_files=result["total_files"],
+            registered_files=result["registered_files"],
+            orphan_files=len(problems),
+            orphans=[
+                {
+                    "rel_path": item["rel_path"],
+                    "size_bytes": item["size_bytes"],
+                    "modified_at": item["modified_at"],
+                    "inferred_user_id": item["user_id"] or None,
+                    "inferred_source": item["upload_source"],
+                    "usage_status": item["status"],
+                    "usage_reason": item["reason"],
+                }
+                for item in problems
+            ],
+            total_orphan_size=sum(item["size_bytes"] for item in problems),
+            status_counts=result["status_counts"],
+        )
+    )
 
 
 @router.post("/register", response_model=ApiResponse[dict])
@@ -280,20 +245,18 @@ def register_files(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """将文件注册到 File 表；files 为空时扫描并注册全部孤儿"""
+    """将文件注册到 File 表；files 为空时扫描并注册全部待处理文件"""
     if body.files:
         rel_paths = body.files
     else:
-        scan_result = file_service.scan_orphan_files(db)
-        rel_paths = [o["rel_path"] for o in scan_result["orphans"]]
+        scan_result = file_service.scan(db)
+        rel_paths = [
+            item["rel_path"] for item in scan_result["items"] if item["status"] == "orphan"
+        ]
         if not rel_paths:
             return ApiResponse(data={"registered": 0}, message="没有发现未注册的文件")
 
-    registered = file_service.register_orphan_files(
-        db,
-        rel_paths=rel_paths,
-        default_user_id=body.default_user_id,
-    )
+    registered = file_service.register_orphans(db, rel_paths, default_user_id=body.default_user_id)
     db.commit()
     log.info(
         "Admin 注册孤立文件",
@@ -305,6 +268,24 @@ def register_files(
         data={"registered": len(registered)},
         message=f"成功注册 {len(registered)} 个文件",
     )
+
+
+@router.post("/migrate-md5", response_model=ApiResponse[dict])
+@audit(action="MIGRATE", resource_type="file_migrate")
+def migrate_files_to_md5(
+    dry_run: bool = Query(True, description="预演模式：只出报告不落改动"),
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """存量文件一键迁移：物理文件重命名为 {md5}.{后缀} 并回填业务表路径
+
+    先以 dry_run=true 预演确认影响面，再以 dry_run=false 正式执行（幂等）。
+    """
+    report = file_service.migrate_to_md5(db, dry_run=dry_run)
+    if not dry_run:
+        db.commit()
+    log.info("Admin 存量文件迁移", admin_id=admin.id, dry_run=dry_run, report=report)
+    return ApiResponse(data=report)
 
 
 # ==================== 下载 ====================
@@ -359,11 +340,12 @@ def download_file(
     admin = db.query(AdminModel).filter(AdminModel.id == admin_id).first()
     if admin is None or not admin.is_active:
         raise HTTPException(status_code=401, detail="管理员不存在或已禁用")
-    file_record = db.query(File).filter(File.id == file_id).first()
+
+    file_record = file_service.get_by_id(db, file_id)
     if file_record is None:
         raise HTTPException(status_code=404, detail="文件记录不存在")
 
-    abs_path = file_service.resolve_safe_path(file_record.rel_path)
+    abs_path = file_service.resolve(file_record.rel_path)
     if abs_path is None or not os.path.isfile(abs_path):
         raise HTTPException(status_code=404, detail="文件不存在")
 
@@ -429,7 +411,7 @@ def repair_files(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """扫描 File 表，按物理文件真实类型重新探测并修正 mime_type（Step 116）
+    """扫描 File 表，按物理文件真实类型重新探测并修正 mime_type
 
     默认仅修正 mime_type 为空的记录；传 only_empty=false 则全量校验。
     """

@@ -1,5 +1,7 @@
 """文件下载相关路由：按相对路径下载当前用户拥有的文件"""
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -23,19 +25,17 @@ def download_file(
     current_user: User = Depends(get_current_user),
 ):
     """下载当前用户拥有的文件，完成路径穿越防护与归属校验"""
-    abs_path = file_service.resolve_safe_path(filename)
+    abs_path = file_service.resolve(filename)
     if abs_path is None:
         log.warning("文件下载路径穿越被拒", user_id=current_user.id, filename=filename)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
-    if not file_service.is_file_owned(db, current_user, filename):
+    if not file_service.owned_by(db, current_user.id, filename):
         log.warning("文件下载越权被拒", user_id=current_user.id, filename=filename)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
-    if not file_service.file_exists(abs_path):
+    if not file_service.exists(filename):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
-
-    import os
 
     ext = os.path.splitext(abs_path)[1].lower()
     media_type = EXTENSION_MIME.get(ext, "application/octet-stream")

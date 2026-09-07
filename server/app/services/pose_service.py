@@ -337,10 +337,10 @@ def _should_use_full_frames(
 
 
 def _rel_url(abs_path: str) -> str:
-    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）- 使用 file_service"""
-    from app.services.file_service import abs_path_to_rel
+    """UPLOAD_DIR 内绝对路径 → 相对 URL（正斜杠）- 使用 file_service 门面"""
+    from app.services import file_service
 
-    return abs_path_to_rel(abs_path)
+    return file_service.rel_of(abs_path)
 
 
 def find_ffmpeg() -> str | None:
@@ -427,6 +427,8 @@ def analyze_video_file(
 
     返回 {frames, metrics, detected, skeleton_video_url, skeleton_thumb}
     """
+    from app.services import file_service
+
     frames = extract_all_frames(video_path)
     if not frames:
         raise ValueError("未能从视频中抽取任何帧")
@@ -455,8 +457,7 @@ def analyze_video_file(
         else:
             sk_bytes = frame_bytes
         sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
-        with open(sk_path, "wb") as out:
-            out.write(sk_bytes)
+        file_service.write_bytes(sk_path, sk_bytes)
         skeleton_paths.append(sk_path)
 
     # 编码骨架视频（帧率 = 帧数 / 时长，确保播放时长与原视频一致）
@@ -606,11 +607,10 @@ def _analyze_full_frames(
         else:
             sk_bytes = frame_bytes
         sk_path = os.path.join(video_dir, f"{base}_sk{i:04d}.jpg")
-        with open(sk_path, "wb") as out:
-            out.write(sk_bytes)
+        file_service.write_bytes(sk_path, sk_bytes)
 
         # 预计算 MD5 + size（一次磁盘读取）
-        md5, size = file_service.compute_md5_and_size(sk_path)
+        md5, size = file_service.md5_and_size_of(sk_path)
 
         skeleton_paths.append(sk_path)
         skeleton_info.append(
@@ -635,7 +635,7 @@ def _analyze_full_frames(
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
         if encoded and os.path.isfile(out_path):
             skeleton_video_url = _rel_url(out_path)
-            md5, size = file_service.compute_md5_and_size(out_path)
+            md5, size = file_service.md5_and_size_of(out_path)
             skeleton_video_info = {
                 "rel_path": skeleton_video_url,
                 "md5": md5,
@@ -648,7 +648,7 @@ def _analyze_full_frames(
             thumb_path = os.path.join(video_dir, thumb_name)
             _extract_first_frame(out_path, thumb_path)
             if os.path.isfile(thumb_path):
-                md5, size = file_service.compute_md5_and_size(thumb_path)
+                md5, size = file_service.md5_and_size_of(thumb_path)
                 skeleton_thumb = _rel_url(thumb_path)
                 skeleton_thumb_info = {
                     "rel_path": skeleton_thumb,
@@ -717,11 +717,10 @@ def _analyze_sampled_frames(
             else:
                 sk_bytes = image_bytes  # 无人检测时使用原图
             sk_path = os.path.join(video_dir, f"{base}_sk{sk_idx:04d}.jpg")
-            with open(sk_path, "wb") as out:
-                out.write(sk_bytes)
+            file_service.write_bytes(sk_path, sk_bytes)
 
             # 预计算 MD5 + size（一次磁盘读取）
-            md5, size = file_service.compute_md5_and_size(sk_path)
+            md5, size = file_service.md5_and_size_of(sk_path)
 
             skeleton_paths.append(sk_path)
             skeleton_info.append(
@@ -748,7 +747,7 @@ def _analyze_sampled_frames(
         encoded = encode_skeleton_video(skeleton_paths, out_path, effective_fps)
         if encoded and os.path.isfile(out_path):
             skeleton_video_url = _rel_url(out_path)
-            md5, size = file_service.compute_md5_and_size(out_path)
+            md5, size = file_service.md5_and_size_of(out_path)
             skeleton_video_info = {
                 "rel_path": skeleton_video_url,
                 "md5": md5,
@@ -761,7 +760,7 @@ def _analyze_sampled_frames(
             thumb_path = os.path.join(video_dir, thumb_name)
             _extract_first_frame(out_path, thumb_path)
             if os.path.isfile(thumb_path):
-                md5, size = file_service.compute_md5_and_size(thumb_path)
+                md5, size = file_service.md5_and_size_of(thumb_path)
                 skeleton_thumb = _rel_url(thumb_path)
                 skeleton_thumb_info = {
                     "rel_path": skeleton_thumb,

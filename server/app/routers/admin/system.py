@@ -356,9 +356,9 @@ async def ai_connect_test(
 # 静态文件服务允许的媒体类型（与用户端 files.py 一致，复用共享 EXTENSION_MIME）
 def _resolve_admin_file_path(filename: str) -> Path | None:
     """将相对路径解析为 UPLOAD_DIR 内的绝对路径，越界返回 None（使用 file_service）"""
-    from app.services.file_service import resolve_safe_path
+    from app.services import file_service
 
-    abs_path = resolve_safe_path(filename)
+    abs_path = file_service.resolve(filename)
     return Path(abs_path) if abs_path else None
 
 

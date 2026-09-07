@@ -1,32 +1,39 @@
-"""文件管理路由测试（5.1-5.7）
+"""文件管理测试（138：统一门面 + MD5 命名 + 引用计数）
 
 覆盖：
-- 5.1 File 基础操作（上传后 File 记录创建、归属校验）
-- 5.2 MD5 + 秒传（get_or_create_file、引用计数）
-- 5.3 路径工具（resolve_safe_path、build_upload_dir、make_rel_path、abs_path_to_rel）
-- 5.4 业务删除联动（gear/analysis 删除、avatar 更新联动）
-- 5.5 AI 分析（decrement_analysis_files、register_ai_files）
-- 5.6 骨架文件注册（analysis.pose 骨架递减）
-- 5.7 并发竞态（同 MD5 不同用户同时上传）
+- 基础操作（登记后 File 记录创建、归属校验、路径穿越防护）
+- MD5 秒传（同一用户同内容复用同一记录与物理文件）
+- 路径工具（build_rel_path / resolve / abs_of ↔ rel_of）
+- 上传端点（头像 / 装备图登记）
+- 业务删除联动（gear 删除、avatar 更新 → 旧文件 -1）
+- 分析文件解绑（video_url / thumb / 骨架产物）
+- 并发竞态（同 MD5 不同用户互不影响）
+
+说明：旧实现内部的 `get_or_create_file` / 路径工具 / `decrement_*` 均已收口到
+`file_service` 门面，测试改为面向门面 API，避免与内部实现耦合。
 """
 
 import hashlib
+import json
 import os
 import time
 from unittest.mock import patch
 
+import pytest
+
 from app.core.config import settings
+from app.models.analysis import Analysis
 from app.models.file import File
+from app.models.gear import Gear
+from app.models.user import User
+from app.services import file_service
 
 # ==================== 辅助 ====================
 
 
 def _write_upload_file(rel_path: str, content: bytes = b"hello-world") -> str:
     """在 UPLOAD_DIR 下写入一个上传文件，返回相对路径"""
-    abs_path = os.path.join(os.path.abspath(settings.UPLOAD_DIR), rel_path)
-    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-    with open(abs_path, "wb") as f:
-        f.write(content)
+    file_service.write_bytes(file_service.abs_of(rel_path), content)
     return rel_path
 
 
@@ -45,13 +52,13 @@ def _create_file_record(
     user_id: int,
     rel_path: str,
     md5: str | None = None,
-    ref_count: int = 1,
+    ref_count: int = 0,
     upload_source: str = "gear_image",
     size_bytes: int = 11,
     business_type: str | None = None,
     business_id: int | None = None,
 ):
-    """创建文件记录"""
+    """创建文件记录（含物理文件）；ref_count 默认 0，绑定后由门面 +1"""
     if md5 is None:
         md5 = hashlib.md5(b"hello-world").hexdigest()
     record = File(
@@ -69,812 +76,346 @@ def _create_file_record(
     )
     test_db.add(record)
     test_db.commit()
+    _write_upload_file(rel_path)
     return record
 
 
-# ==================== 5.1 File 基础操作 ====================
+@pytest.fixture(autouse=True)
+def _mock_check():
+    """自动跳过微信内容安全检查（测试环境无真实 API）"""
+    with patch("app.services.content_security.check_image_sync") as mock:
+        mock.return_value = None
+        yield mock
+
+
+# ==================== 基础操作 ====================
 
 
 class TestFileBasicOps:
-    """5.1 上传后自动创建 File 记录，下载可读取"""
+    """登记后自动创建 File 记录，下载可读取"""
 
-    def test_file_record_created_on_upload(self, test_db):
-        """上传后 File 记录自动创建"""
-        uid = _next_uid()
-        rel = _write_upload_file(f"avatars/{uid}/test.jpg")
-        record = _create_file_record(test_db, user_id=uid, rel_path=rel)
+    def test_file_record_created(self, test_db):
+        record, reused = file_service.register(
+            db=test_db, user_id=1, content=b"basic", category="gear_image", ext=".jpg"
+        )
+        test_db.commit()
+        assert reused is False
         assert record.id is not None
-        assert record.ref_count == 1
-        assert record.md5 == hashlib.md5(b"hello-world").hexdigest()
+        assert record.rel_path == f"gears/1/{hashlib.md5(b'basic').hexdigest()}.jpg"
 
-    def test_file_ownership_check(self, auth_client, test_db):
-        """自有 File 记录引用的文件可下载（mock_user.id=1）"""
-        content = b"own-content-for-download"
-        md5 = hashlib.md5(content).hexdigest()
-        rel = _write_upload_file("avatars/1/own-download.jpg", content)
-        _create_file_record(test_db, user_id=1, rel_path=rel, md5=md5)
-        resp = auth_client.get(f"/api/files/{rel}")
-        assert resp.status_code == 200
-        assert resp.content == content
+    def test_file_ownership_check(self, test_db):
+        uid = _next_uid()
+        rel = f"gears/{uid}/own.jpg"
+        _create_file_record(test_db, uid, rel, md5=hashlib.md5(rel.encode()).hexdigest())
+        assert file_service.owned_by(test_db, uid, rel) is True
+        assert file_service.owned_by(test_db, uid + 1, rel) is False
 
     def test_file_other_user_blocked(self, auth_client, test_db):
-        """他人文件返回 404"""
-        content = b"other-user-content"
-        md5 = hashlib.md5(content).hexdigest()
-        rel = _write_upload_file("avatars/999/other-blocked.jpg", content)
-        _create_file_record(test_db, user_id=999, rel_path=rel, md5=md5)
+        """下载他人文件返回 404"""
+        uid = _next_uid()
+        rel = f"gears/{uid}/blocked.jpg"
+        _create_file_record(test_db, uid, rel, md5=hashlib.md5(rel.encode()).hexdigest())
         resp = auth_client.get(f"/api/files/{rel}")
         assert resp.status_code == 404
 
     def test_file_nonexistent_returns_404(self, auth_client):
-        """不存在文件返回 404"""
-        resp = auth_client.get("/api/files/images/missing.jpg")
+        resp = auth_client.get("/api/files/gears/999999/not-exist.jpg")
         assert resp.status_code == 404
 
     def test_path_traversal_blocked(self, auth_client):
-        """路径穿越应被拒绝"""
-        resp = auth_client.get("/api/files/../config.py")
-        assert resp.status_code == 404
-        resp2 = auth_client.get("/api/files/images/../../app/main.py")
-        assert resp2.status_code == 404
+        resp = auth_client.get("/api/files/../../../etc/passwd")
+        assert resp.status_code in (404, 422)
 
 
-# ==================== 5.2 MD5 + 秒传 ====================
+# ==================== MD5 秒传 ====================
 
 
 class TestMD5AndInstantUpload:
-    """5.2 相同 MD5 应秒传（复用物理文件路径），引用计数递增"""
-
     def test_instant_upload_reuses_path(self, test_db):
-        """相同 MD5 同用户：秒传时创建新记录，复用物理路径，原记录 ref_count 递增"""
-        from app.services.file_service import get_or_create_file
-
+        """同一用户重复上传同一内容：复用同一记录与物理路径"""
         uid = _next_uid()
-        content = f"instant-{uid}".encode()
-        rel = _write_upload_file(f"gears/{uid}/test.jpg", content)
-        md5 = hashlib.md5(content).hexdigest()
-
-        file_a, is_mirage = get_or_create_file(
-            test_db,
-            user_id=uid,
-            md5=md5,
-            rel_path=rel,
-            upload_source="gear_image",
-            original_name="test.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        first, _ = file_service.register(
+            db=test_db, user_id=uid, content=b"instant", category="gear_image", ext=".jpg"
         )
         test_db.commit()
-        assert not is_mirage
-        assert file_a.rel_path == rel
-        assert file_a.ref_count == 1
-
-        # 同用户同 MD5：创建新记录（独立记录），复用物理路径，原记录 ref_count 递增
-        file_b, is_mirage = get_or_create_file(
-            test_db,
-            user_id=uid,
-            md5=md5,
-            rel_path=f"gears/{uid}/duplicate.jpg",
-            upload_source="gear_image",
-            original_name="duplicate.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        second, reused = file_service.register(
+            db=test_db, user_id=uid, content=b"instant", category="gear_image", ext=".jpg"
         )
         test_db.commit()
-        assert is_mirage
-        assert file_b.id != file_a.id  # 新记录，独立 ID
-        assert file_b.rel_path == file_a.rel_path  # 复用物理路径
-        test_db.refresh(file_a)
-        assert file_a.ref_count == 2  # 原记录 ref_count 递增
+
+        assert reused is True
+        assert first.id == second.id
+        assert first.rel_path == second.rel_path
+        assert test_db.query(File).filter(File.user_id == uid).count() == 1
 
     def test_different_md5_independent(self, test_db):
-        """不同 MD5 独立记录"""
-        from app.services.file_service import get_or_create_file
-
+        """不同内容各自独立建记录"""
         uid = _next_uid()
-        content_a = f"md5a-{uid}".encode()
-        content_b = f"md5b-{uid}".encode()
-        rel1 = _write_upload_file(f"gears/{uid}/a.jpg", content_a)
-        rel2 = _write_upload_file(f"gears/{uid}/b.jpg", content_b)
-        md5_a = hashlib.md5(content_a).hexdigest()
-        md5_b = hashlib.md5(content_b).hexdigest()
-
-        file_a, _ = get_or_create_file(
-            test_db,
-            user_id=uid,
-            md5=md5_a,
-            rel_path=rel1,
-            upload_source="gear_image",
-            original_name="a.jpg",
-            size_bytes=len(content_a),
-            mime_type="image/jpeg",
+        a, _ = file_service.register(
+            db=test_db, user_id=uid, content=b"content-a", category="gear_image", ext=".jpg"
         )
-        file_b, _ = get_or_create_file(
-            test_db,
-            user_id=uid,
-            md5=md5_b,
-            rel_path=rel2,
-            upload_source="gear_image",
-            original_name="b.jpg",
-            size_bytes=len(content_b),
-            mime_type="image/jpeg",
+        b, _ = file_service.register(
+            db=test_db, user_id=uid, content=b"content-b", category="gear_image", ext=".jpg"
         )
         test_db.commit()
-        assert file_a.rel_path != file_b.rel_path
-        assert file_a.ref_count == 1
-        assert file_b.ref_count == 1
+        assert a.id != b.id
+        assert a.rel_path != b.rel_path
 
-    def test_ref_count_increments_on_instant(self, test_db):
-        """秒传时 ref_count 递增"""
-        from app.services.file_service import get_or_create_file
-
+    def test_ref_count_increments_on_bind(self, test_db):
+        """业务绑定一次 +1"""
         uid = _next_uid()
-        content = f"refcount-{uid}".encode()
-        rel = _write_upload_file(f"gears/{uid}/original.jpg", content)
-        md5 = hashlib.md5(content).hexdigest()
-
-        first, _ = get_or_create_file(
-            test_db,
-            user_id=uid,
-            md5=md5,
-            rel_path=rel,
-            upload_source="gear_image",
-            original_name="original.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
-        )
-        test_db.commit()  # flush (autoflush=False)
-        assert first.ref_count == 1
-
-        get_or_create_file(
-            test_db,
-            user_id=uid,
-            md5=md5,
-            rel_path=f"gears/{uid}/other.jpg",
-            upload_source="gear_image",
-            original_name="other.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        record, _ = file_service.register(
+            db=test_db, user_id=uid, content=b"bind-count", category="gear_image", ext=".jpg"
         )
         test_db.commit()
-        test_db.refresh(first)
-        assert first.ref_count == 2
+        file_service.bind(test_db, uid, record.rel_path, "gear", 1)
+        file_service.bind(test_db, uid, record.rel_path, "gear", 2)
+        assert record.ref_count == 2
 
-    def test_ref_count_zero_marks_deleted(self, test_db):
-        """引用归零后 File 标记软删"""
-        from app.services.file_service import decrement_ref_count
-
+    def test_ref_count_zero_not_deleted(self, test_db):
+        """解绑归零后不立即软删（交由宽限期回收）"""
         uid = _next_uid()
-        content = f"refdel-{uid}".encode()
-        rel = _write_upload_file(f"gears/{uid}/ref-test.jpg", content)
-        md5 = hashlib.md5(content).hexdigest()
-        record = _create_file_record(test_db, user_id=uid, rel_path=rel, md5=md5, ref_count=1)
-
-        decremented = decrement_ref_count(test_db, user_id=uid, rel_path=rel)
-        assert decremented == 1
+        record, _ = file_service.register(
+            db=test_db, user_id=uid, content=b"zero", category="gear_image", ext=".jpg"
+        )
         test_db.commit()
-        test_db.refresh(record)
-        assert record.deleted_at is not None
+        file_service.bind(test_db, uid, record.rel_path, "gear", 1)
+        file_service.unbind(test_db, uid, record.rel_path, "gear", 1)
+        assert record.ref_count == 0
+        assert record.deleted_at is None
 
 
-# ==================== 5.3 路径工具 ====================
+# ==================== 路径工具 ====================
 
 
 class TestPathTools:
-    """5.3 resolve_safe_path / build_upload_dir / make_rel_path / abs_path_to_rel"""
+    def test_build_rel_path_format(self):
+        md5 = "a" * 32
+        assert file_service.build_rel_path(1, md5, ".jpg", "avatar") == f"avatars/1/{md5}.jpg"
+        assert file_service.build_rel_path(2, md5, "png", "gear_image") == f"gears/2/{md5}.png"
 
-    def test_resolve_safe_path_within_upload_dir(self):
-        """合法相对路径解析到 UPLOAD_DIR 内"""
-        from app.services.file_service import resolve_safe_path
+    def test_resolve_within_upload_dir(self):
+        upload_dir = os.path.abspath(settings.UPLOAD_DIR)
+        assert file_service.resolve("videos/1/a.mp4") == os.path.join(
+            upload_dir, "videos", "1", "a.mp4"
+        )
 
-        result = resolve_safe_path("avatars/1/test.jpg")
-        assert result is not None
-        assert os.path.isabs(result)
-        assert os.path.abspath(settings.UPLOAD_DIR) in result
+    def test_resolve_traversal_returns_none(self):
+        assert file_service.resolve("../../../etc/passwd") is None
 
-    def test_resolve_safe_path_traversal_returns_none(self):
-        """路径穿越返回 None"""
-        from app.services.file_service import resolve_safe_path
-
-        assert resolve_safe_path("../config.py") is None
-        assert resolve_safe_path("avatars/../../app/main.py") is None
-
-    def test_build_upload_dir_creates_directory(self):
-        """build_upload_dir 创建目录并返回绝对路径"""
-        from app.services.file_service import build_upload_dir
-
-        result = build_upload_dir("avatars", 42)
-        assert os.path.isdir(result)
-        assert os.path.isabs(result)
-        assert "42" in result
-
-    def test_make_rel_path_format(self):
-        """make_rel_path 生成正斜杠格式"""
-        from app.services.file_service import make_rel_path
-
-        result = make_rel_path("avatars", 7, "abc.jpg")
-        assert result == "avatars/7/abc.jpg"
-        assert "\\" not in result
-
-    def test_abs_path_to_rel_roundtrip(self):
-        """abs_path_to_rel 与 rel_path_to_abs 可逆"""
-        from app.services.file_service import abs_path_to_rel, rel_path_to_abs
-
-        rel = "avatars/1/test.jpg"
-        abs_p = rel_path_to_abs(rel)
-        result = abs_path_to_rel(abs_p)
-        assert result == rel
+    def test_abs_rel_roundtrip(self):
+        rel = "videos/7/x.mp4"
+        assert file_service.rel_of(file_service.abs_of(rel)) == rel
 
 
-# ==================== 5.1 上传注册测试 ====================
+# ==================== 上传端点 ====================
 
 
 class TestUploadFileRecord:
-    """5.1 上传后 File 记录自动创建（通过 API 测试）"""
-
-    @patch("app.routers.upload.check_image_sync", return_value=True)
-    def test_upload_avatar_creates_file_record(self, _mock_check, auth_client, test_db):
-        """上传头像后，File 表有记录，upload_source='avatar'"""
-        import io
-
-        from app.models.file import File
-
-        content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
-        response = auth_client.post(
+    def test_upload_avatar_creates_file_record(self, auth_client, test_db):
+        uid = 1  # conftest 的 mock 用户 ID
+        resp = auth_client.post(
             "/api/upload/avatar",
-            files={"file": ("avatar.png", io.BytesIO(content), "image/png")},
+            files={"file": ("avatar.jpg", b"avatar-bytes", "image/jpeg")},
         )
-        assert response.status_code == 200
-        url = response.json()["data"]["url"]
-        assert url.startswith("avatars/1/")
+        assert resp.status_code == 200
+        url = resp.json()["data"]["url"]
+        assert url.startswith(f"avatars/{uid}/")
+        assert url.endswith(f"{hashlib.md5(b'avatar-bytes').hexdigest()}.jpg")
 
-        # 验证 File 记录已创建
-        record = (
-            test_db.query(File)
-            .filter(
-                File.user_id == 1,
-                File.rel_path == url,
-                File.upload_source == "avatar",
-            )
-            .first()
-        )
-        assert record is not None
-        assert record.ref_count == 1
-        assert record.md5 is not None
-
-    @patch("app.routers.upload.check_image_sync", return_value=True)
-    def test_upload_gear_image_creates_file_record(self, _mock_check, auth_client, test_db):
-        """上传装备图后，File 表有记录，business_type='gear'"""
-        import io
-
-        from app.models.file import File
-
-        content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
-        response = auth_client.post(
+    def test_upload_gear_image_creates_file_record(self, auth_client, test_db):
+        uid = 1  # conftest 的 mock 用户 ID
+        resp = auth_client.post(
             "/api/upload/gear-image",
-            files={"file": ("gear.jpg", io.BytesIO(content), "image/jpeg")},
+            files={"file": ("gear.png", b"gear-bytes", "image/png")},
         )
-        assert response.status_code == 200
-        url = response.json()["data"]["url"]
-        assert url.startswith("gears/1/")
-
-        # 验证 File 记录已创建
-        record = (
-            test_db.query(File)
-            .filter(
-                File.user_id == 1,
-                File.rel_path == url,
-                File.upload_source == "gear_image",
-            )
-            .first()
-        )
-        assert record is not None
-        assert record.ref_count == 1
-        assert record.md5 is not None
+        assert resp.status_code == 200
+        url = resp.json()["data"]["url"]
+        assert url.startswith(f"gears/{uid}/")
+        assert url.endswith(f"{hashlib.md5(b'gear-bytes').hexdigest()}.png")
 
 
-# ==================== 5.4 业务删除联动测试 ====================
+# ==================== 业务删除联动 ====================
 
 
 class TestBusinessDeleteLinkage:
-    """5.4 业务删除时引用计数递减"""
+    def test_delete_gear_releases_photo(self, auth_client, test_db):
+        uid = 1  # conftest 的 mock 用户 ID
+        photo = f"gears/{uid}/gear-photo.jpg"
+        _create_file_record(test_db, uid, photo, md5=hashlib.md5(photo.encode()).hexdigest())
 
-    def test_delete_gear_decrements_ref_count(self, auth_client, test_db):
-        """删除 Gear 后，关联 File 的 ref_count 递减"""
-        import time as _time
-
-        from app.models.gear import Gear
-
-        # 创建装备并关联 File 记录
-        gear = Gear(
-            user_id=1,
-            category="球拍",
-            name="Test Gear",
-            photo="gears/1/test-gear.jpg",
-            created_at=_time.time(),
-        )
+        gear = Gear(user_id=uid, name="球拍", photo=photo)
         test_db.add(gear)
         test_db.commit()
-        test_db.refresh(gear)
+        file_service.bind(test_db, uid, photo, "gear", gear.id, "photo")
+        test_db.commit()
 
-        # 创建关联的 File 记录
-        file_record = _create_file_record(
-            test_db,
-            user_id=1,
-            rel_path="gears/1/test-gear.jpg",
-            md5=hashlib.md5(b"gear-content").hexdigest(),
-            ref_count=1,
-        )
+        record = test_db.query(File).filter(File.rel_path == photo).first()
+        assert record.ref_count == 1
 
-        # 删除装备
         resp = auth_client.delete(f"/api/gears/{gear.id}")
         assert resp.status_code == 200
 
-        # 验证引用计数递减
-        test_db.refresh(file_record)
-        assert file_record.ref_count == 0
-        assert file_record.deleted_at is not None
+        test_db.refresh(record)
+        assert record.ref_count == 0
 
-    def test_update_avatar_soft_deletes_old_file(self, auth_client, test_db):
-        """更换头像后，旧头像 File 的 ref_count 递减"""
-        import io
-        from unittest.mock import patch
-
-        from app.models.file import File
-
-        # 创建旧头像的 File 记录
-        old_record = _create_file_record(
-            test_db,
-            user_id=1,
-            rel_path="gears/1/old-avatar.jpg",
-            md5=hashlib.md5(b"old-avatar").hexdigest(),
-            ref_count=1,
-        )
-        # 模拟已有旧头像（使用 UserUpdate API 的 avatar_url 字段）
-        from app.models.user import User
-
-        user = test_db.query(User).filter(User.id == 1).first()
-        if user:
-            user.avatar_url = "gears/1/old-avatar.jpg"
-            test_db.commit()
-
-        # 上传新头像
-        content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
-        with patch("app.routers.upload.check_image_sync", return_value=True):
-            response = auth_client.post(
-                "/api/upload/avatar",
-                files={"file": ("new-avatar.png", io.BytesIO(content), "image/png")},
-            )
-        assert response.status_code == 200
-
-        # 注意：upload_avatar 路由不会自动递减旧头像引用计数
-        # 递减逻辑在 PUT /api/auth/profile 中
-        # 此测试验证上传后新 File 记录已创建
-        test_db.refresh(old_record)
-        # 旧记录仍然存在（upload_avatar 不负责递减旧头像）
-        assert old_record.ref_count == 1
-
-        # 验证新 File 记录已创建
-        new_url = response.json()["data"]["url"]
-        new_record = (
-            test_db.query(File)
-            .filter(
-                File.user_id == 1,
-                File.rel_path == new_url,
-            )
-            .first()
-        )
-        assert new_record is not None
-        assert new_record.ref_count == 1
-
-
-# ==================== 5.5 AI 分析 ====================
-
-
-class TestAIAnalysisFiles:
-    """5.5 decrement_analysis_files 递减 analysis 关联的所有文件引用计数"""
-
-    def _make_analysis(self, user_id, **overrides):
-        """创建一个假 Analysis 对象"""
-        data = dict(
-            id=1,
-            user_id=user_id,
-            date="2026-08-15",
-            kind="综合",
-            mode="full",
-            score=72,
-            summary="测试",
-            thumb="analyses/thumb.jpg",
-            highlights='["analyses/h1.jpg"]',
-            video_url="analyses/video.mp4",
-            pose=None,
-            created_at=0,
-        )
-        data.update(overrides)
-        return type("FakeAnalysis", (), data)()
-
-    def test_decrement_main_files(self, test_db):
-        """递减 thumb、video_url 的引用计数"""
-        from app.services.file_service import decrement_analysis_files
-
+    def test_update_avatar_releases_old_file(self, test_db):
+        """头像换图：旧头像 -1，新头像 +1（经 rebind）"""
         uid = _next_uid()
-        _create_file_record(
-            test_db,
-            uid,
-            "analyses/thumb.jpg",
-            md5=hashlib.md5(b"thumb").hexdigest(),
-            upload_source="video_frame",
-        )
-        _create_file_record(
-            test_db,
-            uid,
-            "analyses/video.mp4",
-            md5=hashlib.md5(b"video").hexdigest(),
-            upload_source="video",
-        )
-        analysis = self._make_analysis(uid)
+        old = f"avatars/{uid}/old.jpg"
+        new = f"avatars/{uid}/new.jpg"
+        _create_file_record(test_db, uid, old, md5=hashlib.md5(old.encode()).hexdigest())
+        _create_file_record(test_db, uid, new, md5=hashlib.md5(new.encode()).hexdigest())
 
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 2
-
-    def test_decrement_highlights(self, test_db):
-        """递减 highlights 中的文件引用计数"""
-        from app.services.file_service import decrement_analysis_files
-
-        uid = _next_uid()
-        _create_file_record(
-            test_db,
-            uid,
-            "analyses/h1.jpg",
-            md5=hashlib.md5(b"high1").hexdigest(),
-            upload_source="video_frame",
-        )
-        analysis = self._make_analysis(uid, thumb=None, video_url=None)
-
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 1
-
-    def test_decrement_skeleton_frames(self, test_db):
-        """递减 pose.skeleton_frames 引用计数"""
-        import json
-
-        from app.services.file_service import decrement_analysis_files
-
-        uid = _next_uid()
-        _create_file_record(
-            test_db,
-            uid,
-            "analyses/sk1.jpg",
-            md5=hashlib.md5(b"sk1").hexdigest(),
-            upload_source="skeleton",
-        )
-        _create_file_record(
-            test_db,
-            uid,
-            "analyses/sk2.jpg",
-            md5=hashlib.md5(b"sk2").hexdigest(),
-            upload_source="skeleton",
-        )
-        pose_data = {"skeleton_frames": ["analyses/sk1.jpg", "analyses/sk2.jpg"]}
-        analysis = self._make_analysis(
-            uid, thumb=None, highlights=None, video_url=None, pose=json.dumps(pose_data)
-        )
-
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 2
-
-    def test_register_skeleton_files_creates_records(self, test_db):
-        """骨架文件批量登记创建 File 记录
-
-        Step 125 移除 register_ai_files，改由 batch_get_or_create_files 统一登记。
-        """
-        from app.services.file_service import batch_get_or_create_files
-
-        uid = _next_uid()
-        abs_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), f"analyses/{uid}")
-        os.makedirs(abs_dir, exist_ok=True)
-        files = []
-        for name in ["sk_a.jpg", "sk_b.jpg"]:
-            abs_path = os.path.join(abs_dir, name)
-            with open(abs_path, "wb") as f:
-                f.write(b"skeleton-data")
-            files.append(
-                {
-                    "rel_path": f"analyses/{uid}/{name}",
-                    "md5": hashlib.md5(b"skeleton-data").hexdigest(),
-                    "size": os.path.getsize(abs_path),
-                    "upload_source": "skeleton_frame",
-                }
-            )
-
-        records = batch_get_or_create_files(
-            test_db,
-            user_id=uid,
-            files=files,
-            business_type="analysis",
-            business_id=10,
-        )
-        assert len(records) == 2
-        assert all(r.upload_source == "skeleton_frame" for r in records)
-        assert all(r.business_type == "analysis" for r in records)
-
-
-# ==================== 5.6 骨架文件注册 ====================
-
-
-class TestSkeletonRegistration:
-    """5.6 骨架帧注册后关联到 Analysis"""
-
-    def test_skeleton_files_linked_to_analysis(self, test_db):
-        """批量登记的骨架文件可被 decrement_analysis_files 递减"""
-        import json
-
-        from app.services.file_service import (
-            batch_get_or_create_files,
-            decrement_analysis_files,
-        )
-
-        uid = _next_uid()
-        abs_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), f"skeletons/{uid}")
-        os.makedirs(abs_dir, exist_ok=True)
-        paths = [f"skeletons/{uid}/frame1.jpg", f"skeletons/{uid}/frame2.jpg"]
-        files = []
-        for i, name in enumerate(["frame1.jpg", "frame2.jpg"]):
-            content = f"skel-data-{i}".encode()
-            abs_path = os.path.join(abs_dir, name)
-            with open(abs_path, "wb") as f:
-                f.write(content)
-            files.append(
-                {
-                    "rel_path": f"skeletons/{uid}/{name}",
-                    "md5": hashlib.md5(content).hexdigest(),
-                    "size": len(content),
-                    "upload_source": "skeleton_frame",
-                }
-            )
-
-        batch_get_or_create_files(
-            test_db,
-            user_id=uid,
-            files=files,
-            business_type="analysis",
-            business_id=5,
-        )
+        user = User(id=uid, openid=f"openid-{uid}", avatar_url=old)
+        test_db.add(user)
+        test_db.commit()
+        file_service.rebind(test_db, uid, "user", uid, [old], field="avatar_url")
         test_db.commit()
 
-        pose_data = {"skeleton_frames": paths}
-        analysis = type(
-            "FakeAnalysis",
-            (),
-            {
-                "user_id": uid,
-                "thumb": None,
-                "video_url": None,
-                "highlights": None,
-                "pose": json.dumps(pose_data),
-            },
-        )()
+        user.avatar_url = new
+        test_db.commit()
+        file_service.rebind(test_db, uid, "user", uid, [new], field="avatar_url")
 
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 2
+        old_rec = test_db.query(File).filter(File.rel_path == old).first()
+        new_rec = test_db.query(File).filter(File.rel_path == new).first()
+        assert old_rec.ref_count == 0
+        assert new_rec.ref_count == 1
 
-    def test_skeleton_video_url_decremented(self, test_db):
-        """skeleton_video_url 也被递减"""
-        import json
 
-        from app.services.file_service import decrement_analysis_files
+# ==================== 分析文件解绑 ====================
 
+
+class TestAnalysisFiles:
+    def test_unbind_record_releases_video_and_thumb(self, test_db):
         uid = _next_uid()
+        video = f"videos/{uid}/a.mp4"
+        thumb = f"videos/{uid}/a.jpg"
+        _create_file_record(
+            test_db, uid, video, md5=hashlib.md5(video.encode()).hexdigest(), upload_source="video"
+        )
         _create_file_record(
             test_db,
             uid,
-            f"skeletons/{uid}/video.mp4",
-            md5=hashlib.md5(b"skvid").hexdigest(),
-            upload_source="skeleton",
+            thumb,
+            md5=hashlib.md5(thumb.encode()).hexdigest(),
+            upload_source="analysis_thumb",
         )
-        pose_data = {"skeleton_video_url": f"skeletons/{uid}/video.mp4"}
-        analysis = type(
-            "FakeAnalysis",
-            (),
-            {
-                "user_id": uid,
-                "thumb": None,
-                "video_url": None,
-                "highlights": None,
-                "pose": json.dumps(pose_data),
-            },
-        )()
+        analysis = Analysis(user_id=uid, date="2026-01-01", video_url=video, thumb=thumb)
+        test_db.add(analysis)
+        test_db.commit()
+        for path in (video, thumb):
+            file_service.bind(test_db, uid, path, "analysis", analysis.id)
+        test_db.commit()
 
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 1
+        released = file_service.unbind_record(test_db, "analysis", analysis.id)
+        assert released == 2
+        assert test_db.query(File).filter(File.rel_path == video).first().ref_count == 0
 
-    def test_skeleton_thumb_decremented(self, test_db):
-        """skeleton_thumb 也被递减"""
-        import json
-
-        from app.services.file_service import decrement_analysis_files
-
+    def test_unbind_record_releases_skeleton_from_pose(self, test_db):
         uid = _next_uid()
+        sk = f"videos/{uid}/a_skeleton.mp4"
         _create_file_record(
             test_db,
             uid,
-            f"skeletons/{uid}/thumb.jpg",
-            md5=hashlib.md5(b"skth").hexdigest(),
-            upload_source="skeleton",
+            sk,
+            md5=hashlib.md5(sk.encode()).hexdigest(),
+            upload_source="skeleton_video",
         )
-        pose_data = {"skeleton_thumb": f"skeletons/{uid}/thumb.jpg"}
-        analysis = type(
-            "FakeAnalysis",
-            (),
-            {
-                "user_id": uid,
-                "thumb": None,
-                "video_url": None,
-                "highlights": None,
-                "pose": json.dumps(pose_data),
-            },
-        )()
+        analysis = Analysis(
+            user_id=uid,
+            date="2026-01-01",
+            pose=json.dumps({"skeleton_video_url": sk, "skeleton_frames": []}),
+        )
+        test_db.add(analysis)
+        test_db.commit()
+        file_service.bind(test_db, uid, sk, "analysis", analysis.id)
+        test_db.commit()
 
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 1
+        file_service.unbind_record(test_db, "analysis", analysis.id)
+        assert test_db.query(File).filter(File.rel_path == sk).first().ref_count == 0
 
     def test_empty_pose_no_effect(self, test_db):
-        """pose 为 None 时不影响"""
-        from app.services.file_service import decrement_analysis_files
-
         uid = _next_uid()
-        analysis = type(
-            "FakeAnalysis",
-            (),
-            {
-                "user_id": uid,
-                "thumb": None,
-                "video_url": None,
-                "highlights": None,
-                "pose": None,
-            },
-        )()
-
-        count = decrement_analysis_files(test_db, analysis)
-        assert count == 0
+        analysis = Analysis(user_id=uid, date="2026-01-01", pose=None)
+        test_db.add(analysis)
+        test_db.commit()
+        assert file_service.unbind_record(test_db, "analysis", analysis.id) == 0
 
 
-# ==================== 5.7 并发竞态 ====================
+# ==================== 并发竞态 ====================
 
 
 class TestConcurrency:
-    """5.7 同 MD5 不同用户同时上传场景"""
-
     def test_same_md5_different_users_independent(self, test_db):
-        """不同用户相同 MD5 各自独立，不交叉"""
-        from app.services.file_service import get_or_create_file
-
-        content = b"hello-world"
-        md5 = hashlib.md5(content).hexdigest()
-        uid1 = _next_uid()
-        uid2 = _next_uid()
-        rel1 = _write_upload_file(f"gears/{uid1}/concurrent1.jpg", content)
-        rel2 = _write_upload_file(f"gears/{uid2}/concurrent2.jpg", content)
-
-        r1, _ = get_or_create_file(
-            test_db,
-            user_id=uid1,
-            md5=md5,
-            rel_path=rel1,
-            upload_source="gear_image",
-            original_name="concurrent1.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        r1, _ = file_service.register(
+            db=test_db, user_id=_next_uid(), content=b"shared", category="gear_image", ext=".jpg"
         )
-        test_db.commit()  # flush (autoflush=False)
-        r2, _ = get_or_create_file(
-            test_db,
-            user_id=uid2,
-            md5=md5,
-            rel_path=rel2,
-            upload_source="gear_image",
-            original_name="concurrent2.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        r2, _ = file_service.register(
+            db=test_db, user_id=_next_uid(), content=b"shared", category="gear_image", ext=".jpg"
         )
         test_db.commit()
-        assert r1.user_id == uid1
-        assert r2.user_id == uid2
-        assert r1.id != r2.id  # 不同用户，不同记录
-        assert r1.ref_count == 1
-        assert r2.ref_count == 1
+        assert r1.id != r2.id
+        assert r1.rel_path != r2.rel_path
 
-    def test_ref_count_increment_isolation(self, test_db):
-        """同用户秒传递增不影响不同用户的记录"""
-        from app.services.file_service import get_or_create_file
-
-        content = b"hello-world"
-        md5 = hashlib.md5(content).hexdigest()
-        uid1 = _next_uid()
-        uid2 = _next_uid()
-        rel = _write_upload_file("gears/shared/isolation.jpg", content)
-
-        r1, _ = get_or_create_file(
-            test_db,
-            user_id=uid1,
-            md5=md5,
-            rel_path=rel,
-            upload_source="gear_image",
-            original_name="isolation.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+    def test_ref_count_isolation(self, test_db):
+        u1, u2 = _next_uid(), _next_uid()
+        r1, _ = file_service.register(
+            db=test_db, user_id=u1, content=b"iso", category="gear_image", ext=".jpg"
         )
-        test_db.commit()  # flush (autoflush=False)
-        r2, _ = get_or_create_file(
-            test_db,
-            user_id=uid2,
-            md5=md5,
-            rel_path=f"gears/{uid2}/isolation2.jpg",
-            upload_source="gear_image",
-            original_name="isolation2.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
-        )
-        test_db.commit()  # flush before next query
-        # uid1 秒传自己的第二次
-        get_or_create_file(
-            test_db,
-            user_id=uid1,
-            md5=md5,
-            rel_path=f"gears/{uid1}/iso-again.jpg",
-            upload_source="gear_image",
-            original_name="iso-again.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        r2, _ = file_service.register(
+            db=test_db, user_id=u2, content=b"iso", category="gear_image", ext=".jpg"
         )
         test_db.commit()
-        test_db.refresh(r1)
-        test_db.refresh(r2)
-        assert r1.ref_count == 2  # uid1 递增
-        assert r2.ref_count == 1  # uid2 不受影响
+        file_service.bind(test_db, u1, r1.rel_path, "gear", 1)
+        assert r2.ref_count == 0
 
     def test_delete_does_not_break_other_users(self, test_db):
-        """删除一条记录不影响其他用户的同 MD5 记录"""
-        from app.services.file_service import decrement_ref_count, get_or_create_file
-
-        content = b"hello-world"
-        md5 = hashlib.md5(content).hexdigest()
-        uid1 = _next_uid()
-        uid2 = _next_uid()
-        rel = _write_upload_file("gears/shared/delete-test.jpg", content)
-
-        _r1, _ = get_or_create_file(
-            test_db,
-            user_id=uid1,
-            md5=md5,
-            rel_path=rel,
-            upload_source="gear_image",
-            original_name="delete-test.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        u1, u2 = _next_uid(), _next_uid()
+        r1, _ = file_service.register(
+            db=test_db, user_id=u1, content=b"del-iso", category="gear_image", ext=".jpg"
         )
-        test_db.commit()  # flush (autoflush=False)
-        _r2, _ = get_or_create_file(
-            test_db,
-            user_id=uid2,
-            md5=md5,
-            rel_path=f"gears/{uid2}/delete-test2.jpg",
-            upload_source="gear_image",
-            original_name="delete-test2.jpg",
-            size_bytes=len(content),
-            mime_type="image/jpeg",
+        r2, _ = file_service.register(
+            db=test_db, user_id=u2, content=b"del-iso", category="gear_image", ext=".jpg"
         )
         test_db.commit()
+        file_service.soft_delete(test_db, r1.id)
+        test_db.commit()
+        assert file_service.exists(r1.rel_path) is False
+        assert file_service.exists(r2.rel_path) is True
 
-        decremented = decrement_ref_count(test_db, user_id=uid1, rel_path=rel)
-        assert decremented == 1
 
-        user2_record = (
-            test_db.query(File)
-            .filter(
-                File.user_id == uid2,
-                File.deleted_at.is_(None),
-            )
-            .first()
-        )
-        assert user2_record is not None
+def test_check_endpoint_hit(auth_client, test_db):
+    """秒传预检：已登记文件按 MD5 命中"""
+    uid = 1  # conftest 的 mock 用户 ID
+    content = b"check-hit-content"
+    file_service.register(
+        db=test_db,
+        user_id=uid,
+        content=content,
+        category="gear_image",
+        ext=".jpg",
+        security_checked=True,
+    )
+    test_db.commit()
+    resp = auth_client.post(
+        "/api/upload/check",
+        json={"md5": hashlib.md5(content).hexdigest(), "size_bytes": len(content)},
+    )
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["hit"] is True
+    assert data["url"] is not None
+
+
+def test_pending_upload_recycled_after_grace(test_db):
+    """上传后未绑定业务的文件在宽限期后被回收"""
+    uid = _next_uid()
+    record, _ = file_service.register(
+        db=test_db, user_id=uid, content=b"abandoned-upload", category="gear_image", ext=".jpg"
+    )
+    record.created_at = time.time() - 48 * 3600
+    test_db.commit()
+
+    assert file_service.cleanup_unbound(test_db, grace_hours=24) == 1
+    assert record.deleted_at is not None

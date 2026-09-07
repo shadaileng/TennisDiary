@@ -1,9 +1,10 @@
-"""文件登记 MIME 兜底与分类源补全测试（Step 131）
+"""文件登记 MIME 兜底与分类源补全测试（Step 131 / 138 门面化）
 
 覆盖：
-- `mime_type_from_ext` / `resolve_mime_type` 纯函数（fast）
-- `get_or_create_file` / `batch_get_or_create_files` / `register_orphan_files` 登记兜底
-- 骨架类 `upload_source` 在分类逻辑中按 Analysis 路径匹配（不再误判未绑定业务）
+- `mime_type_from_ext` 纯函数（fast）
+- 门面 `mime_of` 的「调用方优先 / 探测 / 零 I/O」三种模式
+- `register` / `register_batch` / `register_orphans` 的 MIME 兜底
+- 骨架类 upload_source 在分类逻辑中按业务注册表匹配（不再误判未绑定业务）
 """
 
 import hashlib
@@ -40,44 +41,38 @@ class TestMimeTypeFromExt:
 
 
 @pytest.mark.fast
-class TestResolveMimeType:
-    """resolve_mime_type：调用方优先 / 探测 / 零 I/O 模式"""
+class TestMimeOf:
+    """门面 mime_of：调用方优先 / 探测 / 零 I/O 模式"""
+
+    def _put(self, rel_path: str, content: bytes) -> None:
+        file_service.write_bytes(file_service.abs_of(rel_path), content)
 
     def test_respects_caller_value(self):
         """传入非空 mime 时不被覆盖（上传端点已做服务端探测）"""
-        assert (
-            file_service.resolve_mime_type("/not/exist/x.jpg", "avatar", "image/png") == "image/png"
-        )
+        assert file_service.mime_of("videos/1/x.jpg", "avatar", "image/png") == "image/png"
 
-    def test_probe_fills_jpg(self, tmp_path):
+    def test_probe_fills_jpg(self):
         """空值时探测；假内容 .jpg 由 PIL 失败回退扩展名 → image/jpeg"""
-        path = tmp_path / "seg0_thumb.jpg"
-        path.write_bytes(b"not-a-real-jpeg")
+        self._put("videos/1/seg0_thumb.jpg", b"not-a-real-jpeg")
+        assert file_service.mime_of("videos/1/seg0_thumb.jpg", "skeleton_thumb") == "image/jpeg"
 
-        assert file_service.resolve_mime_type(str(path), "skeleton_thumb") == "image/jpeg"
-
-    def test_probe_fills_mp4(self, tmp_path):
+    def test_probe_fills_mp4(self):
         """骨架视频（.mp4）探测结果恒为 video/mp4（ffprobe 缺失时回退扩展名）"""
-        path = tmp_path / "seg0_skeleton.mp4"
-        path.write_bytes(b"not-a-real-mp4")
+        self._put("videos/1/seg0_skeleton.mp4", b"not-a-real-mp4")
+        assert file_service.mime_of("videos/1/seg0_skeleton.mp4", "skeleton_video") == "video/mp4"
 
-        assert file_service.resolve_mime_type(str(path), "skeleton_video") == "video/mp4"
-
-    def test_no_probe_skips_detection(self, tmp_path, monkeypatch):
+    def test_no_probe_skips_detection(self, monkeypatch):
         """probe=False：不做任何探测（零 I/O），仅用扩展名映射"""
 
         def _boom(*_args, **_kwargs):
             raise AssertionError("probe=False 不应触发探测")
 
-        monkeypatch.setattr(file_service, "detect_mime_type", _boom)
+        monkeypatch.setattr("app.services.file_store.detect_mime_type", _boom)
 
-        assert (
-            file_service.resolve_mime_type("/not/exist/x.jpg", "skeleton_thumb", probe=False)
-            == "image/jpeg"
-        )
+        assert file_service.mime_of("videos/1/x.jpg", "skeleton_thumb", probe=False) == "image/jpeg"
 
     def test_empty_path_returns_empty(self):
-        assert file_service.resolve_mime_type(None, "skeleton") == ""
+        assert file_service.mime_of("", "skeleton") == ""
 
 
 @pytest.mark.fast
@@ -118,38 +113,32 @@ class TestInferFileSource:
 # ==================== 登记兜底（DB） ====================
 
 
-class TestGetOrCreateFileMime:
-    """get_or_create_file：调用方未传 mime 时自动补齐"""
+class TestRegisterMime:
+    """register：调用方未传 mime 时自动补齐"""
 
     def test_fills_jpg_mime(self, test_db, tmp_path):
-        from app.services.file_service import get_or_create_file
-
         path = tmp_path / "seg0_thumb.jpg"
         path.write_bytes(b"fake-jpeg-bytes")
 
-        record, _ = get_or_create_file(
+        record, _ = file_service.register(
             db=test_db,
             user_id=1,
-            rel_path="videos/1/seg0_thumb.jpg",
-            abs_path=str(path),
-            upload_source="skeleton_thumb",
+            src_path=str(path),
+            category="skeleton_thumb",
             original_name="seg0_thumb.jpg",
         )
 
         assert record.mime_type == "image/jpeg"
 
     def test_fills_mp4_mime(self, test_db, tmp_path):
-        from app.services.file_service import get_or_create_file
-
         path = tmp_path / "seg0_skeleton.mp4"
         path.write_bytes(b"fake-mp4-bytes")
 
-        record, _ = get_or_create_file(
+        record, _ = file_service.register(
             db=test_db,
             user_id=1,
-            rel_path="videos/1/seg0_skeleton.mp4",
-            abs_path=str(path),
-            upload_source="skeleton_video",
+            src_path=str(path),
+            category="skeleton_video",
             original_name="seg0_skeleton.mp4",
         )
 
@@ -157,150 +146,100 @@ class TestGetOrCreateFileMime:
 
     def test_keeps_caller_mime(self, test_db, tmp_path):
         """调用方传入准确值时不被探测覆盖"""
-        from app.services.file_service import get_or_create_file
-
         path = tmp_path / "clip.mp4"
         path.write_bytes(b"fake-mp4-bytes")
 
-        record, _ = get_or_create_file(
+        record, _ = file_service.register(
             db=test_db,
             user_id=1,
-            rel_path="videos/1/clip.mp4",
-            abs_path=str(path),
-            upload_source="video",
+            src_path=str(path),
+            category="video",
             original_name="clip.mp4",
             mime_type="video/quicktime",
         )
 
         assert record.mime_type == "video/quicktime"
 
-    def test_reuse_fills_empty_mime(self, test_db, data_dir):
-        """秒传命中且存量记录 mime 为空时，新记录补齐探测值（不扩散空值）"""
-        from app.services.file_service import get_or_create_file
 
-        content = b"shared-video-bytes"
-        md5 = hashlib.md5(content).hexdigest()
-        rel_old = "videos/1/old.mp4"
-        old_abs = data_dir / "uploads" / "videos" / "1"
-        old_abs.mkdir(parents=True, exist_ok=True)
-        (old_abs / "old.mp4").write_bytes(content)
-
-        # 存量记录：mime_type 为空（131 修复前落库的数据）
-        test_db.add(
-            File(
-                user_id=1,
-                md5=md5,
-                original_name="old.mp4",
-                rel_path=rel_old,
-                size_bytes=len(content),
-                mime_type="",
-                upload_source="video",
-                ref_count=1,
-                created_at=time.time(),
-            )
-        )
-        test_db.flush()
-
-        new_file = old_abs / "new.mp4"
-        new_file.write_bytes(content)
-        record, is_reuse = get_or_create_file(
-            db=test_db,
-            user_id=1,
-            rel_path="videos/1/new.mp4",
-            abs_path=str(new_file),
-            upload_source="video_playback",
-            original_name="new.mp4",
-        )
-
-        assert is_reuse is True
-        assert record.mime_type == "video/mp4"
-
-
-class TestBatchGetOrCreateFilesMime:
-    """batch_get_or_create_files：扩展名映射补齐，且不做磁盘 I/O"""
+class TestRegisterBatchMime:
+    """register_batch：扩展名映射补齐，且不做磁盘探测"""
 
     def test_fills_mime_by_ext(self, test_db):
-        from app.services.file_service import batch_get_or_create_files
-
-        records = batch_get_or_create_files(
+        records = file_service.register_batch(
             db=test_db,
             user_id=1,
-            files=[
-                {
-                    "rel_path": "videos/1/a_skeleton.mp4",
-                    "md5": hashlib.md5(b"v").hexdigest(),
-                    "size": 1,
-                    "upload_source": "skeleton_video",
-                },
-                {
-                    "rel_path": "videos/1/a_thumb.jpg",
-                    "md5": hashlib.md5(b"t").hexdigest(),
-                    "size": 1,
-                    "upload_source": "skeleton_thumb",
-                },
+            items=[
+                file_service.FileDraft(
+                    md5=hashlib.md5(b"v").hexdigest(),
+                    size=1,
+                    ext=".mp4",
+                    upload_source="skeleton_video",
+                    original_name="a_skeleton.mp4",
+                ),
+                file_service.FileDraft(
+                    md5=hashlib.md5(b"t").hexdigest(),
+                    size=1,
+                    ext=".jpg",
+                    upload_source="skeleton_thumb",
+                    original_name="a_thumb.jpg",
+                ),
             ],
-            business_type="analysis",
-            business_id=1,
         )
 
-        by_path = {r.rel_path: r.mime_type for r in records}
-        assert by_path["videos/1/a_skeleton.mp4"] == "video/mp4"
-        assert by_path["videos/1/a_thumb.jpg"] == "image/jpeg"
+        assert records[0].mime_type == "video/mp4"
+        assert records[1].mime_type == "image/jpeg"
 
     def test_respects_info_mime(self, test_db):
-        from app.services.file_service import batch_get_or_create_files
-
-        records = batch_get_or_create_files(
+        records = file_service.register_batch(
             db=test_db,
             user_id=1,
-            files=[
-                {
-                    "rel_path": "videos/1/b.mov",
-                    "md5": hashlib.md5(b"m").hexdigest(),
-                    "size": 1,
-                    "upload_source": "video_playback",
-                    "mime_type": "video/quicktime",
-                }
+            items=[
+                file_service.FileDraft(
+                    md5=hashlib.md5(b"m").hexdigest(),
+                    size=1,
+                    ext=".mov",
+                    upload_source="video_playback",
+                    original_name="b.mov",
+                    mime_type="video/quicktime",
+                )
             ],
         )
 
         assert records[0].mime_type == "video/quicktime"
 
-    def test_no_disk_io(self, test_db, monkeypatch):
+    def test_no_disk_probe(self, test_db, monkeypatch):
         """批量登记不得触发探测（121 优化：写表路径零磁盘 I/O）"""
 
         def _boom(*_args, **_kwargs):
             raise AssertionError("批量登记不应触发 MIME 探测")
 
-        monkeypatch.setattr(file_service, "detect_mime_type", _boom)
+        monkeypatch.setattr("app.services.file_store.detect_mime_type", _boom)
 
-        records = file_service.batch_get_or_create_files(
+        records = file_service.register_batch(
             db=test_db,
             user_id=1,
-            files=[
-                {
-                    "rel_path": "videos/1/c_skeleton.mp4",
-                    "md5": hashlib.md5(b"c").hexdigest(),
-                    "size": 1,
-                    "upload_source": "skeleton_video",
-                }
+            items=[
+                file_service.FileDraft(
+                    md5=hashlib.md5(b"c").hexdigest(),
+                    size=1,
+                    ext=".mp4",
+                    upload_source="skeleton_video",
+                    original_name="c_skeleton.mp4",
+                )
             ],
         )
 
         assert records[0].mime_type == "video/mp4"
 
 
-class TestRegisterOrphanFilesMime:
-    """register_orphan_files：孤儿注册补齐 mime"""
+class TestRegisterOrphansMime:
+    """register_orphans：孤儿注册补齐 mime"""
 
-    def test_fills_mime(self, test_db, data_dir):
-        from app.services.file_service import register_orphan_files
+    def test_fills_mime(self, test_db):
+        rel = "videos/1/orphan_thumb.jpg"
+        file_service.write_bytes(file_service.abs_of(rel), b"fake-jpeg-bytes")
 
-        target = data_dir / "uploads" / "videos" / "1"
-        target.mkdir(parents=True, exist_ok=True)
-        (target / "orphan_thumb.jpg").write_bytes(b"fake-jpeg-bytes")
-
-        records = register_orphan_files(test_db, ["videos/1/orphan_thumb.jpg"])
+        records = file_service.register_orphans(test_db, [rel])
 
         assert len(records) == 1
         assert records[0].mime_type == "image/jpeg"
@@ -326,13 +265,10 @@ def _make_analysis(db, user_id: int, rel: str) -> Analysis:
 
 
 class TestClassifySkeletonSources:
-    """骨架类 upload_source 在无 business_id 时按 Analysis 路径匹配"""
+    """骨架类 upload_source 在无 business_id 时按业务注册表匹配"""
 
-    @pytest.mark.parametrize(
-        "source",
-        ["skeleton_video", "skeleton_thumb", "skeleton_frame"],
-    )
-    def test_classify_file_usage_matches_analysis(self, test_db, source):
+    @pytest.mark.parametrize("source", ["skeleton_video", "skeleton_thumb", "skeleton_frame"])
+    def test_classify_matches_analysis(self, test_db, source):
         rel = f"videos/1/a_{source}.mp4"
         _make_analysis(test_db, 1, rel)
         record = File(
@@ -348,28 +284,9 @@ class TestClassifySkeletonSources:
         )
         test_db.add(record)
         test_db.flush()
+        # 物理文件需存在，否则判定为 missing
+        file_service.write_bytes(file_service.abs_of(rel), b"x")
 
-        status, _reason = file_service.classify_file_usage(test_db, record)
+        status, _reason = file_service.classify(test_db, [record])[record.id]
 
-        assert status == "in_use", f"{source} 应命中 Analysis 路径匹配"
-
-    def test_bulk_classify_matches_analysis(self, test_db):
-        rel = "videos/1/a_thumb.jpg"
-        _make_analysis(test_db, 1, rel)
-        record = File(
-            user_id=1,
-            md5=hashlib.md5(b"bulk").hexdigest(),
-            original_name="a_thumb.jpg",
-            rel_path=rel,
-            size_bytes=10,
-            mime_type="image/jpeg",
-            upload_source="skeleton_thumb",
-            ref_count=1,
-            created_at=time.time(),
-        )
-        test_db.add(record)
-        test_db.flush()
-
-        result = file_service.bulk_classify_files(test_db, [record])
-
-        assert result[record.id][0] == "in_use"
+        assert status == "in_use", f"{source} 应命中业务注册表匹配"

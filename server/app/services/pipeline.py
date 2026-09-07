@@ -293,35 +293,65 @@ class PipelineEngine:
 
         result = video_service.process_video(video_path, mode, hit_time, cuts)
 
+        user_id = self._get_user_id()
+        business = ("analysis", self.analysis_id) if self.analysis_id else None
+
+        # 抽帧中间产物登记为受管文件（{md5}.jpg）
+        try:
+            frame_records = file_service.register_batch(
+                self.db,
+                user_id,
+                [
+                    file_service.FileDraft(
+                        src_path=frame_path,
+                        ext=os.path.splitext(frame_path)[1] or ".jpg",
+                        upload_source="video_frame",
+                        original_name=os.path.basename(frame_path),
+                    )
+                    for frame_path in result.get("frame_paths", [])
+                ],
+                business=business,
+            )
+            result["frame_urls"] = [record.rel_path for record in frame_records]
+        except Exception as exc:  # noqa: BLE001 - 登记失败非致命
+            log.warning(
+                "抽帧登记失败(非致命): %s - %s",
+                type(exc).__name__,
+                str(exc)[:120],
+            )
+            result["frame_urls"] = []
+
         elapsed = time.time() - t0
         n = len(result.get("frame_urls", []))
         t = result.get("trimmed", False)
         log.info(f"管线-视频处理: {elapsed:.1f}s {n}帧 trim={t}")
 
-        # 更新 video_url + 裁剪视频纳入文件管理
+        # 播放短片纳入文件管理（upload_source=video_playback）并更新 video_url
         if self.analysis_id:
             working_path = result.get("working_path")
-            rel_video_url = file_service.abs_path_to_rel(working_path) if working_path else None
-            self._update_analysis_field(video_url=rel_video_url)
-
-            # 裁剪视频纳入文件管理（upload_source=video_playback）
-            if rel_video_url and result.get("trimmed"):
+            rel_video_url = None
+            if working_path:
                 try:
-                    file_service.get_or_create_file(
+                    playback, _ = file_service.register(
                         db=self.db,
-                        user_id=self._get_user_id(),
-                        rel_path=rel_video_url,
-                        upload_source="video_playback",
+                        user_id=user_id,
+                        src_path=working_path,
+                        category="video_playback",
                         original_name=f"{os.path.basename(working_path)}_playback",
-                        business_type="analysis",
-                        business_id=self.analysis_id,
+                        ext=os.path.splitext(working_path)[1] or ".mp4",
+                        business=business,
                     )
+                    rel_video_url = playback.rel_path
+                    # 工作路径指向登记后的受管路径，供姿态推理定位
+                    result["working_path"] = file_service.abs_of(playback.rel_path)
                 except Exception as exc:  # noqa: BLE001 - 登记失败非致命
                     log.warning(
                         "裁剪视频登记失败(非致命): %s - %s",
                         type(exc).__name__,
                         str(exc)[:120],
                     )
+                    rel_video_url = file_service.rel_of(working_path)
+            self._update_analysis_field(video_url=rel_video_url)
 
         return result
 
@@ -359,7 +389,7 @@ class PipelineEngine:
         duration = video_result.get("duration")
         frame_rate = video_result.get("frame_rate")
         working_path = video_result.get("working_path")
-        video_url = file_service.abs_path_to_rel(working_path) if working_path else None
+        video_url = file_service.rel_of(working_path) if working_path else None
 
         # full 模式强制逐帧生成骨架视频，single 模式按阈值自动判断
         full_frames = True if metadata.get("mode") == "full" else None
@@ -407,15 +437,30 @@ class PipelineEngine:
         if skeleton_thumb:
             all_files.append(skeleton_thumb)
 
+        # 登记后物理文件重命名为 {md5}.{后缀}，需把落库路径换成受管路径
+        path_map: dict[str, str] = {}
         if all_files:
             try:
-                file_service.batch_get_or_create_files(
-                    db=self.db,
-                    user_id=user_id,
-                    files=all_files,
-                    business_type="analysis",
-                    business_id=self.analysis_id,
+                records = file_service.register_batch(
+                    self.db,
+                    user_id,
+                    [
+                        file_service.FileDraft(
+                            src_path=file_service.abs_of(info["rel_path"]),
+                            md5=info.get("md5") or "",
+                            size=info.get("size") or 0,
+                            ext=os.path.splitext(info["rel_path"])[1],
+                            upload_source=info.get("upload_source", ""),
+                            original_name=os.path.basename(info["rel_path"]),
+                        )
+                        for info in all_files
+                    ],
+                    business=("analysis", self.analysis_id),
                 )
+                path_map = {
+                    info["rel_path"]: record.rel_path
+                    for info, record in zip(all_files, records, strict=False)
+                }
             except Exception as exc:  # noqa: BLE001 - 批量登记失败非致命，记录日志继续
                 log.warning(
                     "文件批量登记失败(非致命): %s - %s",
@@ -424,19 +469,27 @@ class PipelineEngine:
                 )
 
         # 构建 pose JSON：skeleton_frames 为空列表（帧已清理，不落库）
+        raw_skeleton_video = pose_result.get("skeleton_video_url")
+        skeleton_video_path = path_map.get(raw_skeleton_video or "", raw_skeleton_video)
+        skeleton_thumb_path = path_map.get(
+            skeleton_thumb["rel_path"] if skeleton_thumb else "",
+            skeleton_thumb["rel_path"] if skeleton_thumb else None,
+        )
         pose_for_db = {
             "frames": pose_result.get("frames"),
             "metrics": pose_result.get("metrics"),
             "detected": pose_result.get("detected"),
             "skeleton_frames": [],
-            "skeleton_video_url": pose_result.get("skeleton_video_url"),
+            "skeleton_video_url": skeleton_video_path,
         }
+        if skeleton_thumb_path:
+            pose_for_db["skeleton_thumb"] = skeleton_thumb_path
         stmt = (
             sa_update(Analysis)
             .where(Analysis.id == self.analysis_id)
             .values(
                 pose=json.dumps(pose_for_db, ensure_ascii=False),
-                thumb=skeleton_thumb["rel_path"] if skeleton_thumb else None,
+                thumb=skeleton_thumb_path,
             )
         )
         self.db.execute(stmt)
@@ -473,25 +526,17 @@ class PipelineEngine:
 
         from app.services import file_service
 
-        video_dir = os.path.dirname(file_service.rel_path_to_abs(video_url))
-        base = os.path.splitext(os.path.basename(video_url))[0]
+        video_dir = os.path.dirname(file_service.abs_of(video_url))
         cleaned = 0
 
-        # 清理抽样帧 _f*.jpg
-        for path in glob.glob(os.path.join(video_dir, f"{base}_f*.jpg")):
-            try:
-                os.remove(path)
-                cleaned += 1
-            except OSError as exc:
-                log.warning("删除抽样帧失败: %s - %s", path, exc)
-
-        # 清理骨架帧 _sk*.jpg
-        for path in glob.glob(os.path.join(video_dir, f"{base}_sk*.jpg")):
-            try:
-                os.remove(path)
-                cleaned += 1
-            except OSError as exc:
-                log.warning("删除骨架帧失败: %s - %s", path, exc)
+        # 受管文件已按 {md5} 命名，残留的 _f* / _sk* 均为未登记的中间产物
+        for pattern in ("*_f*.jpg", "*_sk*.jpg"):
+            for path in glob.glob(os.path.join(video_dir, pattern)):
+                try:
+                    os.remove(path)
+                    cleaned += 1
+                except OSError as exc:
+                    log.warning("删除中间帧失败: %s - %s", path, exc)
 
         if cleaned:
             log.info("已清理中间帧: {} 个文件 business=analysis/{}", cleaned, self.analysis_id)

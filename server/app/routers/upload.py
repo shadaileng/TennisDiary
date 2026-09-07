@@ -1,17 +1,18 @@
-"""文件上传相关路由（头像 + 装备封面）"""
+"""文件上传相关路由（头像 + 装备封面）
+
+138：全部文件操作经 `file_service` 门面完成，路由不再自行造文件名/写盘/删盘。
+文件名统一由门面按 `{md5}.{后缀}` 推导，落盘目录 `UPLOAD_DIR/{分类}/{user_id}/`。
+"""
 
 import os
-import uuid
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_user
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
-from app.core.mime import detect_image_mime
 from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse, ErrorCode
@@ -25,8 +26,52 @@ router = APIRouter(prefix="/api/upload", tags=["upload"])
 
 # 允许的图片扩展名
 _ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
-_AVATAR_DIR = "avatars"
-_GEAR_DIR = "gears"
+_AVATAR_CATEGORY = "avatar"
+_GEAR_CATEGORY = "gear_image"
+
+
+def _save_image(
+    db: Session,
+    user_id: int,
+    content: bytes,
+    ext: str,
+    original_name: str,
+    category: str,
+) -> tuple[object, str]:
+    """写盘 + 落库（经门面），返回 (File 记录, 绝对路径)"""
+    record, reused = file_service.register(
+        db=db,
+        user_id=user_id,
+        content=content,
+        category=category,
+        original_name=original_name,
+        ext=ext,
+    )
+    db.commit()
+    abs_path = file_service.abs_of(record.rel_path)
+    log.info(
+        "图片登记完成",
+        user_id=user_id,
+        rel_path=record.rel_path,
+        category=category,
+        reused=reused,
+    )
+    return record, abs_path
+
+
+def _run_security_check(db: Session, user_id: int, record, abs_path: str) -> bool:
+    """内容安全检查并落标记，返回是否通过"""
+    try:
+        check_image_sync(abs_path, str(user_id))
+    except ContentSecurityError:
+        log.warning("图片内容安全检查不通过", user_id=user_id)
+        return False
+    except Exception as exc:
+        log.error("图片安全检查异常: %s", exc, exc_info=True)
+
+    file_service.mark_security_checked(db, user_id, record.rel_path, True)
+    db.commit()
+    return True
 
 
 @router.post("/avatar", response_model=ApiResponse[dict])
@@ -39,8 +84,8 @@ def upload_avatar(
     """上传当前用户头像，返回可用于 <image> 展示的相对 URL
 
     - 仅接受 jpg/jpeg/png/webp 图片
-    - 存储到 UPLOAD_DIR/avatars/<user_id>/<uuid>.<ext>
-    - 返回 {"url": "avatars/<user_id>/<uuid>.<ext>", "mirage": true/false}
+    - 存储到 UPLOAD_DIR/avatars/<user_id>/<md5>.<ext>（同内容只存一份）
+    - 返回 {"url": "avatars/<user_id>/<md5>.<ext>", "mirage": true/false}
     """
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in _ALLOWED_EXT:
@@ -48,78 +93,30 @@ def upload_avatar(
         detail = "仅支持 jpg/jpeg/png/webp 图片"
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
-    # 读取文件内容
     content = file.file.read()
     original_name = file.filename or ""
 
-    # 构建目标路径
-    abs_dir = file_service.build_upload_dir(_AVATAR_DIR, current_user.id)
-    filename = f"{uuid.uuid4().hex}{ext}"
-    rel_path = file_service.make_rel_path(_AVATAR_DIR, current_user.id, filename)
-    abs_path = os.path.join(abs_dir, filename)
-
-    # 写入物理文件
-    try:
-        with open(abs_path, "wb") as out:
-            out.write(content)
-    except Exception as exc:
-        log.error("头像文件写入失败: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="文件写入失败，请稍后重试",
-        ) from exc
-
-    # 内容安全检查
-    security_ok = True
-    try:
-        check_image_sync(abs_path, str(current_user.id))
-    except ContentSecurityError:
-        security_ok = False
-        log.warning("头像内容安全检查不通过", user_id=current_user.id)
-    except Exception as exc:
-        log.error("头像安全检查异常: %s", exc, exc_info=True)
-
-    # 创建 File 记录（无论安全检查结果，均落盘纳入管理）
-    file_record, is_mirage = file_service.get_or_create_file(
-        db=db,
-        user_id=current_user.id,
-        rel_path=rel_path,
-        abs_path=abs_path,
-        upload_source="avatar",
-        original_name=original_name,
-        mime_type=file.content_type or "",
+    record, abs_path = _save_image(
+        db, current_user.id, content, ext, original_name, _AVATAR_CATEGORY
     )
-    # 安全检查通过才标记 security_checked=1
-    if security_ok:
-        file_record.security_checked = 1
-    db.commit()
+    security_ok = _run_security_check(db, current_user.id, record, abs_path)
 
-    # 秒传：删除刚写入的重复文件
-    if is_mirage:
-        file_service.safe_unlink(abs_path)
-        abs_path = file_service.rel_path_to_abs(file_record.rel_path)
-
-    # 用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
-    file_record.mime_type = detect_image_mime(abs_path)
-    db.commit()
-
-    # 安全检查不通过，返回错误
     if not security_ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="头像内容可能包含违规信息，请检查后重试",
         ) from None
 
-    log.info("头像上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
-    return ApiResponse(data={"url": rel_path, "mirage": is_mirage})
+    log.info("头像上传成功", user_id=current_user.id, path=record.rel_path)
+    return ApiResponse(data={"url": record.rel_path, "mirage": False})
 
 
 @router.get("/avatar/{user_id}/{filename}")
 def download_avatar(user_id: int, filename: str):
-    """下载头像（公开访问，无需鉴权；URL 含 user_id + UUID 不可猜测）"""
-    rel_path = file_service.make_rel_path(_AVATAR_DIR, user_id, filename)
-    abs_path = file_service.resolve_safe_path(rel_path)
-    if abs_path is None or not file_service.file_exists(abs_path):
+    """下载头像（公开访问，无需鉴权；URL 含 user_id + MD5 不可猜测）"""
+    rel_path = f"avatars/{user_id}/{filename}"
+    abs_path = file_service.resolve(rel_path)
+    if abs_path is None or not file_service.exists(rel_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
     return FileResponse(abs_path)
@@ -135,8 +132,8 @@ def upload_gear_image(
     """上传装备封面图片，返回可用于 <image> 展示的相对 URL
 
     - 仅接受 jpg/jpeg/png/webp 图片
-    - 存储到 UPLOAD_DIR/gears/<user_id>/<uuid>.<ext>
-    - 返回 {"url": "gears/<user_id>/<uuid>.<ext>", "mirage": true/false}
+    - 存储到 UPLOAD_DIR/gears/<user_id>/<md5>.<ext>（同内容只存一份）
+    - 返回 {"url": "gears/<user_id>/<md5>.<ext>", "mirage": true/false}
     """
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in _ALLOWED_EXT:
@@ -145,68 +142,20 @@ def upload_gear_image(
             status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 jpg/jpeg/png/webp 图片"
         )
 
-    # 读取文件内容
     content = file.file.read()
     original_name = file.filename or ""
 
-    # 构建目标路径
-    abs_dir = file_service.build_upload_dir(_GEAR_DIR, current_user.id)
-    filename = f"{uuid.uuid4().hex}{ext}"
-    rel_path = file_service.make_rel_path(_GEAR_DIR, current_user.id, filename)
-    abs_path = os.path.join(abs_dir, filename)
+    record, abs_path = _save_image(db, current_user.id, content, ext, original_name, _GEAR_CATEGORY)
+    security_ok = _run_security_check(db, current_user.id, record, abs_path)
 
-    # 写入物理文件
-    try:
-        with open(abs_path, "wb") as out:
-            out.write(content)
-    except Exception as exc:
-        log.error("装备图片文件写入失败: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="文件写入失败，请稍后重试",
-        ) from exc
-
-    # 文件已落盘：用扩展名+PIL 探测真实图片类型，覆盖客户端缺失/错误的 Content-Type
-    file_record_mime = detect_image_mime(abs_path)
-
-    # 内容安全检查
-    security_ok = True
-    try:
-        check_image_sync(abs_path, str(current_user.id))
-    except ContentSecurityError:
-        security_ok = False
-        log.warning("装备图片内容安全检查不通过", user_id=current_user.id)
-    except Exception as exc:
-        log.error("装备图片安全检查异常: %s", exc, exc_info=True)
-
-    # 创建 File 记录（无论安全检查结果，均落盘纳入管理）
-    _file_record, is_mirage = file_service.get_or_create_file(
-        db=db,
-        user_id=current_user.id,
-        rel_path=rel_path,
-        abs_path=abs_path,
-        upload_source="gear_image",
-        original_name=original_name,
-        mime_type=file_record_mime,
-    )
-    # 安全检查通过才标记 security_checked=1
-    if security_ok:
-        _file_record.security_checked = 1
-    db.commit()
-
-    # 秒传：删除刚写入的重复文件
-    if is_mirage:
-        file_service.safe_unlink(abs_path)
-
-    # 安全检查不通过，返回错误
     if not security_ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="图片内容可能包含违规信息，请检查后重试",
         ) from None
 
-    log.info("装备图片上传成功", user_id=current_user.id, path=rel_path, mirage=is_mirage)
-    return ApiResponse(data={"url": rel_path, "mirage": is_mirage})
+    log.info("装备图片上传成功", user_id=current_user.id, path=record.rel_path)
+    return ApiResponse(data={"url": record.rel_path, "mirage": False})
 
 
 @router.post("/guest-gear-check", response_model=ApiResponse[dict])
@@ -220,11 +169,10 @@ async def guest_gear_check(
     - code 为 wx.login 一次性 code → code_to_openid 换 openid（imgSecCheck 强要求 openid）
     - 写临时文件 → check_image_sync(imgSecCheck) → try/finally 即删
     - 不落盘、不建 File 记录、不写 DB（与 /gear-image 的「正式受检落盘」分离）
-    - fail-open：微信/网络侧异常时返回 safe:true 放行（前端存本地 dataURL，
-      同步正式上传 /gear-image 仍二次受检，最终入库封面必然通过官方检查）
+    - 技术故障返回明确错误码，前端据此拒绝保存（133：不再 fail-open）
 
     Returns:
-        {"safe": true}（通过 / fail-open）
+        {"safe": true}（通过）
         违规 → 400
     """
     # 1) 类型校验
@@ -254,14 +202,10 @@ async def guest_gear_check(
             detail="登录态已过期，请重新进入小程序",
         ) from exc
 
-    # 4) 写临时文件 → imgSecCheck → finally 即删
-    tmp_dir = os.path.join(settings.UPLOAD_DIR, "check_tmp")
-    os.makedirs(tmp_dir, exist_ok=True)
-    abs_path = os.path.join(tmp_dir, f"{uuid.uuid4().hex}{ext}")
+    # 4) 临时文件 → imgSecCheck → finally 即删（临时文件不进受管目录）
+    tmp_path = file_service.write_temp(content, ext)
     try:
-        with open(abs_path, "wb") as out:
-            out.write(content)
-        check_image_sync(abs_path, openid)
+        check_image_sync(tmp_path, openid)
         log.info("游客封面检查通过", openid=_mask_openid(openid))
     except ContentSecurityError:
         log.warning("游客封面检查不通过", openid=_mask_openid(openid))
@@ -270,7 +214,6 @@ async def guest_gear_check(
             detail="图片可能包含违规信息，请更换后重试",
         ) from None
     except Exception as exc:
-        # 技术故障：返回明确错误码，前端据此拒绝保存
         log.error("游客封面安全检查异常: %s", exc, exc_info=True)
         return ApiResponse(
             code=ErrorCode.INTERNAL_ERROR,
@@ -279,7 +222,7 @@ async def guest_gear_check(
             data=None,
         )
     finally:
-        file_service.safe_unlink(abs_path)
+        file_service.unlink_abs(tmp_path)
     return ApiResponse(data={"safe": True})
 
 
@@ -297,36 +240,21 @@ def check_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """文件秒传预检（MD5 + size 精确匹配）
+    """文件秒传预检（MD5 精确匹配）
 
     - 不上传文件，仅按 MD5 查询已有文件记录
     - 命中 + 安全通过 → {hit: true, safe: true, url}
     - 命中 + 安全未通过 → {hit: true, safe: false}
     - 未命中 → {hit: false}
     """
-    from app.models.file import File as FileModel
-
-    # Step 1: 按 MD5 查询
-    existing = (
-        db.query(FileModel)
-        .filter(
-            FileModel.user_id == current_user.id,
-            FileModel.md5 == md5,
-            FileModel.deleted_at.is_(None),
-            FileModel.ref_count > 0,
-        )
-        .first()
-    )
-
-    if not existing:
+    existing = file_service.find_by_md5(db, current_user.id, md5)
+    if existing is None:
         return ApiResponse(data={"hit": False})
 
-    # 物理文件是否存在
-    existing_abs = file_service.rel_path_to_abs(existing.rel_path)
-    if not os.path.isfile(existing_abs):
+    # 物理文件不存在视为未命中
+    if not file_service.exists(existing.rel_path):
         return ApiResponse(data={"hit": False})
 
-    # Step 2: 返回安全检查状态
     return ApiResponse(
         data={
             "hit": True,

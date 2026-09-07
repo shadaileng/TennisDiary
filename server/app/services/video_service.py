@@ -12,6 +12,7 @@ import shutil
 import subprocess
 
 from app.core.logging import get_logger
+from app.services import file_service
 
 log = get_logger("user")
 
@@ -444,21 +445,18 @@ def process_video(
     thumbnail = frames[thumb_idx]
 
     video_dir = os.path.dirname(working)
-    frame_urls = []
+    frame_paths = []
     for i, frame in enumerate(frames):
         base = os.path.splitext(os.path.basename(working))[0]
         frame_name = f"{base}_f{i}.jpg"
         frame_path = os.path.join(video_dir, frame_name)
-        with open(frame_path, "wb") as out:
-            out.write(frame)
-        from app.services.file_service import abs_path_to_rel
-
-        rel_frame = abs_path_to_rel(frame_path)
-        frame_urls.append(rel_frame)
+        file_service.write_bytes(frame_path, frame)
+        frame_paths.append(frame_path)
 
     return {
         "frames": [_to_data_url(f) for f in frames],
-        "frame_urls": frame_urls,
+        # 中间产物绝对路径：由调用方经 file_service.register 登记为受管文件后取得 rel_path
+        "frame_paths": frame_paths,
         "duration": duration,
         "frame_rate": frame_rate,
         "thumbnail": _to_data_url(thumbnail),
