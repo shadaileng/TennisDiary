@@ -1060,6 +1060,18 @@ async function startAnalysisUnified() {
           stopStatusSubscriber();
           reject(new Error(errorMsg));
         }
+      }, {
+        // 139：订阅超时必须收尾。若不处理，轮询停止后 await 永不返回，
+        // 模态会永久卡在"AI 分析进行中"（比修复前更糟）。
+        // reject 后由下方 catch/finally 统一提示并关闭模态。
+        onTimeout: () => {
+          stopStatusSubscriber();
+          logError("分析状态订阅超时", {
+            trace_id: traceId, analysis_id: analysisId,
+            total_duration_ms: Date.now() - t0,
+          }, undefined, "analysis_subscribe_timeout", traceId);
+          reject(new Error("分析超时，请稍后到列表查看结果"));
+        },
       });
 
       statusSubscriber.start();
