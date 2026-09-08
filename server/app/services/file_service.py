@@ -388,7 +388,15 @@ def register_batch(
         results.append(record)
 
     if created:
-        db.flush()
+        # 139：flush 失败必须 rollback，否则调用方会话会残留 pending-rollback 坏状态，
+        # 导致后续所有 DB 操作（含管线 status="failed"）连带失败。
+        # 与单文件 register() 的 IntegrityError 处理保持一致。
+        try:
+            db.flush()
+        except Exception:
+            db.rollback()
+            log.exception("批量登记 flush 失败，已回滚 business={}", business)
+            raise
         if business:
             for record in created.values():
                 _bind_business(db, user_id, record.rel_path, business)
