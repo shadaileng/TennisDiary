@@ -225,6 +225,11 @@ def list_analyses(
     current_user: User = Depends(get_current_user),
 ):
     """当前用户的历史分析报告列表，按创建时间倒序分页"""
+    # 139：惰性清理孤儿 processing 记录（带节流），避免列表里出现永不结束的"分析中"
+    from app.services.analysis_cleanup import maybe_cleanup_stuck_processing
+
+    maybe_cleanup_stuck_processing(db)
+
     query = db.query(Analysis).filter(Analysis.user_id == current_user.id)
     total = query.count()
     analyses = query.order_by(Analysis.created_at.desc()).offset(offset).limit(limit).all()

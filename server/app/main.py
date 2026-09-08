@@ -64,6 +64,10 @@ async def lifespan(app: FastAPI):
     try:
         init_default_roles(db)
         init_default_admin(db)
+        # 139：启动时清理孤儿 processing 记录（上次运行可能异常退出留下）
+        from app.services.analysis_cleanup import maybe_cleanup_stuck_processing
+
+        maybe_cleanup_stuck_processing(db, force=True)
     finally:
         db.close()
     yield
