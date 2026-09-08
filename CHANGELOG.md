@@ -4,6 +4,17 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.82.0] - 2026-09-08
+
+### Added
+
+- 视频上传两步秒传后端端点（137）：新增 `POST /api/upload/video`（经 `file_service` 门面 `register` 落盘 `{md5}.{ext}`，视频无微信官方检测能力 → 上传阶段直接置 `security_checked=1`，返回 `{url, file_id, mirage}`）；`POST /api/upload/check` 返回 `file_id`，新增可选 `category` 做来源隔离、`size_bytes` 一致性校验；`POST /api/analyses/start` 改为 JSON 凭 `file_id` 启动（校验归属/来源/物理存在 → 建 Analysis 占位 → `bind(analysis, field="source")` → 后台管线）；门面新增 `find_by_id`，`find_by_md5` 支持可选分类。
+- 小程序端两步取文件与上传/分析进度体验（137）：选视频后异步预计算 MD5 + size 指纹；`/upload/check` 命中零流量取 `file_id`，未命中再整体上传（`timeout` 按体积自适应 clamp(MB×3s, 120s, 300s)，`manifest` 补 `networkTimeout.uploadFile`）；上传/分析期间全屏模态居中显示进度并阻断误操作（进入前暂停并隐藏原生 `video`）；新增「取消上传」（含预检阶段取消检查点与 1.5s 兜底收尾），取消后保留视频与指纹可直接重试；列表 `processing` 态（⏳ 角标 + 「分析进行中…」+ 4s 轮询）与报告页实时进度页（完成后自动重载完整报告，失败展示管线错误）。
+
+### Removed
+
+- 移除无效视频安全检查：`video.py` 的 `check_media_sync(media_type=3)`（微信内容安全三件套不支持视频，恒返回 `errcode 40004`，是视频 `security_checked` 恒为 0 的根因）及 `content_security` 中对应的 `check_media` / `check_media_sync` 死代码。
+
 ## [1.81.0] - 2026-09-07
 
 ### Added

@@ -151,6 +151,7 @@ docs/
     │   ├── 132-测试脆弱性治理-死测试清理与fixture作用域修复.md
     │   ├── 135-游客同步顺序修复与业务时间字段.md
     │   ├── 136-文件秒传预检与安全检查标记.md
+    │   ├── 137-视频上传两步秒传.md
     │   ├── 138-文件管理重构.md
     │   └── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
@@ -288,6 +289,7 @@ docs/
 | 132：测试脆弱性治理（死测试清理 + fixture 作用域修复 + CI 并行 StaticPool 冲突修复） | v1.1.0 | 方案 | `plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md` | 清理 6 个死测试/过期断言 + 修复 `dependency_overrides` 与共享 TestClient 污染 + `test_engine` 改 file-based SQLite 消除 CI 并行冲突，全量 563 passed / 0 errors | 🏁 已完成 |
 | 135：游客同步顺序修复与业务时间字段 | v1.0.0 | 方案 | `plans/135-游客同步顺序修复与业务时间字段.md` | 新增 `business_time` 字段记录真实创建时间 + 同步排序修复（升序上传） | 🏁 已完成 |
 | 136：文件秒传预检与安全检查标记 | v1.4.0 | 方案 | `plans/136-文件秒传预检与安全检查标记.md` | `/upload/check` 端点（JSON Body 三态响应）+ `security_checked` 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一 | 🏁 已完成 |
+| 137：视频上传两步秒传 | v1.2.0 | 方案 | `plans/137-视频上传两步秒传.md` | 新增 `/upload/video`（走门面 register，返回 `file_id`）+ `/upload/check` 补 `file_id`/`category` 隔离/size 校验 + `/analyses/start` 改凭 `file_id` 启动 + 清理无效视频安全检查 + 上传/分析进度体验（模态遮罩、取消重试、列表 processing 态、报告页实时进度）+ 分片断点续传（阶段二） | 🚧 进行中 |
 | 138：文件管理重构（统一门面 + MD5 命名 + 引用计数 + 扫描挂钩） | v1.0.0 | 方案 | `plans/138-文件管理重构.md` | 全部文件操作收口到 `file_service` 门面（file_store/file_refs/file_ref_service）+ `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移 | 🏁 已完成 |
 
 ## 文档类型说明
@@ -434,6 +436,7 @@ docs/
 | 132-测试脆弱性治理 | 测试与工程优化 | 🏁 已完成 | 2026-09-05 | 死测试清理 + fixture 精准增删 + 鉴权头清理 + 会话自动回滚 + CI 并行 StaticPool 冲突修复（`test_engine` 改 file-based SQLite）；全量 563 passed / 0 errors |
 | 135-游客同步顺序修复与业务时间字段 | 小程序前端 + 后端 + Admin | 🏁 已完成 | 2026-09-05 | 新增 business_time 字段 + 同步排序修复 |
 | 136-文件秒传预检与安全检查标记 | 后端 + 小程序前端 | 🏁 已完成 | 2026-09-06 | `/upload/check` 端点 + security_checked 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一；type-check + build 通过 |
+| 137-视频上传两步秒传 | 后端 + 小程序前端 | 🚧 进行中 | 2026-09-08 | 两步秒传端点（`/upload/video` + `/upload/check` 补 `file_id` + `/analyses/start` 改凭 `file_id`）+ 上传取消/重试 + 上传分析模态进度 + 列表/报告页 processing 态轮询；后端全量 652 通过，miniapp type-check + build 通过，进度体验待真机验证 |
 | 138-文件管理重构 | 后端 + Admin 前端 | 🏁 已完成 | 2026-09-07 | 统一门面 `file_service` + `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移；后端 617 passed / 0 failed，admin build 通过 |
 
 ## 约定
