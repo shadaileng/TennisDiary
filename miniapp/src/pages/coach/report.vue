@@ -16,14 +16,17 @@
       <text class="proc-tip">分析约需 30~60 秒，可先返回列表，稍后回来查看报告</text>
     </view>
 
-    <view v-else class="report-body">
-      <!-- 失败状态提示 -->
-      <view v-if="analysis.status === 'failed'" class="failed-banner">
+    <!-- 失败状态（与 isProcessing 互斥，单独展示） -->
+    <view v-else-if="analysis.status === 'failed'" class="failed-block">
+      <view class="failed-banner">
         <text class="failed-icon">⚠️</text>
         <text class="failed-text">分析失败</text>
-        <text class="failed-hint">请重新上传视频进行分析</text>
+        <text class="failed-reason">{{ analysis.summary || "请重新上传视频进行分析" }}</text>
       </view>
+      <view class="delete-btn press-btn" @tap="confirmRemove">删除这条记录</view>
+    </view>
 
+    <view v-else class="report-body">
       <!-- 封面 + 评分圆徽 -->
       <view class="cover-wrap">
         <image v-if="coverSrc" :src="coverSrc" mode="aspectFill" class="cover-img" />
@@ -165,6 +168,26 @@ const pipelinePercent = ref(0);
 const pipelineStepText = ref("准备中…");
 let statusSubscriber: { start: () => void; stop: () => void } | null = null;
 
+/** 把后端 pipeline_status.error 转为用户可见文案：
+ * - 已知业务错误（"片段起点/终点超出视频范围" 等）原样透传
+ * - SQL 异常 / IntegrityError / UNIQUE 等技术性错误统一降级，避免泄漏
+ *   schema / md5 / 内部参数等敏感信息给终端用户
+ */
+const _TECHNICAL_PATTERNS = [
+  /(sqlite3\.[A-Za-z.]+)/i,
+  /UNIQUE constraint|IntegrityError|sqlalchemy/i,
+  /\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bSELECT\b/i,
+  /sqlalche\.me\/e\//i,
+];
+function formatUserError(raw: string | undefined | null): string {
+  const text = (raw || "").trim();
+  if (!text) return "分析失败，请重新上传视频";
+  if (_TECHNICAL_PATTERNS.some((p) => p.test(text))) {
+    return "分析失败，请重新上传视频（服务端处理异常，已记录到日志）";
+  }
+  return text;
+}
+
 function stopStatusSubscriber() {
   if (statusSubscriber) {
     statusSubscriber.stop();
@@ -190,10 +213,13 @@ function subscribeStatus(id: number) {
     if (status.status === "failed") {
       stopStatusSubscriber();
       if (analysis.value) {
+        // 用 pipeline_status.error 作为用户可见的失败原因，
+        // 避免直接把 SQL 异常原文显示在界面上（易泄漏 schema / md5 等内部信息）
+        const errorMsg = formatUserError(status.pipeline_status?.error);
         analysis.value = {
           ...analysis.value,
           status: "failed",
-          summary: status.pipeline_status?.error || "分析失败，请重新上传视频",
+          summary: errorMsg,
         };
       }
     }
@@ -390,7 +416,21 @@ function confirmRemove() {
   gap: $space-md;
 }
 
-// ========== 失败状态 ==========
+// ========== 失败状态（独立展示，与进行中/报告体互斥）==========
+.failed-block {
+  min-height: 60vh;
+  margin: $space-lg;
+  padding: $space-xl $space-lg;
+  background-color: var(--color-card, #FFFFFF);
+  border-radius: $radius-card;
+  box-shadow: $shadow-card-md;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $space-md;
+}
+
 .failed-banner {
   display: flex;
   flex-direction: column;
@@ -400,6 +440,7 @@ function confirmRemove() {
   border: 1px solid #FECACA;
   border-radius: $radius-card;
   gap: 6px;
+  width: 100%;
 }
 
 .failed-icon {
@@ -412,9 +453,11 @@ function confirmRemove() {
   color: #DC2626;
 }
 
-.failed-hint {
+.failed-reason {
   font-size: 13px;
   color: #991B1B;
+  text-align: center;
+  line-height: 1.5;
 }
 
 // ========== 封面 ==========
