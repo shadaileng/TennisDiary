@@ -4,6 +4,22 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.83.0] - 2026-09-08
+
+### Added
+
+- 孤儿 processing 记录超时清理（139）：新增 `app/services/analysis_cleanup.py`，超过阈值（默认 600s）仍为 `processing` 的记录强制置 `failed` 并写入 `pipeline_status.error`「分析超时，已自动置为失败」；`created_at > 0` 条件排除历史脏数据避免误伤；接入应用启动（`force=True`）与 `list_analyses` 惰性触发（5 分钟节流）。作为状态兜底之外的最后一道防线，终结卡死记录导致的小程序端无限轮询。
+- 可降级项打标（139）：新增 `PipelineEngine._mark_degraded()`，骨架文件登记等可降级项失败时写入 `pipeline_status.degraded`，保留降级完成能力但必须可观测。
+
+### Fixed
+
+- 管线异常中断后分析记录永久停留在 `processing`（139）：`file_service.register_batch` 的 `db.flush()` 失败未 rollback，导致调用方会话残留 pending-rollback 坏状态，后续所有 DB 操作（含 `status="failed"`）连带失败。现补 `try/rollback`。
+- 管线状态兜底（139）：新增 `_force_fail()` 用**独立连接**置 `failed`；`run_pipeline` except 分支先 `rollback()` 再写 `failed`，仍失败则自动启用独立连接兜底，确保异常中断时状态必定落地。
+- 管线步骤异常由「静默继续」改为 fail-fast（139）：抽帧/播放短片登记由「非致命」改为致命并直接抛出，新增 0 帧硬校验，杜绝带着空输入跑 AI/pose 产出「已完成」的垃圾报告；`_finalize` 遇 `video_url` 为空由仅 warn 保留 processing 孤儿改为置 `failed` 并写入错误原因。
+- 日志 `%s` 占位符失效导致真实异常被吞（139）：loguru 使用 `str.format()` 语义，`%s` 参数会被静默丢弃、日志只剩裸占位符——这是故障中「看不到报错」的直接原因。全量整改 34 处为 `{}` 风格，10 处异常日志改用 `log.exception`。
+- 小程序离开分析页后 `/analyses/{id}/status` 轮询不停（139）：页面清理由 Vue 的 `onUnmounted` 改为 uni-app 的 `onUnload`（小程序页面销毁时前者不保证触发）；`PollingSubscriber` 增加 5 分钟上限与 `onTimeout` 回调，超时停止并提示用户。
+- 列表页 4s 自动轮询改为用户主动下拉刷新（139）：`pages.json` 启用 `enablePullDownRefresh`，`coach.vue` 改 `onPullDownRefresh`，消除后端卡 processing 时的无限请求。
+
 ## [1.82.0] - 2026-09-08
 
 ### Added

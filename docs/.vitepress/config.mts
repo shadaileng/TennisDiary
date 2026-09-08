@@ -221,6 +221,7 @@ export default defineConfig({
              { text: '132：测试脆弱性治理（死测试清理 + fixture 作用域修复）', link: '/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复' },
             { text: '游客装备封面安全检查-fail-open-修复', link: '/plans/133-游客装备封面安全检查-fail-open-修复' },
             { text: '游客装备封面保存失败问题修复', link: '/plans/134-游客装备封面保存失败问题修复' },
+            { text: '139：管线异常状态兜底与日志规范修正', link: '/plans/139-管线异常状态兜底与日志规范修正' },
 ],
         },
         {

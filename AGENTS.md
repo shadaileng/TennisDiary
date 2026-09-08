@@ -284,6 +284,7 @@ cd admin && pnpm build                 # 构建管理端
 | 136 | 文件秒传预检与安全检查标记（`/upload/check` 端点 MD5 预检三态响应 + `security_checked` 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一） | ✅ |
 | 137 | 视频上传两步秒传（门面 `find_by_id` + `find_by_md5(category=)`、新增 `/upload/video`、`/analyses/start` 改凭 `file_id` 的 JSON 入参、移除 `check_media_sync` 死代码；小程序端预计算指纹 + 加固四项 + 埋点 + 上传/分析模态进度 + 取消上传可重试 + 列表/报告页 processing 态轮询） | 🚧 阶段一 |
 | 138 | 文件管理重构（统一门面 `file_service` + `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移） | ✅ |
+| 139 | 管线异常状态兜底与日志规范修正（`register_batch` flush 补 rollback；管线 except 先 rollback 再写 failed + `_force_fail` 独立连接兜底；步骤 fail-fast：抽帧/播放短片登记致命化 + 0 帧校验 + `_finalize` 空 `video_url` 置 failed + `_mark_degraded` 降级打标；34 处日志 `%s`→`{}` 与 10 处 `log.exception` 并修正本文件日志规范；孤儿 `processing` 超时清理；小程序列表改下拉刷新 + `onUnmounted`→`onUnload` + 轮询 5 分钟上限） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
