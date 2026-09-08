@@ -65,8 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from "vue";
-import { onHide, onShow } from "@dcloudio/uni-app";
+import { ref } from "vue";
+import { onPullDownRefresh, onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -80,35 +80,6 @@ const { themeStyle, themeBg } = useThemeStyle();
 const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
 
 const analyses = ref<Analysis[]>([]);
-
-/** 存在进行中记录时的列表轮询间隔（毫秒） */
-const POLL_INTERVAL_MS = 4000;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-const hasProcessing = computed(() =>
-  analyses.value.some((a) => a.status === "processing"),
-);
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
-
-/** 有进行中记录时定时刷新列表，完成后自动停止 */
-function startPolling() {
-  if (pollTimer) return;
-  pollTimer = setInterval(async () => {
-    try {
-      const data = await getAnalyses();
-      analyses.value = data.items || [];
-      if (!hasProcessing.value) stopPolling();
-    } catch {
-      // 轮询失败静默，下个周期重试
-    }
-  }, POLL_INTERVAL_MS);
-}
 
 async function loadAnalyses() {
   const traceId = createTraceId();
@@ -125,11 +96,18 @@ async function loadAnalyses() {
 
 onShow(async () => {
   await loadAnalyses();
-  if (hasProcessing.value) startPolling();
 });
 
-onHide(stopPolling);
-onUnmounted(stopPolling);
+/** 下拉刷新：由用户主动触发更新（替代自动轮询，避免 processing 卡住时无限请求） */
+onPullDownRefresh(async () => {
+  const traceId = createTraceId();
+  logInfo("下拉刷新历史分析", { trace_id: traceId }, undefined, "analyses_pull_refresh", traceId);
+  try {
+    await loadAnalyses();
+  } finally {
+    uni.stopPullDownRefresh();
+  }
+});
 
 function goAnalyze() {
   uni.navigateTo({ url: "/pages/coach/analyze" });
