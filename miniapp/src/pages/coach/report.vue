@@ -197,6 +197,12 @@ function subscribeStatus(id: number) {
         };
       }
     }
+  }, {
+    // 139：超时必须提示用户，否则会出现"已停止请求但页面仍显示进行中"
+    onTimeout: () => {
+      pipelineStepText.value = "分析超时，请返回列表下拉刷新";
+      uni.showToast({ title: "分析超时，请稍后重试", icon: "none" });
+    },
   });
   statusSubscriber.start();
 }

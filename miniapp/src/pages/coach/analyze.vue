@@ -200,7 +200,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { onUnload } from "@dcloudio/uni-app";
 
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -421,8 +422,16 @@ function stopStatusSubscriber() {
   }
 }
 
-/** 页面卸载时清理 */
-onUnmounted(() => {
+/** 页面卸载时清理
+
+ * 注意：必须用 uni-app 的 `onUnload`（页面生命周期），不能用 Vue 的 `onUnmounted`——
+ * 小程序页面由原生页面栈管理，navigateBack 销毁页面时 `onUnmounted` 不保证触发，
+ * 会导致 status 订阅泄漏、离开页面后仍持续轮询（139 §2.6）。
+ *
+ * 此处**不要**额外加 `onHide` 停止订阅：该订阅服务于 startAnalysis 的 Promise，
+ * 页面隐藏即停会导致 Promise 永不 resolve（139 决策 12）。
+ */
+onUnload(() => {
   stopStatusSubscriber();
 });
 
