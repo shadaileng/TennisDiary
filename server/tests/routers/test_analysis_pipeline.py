@@ -112,9 +112,6 @@ def pipeline_mocks(monkeypatch):
     monkeypatch.setattr(video_service, "process_video", _fake_process_video)
     monkeypatch.setattr(pose_service, "is_available", lambda: True)
     monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_frames)
-    import app.services.content_security as cs
-
-    monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
     return {}
 
 
@@ -399,10 +396,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         # init + start 分析
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
@@ -465,10 +458,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
         )
@@ -525,10 +514,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
         )
@@ -583,10 +568,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
         )
@@ -655,10 +636,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_single_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "正手", "mode": "single"}
         )

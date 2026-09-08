@@ -232,6 +232,23 @@ class AnalysisInitRequest(BaseModel):
     mode: str = Field(default="single", description="single / full")
 
 
+class AnalysisStartRequest(BaseModel):
+    """分析启动请求（137 阶段一）：凭已上传视频的 file_id 启动管线
+
+    file_id 来自 `/api/upload/check`（秒传命中）或 `/api/upload/video`（实际上传），
+    端点不再直接接收文件，命中与未命中后续流程完全一致。
+    """
+
+    file_id: int = Field(description="已上传视频的文件 ID")
+    date: str = Field(description="分析日期 YYYY-MM-DD")
+    kind: str = Field(default="综合", description="击球类型")
+    mode: str = Field(default="single", description="single / full")
+    hit_time: float = Field(default=0.0, description="击球瞬间（秒），相对裁切拼接后的视频")
+    cuts: list[dict] | None = Field(
+        default=None, description="裁剪片段 [{start,end}, …]，服务端 ffmpeg 裁切拼接"
+    )
+
+
 class AnalysisUpdate(BaseModel):
     """分析更新请求（118 流水线步骤5 finalize）：仅置状态"""
 

@@ -1,4 +1,4 @@
-"""POST /api/upload/avatar 头像上传接口测试"""
+"""POST /api/upload/avatar 头像上传接口测试 + /api/upload/check 秒传预检"""
 
 import io
 import os
@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from app.core.config import settings
 from app.models.file import File
+from app.services import file_service
 from app.services.content_security import ContentSecurityError
 
 
@@ -88,6 +89,113 @@ class TestDownloadAvatar:
         """公开访问无需鉴权，文件不存在时返回 404"""
         response = client.get("/api/upload/avatar/1/nonexistent.png")
         assert response.status_code == 404
+
+
+class TestUploadCheck:
+    """POST /api/upload/check 秒传预检（137 阶段一 Step 2）
+
+    覆盖：未命中 / 命中且安全 / 命中未过检 / category 来源隔离 / size 一致性 /
+    物理文件缺失 / 未登录。
+    """
+
+    @staticmethod
+    def _register(
+        test_db,
+        content: bytes = b"check-content-137",
+        category: str = "video",
+        ext: str = ".mp4",
+        security: bool = True,
+        user_id: int = 1,
+    ):
+        record, _ = file_service.register(
+            db=test_db,
+            user_id=user_id,
+            content=content,
+            category=category,
+            original_name=f"clip{ext}",
+            ext=ext,
+        )
+        if security:
+            file_service.mark_security_checked(test_db, user_id, record.rel_path, True)
+        test_db.commit()
+        return record
+
+    def _check(self, client, md5: str, size_bytes: int, category: str | None = None):
+        payload = {"md5": md5, "size_bytes": size_bytes}
+        if category:
+            payload["category"] = category
+        return client.post("/api/upload/check", json=payload)
+
+    def test_miss_when_no_record(self, auth_client):
+        resp = self._check(auth_client, "0" * 32, 1024)
+        assert resp.status_code == 200
+        assert resp.json()["data"]["hit"] is False
+
+    def test_hit_and_safe_returns_url_and_file_id(self, auth_client, test_db):
+        content = b"hit-safe-137"
+        record = self._register(test_db, content=content, security=True)
+        resp = self._check(auth_client, file_service.md5_of(content=content), len(content))
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["hit"] is True
+        assert data["safe"] is True
+        assert data["url"] == record.rel_path
+        assert data["file_id"] == record.id
+
+    def test_hit_but_unchecked_returns_safe_false(self, auth_client, test_db):
+        content = b"hit-unsafe-137"
+        record = self._register(test_db, content=content, security=False)
+        resp = self._check(auth_client, file_service.md5_of(content=content), len(content))
+        data = resp.json()["data"]
+        assert data["hit"] is True
+        assert data["safe"] is False
+        assert data["url"] is None
+        assert data["file_id"] == record.id
+
+    def test_category_isolates_sources(self, auth_client, test_db):
+        """avatar 记录按 video 预检必须 miss，按 avatar 预检命中"""
+        content = b"category-isolation-137"
+        self._register(test_db, content=content, category="avatar", ext=".png")
+        md5 = file_service.md5_of(content=content)
+
+        assert self._check(auth_client, md5, len(content), "video").json()["data"]["hit"] is False
+        assert self._check(auth_client, md5, len(content), "avatar").json()["data"]["hit"] is True
+
+    def test_without_category_keeps_legacy_behavior(self, auth_client, test_db):
+        """不传 category：命中任意来源（向后兼容）"""
+        content = b"legacy-check-137"
+        self._register(test_db, content=content, category="avatar", ext=".png")
+        md5 = file_service.md5_of(content=content)
+
+        assert self._check(auth_client, md5, len(content)).json()["data"]["hit"] is True
+
+    def test_size_mismatch_is_miss(self, auth_client, test_db):
+        content = b"size-mismatch-137"
+        self._register(test_db, content=content)
+        md5 = file_service.md5_of(content=content)
+
+        assert self._check(auth_client, md5, len(content) + 1).json()["data"]["hit"] is False
+        assert self._check(auth_client, md5, len(content)).json()["data"]["hit"] is True
+
+    def test_zero_size_skips_size_check(self, auth_client, test_db):
+        """取不到 size（0）时不参与校验，避免误判 miss"""
+        content = b"zero-size-137"
+        self._register(test_db, content=content)
+        md5 = file_service.md5_of(content=content)
+
+        assert self._check(auth_client, md5, 0).json()["data"]["hit"] is True
+
+    def test_missing_physical_file_is_miss(self, auth_client, test_db):
+        content = b"missing-physical-137"
+        record = self._register(test_db, content=content)
+        file_service.unlink(record.rel_path)
+        md5 = file_service.md5_of(content=content)
+
+        assert self._check(auth_client, md5, len(content)).json()["data"]["hit"] is False
+
+    def test_requires_auth(self, client):
+        resp = client.post("/api/upload/check", json={"md5": "0" * 32, "size_bytes": 1})
+        assert resp.status_code in (401, 403)
 
 
 class TestGuestGearCheck:

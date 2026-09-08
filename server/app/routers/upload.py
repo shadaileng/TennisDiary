@@ -28,6 +28,8 @@ router = APIRouter(prefix="/api/upload", tags=["upload"])
 _ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 _AVATAR_CATEGORY = "avatar"
 _GEAR_CATEGORY = "gear_image"
+_VIDEO_CATEGORY = "video"
+_VIDEO_DEFAULT_EXT = ".mp4"
 
 
 def _save_image(
@@ -37,8 +39,8 @@ def _save_image(
     ext: str,
     original_name: str,
     category: str,
-) -> tuple[object, str]:
-    """写盘 + 落库（经门面），返回 (File 记录, 绝对路径)"""
+) -> tuple[object, bool]:
+    """写盘 + 落库（经门面），返回 (File 记录, 是否命中秒传复用)"""
     record, reused = file_service.register(
         db=db,
         user_id=user_id,
@@ -48,7 +50,6 @@ def _save_image(
         ext=ext,
     )
     db.commit()
-    abs_path = file_service.abs_of(record.rel_path)
     log.info(
         "图片登记完成",
         user_id=user_id,
@@ -56,7 +57,7 @@ def _save_image(
         category=category,
         reused=reused,
     )
-    return record, abs_path
+    return record, reused
 
 
 def _run_security_check(db: Session, user_id: int, record, abs_path: str) -> bool:
@@ -96,10 +97,10 @@ def upload_avatar(
     content = file.file.read()
     original_name = file.filename or ""
 
-    record, abs_path = _save_image(
-        db, current_user.id, content, ext, original_name, _AVATAR_CATEGORY
+    record, reused = _save_image(db, current_user.id, content, ext, original_name, _AVATAR_CATEGORY)
+    security_ok = _run_security_check(
+        db, current_user.id, record, file_service.abs_of(record.rel_path)
     )
-    security_ok = _run_security_check(db, current_user.id, record, abs_path)
 
     if not security_ok:
         raise HTTPException(
@@ -108,7 +109,7 @@ def upload_avatar(
         ) from None
 
     log.info("头像上传成功", user_id=current_user.id, path=record.rel_path)
-    return ApiResponse(data={"url": record.rel_path, "mirage": False})
+    return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})
 
 
 @router.get("/avatar/{user_id}/{filename}")
@@ -145,8 +146,10 @@ def upload_gear_image(
     content = file.file.read()
     original_name = file.filename or ""
 
-    record, abs_path = _save_image(db, current_user.id, content, ext, original_name, _GEAR_CATEGORY)
-    security_ok = _run_security_check(db, current_user.id, record, abs_path)
+    record, reused = _save_image(db, current_user.id, content, ext, original_name, _GEAR_CATEGORY)
+    security_ok = _run_security_check(
+        db, current_user.id, record, file_service.abs_of(record.rel_path)
+    )
 
     if not security_ok:
         raise HTTPException(
@@ -155,7 +158,68 @@ def upload_gear_image(
         ) from None
 
     log.info("装备图片上传成功", user_id=current_user.id, path=record.rel_path)
-    return ApiResponse(data={"url": record.rel_path, "mirage": False})
+    return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})
+
+
+@router.post("/video", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="upload")
+def upload_video_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """上传视频文件（137 两步秒传的第二步），返回 file_id 供 /api/analyses/start 消费
+
+    - 仅接受 mp4/mov/m4v/webm（content-type 以 `video/` 开头时放宽后缀校验）
+    - 落盘 UPLOAD_DIR/videos/<user_id>/<md5>.<ext>（同内容只存一份，重复上传返回 mirage=true）
+    - 视频无微信官方检测能力（方案 137 §2.2）→ 上传阶段直接置 security_checked=1
+    - 返回 {"url", "file_id", "mirage"}
+    """
+    original_name = file.filename or ""
+    if not file_service.is_video(original_name, file.content_type or ""):
+        log.warning("视频上传拒绝：非法文件类型", user_id=current_user.id, filename=original_name)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="仅支持视频文件（mp4/mov/m4v/webm）",
+        )
+
+    ext = os.path.splitext(original_name)[1].lower()
+    if ext not in file_service.VIDEO_EXTS:
+        ext = _VIDEO_DEFAULT_EXT
+
+    content = file.file.read()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
+        )
+
+    try:
+        record, reused = file_service.register(
+            db=db,
+            user_id=current_user.id,
+            content=content,
+            category=_VIDEO_CATEGORY,
+            original_name=original_name or f"video{ext}",
+            ext=ext,
+        )
+        # 决策 3：微信三件套不支持视频，上传阶段视为放行
+        file_service.mark_security_checked(db, current_user.id, record.rel_path, True)
+        db.commit()
+    except Exception as exc:
+        log.error("视频文件写入失败: user_id=%s error=%s", current_user.id, type(exc).__name__)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="文件写入失败，请稍后重试",
+        ) from exc
+
+    log.info(
+        "视频上传成功",
+        user_id=current_user.id,
+        rel_path=record.rel_path,
+        size=record.size_bytes,
+        mirage=reused,
+    )
+    return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})
 
 
 @router.post("/guest-gear-check", response_model=ApiResponse[dict])
@@ -237,17 +301,22 @@ def _mask_openid(openid: str) -> str:
 def check_file(
     md5: str = Body(...),
     size_bytes: int = Body(...),
+    category: str | None = Body(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """文件秒传预检（MD5 精确匹配）
 
     - 不上传文件，仅按 MD5 查询已有文件记录
-    - 命中 + 安全通过 → {hit: true, safe: true, url}
-    - 命中 + 安全未通过 → {hit: true, safe: false}
+    - 命中 + 安全通过 → {hit: true, safe: true, url, file_id}
+    - 命中 + 安全未通过 → {hit: true, safe: false, file_id}
     - 未命中 → {hit: false}
+
+    `category`（可选，如 video / gear_image / avatar）限定在指定来源内匹配，
+    避免不同分类因 MD5 相同而误复用；不传时行为不变。
+    `size_bytes > 0` 时参与一致性校验（取不到 size 时传 0 跳过）。
     """
-    existing = file_service.find_by_md5(db, current_user.id, md5)
+    existing = file_service.find_by_md5(db, current_user.id, md5, category)
     if existing is None:
         return ApiResponse(data={"hit": False})
 
@@ -255,10 +324,23 @@ def check_file(
     if not file_service.exists(existing.rel_path):
         return ApiResponse(data={"hit": False})
 
+    # 大小不一致视为未命中（客户端取不到 size 时传 0，跳过校验）
+    if size_bytes > 0 and existing.size_bytes and existing.size_bytes != size_bytes:
+        log.info(
+            "秒传预检大小不一致，视为未命中",
+            user_id=current_user.id,
+            md5=md5[:12],
+            record_size=existing.size_bytes,
+            request_size=size_bytes,
+        )
+        return ApiResponse(data={"hit": False})
+
+    safe = bool(existing.security_checked)
     return ApiResponse(
         data={
             "hit": True,
-            "safe": bool(existing.security_checked),
-            "url": existing.rel_path if existing.security_checked else None,
+            "safe": safe,
+            "url": existing.rel_path if safe else None,
+            "file_id": existing.id,
         }
     )

@@ -26,6 +26,9 @@ from app.services import file_ref_service, file_refs, file_store
 
 log = get_logger("user")
 
+# 视频扩展名白名单（上传端点与抽帧端点共用）
+VIDEO_EXTS: frozenset[str] = frozenset({".mp4", ".mov", ".m4v", ".webm"})
+
 # 文件使用边界（118 §5.8）：小程序实际消费判定
 # 原片 / 抽帧帧图不被小程序直接消费，可直接清除（unreferenced）
 
@@ -497,11 +500,45 @@ def mime_of(
     )
 
 
-def find_by_md5(db: Session, user_id: int, md5: str) -> File | None:
-    """按 (user_id, md5) 查找未软删的受管文件"""
+def is_video(filename: str, content_type: str = "") -> bool:
+    """视频文件判定（扩展名白名单 + content-type 兜底）
+
+    白名单为全端单一真源：上传端点与抽帧端点共用，避免两处各写一份。
+    """
+    ext = os.path.splitext(filename or "")[1].lower()
+    return ext in VIDEO_EXTS or content_type.startswith("video/")
+
+
+def find_by_md5(db: Session, user_id: int, md5: str, category: str | None = None) -> File | None:
+    """按 (user_id, md5) 查找未软删的受管文件
+
+    Args:
+        category: 可选的 upload_source 限定（如 video / gear_image / avatar）。
+            传入时仅在该来源内匹配，避免不同分类因 MD5 相同而误复用
+            （例如装备封面预检命中同内容的头像记录）；不传则行为不变。
+    """
+    query = db.query(File).filter(
+        File.user_id == user_id,
+        File.md5 == md5,
+        File.deleted_at.is_(None),
+    )
+    if category:
+        query = query.filter(File.upload_source == category)
+    return query.first()
+
+
+def find_by_id(db: Session, user_id: int, file_id: int) -> File | None:
+    """按主键查询受管文件，强制带 user_id 归属条件（越权防护）
+
+    供业务端点校验客户端传入的 file_id 是否属于当前用户。
+    """
     return (
         db.query(File)
-        .filter(File.user_id == user_id, File.md5 == md5, File.deleted_at.is_(None))
+        .filter(
+            File.id == file_id,
+            File.user_id == user_id,
+            File.deleted_at.is_(None),
+        )
         .first()
     )
 

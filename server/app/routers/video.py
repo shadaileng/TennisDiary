@@ -18,7 +18,6 @@ from app.models.analysis_video_info import AnalysisVideoInfo
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import file_service, video_service
-from app.services.content_security import check_media_sync
 from app.services.video_service import (
     FfmpegUnavailableError,
     InvalidCutError,
@@ -29,14 +28,10 @@ log = get_logger("user")
 
 router = APIRouter(prefix="/api/video", tags=["video"])
 
-# 允许的视频扩展名
-_ALLOWED_VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm"}
-
 
 def _is_video_file(filename: str, content_type: str | None) -> bool:
-    """按扩展名与 content-type 判断是否视频"""
-    ext = os.path.splitext(filename or "")[1].lower()
-    return ext in _ALLOWED_VIDEO_EXT or (content_type or "").startswith("video/")
+    """按扩展名与 content-type 判断是否视频（白名单以门面 file_service 为单一真源）"""
+    return file_service.is_video(filename, content_type or "")
 
 
 @router.post("/upload", response_model=ApiResponse[dict])
@@ -238,24 +233,9 @@ def upload_video(
         )
         db.commit()
 
-    # 异步内容安全检查（不阻断上传流程）
-    try:
-        media_result = check_media_sync(abs_path, str(current_user.id), media_type=3)
-        if media_result.get("errcode"):
-            log.warning(
-                "视频内容安全检查 API 返回错误",
-                user_id=current_user.id,
-                errcode=media_result["errcode"],
-            )
-        else:
-            log.info(
-                "视频内容安全检查已提交",
-                user_id=current_user.id,
-                trace_id=media_result.get("trace_id", ""),
-            )
-    except Exception as exc:
-        log.error("视频安全检查异常: %s", exc, exc_info=True)
-
+    # 137 §2.2：微信三件套（imgSecCheck / msgSecCheck / mediaCheckAsync）均不支持视频，
+    # 原 check_media_sync(media_type=3) 恒返回 errcode 40004 被日志吞掉，已移除。
+    # 视频视为放行：security_checked 在 /api/upload/video 上传阶段标记。
     log.info(
         "视频抽帧完成",
         user_id=current_user.id,
