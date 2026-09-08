@@ -334,6 +334,9 @@ class PipelineEngine:
         business = ("analysis", self.analysis_id) if self.analysis_id else None
 
         # 抽帧中间产物登记为受管文件（{md5}.jpg）
+        # 预计算 md5/size：避免 register_batch 内部因 md5s 为空而跳过 existing_map
+        # 查询，随后实时算 md5 + INSERT 时撞同 user_id 已存在的 (user_id, md5)
+        # 唯一索引（id=17/18 实际现场）。
         try:
             frame_records = file_service.register_batch(
                 self.db,
@@ -341,6 +344,10 @@ class PipelineEngine:
                 [
                     file_service.FileDraft(
                         src_path=frame_path,
+                        md5=file_service.file_store.md5_of(path=frame_path) if frame_path else "",
+                        size=os.path.getsize(frame_path)
+                        if frame_path and os.path.exists(frame_path)
+                        else 0,
                         ext=os.path.splitext(frame_path)[1] or ".jpg",
                         upload_source="video_frame",
                         original_name=os.path.basename(frame_path),
