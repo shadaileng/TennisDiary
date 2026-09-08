@@ -91,12 +91,12 @@ def analyze(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
-        log.error("姿态推理失败: %s", exc, exc_info=True)
+        log.exception("姿态推理失败: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except Exception as exc:
-        log.error("姿态推理异常: %s", exc, exc_info=True)
+        log.exception("姿态推理异常: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="姿态推理服务异常，请稍后重试",
@@ -167,7 +167,7 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
                 business=("analysis", analysis_id),
             )
         except Exception as exc:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
-            log.warning("骨架文件登记失败: %s - %s", type(exc).__name__, str(exc)[:120])
+            log.warning("骨架文件登记失败: {} - {}", type(exc).__name__, str(exc)[:120])
             records = []
         for draft, record in zip(drafts, records, strict=False):
             path_map[draft.original_name] = record.rel_path
@@ -254,12 +254,12 @@ def analyze_video(req: PoseVideoRequest, current_user: User = Depends(get_curren
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
-        log.error("姿态推理失败: %s", exc, exc_info=True)
+        log.exception("姿态推理失败: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except Exception as exc:
-        log.error("姿态推理异常: %s", exc, exc_info=True)
+        log.exception("姿态推理异常: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="姿态推理服务异常，请稍后重试",

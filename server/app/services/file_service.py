@@ -112,7 +112,7 @@ def cleanup_expired(db: Session, days: int = 30) -> int:
     for record in expired:
         if file_store.unlink(record.rel_path):
             cleaned += 1
-            log.info("清理已删除文件: %s", record.rel_path)
+            log.info("清理已删除文件: {}", record.rel_path)
         db.delete(record)
     return cleaned
 
@@ -346,7 +346,7 @@ def register_batch(
     for item in items:
         md5 = item.md5 or file_store.md5_of(path=item.src_path or None)
         if not md5:
-            log.warning("批量登记跳过无 MD5 的项: %s", item.rel_path or item.src_path)
+            log.warning("批量登记跳过无 MD5 的项: {}", item.rel_path or item.src_path)
             continue
 
         existing = existing_map.get(md5)
@@ -682,7 +682,7 @@ def cleanup_intermediates(user_id: int) -> int:
                 os.remove(path)
                 cleaned += 1
             except OSError as exc:
-                log.warning("删除中间帧失败: %s - %s", path, exc)
+                log.warning("删除中间帧失败: {} - {}", path, exc)
     if cleaned:
         log.info("兜底清理中间帧: {} 个文件 user_id={}", cleaned, user_id)
     return cleaned
@@ -708,7 +708,7 @@ def register_orphans(
     registered: list[File] = []
     for rel_path in rel_paths:
         if not file_store.exists(rel_path):
-            log.warning("孤儿文件不存在，跳过登记: %s", rel_path)
+            log.warning("孤儿文件不存在，跳过登记: {}", rel_path)
             continue
         user_id = infer_user_id(rel_path) or default_user_id
         source = infer_source(rel_path)
@@ -752,7 +752,7 @@ def _walk_upload_dir() -> dict[str, float]:
             try:
                 found[rel] = os.stat(abs_path).st_mtime
             except (OSError, ValueError) as exc:
-                log.warning("扫描文件失败: %s", exc)
+                log.warning("扫描文件失败: {}", exc)
     return found
 
 
@@ -1081,7 +1081,7 @@ def migrate_to_md5(db: Session, dry_run: bool = True) -> dict:
     report["duplicates_merged"] = _merge_duplicate_records(db, dry_run)
     if not dry_run:
         db.flush()
-        log.info("存量文件迁移完成: %s", {k: v for k, v in report.items() if k != "conflicts"})
+        log.info("存量文件迁移完成: {}", {k: v for k, v in report.items() if k != "conflicts"})
     return report
 
 

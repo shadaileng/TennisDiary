@@ -75,7 +75,7 @@ def upload_video(
         )
         db.commit()
     except Exception as exc:
-        log.error("视频文件写入失败: user_id=%s error=%s", current_user.id, exc)
+        log.error("视频文件写入失败: user_id={} error={}", current_user.id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="文件写入失败，请稍后重试",
@@ -93,7 +93,7 @@ def upload_video(
             status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
         )
 
-    log.info("视频上传完成: path=%s size=%s mirage=%s", rel_video, actual_size, is_mirage)
+    log.info("视频上传完成: path={} size={} mirage={}", rel_video, actual_size, is_mirage)
 
     # 解析裁剪参数
     parsed_cuts: list[dict] | None = None

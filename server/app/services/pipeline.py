@@ -291,7 +291,7 @@ class PipelineEngine:
             except Exception as e:  # noqa: BLE001 - 重试需要捕获所有异常
                 last_error = e
                 log.warning(
-                    "管线步骤失败 step=%s attempt=%d/%d error=%s: %s",
+                    "管线步骤失败 step={} attempt={}/{} error={}: {}",
                     step.value,
                     attempt + 1,
                     self.max_retries,
@@ -596,7 +596,7 @@ class PipelineEngine:
                     os.remove(path)
                     cleaned += 1
                 except OSError as exc:
-                    log.warning("删除中间帧失败: %s - %s", path, exc)
+                    log.warning("删除中间帧失败: {} - {}", path, exc)
 
         if cleaned:
             log.info("已清理中间帧: {} 个文件 business=analysis/{}", cleaned, self.analysis_id)

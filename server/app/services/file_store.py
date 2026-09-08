@@ -143,7 +143,7 @@ def md5_of(content: bytes | None = None, path: str | None = None) -> str | None:
                 md5.update(chunk)
         return md5.hexdigest()
     except (OSError, ValueError) as exc:
-        log.warning("MD5 计算失败: %s", exc)
+        log.warning("MD5 计算失败: {}", exc)
         return None
 
 
@@ -160,7 +160,7 @@ def md5_and_size_of(path: str) -> tuple[str | None, int]:
                 size += len(chunk)
         return md5.hexdigest(), size
     except (OSError, ValueError) as exc:
-        log.warning("MD5 计算失败: %s", exc)
+        log.warning("MD5 计算失败: {}", exc)
         return None, 0
 
 
@@ -180,7 +180,7 @@ def mime_of(
     try:
         return detect_mime_type(abs_path, upload_source)
     except Exception as exc:  # noqa: BLE001 - 探测失败不应阻断登记
-        log.warning("MIME 探测失败，回退扩展名: %s", exc)
+        log.warning("MIME 探测失败，回退扩展名: {}", exc)
         return mime_type_from_ext(abs_path)
 
 
@@ -232,7 +232,7 @@ def unlink(rel_path: str) -> bool:
             return True
         return False
     except (OSError, ValueError) as exc:
-        log.warning("文件删除失败: %s", exc)
+        log.warning("文件删除失败: {}", exc)
         return False
 
 
@@ -244,7 +244,7 @@ def unlink_abs(abs_path: str) -> bool:
             return True
         return False
     except (OSError, ValueError) as exc:
-        log.warning("文件删除失败: %s", exc)
+        log.warning("文件删除失败: {}", exc)
         return False
 
 

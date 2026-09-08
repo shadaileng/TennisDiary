@@ -129,7 +129,7 @@ def _load_json(raw) -> object | None:
     try:
         return json.loads(raw)
     except (json.JSONDecodeError, TypeError) as exc:
-        log.warning("业务引用字段 JSON 解析失败: %s", exc)
+        log.warning("业务引用字段 JSON 解析失败: {}", exc)
         return None
 
 

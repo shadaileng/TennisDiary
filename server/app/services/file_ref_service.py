@@ -225,7 +225,7 @@ def cleanup_unbound(db: Session, grace_hours: int = 24) -> int:
         cleaned += 1
 
     if cleaned:
-        log.info("回收未绑定文件: count=%s grace_hours=%s", cleaned, grace_hours)
+        log.info("回收未绑定文件: count={} grace_hours={}", cleaned, grace_hours)
     return cleaned
 
 

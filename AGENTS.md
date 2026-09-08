@@ -10,7 +10,7 @@
 2. **绝不后台自启服务**（`nohup`/`&`/`subprocess.Popen` 等）。服务由人类启动。
 3. **提交前必须跑验证**。后端 `ruff check` + `ruff format` + `pytest`；前端 `type-check` + `build`。任一失败/有变更 → **先修复，禁止提交**。
 4. **改共享响应模型前，先 `grep` 全量构造点**，确认新增/必填字段在每处都已传入；优先用工厂函数或 `model_validate`。
-5. **异常日志**禁止直接插值异常对象 `f"...{exc}"`（异常 `str()` 含 `{}` 会导致 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误）。应写 `log.error(f"处理失败: {type(exc).__name__}")` 或 `log.error("处理失败: %s", exc)`。
+5. **日志一律用 `{}` 风格，严禁 printf 的 `%s`**。loguru 用 `str.format()` 语义，`log.error("失败: %s", exc)` 的参数会被**静默丢弃**，日志只剩裸 `%s`、真实异常被吞（139 故障根因）。应写 `log.error("失败: {}", exc)`；需堆栈用 `log.exception("失败: {}", exc)`。禁止 `f"...{exc}"` 再额外传参（异常 `str()` 含 `{}` 会触发二次 `.format()` 的 `KeyError`）；仅插值异常类型 `f"...{type(exc).__name__}"` 且不传参时安全。
 
 > 任何一条被违反，都是事故。宁可停下询问人类，也不要绕过。
 
@@ -157,7 +157,7 @@ cd admin && pnpm build                 # 构建管理端
 
 1. **改动字段前先全量检索构造点**：`grep "<ModelName>"` 找出所有 `ModelName(...)` 手写构造与 `model_validate` 调用点，逐一核对新增/必填字段是否都已传入。
 2. **优先用工厂函数或 `model_validate`**，而非在各路由重复手写字段构造。新增必填字段时，工厂函数只需改一处，避免散落各处的 `ModelName(id=..., ...)` 漏改导致 `ValidationError` → 500。参考 `app/routers/admin/admins.py` 的 `_admin_to_response`。
-3. **异常日志禁止对异常对象用 f-string 拼接**：`logger.error(f"未处理的异常: {exc}")` 会因异常 `str()` 含 `{}` 触发 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误。应写 `log.error(f"未处理的异常: {type(exc).__name__}")` 或 `log.error("未处理的异常: %s", exc)`。
+3. **异常日志用 `{}` 占位符，禁止 `%s` 与 f-string 拼接**：loguru 是 `str.format()` 语义，`log.error("未处理的异常: %s", exc)` 参数会被静默丢弃（日志只剩裸 `%s`）；`logger.error(f"未处理的异常: {exc}")` 则可能因异常 `str()` 含 `{}` 触发二次 `.format()` 的 `KeyError`。统一写 `logger.exception("未处理的异常: {}", exc)`（自动带堆栈）。
 4. 修改后必须运行该模型的全部相关测试（`pytest tests/routers/admin/test_auth.py` 等），确认无 `ValidationError` 后再提交。
 
 ### 6.2 前端

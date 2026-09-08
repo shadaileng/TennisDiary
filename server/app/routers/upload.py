@@ -68,7 +68,7 @@ def _run_security_check(db: Session, user_id: int, record, abs_path: str) -> boo
         log.warning("图片内容安全检查不通过", user_id=user_id)
         return False
     except Exception as exc:
-        log.error("图片安全检查异常: %s", exc, exc_info=True)
+        log.exception("图片安全检查异常: {}", exc)
 
     file_service.mark_security_checked(db, user_id, record.rel_path, True)
     db.commit()
@@ -206,7 +206,7 @@ def upload_video_file(
         file_service.mark_security_checked(db, current_user.id, record.rel_path, True)
         db.commit()
     except Exception as exc:
-        log.error("视频文件写入失败: user_id=%s error=%s", current_user.id, type(exc).__name__)
+        log.error("视频文件写入失败: user_id={} error={}", current_user.id, type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="文件写入失败，请稍后重试",
@@ -260,7 +260,7 @@ async def guest_gear_check(
     try:
         openid = await code_to_openid(code)
     except (ValueError, RuntimeError) as exc:
-        log.warning("游客封面检查：code 换 openid 失败: %s", exc)
+        log.warning("游客封面检查：code 换 openid 失败: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="登录态已过期，请重新进入小程序",
@@ -278,7 +278,7 @@ async def guest_gear_check(
             detail="图片可能包含违规信息，请更换后重试",
         ) from None
     except Exception as exc:
-        log.error("游客封面安全检查异常: %s", exc, exc_info=True)
+        log.exception("游客封面安全检查异常: {}", exc)
         return ApiResponse(
             code=ErrorCode.INTERNAL_ERROR,
             message="安全检查服务异常，请重试",
