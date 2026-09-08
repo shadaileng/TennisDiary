@@ -30,6 +30,7 @@
           <image v-if="a.thumb" :src="resolveUploadUrl(a.thumb)" mode="aspectFill" class="history-thumb-img" />
           <text v-else class="history-thumb-placeholder">🎾</text>
           <text v-if="a.status === 'failed'" class="thumb-badge thumb-badge-fail">✕</text>
+          <text v-else-if="a.status === 'processing'" class="thumb-badge thumb-badge-processing">⏳</text>
           <text v-else-if="a.pose?.detected" class="thumb-badge">🦴</text>
         </view>
         <view class="history-info">
@@ -37,12 +38,19 @@
             <text class="tag-kind">{{ a.kind }}</text>
             <text class="tag-mode">{{ a.mode === "single" ? "单次挥拍" : "综合分析" }} · {{ a.date }}</text>
           </view>
-          <text class="history-summary">
+          <text v-if="a.status === 'processing'" class="history-summary history-summary--processing">
+            分析进行中…
+          </text>
+          <text v-else class="history-summary">
             {{ a.status === "failed" ? "分析失败" : (a.summary || "暂无摘要") }}
           </text>
         </view>
         <view class="history-score">
-          <template v-if="a.status === 'failed'">
+          <template v-if="a.status === 'processing'">
+            <view class="score-spinner" />
+            <text class="score-processing">分析中</text>
+          </template>
+          <template v-else-if="a.status === 'failed'">
             <text class="score-fail">失败</text>
           </template>
           <template v-else-if="(a.score || 0) > 0">
@@ -57,8 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { onShow } from "@dcloudio/uni-app";
+import { computed, onUnmounted, ref } from "vue";
+import { onHide, onShow } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -73,7 +81,36 @@ const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"
 
 const analyses = ref<Analysis[]>([]);
 
-onShow(async () => {
+/** 存在进行中记录时的列表轮询间隔（毫秒） */
+const POLL_INTERVAL_MS = 4000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+const hasProcessing = computed(() =>
+  analyses.value.some((a) => a.status === "processing"),
+);
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+/** 有进行中记录时定时刷新列表，完成后自动停止 */
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(async () => {
+    try {
+      const data = await getAnalyses();
+      analyses.value = data.items || [];
+      if (!hasProcessing.value) stopPolling();
+    } catch {
+      // 轮询失败静默，下个周期重试
+    }
+  }, POLL_INTERVAL_MS);
+}
+
+async function loadAnalyses() {
   const traceId = createTraceId();
   logInfo("加载历史分析", { trace_id: traceId }, undefined, "analyses_load", traceId);
   try {
@@ -84,7 +121,15 @@ onShow(async () => {
     analyses.value = [];
     logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "analyses_load_failed", undefined, traceId);
   }
+}
+
+onShow(async () => {
+  await loadAnalyses();
+  if (hasProcessing.value) startPolling();
 });
+
+onHide(stopPolling);
+onUnmounted(stopPolling);
 
 function goAnalyze() {
   uni.navigateTo({ url: "/pages/coach/analyze" });
@@ -324,5 +369,39 @@ function goReport(id: number) {
   font-size: 11px;
   color: #E74C3C;
   font-weight: 600;
+}
+
+.score-spinner {
+  width: 18px;
+  height: 18px;
+  margin: 0 auto 2px;
+  border: 3px solid var(--color-accent-soft, $color-lime-soft);
+  border-top-color: var(--color-accent-dark, $color-lime-dark);
+  border-radius: 50%;
+  animation: score-spin 0.8s linear infinite;
+}
+
+.score-processing {
+  font-size: 11px;
+  color: var(--color-accent-dark, #A8B822);
+  font-weight: 600;
+}
+
+.thumb-badge-processing {
+  background: var(--color-accent, #C8DA2B);
+  font-size: 11px;
+}
+
+.history-summary--processing {
+  color: var(--color-accent-dark, #A8B822);
+}
+
+@keyframes score-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

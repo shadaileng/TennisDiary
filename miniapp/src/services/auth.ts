@@ -1,5 +1,5 @@
 import { post, put } from "./request";
-import { uploadFileWithCheck } from "@/utils/upload";
+import { uploadFileWithCheck, type UploadUrlHooks } from "@/utils/upload";
 
 import type { LoginRequest, LoginResponse, User, UserUpdate } from "@/types";
 
@@ -41,20 +41,9 @@ export function updateProfile(data: UserUpdate): Promise<{ user: User }> {
 
 /**
  * 上传头像，返回可展示的相对 URL。
- * 内部使用 uploadFileWithCheck 统一上传工具，先预检 MD5 再按需上传。
+ * 内部使用 uploadFileWithCheck 统一上传工具：预检按 `avatar` 来源隔离，
+ * 命中秒传触发 onMirage，未命中按需上传。
  */
-export function uploadAvatar(
-  tempPath: string,
-  hooks?: { onSuccess?: (url: string, durationMs: number) => void; onFailed?: (error: Error, durationMs: number) => void; onMirage?: (url: string, durationMs: number) => void },
-): Promise<string> {
-  const startTime = Date.now();
-  return uploadFileWithCheck(tempPath, "avatar")
-    .then((url) => {
-      hooks?.onSuccess?.(url, Date.now() - startTime);
-      return url;
-    })
-    .catch((err) => {
-      hooks?.onFailed?.(err, Date.now() - startTime);
-      throw err;
-    });
+export function uploadAvatar(tempPath: string, hooks?: UploadUrlHooks): Promise<string> {
+  return uploadFileWithCheck(tempPath, "avatar", hooks);
 }

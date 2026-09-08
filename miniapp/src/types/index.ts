@@ -212,6 +212,24 @@ export interface AnalysisInitRequest {
   mode: "single" | "full"
 }
 
+/** 137 启动分析请求：凭已上传视频的 file_id（秒传命中或 /upload/video 返回） */
+export interface AnalysisStartRequest {
+  file_id: number
+  date: string
+  kind: AnalysisKind
+  mode: "single" | "full"
+  hit_time?: number
+  cuts?: { start: number; end: number }[]
+}
+
+/** 137 启动分析响应 */
+export interface AnalysisStartResult {
+  id: number
+  status: string
+  pipeline_status?: Record<string, unknown> | null
+  file_id: number
+}
+
 /** 创建分析入参 — 后台 AnalysisCreate */
 export interface AnalysisCreate {
   date: string

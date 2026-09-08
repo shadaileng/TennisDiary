@@ -5,6 +5,17 @@
       <text>加载中…</text>
     </view>
 
+    <view v-else-if="isProcessing" class="processing-block">
+      <view class="proc-spinner" />
+      <text class="proc-title">AI 分析进行中</text>
+      <text class="proc-pct">{{ pipelinePercent }}%</text>
+      <view class="proc-track">
+        <view class="proc-bar" :style="{ width: pipelinePercent + '%' }" />
+      </view>
+      <text class="proc-step">{{ pipelineStepText }}</text>
+      <text class="proc-tip">分析约需 30~60 秒，可先返回列表，稍后回来查看报告</text>
+    </view>
+
     <view v-else class="report-body">
       <!-- 失败状态提示 -->
       <view v-if="analysis.status === 'failed'" class="failed-banner">
@@ -131,12 +142,13 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { onLoad } from "@dcloudio/uni-app";
+import { onLoad, onUnload } from "@dcloudio/uni-app";
 
 import RadarChart from "@/components/RadarChart.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useSettingsStore } from "@/stores";
 import { deleteAnalysis, getAnalysis } from "@/services/data";
+import { createStatusSubscriber, stepLabel, type AnalysisStatus } from "@/services/analysisStatus";
 import type { Analysis } from "@/types";
 import { resolveUploadUrl, safeNavigateBack } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
@@ -146,6 +158,58 @@ const { themeStyle, themeBg } = useThemeStyle();
 const settingsStore = useSettingsStore();
 const report = computed(() => analysis.value?.report);
 const pose = computed(() => analysis.value?.pose);
+
+// ============ 进行中：订阅管线进度（避免退出再进入时看到空报告误以为失败） ============
+const isProcessing = computed(() => analysis.value?.status === "processing");
+const pipelinePercent = ref(0);
+const pipelineStepText = ref("准备中…");
+let statusSubscriber: { start: () => void; stop: () => void } | null = null;
+
+function stopStatusSubscriber() {
+  if (statusSubscriber) {
+    statusSubscriber.stop();
+    statusSubscriber = null;
+  }
+}
+
+/** 订阅状态：完成后重新拉取完整报告，失败则展示失败提示 */
+function subscribeStatus(id: number) {
+  stopStatusSubscriber();
+  statusSubscriber = createStatusSubscriber(id, (status: AnalysisStatus) => {
+    if (status.pipeline_status) {
+      pipelinePercent.value = Math.min(Math.max(Math.round(status.pipeline_status.progress || 0), 0), 100);
+      pipelineStepText.value = stepLabel(status.pipeline_status.step);
+    }
+
+    if (status.status === "completed") {
+      stopStatusSubscriber();
+      reloadAnalysis(id);
+      return;
+    }
+
+    if (status.status === "failed") {
+      stopStatusSubscriber();
+      if (analysis.value) {
+        analysis.value = {
+          ...analysis.value,
+          status: "failed",
+          summary: status.pipeline_status?.error || "分析失败，请重新上传视频",
+        };
+      }
+    }
+  });
+  statusSubscriber.start();
+}
+
+async function reloadAnalysis(id: number) {
+  try {
+    analysis.value = await getAnalysis(id);
+  } catch (e) {
+    logError("分析报告刷新失败", { analysis_id: id, error: (e as Error).message }, undefined, "report_reload_failed");
+  }
+}
+
+onUnload(() => stopStatusSubscriber());
 
 /** 封面：优先骨架标注帧（相对 media URL），兼容旧 base64 封面 */
 const coverSrc = computed(() => resolveUploadUrl(analysis.value?.thumb || ""));
@@ -182,6 +246,11 @@ onLoad(async (query) => {
   try {
     analysis.value = await getAnalysis(id);
     logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, undefined, "report_loaded", traceId);
+    // 进行中：订阅管线进度，完成后自动刷新为完整报告
+    if (analysis.value?.status === "processing") {
+      logInfo("分析进行中，订阅进度", { trace_id: traceId, analysis_id: id }, undefined, "report_subscribe_start", traceId);
+      subscribeStatus(id);
+    }
   } catch (e) {
     logError("分析报告加载失败", { trace_id: traceId, analysis_id: id, error: (e as Error).message }, undefined, "report_load_failed", undefined, traceId);
     uni.showToast({ title: "报告加载失败", icon: "none" });
@@ -228,6 +297,83 @@ function confirmRemove() {
   min-height: 60vh;
   font-size: 13px;
   color: $color-olive-light;
+}
+
+// ========== 进行中进度 ==========
+.processing-block {
+  min-height: 60vh;
+  margin: $space-lg;
+  padding: $space-xl $space-lg;
+  background-color: var(--color-card, #FFFFFF);
+  border-radius: $radius-card;
+  box-shadow: $shadow-card-md;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $space-sm;
+}
+
+.proc-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--color-accent-soft, $color-lime-soft);
+  border-top-color: var(--color-accent-dark, $color-lime-dark);
+  border-radius: 50%;
+  animation: proc-spin 0.8s linear infinite;
+}
+
+.proc-title {
+  font-size: $font-size-base;
+  font-weight: 600;
+  color: $color-ink;
+}
+
+.proc-pct {
+  font-size: 30px;
+  font-weight: 700;
+  color: $color-ink;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.proc-track {
+  width: 100%;
+  max-width: 220px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: var(--color-page-bg, #F2F2EF);
+  overflow: hidden;
+}
+
+.proc-bar {
+  height: 100%;
+  border-radius: 9999px;
+  background-color: var(--color-accent, #C8DA2B);
+  transition: width 0.3s ease;
+}
+
+.proc-step {
+  display: block;
+  font-size: $font-size-sm;
+  color: $color-olive;
+}
+
+.proc-tip {
+  display: block;
+  margin-top: $space-sm;
+  font-size: 12px;
+  color: $color-olive-light;
+  text-align: center;
+}
+
+@keyframes proc-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .report-body {

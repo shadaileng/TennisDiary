@@ -28,6 +28,8 @@ export interface UploadOptions {
   timeout?: number;
   /** 进度回调 */
   onProgress?: (p: { percent: number; transferred: number; total: number }) => void;
+  /** 任务句柄回调（供调用方 abort，如「取消上传」） */
+  onTask?: (task: UniApp.UploadTask) => void;
 }
 
 /** 图片类上传结果 */
@@ -43,30 +45,81 @@ export interface UploadHooks<T = any> {
   onMirage?: (result: T, durationMs: number) => void;
 }
 
+/** 以 URL 为交付物的钩子（头像/装备图/视频秒传埋点用） */
+export type UploadUrlHooks = {
+  onSuccess?: (url: string, durationMs: number) => void;
+  onFailed?: (error: Error, durationMs: number) => void;
+  onMirage?: (url: string, durationMs: number) => void;
+};
+
 // ==================== 工具函数 ====================
 
 function getToken(): string {
   return (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
 }
 
+/** 指纹计算超时（毫秒）：低端机大文件可能很慢，超时静默退回整体上传 */
+const FINGERPRINT_TIMEOUT_MS = 10000;
+/** 超过该体积不做指纹计算（200MB） */
+export const FINGERPRINT_MAX_SIZE = 200 * 1024 * 1024;
+
+/** 文件指纹：一次 getFileInfo 同时取 MD5 与大小 */
+export interface FileFingerprint {
+  md5: string;
+  size: number;
+  durationMs: number;
+}
+
 /**
- * 计算文件 MD5
+ * 计算文件指纹（MD5 + 大小）
  *
- * @param filePath 本地文件路径（uni.chooseMedia 返回的临时路径）
- * @returns MD5 十六进制字符串
+ * 一次 `getFileInfo({digestAlgorithm:'md5'})` 同时拿到 digest 与 size，
+ * 避免两次读文件；带超时兜底，超时后由调用方静默退回整体上传。
  */
-function computeFileMD5(filePath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const fs = uni.getFileSystemManager();
-    fs.getFileInfo({
+export function getFileFingerprint(
+  filePath: string,
+  timeoutMs: number = FINGERPRINT_TIMEOUT_MS,
+): Promise<FileFingerprint> {
+  const startedAt = Date.now();
+  return new Promise<FileFingerprint>((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("文件指纹计算超时"));
+    }, timeoutMs);
+
+    uni.getFileSystemManager().getFileInfo({
       filePath,
       digestAlgorithm: "md5",
-      success(res) {
-        resolve(res.digest as string);
+      success: (res: any) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({
+          md5: (res?.digest as string) || "",
+          size: Number(res?.size) || 0,
+          durationMs: Date.now() - startedAt,
+        });
       },
-      fail: reject,
+      fail: (err: any) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(new Error(err?.errMsg || "文件信息读取失败"));
+      },
     });
   });
+}
+
+/**
+ * 按文件大小推导上传超时（毫秒）：每 MB 约 3s，夹在 120s ~ 300s 之间。
+ * 大视频弱网下 60s 默认超时必失败，这里按体积自适应。
+ */
+export function resolveUploadTimeout(sizeBytes: number): number {
+  const sizeMb = (Number(sizeBytes) || 0) / (1024 * 1024);
+  const raw = Math.round(sizeMb * 3000);
+  return Math.min(Math.max(raw, 120000), 300000);
 }
 
 /** 解析上传失败响应 detail */
@@ -96,6 +149,7 @@ export function uploadRaw<T = any>(options: UploadOptions & UploadHooks<T>): Pro
     onSuccess,
     onFailed,
     onMirage,
+    onTask,
   } = options;
 
   const startTime = Date.now();
@@ -148,6 +202,7 @@ export function uploadRaw<T = any>(options: UploadOptions & UploadHooks<T>): Pro
         reject(error);
       },
     });
+    onTask?.(task);
     if (onProgress) {
       task.onProgressUpdate((r) =>
         onProgress({
@@ -178,6 +233,8 @@ export interface CheckResult {
   hit: boolean;
   safe?: boolean;
   url?: string;
+  /** 命中记录的 file_id（137：秒传与正常上传统一交付 file_id） */
+  file_id?: number;
 }
 
 /**
@@ -185,9 +242,14 @@ export interface CheckResult {
  *
  * @param md5Val 文件 MD5
  * @param sizeBytes 文件大小（字节）
+ * @param category 可选来源隔离（video / gear_image / avatar），不传行为不变
  * @returns CheckResult
  */
-export async function checkFile(md5Val: string, sizeBytes: number): Promise<CheckResult> {
+export async function checkFile(
+  md5Val: string,
+  sizeBytes: number,
+  category?: string,
+): Promise<CheckResult> {
   const res = await new Promise<CheckResult>((resolve, reject) => {
     uni.request({
       url: `${BASE_URL}${API_PREFIX}/upload/check`,
@@ -199,6 +261,7 @@ export async function checkFile(md5Val: string, sizeBytes: number): Promise<Chec
       data: {
         md5: md5Val,
         size_bytes: sizeBytes,
+        ...(category ? { category } : {}),
       },
       success: (r) => {
         if (r.statusCode < 200 || r.statusCode >= 300) {
@@ -219,55 +282,76 @@ export async function checkFile(md5Val: string, sizeBytes: number): Promise<Chec
   return res;
 }
 
+const UNSAFE_IMAGE_MSG = "图片内容可能包含违规信息，请检查后重试";
+
+/** 上传类型 → 后端 upload_source（预检按来源隔离，避免跨分类误命中） */
+const CATEGORY_BY_TYPE: Record<"gear-image" | "avatar", string> = {
+  "gear-image": "gear_image",
+  avatar: "avatar",
+};
+
 /**
  * 两步上传：先预检 MD5，命中则零流量返回 URL，未命中则正常上传。
  *
  * @param filePath 本地文件路径
  * @param type 上传类型（gear-image / avatar）
+ * @param hooks 可选事件钩子（命中秒传时触发 onMirage）
  * @returns URL 字符串
  * @throws 图片内容可能包含违规信息，请检查后重试
  */
 export async function uploadFileWithCheck(
   filePath: string,
   type: "gear-image" | "avatar",
+  hooks?: UploadUrlHooks,
 ): Promise<string> {
-  // Step 1: 并行计算 MD5 + 获取文件大小
-  const [fileMd5, fileSize] = await Promise.all([
-    computeFileMD5(filePath),
-    new Promise<number>((resolve, reject) => {
-      uni.getFileSystemManager().getFileInfo({
-        filePath,
-        success: (info) => resolve(info.size),
-        fail: reject,
-      });
-    }),
-  ]);
+  const startTime = Date.now();
 
-  // Step 2: 预检
+  // Step 1: 一次 getFileInfo 取 MD5 + size（超时/失败静默退回上传）
+  let fileMd5 = "";
+  let fileSize = 0;
   try {
-    const checkResult = await checkFile(fileMd5, fileSize);
+    const fp = await getFileFingerprint(filePath);
+    fileMd5 = fp.md5;
+    fileSize = fp.size;
+  } catch {
+    // 指纹不可用时不影响正确性，仅失去秒传机会
+  }
 
-    if (checkResult.hit && checkResult.safe && checkResult.url) {
-      // 命中 + 安全通过，直接返回 URL
-      return checkResult.url;
-    }
+  // Step 2: 预检（按来源隔离）
+  if (fileMd5) {
+    try {
+      const checkResult = await checkFile(fileMd5, fileSize, CATEGORY_BY_TYPE[type]);
 
-    if (checkResult.hit && !checkResult.safe) {
-      // 命中 + 安全不通过，抛出错误让上层处理
-      throw new Error("图片内容可能包含违规信息，请检查后重试");
+      if (checkResult.hit && checkResult.safe && checkResult.url) {
+        hooks?.onMirage?.(checkResult.url, Date.now() - startTime);
+        return checkResult.url;
+      }
+
+      if (checkResult.hit && !checkResult.safe) {
+        const err = new Error(UNSAFE_IMAGE_MSG);
+        hooks?.onFailed?.(err, Date.now() - startTime);
+        throw err;
+      }
+    } catch (err) {
+      // 安全检查不通过，直接向上抛出
+      if ((err as Error).message === UNSAFE_IMAGE_MSG) {
+        throw err;
+      }
+      // 其他错误静默忽略，继续上传
     }
-  } catch (err) {
-    // 安全检查不通过，直接向上抛出
-    if ((err as Error).message === "图片内容可能包含违规信息，请检查后重试") {
-      throw err;
-    }
-    // 其他错误静默忽略，继续上传
   }
 
   // Step 3: 未命中，正常上传
   const result = await uploadFile({
     path: `/upload/${type}`,
     filePath,
+    onSuccess: hooks?.onSuccess
+      ? (res) => hooks.onSuccess?.((res.url as string) || "", Date.now() - startTime)
+      : undefined,
+    onMirage: hooks?.onMirage
+      ? (res) => hooks.onMirage?.((res.url as string) || "", Date.now() - startTime)
+      : undefined,
+    onFailed: hooks?.onFailed,
   });
   return result.url;
 }

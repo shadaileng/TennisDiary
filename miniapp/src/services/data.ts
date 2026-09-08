@@ -3,6 +3,8 @@ import { del, get, post, put } from "./request";
 import type {
   Analysis,
   AnalysisCreate,
+  AnalysisStartRequest,
+  AnalysisStartResult,
   CaptionResult,
   Diary,
   DiaryCreate,
@@ -118,6 +120,16 @@ export function generateCaption(template: string, style: string, text: string): 
 /** 落库分析报告（AI 分析成功后调用，供历史回看；118 后仍保留兼容旧链路） */
 export function createAnalysis(body: AnalysisCreate): Promise<Analysis> {
   return post<Analysis>("/analyses", body);
+}
+
+/**
+ * 启动分析（137：JSON 入参，凭 file_id 消费已上传视频）
+ *
+ * file_id 来自 /upload/check（秒传命中）或 /upload/video（实际上传），
+ * 命中与未命中后续流程完全一致。
+ */
+export function startAnalysis(body: AnalysisStartRequest): Promise<AnalysisStartResult> {
+  return post<AnalysisStartResult>("/analyses/start", body);
 }
 
 /** 当前用户历史分析报告列表 */

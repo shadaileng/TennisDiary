@@ -8,7 +8,7 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
-import { uploadFile, uploadFileWithCheck, uploadRaw } from "@/utils/upload";
+import { uploadFileWithCheck, uploadRaw, type UploadUrlHooks } from "@/utils/upload";
 
 import type { CostItem } from "@/types";
 
@@ -142,21 +142,10 @@ export function resolveUploadUrl(url: string): string {
 /**
  * 上传装备封面图片到服务器，返回相对路径。
  * 内部使用 uploadFileWithCheck 统一上传工具，先预检 MD5 再按需上传。
+ * hooks 全量透传（含秒传命中 onMirage），命中/上传/失败各触发一次。
  */
-export function uploadGearImage(
-  filePath: string,
-  hooks?: { onSuccess?: (url: string, durationMs: number) => void; onFailed?: (error: Error, durationMs: number) => void; onMirage?: (url: string, durationMs: number) => void },
-): Promise<string> {
-  const startTime = Date.now();
-  return uploadFileWithCheck(filePath, "gear-image")
-    .then((url) => {
-      hooks?.onSuccess?.(url, Date.now() - startTime);
-      return url;
-    })
-    .catch((err) => {
-      hooks?.onFailed?.(err, Date.now() - startTime);
-      throw err;
-    });
+export function uploadGearImage(filePath: string, hooks?: UploadUrlHooks): Promise<string> {
+  return uploadFileWithCheck(filePath, "gear-image", hooks);
 }
 
 /**

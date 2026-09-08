@@ -49,6 +49,7 @@
           <video
             id="swingVideo"
             class="video-el"
+            :class="{ 'video-el--hidden': analyzing }"
             :src="videoPath"
             controls
             @loadedmetadata="onVideoMeta"
@@ -177,7 +178,23 @@
         <text v-if="analyzing">分析中，请稍候…</text>
         <text v-else>开始分析</text>
       </view>
-      <text v-if="analyzing" class="analyze-progress">{{ progress }}</text>
+    </view>
+
+    <!-- ④ 全屏模态进度（上传/分析期间居中显示，阻断误操作） -->
+    <view v-if="analyzing" class="progress-mask" @touchmove.stop.prevent @tap.stop>
+      <view class="progress-card">
+        <view class="progress-spinner" />
+        <text class="progress-title">{{ progressTitle }}</text>
+        <text class="progress-pct">{{ displayPercent }}%</text>
+        <view class="progress-track">
+          <view class="progress-bar" :style="{ width: displayPercent + '%' }" />
+        </view>
+        <text class="progress-desc">{{ progress }}</text>
+        <view v-if="analysisStage === 'upload'" class="progress-cancel press-btn" @tap="cancelUpload">
+          <text>{{ canceling ? "取消中…" : "取消上传" }}</text>
+        </view>
+        <text v-else class="progress-tip">分析约需 30~60 秒，请勿退出页面</text>
+      </view>
     </view>
   </view>
 </template>
@@ -187,12 +204,20 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { createStatusSubscriber, type AnalysisStatus } from "@/services/analysisStatus";
+import { createStatusSubscriber, stepLabel, type AnalysisStatus } from "@/services/analysisStatus";
+import { startAnalysis } from "@/services/data";
 import type { AnalysisKind } from "@/types";
 import { ANALYSIS_KINDS, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isUserCancel, isRuntimePermissionDenied, isPrivacyScopeError } from "@/utils/privacy";
-import { uploadRaw } from "@/utils/upload";
+import {
+  checkFile,
+  getFileFingerprint,
+  resolveUploadTimeout,
+  uploadRaw,
+  FINGERPRINT_MAX_SIZE,
+  type FileFingerprint,
+} from "@/utils/upload";
 
 const { themeStyle, themeBg } = useThemeStyle();
 
@@ -220,6 +245,15 @@ const videoPath = ref("");
 const videoDuration = ref(0);
 const analyzing = ref(false);
 const progress = ref("");
+/** 上传进度百分比（137 加固：上传期间给用户明确反馈） */
+const uploadPercent = ref(0);
+/** 当前阶段：upload=取文件/上传，analyze=后台管线分析（驱动模态进度展示） */
+const analysisStage = ref<"" | "upload" | "analyze">("");
+/** 上传已传/总字节数（模态副文本展示） */
+const uploadSent = ref(0);
+const uploadTotal = ref(0);
+/** 已选视频的文件指纹（选后异步预计算，供秒传预检使用） */
+const videoFingerprint = ref<FileFingerprint | null>(null);
 const hitTime = ref(0);
 const warnMsg = ref("");
 const videoReady = ref(false);
@@ -315,6 +349,70 @@ let statusSubscriber: { start: () => void; stop: () => void } | null = null;
 const pipelineStep = ref("");
 const pipelineProgress = ref(0);
 
+// ============ 模态进度（上传/分析） ============
+/** 上传任务句柄：供「取消上传」中断 */
+let uploadTask: UniApp.UploadTask | null = null;
+/** 是否由用户主动取消（取消后不再弹失败提示） */
+let uploadCanceled = false;
+/** 取消中（预检阶段无任务可 abort，等待流程到达检查点） */
+const canceling = ref(false);
+/** 当前链路 trace_id，供取消埋点串联 */
+let currentTraceId = "";
+
+/** 模态百分比：上传取上传进度，分析取管线进度 */
+const displayPercent = computed(() => {
+  const raw = analysisStage.value === "upload" ? uploadPercent.value : pipelineProgress.value;
+  return Math.min(Math.max(Math.round(Number(raw) || 0), 0), 100);
+});
+
+const progressTitle = computed(() =>
+  analysisStage.value === "upload" ? "正在上传视频" : "AI 分析进行中",
+);
+
+function fmtSize(bytes: number): string {
+  const mb = (Number(bytes) || 0) / 1024 / 1024;
+  return `${mb.toFixed(1)}MB`;
+}
+
+/** 收尾：关闭模态并清空进度状态 */
+function resetProgressState() {
+  analyzing.value = false;
+  analysisStage.value = "";
+  uploadTask = null;
+  canceling.value = false;
+  uploadSent.value = 0;
+  uploadTotal.value = 0;
+  progress.value = "";
+  uploadPercent.value = 0;
+  stopStatusSubscriber();
+}
+
+/** 取消当前上传（分析阶段不提供取消，避免产生孤儿分析记录） */
+function cancelUpload() {
+  if (uploadCanceled) return;
+  const task = uploadTask;
+  uploadCanceled = true;
+
+  // 指纹/秒传预检阶段尚无上传任务：标记取消，流程在下一个检查点中断
+  if (!task) {
+    canceling.value = true;
+    logInfo("取消分析（预检阶段）", { trace_id: currentTraceId }, undefined, "video_upload_canceled", currentTraceId);
+    uni.showToast({ title: "正在取消…", icon: "none" });
+    return;
+  }
+
+  uploadTask = null;
+  logInfo("取消视频上传", { trace_id: currentTraceId }, undefined, "video_upload_canceled", currentTraceId);
+  task.abort();
+  uni.showToast({ title: "已取消上传", icon: "none" });
+  // 兜底：个别基础库 abort 不回调，避免模态卡死
+  setTimeout(() => {
+    if (!uploadCanceled || !analyzing.value) return;
+    resetProgressState();
+    uploadCanceled = false;
+  }, 1500);
+}
+
 /** 停止状态订阅 */
 function stopStatusSubscriber() {
   if (statusSubscriber) {
@@ -375,12 +473,16 @@ function chooseVideo() {
       videoPath.value = file.tempFilePath;
       videoDuration.value = dur;
       hitTime.value = 0;
+      videoFingerprint.value = null;
       resetSegments();
       playhead.value = 0;
       pps.value = TRACK_PPS;
       zoomInitialized = false;
       measureBar();
       logInfo("视频选择成功", { trace_id: traceId, duration: dur }, undefined, "choose_video_success", traceId);
+
+      // 异步预计算指纹（与剪辑/设置击球点并行，不在关键路径）
+      precomputeFingerprint(file.tempFilePath, Number(file.size) || 0, traceId);
     },
     fail: (err) => {
       if (finished) return;
@@ -403,6 +505,35 @@ function chooseVideo() {
       finished = true;
     },
   });
+}
+
+/**
+ * 选择视频后异步预计算指纹（MD5 + size）
+ *
+ * 超大文件直接跳过（计算耗时不可接受）；失败静默，仅失去秒传机会，
+ * 点击分析时会再兜底算一次。
+ */
+function precomputeFingerprint(path: string, size: number, traceId: string) {
+  if (size && size > FINGERPRINT_MAX_SIZE) {
+    logInfo("视频过大跳过指纹预计算", { trace_id: traceId, size }, undefined, "video_fingerprint_skipped", traceId);
+    return;
+  }
+  void getFileFingerprint(path)
+    .then((fp) => {
+      // 期间用户可能换了视频，按路径校验后写入
+      if (videoPath.value !== path) return;
+      videoFingerprint.value = fp;
+      logInfo(
+        "视频指纹预计算完成",
+        { trace_id: traceId, size: fp.size, duration_ms: fp.durationMs },
+        undefined,
+        "video_fingerprint_ready",
+        traceId,
+      );
+    })
+    .catch(() => {
+      logInfo("视频指纹预计算失败，退回整体上传", { trace_id: traceId }, undefined, "video_fingerprint_failed", traceId);
+    });
 }
 
 function onVideoMeta(e: any) {
@@ -681,13 +812,139 @@ function clearHitTime() {
 
 // ============ 开始分析 ============
 
+/** 弱网/离线提示（上传前一次性提醒，不阻断流程） */
+function warnWeakNetwork(traceId: string): Promise<void> {
+  return new Promise((resolve) => {
+    uni.getNetworkType({
+      success: (res: any) => {
+        const type = (res?.networkType as string) || "";
+        if (type === "none") {
+          logError("上传前检测到无网络", { trace_id: traceId }, undefined, "video_upload_offline", undefined, traceId);
+          uni.showToast({ title: "当前无网络，请检查后重试", icon: "none" });
+        } else if (type === "2g" || type === "3g") {
+          logInfo("上传前检测到弱网", { trace_id: traceId, network_type: type }, undefined, "video_upload_weak_network", traceId);
+          uni.showToast({ title: "当前网络较慢，上传可能需要较长时间", icon: "none" });
+        }
+        resolve();
+      },
+      fail: () => resolve(),
+    });
+  });
+}
+
 /**
- * 统一分析端点模式（119）
- * 前端仅上传视频，后端异步执行完整管线，通过轮询/SSE获取进度
+ * 解析出可用于启动分析的 file_id（137 两步秒传）
+ *
+ * 1）优先按 MD5 预检（命中 → 零流量，秒传成功）
+ * 2）未命中 → 整体上传 /upload/video（超时按体积自适应）
+ * 3）预检失败/指纹不可用 → 静默退回上传，流程不中断
+ */
+async function resolveVideoFileId(traceId: string): Promise<number> {
+  const path = videoPath.value;
+
+  // 1. 指纹（优先复用选视频后的预计算结果）
+  let fp = videoFingerprint.value;
+  if (!fp) {
+    try {
+      fp = await getFileFingerprint(path);
+      videoFingerprint.value = fp;
+    } catch {
+      logInfo("指纹计算失败，直接上传", { trace_id: traceId }, undefined, "video_fingerprint_failed", traceId);
+    }
+  }
+
+  // 2. 秒传预检（按 video 来源隔离）
+  if (fp?.md5) {
+    try {
+      const check = await checkFile(fp.md5, fp.size, "video");
+      if (check.hit && check.safe && check.file_id) {
+        logInfo(
+          "视频秒传命中",
+          { trace_id: traceId, file_id: check.file_id, size: fp.size },
+          undefined,
+          "video_upload_mirage",
+          traceId,
+        );
+        return check.file_id;
+      }
+      logInfo("视频预检未命中", { trace_id: traceId, hit: check.hit }, undefined, "video_check_miss", traceId);
+    } catch {
+      logInfo("视频预检失败，退回上传", { trace_id: traceId }, undefined, "video_check_failed", traceId);
+    }
+  }
+
+  // 3. 整体上传
+  await warnWeakNetwork(traceId);
+  uploadPercent.value = 0;
+  const res = await uploadRaw<{ file_id?: number; mirage?: boolean }>({
+    path: "/upload/video",
+    filePath: path,
+    fieldName: "file",
+    timeout: resolveUploadTimeout(fp?.size || 0),
+    onTask: (task) => {
+      uploadTask = task;
+      // 预检阶段已点取消：上传任务一创建立即中断，避免白耗流量
+      if (uploadCanceled) {
+        uploadTask = null;
+        task.abort();
+      }
+    },
+    onProgress: (p) => {
+      uploadPercent.value = Math.min(Math.round(p.percent || 0), 100);
+      uploadSent.value = Number(p.transferred) || 0;
+      uploadTotal.value = Number(p.total) || 0;
+      progress.value = `已传 ${fmtSize(uploadSent.value)} / ${fmtSize(uploadTotal.value)}`;
+    },
+    onSuccess: (_result, durationMs) => {
+      uploadTask = null;
+      uploadPercent.value = 100;
+      logInfo(
+        "视频上传成功",
+        { trace_id: traceId, duration_ms: durationMs, size: fp?.size || 0 },
+        undefined,
+        "video_upload_success",
+        traceId,
+      );
+    },
+    onMirage: (_result, durationMs) => {
+      uploadTask = null;
+      uploadPercent.value = 100;
+      logInfo(
+        "视频上传命中秒传",
+        { trace_id: traceId, duration_ms: durationMs },
+        undefined,
+        "video_upload_mirage",
+        traceId,
+      );
+    },
+    onFailed: (error, durationMs) => {
+      logError(
+        "视频上传失败",
+        { trace_id: traceId, duration_ms: durationMs, error: error.message, size: fp?.size || 0 },
+        undefined,
+        "video_upload_failed",
+        undefined,
+        traceId,
+      );
+    },
+  });
+
+  const fileId = Number(res.file_id) || 0;
+  if (!fileId) {
+    throw new Error("视频上传失败，请重试");
+  }
+  uploadPercent.value = 100;
+  return fileId;
+}
+
+/**
+ * 统一分析端点模式（119 + 137）
+ * 前端先解析 file_id（秒传预检/整体上传），再凭 file_id 启动后台管线
  */
 async function startAnalysisUnified() {
   if (analyzing.value || !videoPath.value) return;
   const traceId = createTraceId();
+  currentTraceId = traceId;
   const t0 = Date.now();
 
   const dur = videoDuration.value;
@@ -703,6 +960,12 @@ async function startAnalysisUnified() {
   }
 
   analyzing.value = true;
+  analysisStage.value = "upload";
+  uploadCanceled = false;
+  canceling.value = false;
+  // 视频为原生组件（层级最高），进入模态前暂停并隐藏，避免遮挡进度弹层
+  videoCtx?.pause();
+  isPlaying.value = false;
   let analysisId = 0;
   try {
     // 0. 检查视频文件是否存在
@@ -726,39 +989,35 @@ async function startAnalysisUnified() {
       segment_count: segments.value.length,
     }, undefined, "analysis_started", traceId);
 
-    // === 步骤1: 上传视频并启动后台分析管线 ===
-    progress.value = "上传视频并启动分析…";
+    // === 步骤1: 解析 file_id（秒传预检 / 整体上传） ===
+    progress.value = "准备上传…";
     logInfo("统一分析开始", { trace_id: traceId }, undefined, "unified_analysis_start", traceId);
     const tStart = Date.now();
 
-    // 构建 FormData
-    const formData: Record<string, string> = {
+    const fileId = await resolveVideoFileId(traceId);
+    // 取消检查点：预检/上传阶段被取消则不再启动分析
+    if (uploadCanceled) throw new Error("已取消上传");
+
+    // === 步骤2: 凭 file_id 启动后台分析管线 ===
+    analysisStage.value = "analyze";
+    progress.value = "启动分析…";
+    const startRes = await startAnalysis({
+      file_id: fileId,
       date: todayStr(),
       kind: kind.value,
       mode: mode.value,
-      hit_time: mode.value === "single" && hitTime.value > 0 ? String(hitTime.value.toFixed(2)) : "0",
-    };
-
-    if (trimmed.value) {
-      formData.cuts = JSON.stringify(
-        segments.value.map((s) => ({ start: round2(s.start), end: round2(s.end) })),
-      );
-    }
-
-    // 上传文件并启动分析（走统一 uploadRaw 封装，内部处理 token/URL/响应解析/错误）
-    const uploadRes = await uploadRaw<any>({
-      path: "/analyses/start",
-      filePath: videoPath.value,
-      fieldName: "file",
-      formData,
+      hit_time: mode.value === "single" && hitTime.value > 0 ? Number(hitTime.value.toFixed(2)) : 0,
+      cuts: trimmed.value
+        ? segments.value.map((s) => ({ start: round2(s.start), end: round2(s.end) }))
+        : undefined,
     });
 
-    analysisId = uploadRes.id;
+    analysisId = startRes.id;
     logInfo("统一分析已启动", {
-      trace_id: traceId, duration_ms: Date.now() - tStart, analysis_id: analysisId,
+      trace_id: traceId, duration_ms: Date.now() - tStart, analysis_id: analysisId, file_id: fileId,
     }, undefined, "unified_analysis_launched", traceId);
 
-    // === 步骤2: 订阅状态更新 ===
+    // === 步骤3: 订阅状态更新 ===
     progress.value = "分析中，请稍候…";
     logInfo("状态订阅开始", { trace_id: traceId, analysis_id: analysisId }, undefined, "status_subscribe_start", traceId);
 
@@ -769,15 +1028,7 @@ async function startAnalysisUnified() {
           pipelineStep.value = status.pipeline_status.step;
           pipelineProgress.value = status.pipeline_status.progress;
 
-          // 更新进度文字
-          const stepLabels: Record<string, string> = {
-            init: "初始化…",
-            upload: "处理视频…",
-            ai: "AI评分中…",
-            pose: "姿态分析中…",
-            finalize: "保存结果…",
-          };
-          progress.value = stepLabels[status.pipeline_status.step] || "分析中…";
+          progress.value = stepLabel(status.pipeline_status.step);
         }
 
         // 完成时跳转报告页
@@ -806,16 +1057,22 @@ async function startAnalysisUnified() {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "分析失败，请重试";
+    // 用户主动取消：已单独提示，不再弹失败文案
+    if (uploadCanceled) return;
     logError("统一分析失败", {
       trace_id: traceId, error: msg,
       mode: mode.value, kind: kind.value,
       total_duration_ms: Date.now() - t0,
     }, undefined, "analysis_failed", undefined, traceId);
+    // 文件失效（file_id 指向的物理文件已不在）：清掉指纹，重试时会重新上传
+    if (msg.includes("失效") || msg.includes("不存在")) {
+      videoFingerprint.value = null;
+    }
+    // 保留 videoPath：用户可直接点「开始分析」重试
     uni.showToast({ title: msg, icon: "none" });
   } finally {
-    analyzing.value = false;
-    progress.value = "";
-    stopStatusSubscriber();
+    uploadCanceled = false;
+    resetProgressState();
   }
 }
 
@@ -956,6 +1213,11 @@ function fmtTime(s: number): string {
   width: 100%;
   border-radius: $radius-card;
   background-color: $color-olive;
+
+  // 模态进度期间隐藏：video 是原生组件层级最高，会盖住遮罩
+  &--hidden {
+    display: none;
+  }
 }
 
 .hit-row {
@@ -1333,11 +1595,99 @@ function fmtTime(s: number): string {
   }
 }
 
-.analyze-progress {
+// ========== 模态进度遮罩 ==========
+.progress-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: $space-xl;
+  background-color: rgba(0, 0, 0, 0.55);
+}
+
+.progress-card {
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $space-sm;
+  padding: $space-xl $space-lg;
+  background-color: $color-white;
+  border-radius: $radius-card;
+  box-shadow: $shadow-card-md;
+}
+
+.progress-spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid var(--color-accent-soft, $color-lime-soft);
+  border-top-color: var(--color-accent-dark, $color-lime-dark);
+  border-radius: 50%;
+  animation: progress-spin 0.8s linear infinite;
+}
+
+.progress-title {
+  font-size: $font-size-base;
+  font-weight: 600;
+  color: $color-ink;
+}
+
+.progress-pct {
+  font-size: 30px;
+  font-weight: 700;
+  color: $color-ink;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: var(--color-accent-soft, $color-lime-soft);
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 9999px;
+  background-color: var(--color-accent, #C8DA2B);
+  transition: width 0.3s ease;
+}
+
+.progress-desc {
   display: block;
+  font-size: $font-size-sm;
+  color: $color-olive-light;
   text-align: center;
+}
+
+.progress-tip {
+  display: block;
+  margin-top: $space-xs;
   font-size: 12px;
   color: $color-olive-light;
+  text-align: center;
+}
+
+.progress-cancel {
   margin-top: $space-sm;
+  padding: 8px 24px;
+  border-radius: 9999px;
+  background-color: var(--color-page-bg, #F2F2EF);
+  font-size: $font-size-sm;
+  color: $color-olive-light;
+}
+
+@keyframes progress-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

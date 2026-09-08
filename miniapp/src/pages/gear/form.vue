@@ -217,7 +217,24 @@ async function onPickPhoto() {
           fail: () => resolve(tempPath), // 压缩失败用原图
         });
       });
-      const url = await uploadGearImage(compressed);
+      const url = await uploadGearImage(compressed, {
+        onMirage: (_u, durationMs) =>
+          logInfo(
+            "装备封面秒传命中",
+            { trace_id: traceId, duration_ms: durationMs },
+            undefined,
+            "gear_photo_mirage",
+            traceId,
+          ),
+        onSuccess: (_u, durationMs) =>
+          logInfo(
+            "装备封面上传成功",
+            { trace_id: traceId, duration_ms: durationMs },
+            undefined,
+            "gear_photo_upload_success",
+            traceId,
+          ),
+      });
       if (url) {
         form.photo = url;
         logInfo("装备封面照片选择成功", { trace_id: traceId }, undefined, "gear_photo_selected", traceId);

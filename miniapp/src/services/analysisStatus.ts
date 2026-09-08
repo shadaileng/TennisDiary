@@ -43,6 +43,22 @@ function getToken(): string {
   return (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
 }
 
+// ==================== 步骤文案 ====================
+
+/** 管线步骤 → 中文文案（analyze 与 report 共用，避免两处各写一份） */
+const PIPELINE_STEP_LABELS: Record<string, string> = {
+  init: "初始化…",
+  upload: "处理视频…",
+  ai: "AI评分中…",
+  pose: "姿态分析中…",
+  finalize: "保存结果…",
+};
+
+/** 步骤文案（未知步骤统一回退「分析中…」） */
+export function stepLabel(step?: string | null): string {
+  return (step && PIPELINE_STEP_LABELS[step]) || "分析中…";
+}
+
 // ==================== 轮询模式 ====================
 
 /**
