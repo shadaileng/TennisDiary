@@ -93,7 +93,13 @@ def _force_fail(analysis_id: int, error: str, session_factory=None) -> None:
 
     db = session_factory()
     try:
-        db.execute(sa_update(Analysis).where(Analysis.id == analysis_id).values(status="failed"))
+        # 同步写 summary：前端报告页用 summary 展示失败原因
+        # （Analysis 响应不含 pipeline_status，只写 error 会导致重新进入时看不到原因）
+        db.execute(
+            sa_update(Analysis)
+            .where(Analysis.id == analysis_id)
+            .values(status="failed", summary=(error or "")[:120])
+        )
         db.commit()
         log.info("独立连接兜底置 failed 成功 analysis_id={} error={}", analysis_id, error)
     except Exception as exc:  # noqa: BLE001 - 兜底自身绝不允许抛出
@@ -269,7 +275,8 @@ class PipelineEngine:
             try:
                 self.db.rollback()
                 self._update_step_status(PipelineStep.FINALIZE, StepStatus.FAILED, error=str(e))
-                self._update_analysis_field(status="failed")
+                # 同步写 summary（截断），供报告页展示失败原因
+                self._update_analysis_field(status="failed", summary=str(e)[:120])
             except Exception as recover_exc:  # noqa: BLE001 - 兜底路径不二次抛出
                 log.error(
                     "管线失败态写入失败，启用独立连接兜底 analysis_id={} error={}",
@@ -561,7 +568,7 @@ class PipelineEngine:
             # 139：原实现仅 warn 后保留 processing 孤儿，导致前端无限轮询（§2.5 路径 B）。
             # 改为明确置 failed 并写入错误原因。
             log.error("分析记录 video_url 为空，置为 failed analysis_id={}", self.analysis_id)
-            self._update_analysis_field(status="failed")
+            self._update_analysis_field(status="failed", summary="播放短片缺失，分析未完成")
             self._update_step_status(
                 PipelineStep.FINALIZE,
                 StepStatus.FAILED,

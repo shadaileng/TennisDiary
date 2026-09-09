@@ -128,6 +128,8 @@ class TestFailFast:
 
         pipeline_status = json.loads(got.pipeline_status or "{}")
         assert pipeline_status["steps"][PipelineStep.FINALIZE.value]["status"] == "failed"
+        # 须写入可读的失败原因，供报告页展示
+        assert got.summary == "播放短片缺失，分析未完成"
 
     def test_degraded_item_is_recorded(self, test_db):
         """可降级项失败 → 管线仍完成，但写入 pipeline_status.degraded 打标

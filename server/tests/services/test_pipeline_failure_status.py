@@ -121,6 +121,10 @@ class TestPipelineFailureStatus:
         pipeline_status = json.loads(got.pipeline_status or "{}")
         assert pipeline_status.get("error")
 
+        # 失败原因须同步写入 summary：报告页展示依赖 summary
+        # （Analysis 响应不含 pipeline_status，只写 error 会导致重新进入时看不到原因）
+        assert got.summary
+
     def test_pipeline_sets_failed_even_when_session_broken(self, test_db, test_engine, monkeypatch):
         """即便 self.db 已不可写，独立连接兜底也要把状态置为 failed
 
