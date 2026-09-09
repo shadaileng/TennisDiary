@@ -11,6 +11,7 @@
 3. **提交前必须跑验证**。后端 `ruff check` + `ruff format` + `pytest`；前端 `type-check` + `build`。任一失败/有变更 → **先修复，禁止提交**。
 4. **改共享响应模型前，先 `grep` 全量构造点**，确认新增/必填字段在每处都已传入；优先用工厂函数或 `model_validate`。
 5. **日志一律用 `{}` 风格，严禁 printf 的 `%s`**。loguru 用 `str.format()` 语义，`log.error("失败: %s", exc)` 的参数会被**静默丢弃**，日志只剩裸 `%s`、真实异常被吞（139 故障根因）。应写 `log.error("失败: {}", exc)`；需堆栈用 `log.exception("失败: {}", exc)`。禁止 `f"...{exc}"` 再额外传参（异常 `str()` 含 `{}` 会触发二次 `.format()` 的 `KeyError`）；仅插值异常类型 `f"...{type(exc).__name__}"` 且不传参时安全。
+6. **版本号以根 `package.json` 的 `version` 为单一真源，与 `CHANGELOG.md` 顶部版本号严格一致**。`feat`/`fix`/`feat!` 等提交**必须同步 bump 根 `package.json`**（`feat` MINOR、`fix` PATCH、破坏性 MAJOR），并同时新增 `CHANGELOG.md` 对应版本条目；禁止只改 CHANGELOG 不动 package.json，也禁止只动 package.json 不记录 CHANGELOG（此前 CHANGELOG 已到 1.84.0 而根 package.json 仍停在 1.68.0 的脱节即由此违规造成，已于 1.84.0 追平）。提交前用 `grep '"version"' package.json` 与 `grep -m1 '^## \[' CHANGELOG.md` 核对一致。
 
 > 任何一条被违反，都是事故。宁可停下询问人类，也不要绕过。
 
@@ -138,6 +139,8 @@ cd admin && pnpm build                 # 构建管理端
 - `docs` / `chore`：文档 / 依赖配置
 
 禁止 `git add .`，禁止无意义消息（`wip`、`tmp`）。提交前验证见 [4.3 提交前验证](#43-提交前验证)。
+
+> **版本 bump 见「核心约束 6」**：`feat`/`fix` 提交须同步 bump 根 `package.json` 并新增 `CHANGELOG.md` 条目，二者版本号严格一致（单一真源）。注意 `miniapp/package.json`（0.7.0）与 `admin/package.json`（0.2.0）是各子包独立版本，**不受根版本管控**；AI 不参与其 bump。
 
 ---
 
