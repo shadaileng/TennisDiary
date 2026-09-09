@@ -208,7 +208,8 @@ import { useThemeStyle } from "@/composables/useTheme";
 import { createStatusSubscriber, stepLabel, type AnalysisStatus } from "@/services/analysisStatus";
 import { startAnalysis } from "@/services/data";
 import type { AnalysisKind } from "@/types";
-import { ANALYSIS_KINDS, todayStr } from "@/utils";
+import { ANALYSIS_EVENTS, ANALYSIS_KINDS, todayStr } from "@/utils";
+import { STORAGE_KEYS } from "@/constants/storage";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import { isUserCancel, isRuntimePermissionDenied, isPrivacyScopeError } from "@/utils/privacy";
 import {
@@ -360,6 +361,11 @@ const canceling = ref(false);
 /** 当前链路 trace_id，供取消埋点串联 */
 let currentTraceId = "";
 
+/** 本地标记键：有分析正在启动中（上传阶段记录尚未创建） */
+const PENDING_ANALYSIS_KEY = STORAGE_KEYS.pendingAnalysisAt;
+/** 全局事件：新分析记录已创建，通知列表页刷新 */
+const ANALYSIS_STARTED_EVENT = ANALYSIS_EVENTS.started;
+
 /** 模态百分比：上传取上传进度，分析取管线进度 */
 const displayPercent = computed(() => {
   const raw = analysisStage.value === "upload" ? uploadPercent.value : pipelineProgress.value;
@@ -381,6 +387,8 @@ function resetProgressState() {
   analysisStage.value = "";
   uploadTask = null;
   canceling.value = false;
+  // 清除"分析启动中"标记（成功/失败/取消都会走到这里）
+  uni.removeStorageSync(PENDING_ANALYSIS_KEY);
   uploadSent.value = 0;
   uploadTotal.value = 0;
   progress.value = "";
@@ -972,6 +980,9 @@ async function startAnalysisUnified() {
   analysisStage.value = "upload";
   uploadCanceled = false;
   canceling.value = false;
+  // 标记"有分析正在启动中"：上传阶段 analysis 记录尚未创建，若此时用户返回列表，
+  // 列表页据此补刷一次；start 完成后会清除该标记并主动通知列表刷新
+  uni.setStorageSync(PENDING_ANALYSIS_KEY, Date.now());
   // 视频为原生组件（层级最高），进入模态前暂停并隐藏，避免遮挡进度弹层
   videoCtx?.pause();
   isPlaying.value = false;
@@ -1022,6 +1033,10 @@ async function startAnalysisUnified() {
     });
 
     analysisId = startRes.id;
+    // 记录已创建：清除"启动中"标记，并通知列表页刷新
+    // （用户可能在上传阶段就返回了列表，此时列表还没有这条记录）
+    uni.removeStorageSync(PENDING_ANALYSIS_KEY);
+    uni.$emit(ANALYSIS_STARTED_EVENT, { id: analysisId });
     logInfo("统一分析已启动", {
       trace_id: traceId, duration_ms: Date.now() - tStart, analysis_id: analysisId, file_id: fileId,
     }, undefined, "unified_analysis_launched", traceId);

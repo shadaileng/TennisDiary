@@ -12,6 +12,14 @@ import { uploadFileWithCheck, uploadRaw, type UploadUrlHooks } from "@/utils/upl
 
 import type { CostItem } from "@/types";
 
+// ==================== 全局事件名 ====================
+
+/** 跨页面全局事件名（配合 uni.$emit / uni.$on 使用） */
+export const ANALYSIS_EVENTS = {
+  /** 新分析记录已创建（分析启动成功），通知列表页刷新 */
+  started: "analysis:started",
+} as const;
+
 // ==================== 枚举常量 ====================
 
 /** 强度 1-5 的 label + emoji */

@@ -21,4 +21,6 @@ export const STORAGE_KEYS = {
   pendingGears: "td_pending_gears",
   /** 本地待同步体重记录（游客态本地 storage，Step 129） */
   pendingWeights: "td_pending_weights",
+  /** 有分析正在启动中（上传阶段 analysis 记录尚未创建，Step 139） */
+  pendingAnalysisAt: "td_pending_analysis_at",
 } as const;

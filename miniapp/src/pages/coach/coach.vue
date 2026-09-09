@@ -65,14 +65,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { onPullDownRefresh, onShow } from "@dcloudio/uni-app";
+import { onMounted, ref } from "vue";
+import { onPullDownRefresh, onShow, onUnload } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import { useThemeStyle } from "@/composables/useTheme";
+import { STORAGE_KEYS } from "@/constants/storage";
 import { getAnalyses } from "@/services/data";
 import type { Analysis } from "@/types";
-import { resolveUploadUrl } from "@/utils";
+import { ANALYSIS_EVENTS, resolveUploadUrl } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const { themeStyle, themeBg } = useThemeStyle();
@@ -94,8 +95,28 @@ async function loadAnalyses() {
   }
 }
 
+/** 新分析记录已创建（可能在上传阶段就返回了列表，此时列表还没有这条） */
+function handleAnalysisStarted() {
+  loadAnalyses();
+}
+
+onMounted(() => {
+  uni.$on(ANALYSIS_EVENTS.started, handleAnalysisStarted);
+});
+
 onShow(async () => {
   await loadAnalyses();
+  // 兜底：存在"分析启动中"标记说明上传尚未完成、记录未创建，
+  // 稍后补刷一次（正常路径由 analysis:started 事件即时刷新）
+  if (uni.getStorageSync(STORAGE_KEYS.pendingAnalysisAt)) {
+    setTimeout(() => {
+      loadAnalyses();
+    }, 3000);
+  }
+});
+
+onUnload(() => {
+  uni.$off(ANALYSIS_EVENTS.started, handleAnalysisStarted);
 });
 
 /** 下拉刷新：由用户主动触发更新（替代自动轮询，避免 processing 卡住时无限请求） */
