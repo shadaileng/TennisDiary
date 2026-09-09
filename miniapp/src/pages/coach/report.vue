@@ -21,7 +21,7 @@
       <view class="failed-banner">
         <text class="failed-icon">⚠️</text>
         <text class="failed-text">分析失败</text>
-        <text class="failed-reason">{{ analysis.summary || "请重新上传视频进行分析" }}</text>
+        <text class="failed-reason">{{ failedReasonText }}</text>
       </view>
       <view class="delete-btn press-btn" @tap="confirmRemove">删除这条记录</view>
     </view>
@@ -187,6 +187,11 @@ function formatUserError(raw: string | undefined | null): string {
   }
   return text;
 }
+
+/** 失败原因展示：后端置 failed 时会同步写入 summary（截断后的原因），
+ * 前端统一从 summary 读取并脱敏，覆盖"停留报告页失败"与"从列表重新进入"两个场景。
+ */
+const failedReasonText = computed(() => formatUserError(analysis.value?.summary));
 
 function stopStatusSubscriber() {
   if (statusSubscriber) {
