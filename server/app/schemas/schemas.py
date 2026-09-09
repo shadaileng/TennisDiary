@@ -249,6 +249,17 @@ class AnalysisStartRequest(BaseModel):
     )
 
 
+class ChunkCompleteRequest(BaseModel):
+    """分片上传完成请求（140）：仅凭 md5 定位服务端分片会话
+
+    `total` / `chunk_size` / `original_name` / `ext` 一律以服务端 manifest 为准，
+    避免客户端与服务端会话状态不一致导致错登记。
+    """
+
+    md5: str = Field(description="整文件 MD5（小写 32 hex），分片会话 key")
+    size_bytes: int = Field(default=0, description="整文件字节数，0 表示以会话登记值为准")
+
+
 class AnalysisUpdate(BaseModel):
     """分析更新请求（118 流水线步骤5 finalize）：仅置状态"""
 

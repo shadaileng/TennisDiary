@@ -179,11 +179,20 @@ def cleanup_files(
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """物理文件清理：删除已软删超过 N 天的记录及其磁盘文件"""
+    """物理文件清理：删除已软删超过 N 天的记录及其磁盘文件，并回收过期分片会话（140）"""
     cleaned = file_service.cleanup(db, days=days)
+    chunks_cleaned = file_service.cleanup_expired_chunks()
     db.commit()
-    log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id)
-    return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
+    log.info(
+        "Admin 清理孤儿文件",
+        cleaned=cleaned,
+        chunks_cleaned=chunks_cleaned,
+        admin_id=admin.id,
+    )
+    return ApiResponse(
+        data={"cleaned": cleaned, "chunks_cleaned": chunks_cleaned},
+        message=f"清理完成，共清理 {cleaned} 个文件、{chunks_cleaned} 个过期分片会话",
+    )
 
 
 @router.post("/cleanup-orphans", response_model=ApiResponse[dict])

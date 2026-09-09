@@ -207,6 +207,26 @@ class TestAdminFileCleanup:
         assert resp.status_code == 200
         assert resp.json()["data"]["cleaned"] == 0
 
+    def test_cleanup_also_clears_expired_chunks(self, auth_client):
+        """140：清理同时回收超过 24h 无进展的分片会话"""
+        from app.services import file_service, file_store
+
+        md5 = "3" * 32
+        file_service.open_chunk_session(
+            1, md5, total_size=12, chunk_size=4, original_name="clip.mp4"
+        )
+        file_service.register_chunk(1, md5, 0, b"0123")
+        # 把会话的最后活跃时间推到过期之前
+        manifest = file_store.read_manifest(1, md5)
+        manifest["updated_at"] = "2020-01-01T00:00:00Z"
+        file_store.write_manifest(1, md5, manifest)
+        session_dir = os.path.join(str(settings.UPLOAD_DIR), "tmp", "chunks", "1", md5)
+
+        resp = auth_client.post("/api/admin/files/cleanup?days=30")
+        assert resp.status_code == 200
+        assert resp.json()["data"]["chunks_cleaned"] >= 1
+        assert not os.path.isdir(session_dir)
+
 
 class TestAdminFileStats:
     """GET /api/admin/files/stats/summary"""

@@ -13,7 +13,9 @@
 """
 
 import os
+import re
 import time
+import zlib
 from dataclasses import dataclass
 
 from sqlalchemy.exc import IntegrityError
@@ -735,7 +737,8 @@ SCAN_STATUSES = (
     "marked_deleted",  # 已软删，待物理清理
 )
 
-_SKIP_SCAN_DIRS = {"check_tmp", "backups"}
+# 扫描豁免目录：check_tmp 安全检查临时、tmp 分片上传会话（140）、backups 备份
+_SKIP_SCAN_DIRS = {"check_tmp", "tmp", "backups"}
 
 
 def _walk_upload_dir() -> dict[str, float]:
@@ -1112,3 +1115,346 @@ def _merge_duplicate_records(db: Session, dry_run: bool) -> int:
         if not dry_run:
             keeper.ref_count = total_ref
     return merged
+
+
+# ==================== 分片上传会话（140：单文件定位写 + manifest 登记） ====================
+#
+# 会话形态：UPLOAD_DIR/tmp/chunks/<user_id>/<md5>/{data.bin, manifest.json}
+# - `data.bin`：按 offset 定位写，本身就是最终文件，complete 免合并
+# - `manifest.json`：**唯一权威真源**，写盘 + 校验 + fsync 全通过才入账 ok，失败入 failed
+
+CHUNK_SIZE_BYTES = 5 * 1024 * 1024
+CHUNK_THRESHOLD_BYTES = 20 * 1024 * 1024
+MAX_CHUNK_COUNT = 512
+CHUNK_MANIFEST_VERSION = 1
+CHUNK_FALLBACK_EXT = ".mp4"
+_MD5_RE = re.compile(r"^[0-9a-f]{32}$")
+_CRC32_RE = re.compile(r"^[0-9a-f]{1,8}$")
+
+
+class ChunkParamError(ValueError):
+    """分片参数非法（→ 400）"""
+
+
+class ChunkSessionError(ValueError):
+    """分片会话不存在（→ 400）：客户端需从 index=0 重开会话"""
+
+
+class ChunkVerifyError(ValueError):
+    """片级校验失败（→ 400）：该片已入账 failed，可只重传该片"""
+
+
+class ChunkIncompleteError(ValueError):
+    """分片未齐全（→ 400）：响应附 missing 列表"""
+
+
+class ChunkMismatchError(ValueError):
+    """整文件 MD5 / size 不符（→ 409）"""
+
+
+class ChunkTooLargeError(ValueError):
+    """超过 MAX_UPLOAD_SIZE_MB（→ 413）"""
+
+
+def chunk_policy() -> dict:
+    """分片策略（服务端单一真源，供 `/upload/check` 下发）"""
+    return {
+        "enabled": True,
+        "size_bytes": CHUNK_SIZE_BYTES,
+        "threshold_bytes": CHUNK_THRESHOLD_BYTES,
+        "max_count": MAX_CHUNK_COUNT,
+        "crc32": True,
+    }
+
+
+def chunk_count_of(total_size: int, chunk_size: int) -> int:
+    """按总大小与单片大小算分片数（向上取整，至少 1）"""
+    if chunk_size <= 0:
+        raise ChunkParamError(f"非法单片大小: {chunk_size}")
+    return max(1, -(-int(total_size) // int(chunk_size)))
+
+
+def validate_chunk_params(md5: str, index: int, total: int) -> None:
+    """校验 md5 格式与 index / total 边界"""
+    if not _MD5_RE.match(md5 or ""):
+        raise ChunkParamError(f"非法 md5: {md5!r}")
+    if int(total) < 1 or int(total) > MAX_CHUNK_COUNT:
+        raise ChunkParamError(f"分片总数越界: {total}")
+    if int(index) < 0 or int(index) >= int(total):
+        raise ChunkParamError(f"分片索引越界: index={index} total={total}")
+
+
+def open_chunk_session(
+    user_id: int,
+    md5: str,
+    *,
+    total_size: int,
+    chunk_size: int = 0,
+    total: int = 0,
+    original_name: str = "",
+    ext: str = "",
+) -> dict:
+    """创建/复用分片会话（幂等）
+
+    已有会话时校验关键参数一致后复用（保留已入账的段）；参数冲突抛 `ChunkParamError`。
+    """
+    if not _MD5_RE.match(md5 or ""):
+        raise ChunkParamError(f"非法 md5: {md5!r}")
+    size = int(total_size)
+    if size <= 0:
+        raise ChunkParamError(f"非法文件总大小: {total_size}")
+    unit = int(chunk_size) or CHUNK_SIZE_BYTES
+    if unit <= 0:
+        raise ChunkParamError(f"非法单片大小: {chunk_size}")
+    count = int(total) or chunk_count_of(size, unit)
+    if count > MAX_CHUNK_COUNT:
+        raise ChunkParamError(f"分片数超过上限: {count} > {MAX_CHUNK_COUNT}")
+
+    existing = file_store.read_manifest(user_id, md5)
+    if existing:
+        conflict = (
+            int(existing.get("total_size") or 0) != size
+            or int(existing.get("chunk_size") or 0) != unit
+            or int(existing.get("total") or 0) != count
+        )
+        if conflict:
+            raise ChunkParamError("分片会话参数与已存在会话不一致")
+        return existing
+
+    now = file_store.utc_now_iso()
+    manifest = {
+        "v": CHUNK_MANIFEST_VERSION,
+        "md5": md5,
+        "total_size": size,
+        "chunk_size": unit,
+        "total": count,
+        "ext": _resolve_ext(ext, original_name, "") or CHUNK_FALLBACK_EXT,
+        "original_name": original_name,
+        "segments": {},
+        "created_at": now,
+        "updated_at": now,
+    }
+    file_store.write_manifest(user_id, md5, manifest)
+    log.info("创建分片会话: user_id={} md5={} total={} size={}", user_id, md5[:12], count, size)
+    return manifest
+
+
+def register_chunk(
+    user_id: int,
+    md5: str,
+    index: int,
+    content: bytes,
+    *,
+    length: int = 0,
+    crc32: str = "",
+) -> dict:
+    """接收并落盘一个分片：片级校验 → `pwrite` → fsync → 入账
+
+    顺序不可调换：只有写盘成功后才入账 `ok`；任何校验/写盘失败都入账 `failed`
+    并抛 `ChunkVerifyError`，客户端可只重传该片。
+    """
+    manifest = _require_session(user_id, md5)
+    validate_chunk_params(md5, index, int(manifest.get("total") or 0))
+
+    if len(content) > file_store.CHUNK_MAX_BYTES:
+        raise ChunkParamError(f"单片超过上限: {len(content)} > {file_store.CHUNK_MAX_BYTES}")
+
+    unit = int(manifest.get("chunk_size") or 0)
+    total_size = int(manifest.get("total_size") or 0)
+    offset = int(index) * unit
+    expect = min(unit, total_size - offset)
+
+    # 长度校验以服务端自算的 expect 为准：客户端声明与之一致才算通过
+    if len(content) != expect or (length and int(length) != expect):
+        _reject_segment(user_id, md5, manifest, index, "length_mismatch")
+
+    if crc32:
+        if not _CRC32_RE.match(crc32.lower()):
+            _reject_segment(user_id, md5, manifest, index, "crc_invalid")
+        if int(crc32, 16) != (zlib.crc32(content) & 0xFFFFFFFF):
+            _reject_segment(user_id, md5, manifest, index, "crc_mismatch")
+
+    try:
+        written = file_store.pwrite_chunk(user_id, md5, offset, content)
+    except (OSError, ValueError) as exc:
+        log.error("分片写入失败: md5={} index={} err={}", md5[:12], index, exc)
+        _reject_segment(user_id, md5, manifest, index, "write_error")
+
+    _mark_segment(user_id, md5, manifest, index, "ok", size=written, crc32=crc32.lower())
+    summary = _summary(manifest)
+    return {"index": int(index), "size": written, **summary}
+
+
+def list_chunks(user_id: int, md5: str) -> dict:
+    """分片会话进度：`ok` / `failed` / `missing` 三集合（断点续传依据）"""
+    if not _MD5_RE.match(md5 or ""):
+        raise ChunkParamError(f"非法 md5: {md5!r}")
+    manifest = file_store.read_manifest(user_id, md5)
+    if manifest is None:
+        return _empty_summary()
+    return _summary(manifest)
+
+
+def complete_chunk_upload(
+    db: Session, user_id: int, *, md5: str, size_bytes: int = 0
+) -> tuple[File, bool]:
+    """合并校验并登记：段齐全 → 整文件 MD5 → `register`（免合并）
+
+    Returns:
+        (File 记录, 是否复用了既有记录)
+    """
+    if not _MD5_RE.match(md5 or ""):
+        raise ChunkParamError(f"非法 md5: {md5!r}")
+    manifest = _require_session(user_id, md5)
+    summary = _summary(manifest)
+    total_size = int(manifest.get("total_size") or 0)
+
+    if summary["missing"] or file_store.data_size(user_id, md5) != total_size:
+        raise ChunkIncompleteError(
+            "分片未齐全: 缺 {} 片 {}".format(len(summary["missing"]), summary["missing"][:10])
+        )
+
+    data_abs = file_store.chunk_data_abs(user_id, md5)
+    real_md5, real_size = file_store.md5_and_size_of(data_abs)
+    declared_md5 = str(manifest.get("md5") or "")
+    declared_size = int(size_bytes) if size_bytes else total_size
+    if not real_md5 or real_md5 != declared_md5 or real_size != declared_size:
+        _clear_unverified_segments(user_id, md5, manifest)
+        raise ChunkMismatchError(
+            "整文件校验不符: 期望 {} ({}B)，实际 {} ({}B)".format(
+                declared_md5[:12], declared_size, (real_md5 or "")[:12], real_size
+            )
+        )
+
+    if real_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        file_store.clear_chunks(user_id, md5)
+        raise ChunkTooLargeError(f"文件超过上限: {real_size}B")
+
+    record, reused = register(
+        db,
+        user_id,
+        src_path=data_abs,
+        category="video",
+        original_name=str(manifest.get("original_name") or ""),
+        ext=str(manifest.get("ext") or ""),
+    )
+    mark_security_checked(db, user_id, record.rel_path, True)
+    file_store.clear_chunks(user_id, md5)
+    db.commit()
+    log.info(
+        "分片上传完成: md5={} file_id={} reused={} size={}",
+        real_md5[:12],
+        record.id,
+        reused,
+        real_size,
+    )
+    return record, reused
+
+
+def cleanup_expired_chunks(max_age_hours: int = 24) -> int:
+    """清理超过 N 小时无进展的分片会话，返回清理目录数"""
+    return file_store.cleanup_expired_chunks(max_age_hours)
+
+
+def chunk_status(user_id: int, md5: str) -> dict:
+    """`/upload/check` 下发的分片策略 + 会话进度（服务端单一真源）"""
+    policy = chunk_policy()
+    try:
+        summary = list_chunks(user_id, md5)
+    except ChunkParamError:
+        summary = _empty_summary()
+    return {
+        **policy,
+        "uploaded": summary["ok"],
+        "failed": summary["failed"],
+        "missing": summary["missing"],
+        "total": summary["total"],
+        "total_size": summary["total_size"],
+        "chunk_size": summary["chunk_size"],
+    }
+
+
+# -------------------- 分片内部实现 --------------------
+
+
+def _require_session(user_id: int, md5: str) -> dict:
+    """读取会话 manifest，不存在抛 `ChunkSessionError`"""
+    manifest = file_store.read_manifest(user_id, md5)
+    if manifest is None:
+        raise ChunkSessionError(f"分片会话不存在: md5={md5}")
+    return manifest
+
+
+def _empty_summary() -> dict:
+    return {
+        "ok": [],
+        "failed": [],
+        "missing": [],
+        "chunk_size": 0,
+        "total": 0,
+        "total_size": 0,
+        "crc32": True,
+    }
+
+
+def _summary(manifest: dict) -> dict:
+    """manifest → 进度三集合：`missing = 全部 - ok`（failed 段同样需要重传）"""
+    segments = manifest.get("segments") or {}
+    ok: list[int] = []
+    failed: list[int] = []
+    for key, entry in segments.items():
+        if not str(key).isdigit():
+            continue
+        state = (entry or {}).get("state")
+        if state == "ok":
+            ok.append(int(key))
+        elif state == "failed":
+            failed.append(int(key))
+    total = int(manifest.get("total") or 0)
+    ok_set = set(ok)
+    return {
+        "ok": sorted(ok),
+        "failed": sorted(failed),
+        "missing": [i for i in range(total) if i not in ok_set],
+        "chunk_size": int(manifest.get("chunk_size") or 0),
+        "total": total,
+        "total_size": int(manifest.get("total_size") or 0),
+        "crc32": True,
+    }
+
+
+def _mark_segment(user_id: int, md5: str, manifest: dict, index: int, state: str, **extra) -> dict:
+    """写入一段的入账状态（manifest 是唯一权威真源；写失败仅记日志，不污染其它段）"""
+    segments = dict(manifest.get("segments") or {})
+    entry = {"state": state, "at": file_store.utc_now_iso()}
+    entry.update(extra)
+    segments[str(int(index))] = entry
+    manifest["segments"] = segments
+    manifest["updated_at"] = file_store.utc_now_iso()
+    try:
+        file_store.write_manifest(user_id, md5, manifest)
+    except (OSError, ValueError) as exc:
+        log.error("分片 manifest 入账失败: md5={} index={} err={}", md5[:12], index, exc)
+    return manifest
+
+
+def _reject_segment(user_id: int, md5: str, manifest: dict, index: int, reason: str) -> None:
+    """入账失败段并抛出（客户端据此只重传该段）"""
+    _mark_segment(user_id, md5, manifest, index, "failed", reason=reason)
+    raise ChunkVerifyError(f"分片校验失败({reason}): index={index}")
+
+
+def _clear_unverified_segments(user_id: int, md5: str, manifest: dict) -> None:
+    """整文件校验不符时清账：仅保留通过 crc32 校验的段（无法定位坏片时全部重传）"""
+    segments = manifest.get("segments") or {}
+    kept = {
+        key: entry
+        for key, entry in segments.items()
+        if (entry or {}).get("state") == "ok" and (entry or {}).get("crc32")
+    }
+    manifest["segments"] = kept
+    manifest["updated_at"] = file_store.utc_now_iso()
+    try:
+        file_store.write_manifest(user_id, md5, manifest)
+    except (OSError, ValueError) as exc:
+        log.error("分片 manifest 清账失败: md5={} err={}", md5[:12], exc)

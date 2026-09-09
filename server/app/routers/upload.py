@@ -16,6 +16,7 @@ from app.core.logging import get_logger
 from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse, ErrorCode
+from app.schemas.schemas import ChunkCompleteRequest
 from app.services import file_service
 from app.services.content_security import ContentSecurityError, check_image_sync
 from app.services.wx_service import code_to_openid
@@ -316,13 +317,21 @@ def check_file(
     避免不同分类因 MD5 相同而误复用；不传时行为不变。
     `size_bytes > 0` 时参与一致性校验（取不到 size 时传 0 跳过）。
     """
+
+    def _miss() -> ApiResponse[dict]:
+        """未命中响应：video 分类附加分片策略与会话进度（140 决策 8）"""
+        data: dict = {"hit": False}
+        if category == _VIDEO_CATEGORY:
+            data["chunk"] = file_service.chunk_status(current_user.id, md5)
+        return ApiResponse(data=data)
+
     existing = file_service.find_by_md5(db, current_user.id, md5, category)
     if existing is None:
-        return ApiResponse(data={"hit": False})
+        return _miss()
 
     # 物理文件不存在视为未命中
     if not file_service.exists(existing.rel_path):
-        return ApiResponse(data={"hit": False})
+        return _miss()
 
     # 大小不一致视为未命中（客户端取不到 size 时传 0，跳过校验）
     if size_bytes > 0 and existing.size_bytes and existing.size_bytes != size_bytes:
@@ -333,7 +342,7 @@ def check_file(
             record_size=existing.size_bytes,
             request_size=size_bytes,
         )
-        return ApiResponse(data={"hit": False})
+        return _miss()
 
     safe = bool(existing.security_checked)
     return ApiResponse(
@@ -344,3 +353,109 @@ def check_file(
             "file_id": existing.id,
         }
     )
+
+
+# ==================== 视频分片上传（140：单文件定位写 + manifest 登记） ====================
+
+
+def _chunk_error(exc: Exception, user_id: int, index: int | None = None) -> HTTPException:
+    """分片异常 → HTTP 异常：参数/会话/校验 400、MD5 不符 409、超限 413"""
+    log.warning(
+        "视频分片处理被拒: user_id={} index={} err={}",
+        user_id,
+        index if index is not None else "-",
+        exc,
+    )
+    if isinstance(exc, file_service.ChunkMismatchError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, file_service.ChunkTooLargeError):
+        return HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/video/chunk", response_model=ApiResponse[dict])
+def upload_video_chunk(
+    file: UploadFile = File(...),
+    md5: str = Form(...),
+    index: int = Form(...),
+    length: int = Form(default=0),
+    crc32: str = Form(default=""),
+    total: int = Form(default=0),
+    size_bytes: int = Form(default=0),
+    original_name: str = Form(default=""),
+    current_user: User = Depends(get_current_user),
+):
+    """上传一个视频分片（140）
+
+    - 首片（或会话缺失时）带 `total` / `size_bytes` / `original_name` 建立会话（幂等）
+    - 单片按 `offset = index * chunk_size` 定位写入 `data.bin`；写盘 + 片级校验通过才入账 `ok`
+    - 校验失败入账 `failed` 并返回 400，客户端只需重传该片
+    - 高频端点（20~40 次/视频），不打审计
+    """
+    user_id = current_user.id
+    try:
+        if total > 0 and size_bytes > 0:
+            file_service.open_chunk_session(
+                user_id, md5, total_size=size_bytes, total=total, original_name=original_name
+            )
+        content = file.file.read()
+        result = file_service.register_chunk(
+            user_id, md5, index, content, length=length, crc32=crc32
+        )
+    except (
+        file_service.ChunkParamError,
+        file_service.ChunkSessionError,
+        file_service.ChunkVerifyError,
+    ) as exc:
+        raise _chunk_error(exc, user_id, index) from exc
+    except Exception as exc:
+        log.exception("视频分片上传异常: user_id={} index={} err={}", user_id, index, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="分片上传失败，请重试"
+        ) from exc
+    return ApiResponse(data=result)
+
+
+@router.get("/video/chunks", response_model=ApiResponse[dict])
+def list_video_chunks(md5: str, current_user: User = Depends(get_current_user)):
+    """查询分片会话进度（断点续传依据）：`ok` / `failed` / `missing`"""
+    try:
+        summary = file_service.list_chunks(current_user.id, md5)
+    except file_service.ChunkParamError as exc:
+        raise _chunk_error(exc, current_user.id) from exc
+    return ApiResponse(data=summary)
+
+
+@router.post("/video/complete", response_model=ApiResponse[dict])
+@audit(action="UPLOAD", resource_type="upload")
+def complete_video_chunk_upload(
+    payload: ChunkCompleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """分片上传完成：段齐全校验 → 整文件 MD5 → 登记为受管文件
+
+    免合并：`data.bin` 就是完整文件，`register` 直接迁入 `videos/<user_id>/<md5>.<ext>`。
+    返回与 `/api/upload/video` 同构的 `{url, file_id, mirage}`，前端无需分支。
+    """
+    user_id = current_user.id
+    try:
+        record, reused = file_service.complete_chunk_upload(
+            db, user_id, md5=payload.md5, size_bytes=payload.size_bytes
+        )
+    except (
+        file_service.ChunkParamError,
+        file_service.ChunkSessionError,
+        file_service.ChunkIncompleteError,
+        file_service.ChunkMismatchError,
+        file_service.ChunkTooLargeError,
+    ) as exc:
+        raise _chunk_error(exc, user_id) from exc
+    except Exception as exc:
+        log.exception("分片合并登记异常: user_id={} md5={} err={}", user_id, payload.md5, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="视频上传失败，请重试"
+        ) from exc
+
+    log.info("视频分片上传完成", user_id=user_id, file_id=record.id, reused=reused)
+    return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})

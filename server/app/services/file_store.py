@@ -7,9 +7,12 @@
 """
 
 import hashlib
+import json
 import os
+import re
 import shutil
 import time
+from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -270,3 +273,171 @@ def infer_user_id(rel_path: str) -> int | None:
     if len(parts) >= 2 and parts[1].isdigit():
         return int(parts[1])
     return None
+
+
+# ==================== 分片上传会话（140：单文件定位写 + manifest 登记） ====================
+
+CHUNK_ROOT = "tmp/chunks"  # UPLOAD_DIR/tmp/chunks/<user_id>/<md5>/
+CHUNK_DATA_NAME = "data.bin"  # 最终文件的唯一载体（各片按 offset 定位写入）
+CHUNK_MANIFEST_NAME = "manifest.json"  # 会话权威状态登记
+CHUNK_MANIFEST_TMP = "manifest.json.tmp"  # 原子写临时名
+CHUNK_MAX_BYTES = 8 * 1024 * 1024  # 单片上限（含容差，超出由门面拒）
+_MD5_SESSION_RE = re.compile(r"^[0-9a-f]{32}$")
+
+
+def utc_now_iso() -> str:
+    """当前 UTC 时间（ISO8601，`Z` 后缀，与 87 时区规范一致）"""
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _chunk_dir_path(user_id: int, md5: str) -> str:
+    """会话目录绝对路径（仅推导，不创建；md5 非法直接拒绝防路径穿越）"""
+    if not _MD5_SESSION_RE.match(md5 or ""):
+        raise ValueError(f"非法分片会话 key: {md5!r}")
+    return os.path.abspath(os.path.join(settings.UPLOAD_DIR, CHUNK_ROOT, str(int(user_id)), md5))
+
+
+def chunk_dir_abs(user_id: int, md5: str) -> str:
+    """会话目录绝对路径（自动创建）"""
+    path = _chunk_dir_path(user_id, md5)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def chunk_data_abs(user_id: int, md5: str) -> str:
+    """`data.bin` 绝对路径（自动建目录）"""
+    return os.path.join(chunk_dir_abs(user_id, md5), CHUNK_DATA_NAME)
+
+
+def pwrite_chunk(user_id: int, md5: str, offset: int, content: bytes) -> int:
+    """定位写入 `data.bin` 的 `[offset, offset+len)` 区段，返回写入字节数
+
+    用 `os.pwrite` 而非 `seek + write`：不依赖共享文件指针，多个写者各写各段天然安全
+    （当前串行，为后续并发预留）。写完 `fsync` 保证「写成功」可被门面如实入账。
+    中间未写的空洞由 OS 补零，无需预 `truncate`。
+    """
+    if offset < 0:
+        raise ValueError(f"非法分片偏移量: {offset}")
+    abs_path = chunk_data_abs(user_id, md5)
+    fd = os.open(abs_path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        written = os.pwrite(fd, content, offset)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return written
+
+
+def data_size(user_id: int, md5: str) -> int:
+    """`data.bin` 当前字节数（不存在返回 0）"""
+    try:
+        return os.path.getsize(os.path.join(_chunk_dir_path(user_id, md5), CHUNK_DATA_NAME))
+    except (OSError, ValueError):
+        return 0
+
+
+def read_manifest(user_id: int, md5: str) -> dict | None:
+    """读取会话 manifest；无会话 / JSON 损坏 / 非对象一律返回 None（由门面按无会话处理）"""
+    path = os.path.join(_chunk_dir_path(user_id, md5), CHUNK_MANIFEST_NAME)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as exc:
+        log.warning("分片 manifest 读取失败: {}", exc)
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def write_manifest(user_id: int, md5: str, manifest: dict) -> None:
+    """原子写入 manifest：临时文件 + `os.replace`（杜绝半截 JSON）
+
+    失败向上抛错由门面处理；调用方应在「写盘成功后」才调用本函数入账。
+    """
+    session = chunk_dir_abs(user_id, md5)
+    tmp_path = os.path.join(session, CHUNK_MANIFEST_TMP)
+    final_path = os.path.join(session, CHUNK_MANIFEST_NAME)
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, final_path)
+
+
+def clear_chunks(user_id: int, md5: str) -> int:
+    """删除整个分片会话目录，返回删除文件数（不存在返回 0）"""
+    session = _chunk_dir_path(user_id, md5)
+    if not os.path.isdir(session):
+        return 0
+    removed = sum(len(files) for _, _, files in os.walk(session))
+    try:
+        shutil.rmtree(session)
+    except (OSError, ValueError) as exc:
+        log.warning("分片会话目录删除失败: {}", exc)
+        return 0
+    return removed
+
+
+def cleanup_expired_chunks(max_age_hours: int = 24) -> int:
+    """清理超过 `max_age_hours` 无进展的分片会话，返回清理目录数
+
+    判定时序：manifest `updated_at` → manifest 文件 mtime → 会话目录 mtime。
+    """
+    root = os.path.abspath(os.path.join(settings.UPLOAD_DIR, CHUNK_ROOT))
+    if not os.path.isdir(root):
+        return 0
+    cutoff = time.time() - (max_age_hours * 3600)
+    cleaned = 0
+    for user_name in os.listdir(root):
+        user_path = os.path.join(root, user_name)
+        if not os.path.isdir(user_path) or not user_name.isdigit():
+            continue
+        for md5 in os.listdir(user_path):
+            session = os.path.join(user_path, md5)
+            if not os.path.isdir(session) or not _MD5_SESSION_RE.match(md5):
+                continue
+            if _session_last_active(session) >= cutoff:
+                continue
+            clear_chunks(int(user_name), md5)
+            if not os.path.isdir(session):  # 空目录会话（removed=0）也应计入
+                cleaned += 1
+                log.info("清理过期分片会话: user_id={} md5={}", user_name, md5)
+    return cleaned
+
+
+def _session_last_active(session_abs: str) -> float:
+    """会话最后活跃时间（时间戳，秒）"""
+    manifest_path = os.path.join(session_abs, CHUNK_MANIFEST_NAME)
+    if os.path.isfile(manifest_path):
+        manifest = None
+        try:
+            with open(manifest_path, encoding="utf-8") as f:
+                manifest = json.load(f)
+        except (OSError, ValueError) as exc:
+            log.warning("分片 manifest 读取失败，回退文件时间: {}", exc)
+        if isinstance(manifest, dict):
+            parsed = _parse_iso_utc(str(manifest.get("updated_at") or ""))
+            if parsed is not None:
+                return parsed
+        try:
+            return os.path.getmtime(manifest_path)
+        except OSError:
+            pass
+    try:
+        return os.path.getmtime(session_abs)
+    except OSError:
+        return time.time()
+
+
+def _parse_iso_utc(value: str) -> float | None:
+    """ISO8601 → 时间戳（无时区按 UTC 处理），解析失败返回 None"""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()

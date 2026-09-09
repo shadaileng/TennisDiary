@@ -281,3 +281,60 @@ class TestGuestGearCheck:
             files={"file": ("evil.txt", io.BytesIO(b"hello"), "text/plain")},
         )
         assert response.status_code == 400
+
+
+class TestUploadCheckChunk:
+    """140：`/api/upload/check` 在 video 未命中时下发分片策略与会话进度"""
+
+    def _check(self, client, md5: str, size_bytes: int, category: str | None = None):
+        payload = {"md5": md5, "size_bytes": size_bytes}
+        if category:
+            payload["category"] = category
+        return client.post("/api/upload/check", json=payload)
+
+    def test_video_miss_returns_chunk_policy(self, auth_client):
+        resp = self._check(auth_client, "0" * 32, 1024, "video")
+        assert resp.status_code == 200
+        chunk = resp.json()["data"]["chunk"]
+        assert chunk["enabled"] is True
+        assert chunk["size_bytes"] == file_service.CHUNK_SIZE_BYTES
+        assert chunk["threshold_bytes"] == file_service.CHUNK_THRESHOLD_BYTES
+        assert chunk["uploaded"] == []
+        assert chunk["missing"] == []
+
+    def test_video_miss_returns_session_progress(self, auth_client):
+        """已有会话时下发已传/缺失分片，供前端断点续传"""
+        md5 = "1" * 32
+        file_service.open_chunk_session(
+            1, md5, total_size=12, chunk_size=4, original_name="clip.mp4"
+        )
+        file_service.register_chunk(1, md5, 0, b"0123")
+
+        resp = self._check(auth_client, md5, 12, "video")
+        chunk = resp.json()["data"]["chunk"]
+        assert chunk["uploaded"] == [0]
+        assert chunk["missing"] == [1, 2]
+        assert chunk["total"] == 3
+        assert chunk["total_size"] == 12
+
+    def test_hit_does_not_return_chunk(self, auth_client, test_db):
+        content = b"chunk-hit-content-140"
+        record, _ = file_service.register(
+            db=test_db,
+            user_id=1,
+            content=content,
+            category="video",
+            original_name="clip.mp4",
+            ext=".mp4",
+        )
+        file_service.mark_security_checked(test_db, 1, record.rel_path, True)
+        test_db.commit()
+
+        resp = self._check(auth_client, file_service.md5_of(content=content), len(content), "video")
+        assert resp.json()["data"]["hit"] is True
+        assert "chunk" not in resp.json()["data"]
+
+    def test_non_video_miss_has_no_chunk(self, auth_client):
+        resp = self._check(auth_client, "2" * 32, 1024)
+        assert resp.json()["data"]["hit"] is False
+        assert "chunk" not in resp.json()["data"]
