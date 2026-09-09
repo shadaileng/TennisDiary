@@ -153,8 +153,9 @@ docs/
     │   ├── 136-文件秒传预检与安全检查标记.md
     │   ├── 137-视频上传两步秒传.md
     │   ├── 138-文件管理重构.md
-    │   ├── 139-管线异常状态兜底与日志规范修正.md
-    │   └── reference/                   # 参考代码（不纳入版本管理）
+│   ├── 139-管线异常状态兜底与日志规范修正.md
+│   ├── 140-视频分片上传与断点续传.md
+│   └── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
 ├── references/                  # 参考类（持续维护）
@@ -293,6 +294,7 @@ docs/
 | 137：视频上传两步秒传 | v1.2.0 | 方案 | `plans/137-视频上传两步秒传.md` | 新增 `/upload/video`（走门面 register，返回 `file_id`）+ `/upload/check` 补 `file_id`/`category` 隔离/size 校验 + `/analyses/start` 改凭 `file_id` 启动 + 清理无效视频安全检查 + 上传/分析进度体验（模态遮罩、取消重试、列表 processing 态、报告页实时进度）+ 分片断点续传（阶段二） | 🚧 进行中 |
 | 138：文件管理重构（统一门面 + MD5 命名 + 引用计数 + 扫描挂钩） | v1.0.0 | 方案 | `plans/138-文件管理重构.md` | 全部文件操作收口到 `file_service` 门面（file_store/file_refs/file_ref_service）+ `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移 | 🏁 已完成 |
 | 139：管线异常状态兜底与日志规范修正 | v1.6.0 | 方案 | `plans/139-管线异常状态兜底与日志规范修正.md` | 修复管线异常中断后 `status` 永久 `processing` 故障：`register_batch` flush 补 rollback 防连接污染 + 管线 except 先 rollback 再写 failed 并叠加独立连接兜底 + 孤儿 processing 超时清理 + **步骤异常 fail-fast（抽帧/播放短片登记改致命、`_finalize` 空 video_url 置 failed、可降级项打标）** + **小程序端：列表 4s 轮询改用户主动下拉刷新（已实施）+ 订阅泄漏修复（页面清理 `onUnmounted`→`onUnload`、轮询超时自停）**；确立 loguru `{}` 日志规范，全量清除失效的 `%s` 日志并修正 `AGENTS.md` 条款 | 🏁 已完成 |
+| 140：视频分片上传与断点续传（137 阶段二） | v2.2.0 | 方案 | `plans/140-视频分片上传与断点续传.md` | 大视频 5MB 切片串行上传 + 单片失败只重传该片 + 中断后仅传缺失/失败分片（断点续传）；服务端以**单文件 `data.bin` 定位写（`os.pwrite`）+ `manifest.json` 权威登记**（写成功才入账、失败段也入账，片级 `length`+`crc32` 校验，manifest 原子写），complete 免合并直接校验登记（`/upload/video/chunk`、`/chunks`、`/complete`），最终统一交付 `file_id`；§十 FAQ 沉淀会话定义 / `data.bin` 大小形态 / 续传起点 / 进度感知四问 | 🚧 进行中 |
 
 ## 文档类型说明
 
@@ -441,6 +443,7 @@ docs/
 | 137-视频上传两步秒传 | 后端 + 小程序前端 | 🚧 进行中 | 2026-09-08 | 两步秒传端点（`/upload/video` + `/upload/check` 补 `file_id` + `/analyses/start` 改凭 `file_id`）+ 上传取消/重试 + 上传分析模态进度 + 列表/报告页 processing 态轮询；后端全量 652 通过，miniapp type-check + build 通过，进度体验待真机验证 |
 | 138-文件管理重构 | 后端 + Admin 前端 | 🏁 已完成 | 2026-09-07 | 统一门面 `file_service` + `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移；后端 617 passed / 0 failed，admin build 通过 |
 | 139-管线异常状态兜底与日志规范修正 | 后端 + 小程序前端 | 🏁 已完成 | 2026-09-08 | Step 1-9 全部完成：`register_batch` flush 补 rollback、管线 except 先 rollback 再写 failed + `_force_fail` 独立连接兜底、步骤 fail-fast（抽帧/播放短片致命化 + 0 帧校验 + `_finalize` 空 video_url 置 failed + `_mark_degraded`）、34 处日志 `%s`→`{}` 与 10 处改 `log.exception` 并修正 `AGENTS.md` 规范、孤儿 processing 超时清理（接入启动与列表惰性触发）、列表改下拉刷新、前端 `onUnmounted`→`onUnload` 与轮询 5 分钟上限；后端 fast 177 passed、ruff 干净，小程序 type-check + build 通过，待真机验证 |
+| 140-视频分片上传与断点续传 | 后端 + 小程序前端 | 🚧 进行中 | 2026-09-09 | Step 1-7 已实施：存储层 `pwrite_chunk` + manifest 原子读写 + 门面 `open_chunk_session`/`register_chunk`/`list_chunks`/`chunk_status`/`complete_chunk_upload`（免合并）+ 三个端点 + `/check` 下发 + Admin `/cleanup` 联动 + 小程序 `crc32.ts`/`chunkUpload.ts`/`analyze.vue` 接入；后端新增 55 用例通过、fast 216 passed、ruff 干净，miniapp type-check + build 通过，待真机验证；v2.2.0 增 §4.2 会话/`data.bin` 机制澄清 + §4.6 进度感知双层次 + §十 FAQ |
 
 ## 约定
 
