@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.84.0] - 2026-09-09
+
+### Added
+
+- 视频分片上传与断点续传（140）：大视频（≥20MB）按 5MB 切片串行上传，单片失败只重传该片，中断后仅补传缺失/失败分片。后端新增存储原语 `file_store`（`data.bin` 定位写 `os.pwrite` + `manifest.json` 权威登记 + 原子写 + 24h 过期清理）与门面 `file_service`（`open_chunk_session` / `register_chunk` / `list_chunks` / `chunk_status` / `complete_chunk_upload`，片级 `length` 强制 + `crc32` 可选校验、写盘成功才入账、complete 免合并直接 `register`），新增端点 `POST /upload/video/chunk`、`GET /upload/video/chunks`、`POST /upload/video/complete`，`/upload/check` video 未命中时下发分片策略与三集合进度，Admin `/cleanup` 联动清理过期会话。
+- 小程序端分片链路（140）：新增 `utils/crc32.ts`（表驱动 CRC32）与 `utils/chunkUpload.ts`（切片读写、串行上传、单片重试、按服务端 `missing`/`failed` 断点续传、409 局部重传一次后降级整体上传），`upload.ts` 增 `ChunkPlan` 下发解析，`analyze.vue` 三分支接入（秒传 / 分片 / 整体）并展示「已传 n/m 片」进度与 `video_chunk_*` 埋点。
+
 ## [1.83.1] - 2026-09-09
 
 ### Added
