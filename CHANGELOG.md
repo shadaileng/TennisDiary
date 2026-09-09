@@ -4,6 +4,21 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.83.1] - 2026-09-09
+
+### Added
+
+- 分析事件与存储常量收口（139）：`ANALYSIS_EVENTS.started`（`utils/index.ts` 导出，配合 `uni.$emit` / `uni.$on` 跨页面通信）与 `STORAGE_KEYS.pendingAnalysisAt`（`constants/storage.ts`），避免两处硬编码导致事件名/键名漂移。
+
+### Fixed
+
+- 上传阶段返回列表后新记录需手动下拉才显示（139）：点「开始分析」后先进入 upload 阶段上传视频，分析记录要等 `startAnalysis()` 返回（`analysisId` 产生）才创建，此时若用户已返回列表则 `onShow` 刷新查不到、且后续不会自动补刷。现点开始时写入「启动中」标记，`start` 成功后清除并 `uni.$emit` 通知列表立即刷新；列表 `onShow` 时若标记仍在则 3 秒后补刷一次兜底（覆盖页面销毁后 JS 未继续执行、`emit` 未送达的场景）；`resetProgressState()` 统一清除标记，覆盖成功/失败/取消所有收尾路径。
+- 抽帧登记触发 UNIQUE constraint 冲突导致整条分析失败（139）：`_process_video` 的 `FileDraft` 原先未传 md5/size，`register_batch` 内部 `md5s` 为空时跳过 `existing_map` 查询，随后实时计算 md5 直接 INSERT，撞上同 `user_id` 已存在的 `(user_id, md5)` 唯一索引 `uq_files_user_md5_active` 抛 `IntegrityError`。现构造 draft 时预计算 `md5`（`file_store.md5_of`）与 `size`（`os.path.getsize`），命中已存在记录时走复用分支。
+- 报告页把后端 SQL 异常原文显示给终端用户（139）：失败时 `pipeline_status.error` 原文（如 `(sqlite3.IntegrityError) UNIQUE constraint failed: files.user_id, files.md5`）被直接作为摘要展示，既难懂又泄漏 schema / md5 等内部信息。现新增 FormatUserError 风格脱敏：技术性异常（`sqlite3.*` / `UNIQUE constraint` / `IntegrityError` / `sqlalchemy` / SQL 关键字 / `sqlalche.me` 链接）统一降级为「分析失败，请重新上传视频（服务端处理异常，已记录到日志）」，业务类错误（如「片段起点/终点超出视频范围」）原样透传。
+- 失败态从报告体内的小 banner 提升为独立展示（139）：与 `processing-block` 互斥的独立 `failed-block`（图标 + 标题 + 原因 + 删除按钮），移除报告体内不可达的冗余 banner。
+- 从列表重新进入失败记录看不到失败原因（139）：后端置 failed 时只写 `pipeline_status.error`，而 `Analysis` 响应**不含** `pipeline_status` 字段，导致重新进入时只能显示兜底文案。现三处置 failed 同步写 `summary`（截断至 120 字符：`run_pipeline` except 分支写异常原因、`_force_fail` 独立连接兜底、`_finalize` 空 `video_url` 写「播放短片缺失，分析未完成」），前端统一从 `summary` 读取并脱敏，覆盖「停留报告页失败」与「从列表重新进入」两个场景。
+- 订阅超时后页面卡死（139，Step 9 引入的回归）：给 `PollingSubscriber` 加 5 分钟超时自停后，`analyze.vue` 因未传 `onTimeout` 导致 `await new Promise(...)` 永不 settle，模态永久卡在「AI 分析进行中」，比修复前更糟。现补 `onTimeout`：停止订阅 + 记录 `analysis_subscribe_timeout` 埋点 + `reject`，由既有 `catch/finally` 统一 toast 并 `resetProgressState()` 关闭模态。
+
 ## [1.83.0] - 2026-09-08
 
 ### Added
