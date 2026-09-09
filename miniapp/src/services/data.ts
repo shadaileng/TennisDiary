@@ -146,3 +146,29 @@ export function getAnalysis(id: number): Promise<Analysis> {
 export function deleteAnalysis(id: number): Promise<MessageResponse> {
   return del<MessageResponse>(`/analyses/${id}`);
 }
+
+// ==================== 视频分片上传（140） ====================
+
+/**
+ * 分片上传完成：服务端段齐全校验 → 整文件 MD5 → 登记为受管文件
+ *
+ * @throws ApiError 409 表示整文件校验不符（调用方可查询进度后局部重传）
+ */
+export async function completeChunkUpload(md5: string, sizeBytes: number): Promise<number> {
+  const res = await post<{ file_id?: number }>("/upload/video/complete", {
+    md5,
+    size_bytes: sizeBytes,
+  });
+  const fileId = Number(res?.file_id) || 0;
+  if (!fileId) throw new Error("视频上传失败，请重试");
+  return fileId;
+}
+
+/** 查询分片会话进度（断点续传 / 409 后确定重传范围） */
+export function fetchChunkProgress(
+  md5: string,
+): Promise<{ ok: number[]; failed: number[]; missing: number[]; total: number; chunk_size: number }> {
+  return get<{ ok: number[]; failed: number[]; missing: number[]; total: number; chunk_size: number }>(
+    `/upload/video/chunks?md5=${encodeURIComponent(md5)}`,
+  );
+}

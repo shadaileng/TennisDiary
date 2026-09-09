@@ -220,6 +220,12 @@ import {
   FINGERPRINT_MAX_SIZE,
   type FileFingerprint,
 } from "@/utils/upload";
+import {
+  computeChunkCount,
+  normalizeChunkPlan,
+  uploadVideoChunked,
+  type ChunkPlan,
+} from "@/utils/chunkUpload";
 
 const { themeStyle, themeBg } = useThemeStyle();
 
@@ -254,6 +260,9 @@ const analysisStage = ref<"" | "upload" | "analyze">("");
 /** 上传已传/总字节数（模态副文本展示） */
 const uploadSent = ref(0);
 const uploadTotal = ref(0);
+/** 分片进度：已传片数 / 总片数（140，仅分片模式展示） */
+const chunkDone = ref(0);
+const chunkTotal = ref(0);
 /** 已选视频的文件指纹（选后异步预计算，供秒传预检使用） */
 const videoFingerprint = ref<FileFingerprint | null>(null);
 const hitTime = ref(0);
@@ -850,11 +859,75 @@ function warnWeakNetwork(traceId: string): Promise<void> {
 }
 
 /**
- * 解析出可用于启动分析的 file_id（137 两步秒传）
+ * 分片上传视频（140 方案 C+）
+ *
+ * 进度按片递增，界面显示「已传 n/m 片」；取消时中断当前片，
+ * 已传分片保留在服务端，重试时直接续传。
+ */
+async function uploadVideoChunkedInternal(
+  path: string,
+  fp: FileFingerprint,
+  plan: ChunkPlan,
+  traceId: string,
+): Promise<number> {
+  const total = plan.total || computeChunkCount(fp.size, plan.sizeBytes);
+  chunkDone.value = 0;
+  chunkTotal.value = total;
+  uploadSent.value = 0;
+  uploadTotal.value = Number(fp.size) || 0;
+  uploadPercent.value = 0;
+
+  logInfo(
+    "开始分片上传",
+    { trace_id: traceId, total, size: fp.size, chunk_size: plan.sizeBytes },
+    undefined,
+    "video_chunk_start",
+    traceId,
+  );
+
+  const fileId = await uploadVideoChunked({
+    filePath: path,
+    md5: fp.md5,
+    size: fp.size,
+    originalName: path.split("/").pop() || "video.mp4",
+    plan,
+    onProgress: (p) => {
+      uploadPercent.value = p.percent;
+      chunkDone.value = p.done;
+      chunkTotal.value = p.total;
+      uploadSent.value = Math.min(p.done * plan.sizeBytes, Number(fp.size) || 0);
+      progress.value = `已传 ${chunkDone.value}/${chunkTotal.value} 片`;
+    },
+    onChunkTask: (task) => {
+      uploadTask = task;
+      // 已点取消：任务一创建立即中断
+      if (uploadCanceled) {
+        uploadTask = null;
+        task.abort();
+      }
+    },
+    isCanceled: () => uploadCanceled,
+    onEvent: (name, payload) =>
+      logInfo(
+        `分片事件: ${name}`,
+        { trace_id: traceId, ...(payload || {}) },
+        undefined,
+        name,
+        traceId,
+      ),
+  });
+
+  uploadPercent.value = 100;
+  uploadTask = null;
+  return fileId;
+}
+
+/**
+ * 解析出可用于启动分析的 file_id（137 两步秒传 + 140 分片）
  *
  * 1）优先按 MD5 预检（命中 → 零流量，秒传成功）
- * 2）未命中 → 整体上传 /upload/video（超时按体积自适应）
- * 3）预检失败/指纹不可用 → 静默退回上传，流程不中断
+ * 2）未命中且达到分片阈值 → 分片上传（失败静默降级整体上传）
+ * 3）其它（无指纹 / 小文件 / 分片不可用）→ 整体上传
  */
 async function resolveVideoFileId(traceId: string): Promise<number> {
   const path = videoPath.value;
@@ -885,6 +958,22 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
         return check.file_id;
       }
       logInfo("视频预检未命中", { trace_id: traceId, hit: check.hit }, undefined, "video_check_miss", traceId);
+
+      // 140：未命中且文件达到分片阈值 → 分片上传（失败静默降级为整体上传）
+      const plan = normalizeChunkPlan(check.chunk);
+      if (plan.enabled && fp.size >= plan.thresholdBytes) {
+        try {
+          return await uploadVideoChunkedInternal(path, fp, plan, traceId);
+        } catch (err) {
+          logInfo(
+            "分片上传失败，降级整体上传",
+            { trace_id: traceId, error: (err as Error)?.message || "", size: fp.size },
+            undefined,
+            "video_chunk_degraded",
+            traceId,
+          );
+        }
+      }
     } catch {
       logInfo("视频预检失败，退回上传", { trace_id: traceId }, undefined, "video_check_failed", traceId);
     }

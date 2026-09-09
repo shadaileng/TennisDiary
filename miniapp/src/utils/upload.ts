@@ -12,6 +12,8 @@
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
 
+import type { ChunkPlan } from "./chunkUpload";
+
 // ==================== 类型 ====================
 
 /** 上传选项 */
@@ -235,6 +237,8 @@ export interface CheckResult {
   url?: string;
   /** 命中记录的 file_id（137：秒传与正常上传统一交付 file_id） */
   file_id?: number;
+  /** 未命中且 category=video 时下发的分片策略与会话进度（140） */
+  chunk?: ChunkPlan;
 }
 
 /**
