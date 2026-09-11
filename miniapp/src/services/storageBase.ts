@@ -36,16 +36,20 @@ export function estimateSize(value: unknown): number {
  * 写回 storage。容量不足或写入异常时返回 false（调用方可选择保留内存态）。
  * 不在此抛错：存储失败不应导致页面崩溃，交由调用方决策。
  */
-export function persist(key: string, value: unknown): boolean {
+export function persist(key: string, value: unknown, opts?: { silent?: boolean }): boolean {
   if (estimateSize(value) > CAPACITY_LIMIT) {
-    uni.showToast({ title: "本地空间不足，请先登录同步", icon: "none" });
+    if (!opts?.silent) {
+      uni.showToast({ title: "本地空间不足，请先登录同步", icon: "none" });
+    }
     return false;
   }
   try {
     uni.setStorageSync(key, JSON.stringify(value));
     return true;
   } catch {
-    uni.showToast({ title: "本地保存失败，请先登录同步", icon: "none" });
+    if (!opts?.silent) {
+      uni.showToast({ title: "本地保存失败，请先登录同步", icon: "none" });
+    }
     return false;
   }
 }

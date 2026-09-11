@@ -4,6 +4,14 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.85.1] - 2026-09-11
+
+### Fixed
+
+- 电子教练界面被整文件改写、视觉结构偏离原设计（141 回归）：恢复 `coach.vue` / `report.vue` 原始 UI（hero 卡 / `Empty` 空态 / 评分圆徽 / 六维进度条 / NTRP 说明 / 删除按钮等），仅保留「缓存优先渲染」与「离线媒体占位」的数据来源改造，不再改动既有样式与布局。
+- 电子教练列表误弹「本地空间不足，请先登录同步」（141 回归）：`storageBase.persist` 新增 `silent` 选项，`cloudCache` 列表/详情缓存写入改为静默（超容量/异常只丢弃不弹 toast）；该提示仅保留给游客/登录态主动新建的离线待同步数据，登录态只读浏览不再误弹。
+- 分析列表缓存体积过大易超限：列表缓存仅保留渲染所需轻量字段（剥离 `report`/`pose`/`highlights`/`video_url`）并丢弃 dataURL 封面（离线统一显示占位图），详情缓存保留文字报告仅丢弃 dataURL 封面，确保离线快照稳定写入。
+
 ## [1.85.0] - 2026-09-11
 
 ### Added
