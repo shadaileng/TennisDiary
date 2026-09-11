@@ -116,7 +116,7 @@ import { onShow } from "@dcloudio/uni-app";
 
 import Popup from "@/components/Popup.vue";
 import { getStats } from "@/services/data";
-import { syncPendingLocalData } from "@/services/sync";
+import { syncPendingLocalData, syncOfflineData } from "@/services/sync";
 import { THEMES } from "@/stores/settings";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import { useThemeStyle } from "@/composables/useTheme";
@@ -204,6 +204,11 @@ async function doLogin() {
     // 静默同步游客态本地数据到云端（失败不影响登录态）
     syncPendingLocalData().catch((err) => {
       logError("游客本地数据同步失败", { error: (err as Error).message }, undefined, "mine_sync_failed", undefined, createTraceId());
+    }).finally(() => {
+      // 再补传登录态期间的离线新建（Step 141）
+      syncOfflineData().catch((err) => {
+        logError("离线数据同步失败", { error: (err as Error).message }, undefined, "offline_sync_failed", undefined, createTraceId());
+      });
     });
   } catch (e) {
     uni.hideLoading();

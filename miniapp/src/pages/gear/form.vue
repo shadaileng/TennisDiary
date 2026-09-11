@@ -95,8 +95,10 @@ import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useGearStore, useSettingsStore } from "@/stores";
 import { getGear } from "@/services/data";
+import { networkOnline } from "@/utils/network";
 import { GEAR_CATEGORIES, compressImageToDataURL, guestCheckGearImage, resolveUploadUrl, safeNavigateBack, todayStr, uploadGearImage } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import type { ApiError } from "@/services/request";
 import type { AnyGear } from "@/types";
 
 const gearStore = useGearStore();
@@ -134,7 +136,9 @@ onLoad(async (query) => {
   logInfo("加载装备详情", { trace_id: traceId, gear_id: id }, undefined, "gear_detail_load", traceId);
   try {
     let g: AnyGear;
-    if (useAuthStore().isGuest) {
+    // 本地待同步条目（localId）或游客态：从本地仓库加载（可离线编辑）
+    const isLocal = typeof id === "string" && (id.startsWith("g_") || isNaN(Number(id)));
+    if (useAuthStore().isGuest || isLocal) {
       const local = gearStore.getLocalGear(String(id));
       if (!local) throw new Error("本地装备不存在");
       g = local;
@@ -148,8 +152,13 @@ onLoad(async (query) => {
     form.feeling = g.feeling || "";
     form.photo = g.photo || "";
   } catch (e) {
-    logError("装备详情加载失败", { trace_id: traceId, gear_id: editingId.value, error: (e as Error).message }, undefined, "gear_detail_load_failed", undefined, traceId);
-    uni.showToast({ title: "装备加载失败", icon: "none" });
+    const err = e as ApiError;
+    logError("装备详情加载失败", { trace_id: traceId, gear_id: editingId.value, error: (err as Error).message }, undefined, "gear_detail_load_failed", undefined, traceId);
+    if (err && err.status === -1) {
+      uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
+    } else {
+      uni.showToast({ title: "装备加载失败", icon: "none" });
+    }
   }
 });
 
@@ -207,7 +216,12 @@ async function onPickPhoto() {
       form.photo = await compressImageToDataURL(tempPath);
       logInfo("游客装备封面即检通过(本地保存)", { trace_id: traceId }, undefined, "gear_photo_guest_checked", traceId);
     } else {
-      // 登录态：压缩并上传到服务端（服务端受检）
+      // 登录态：离线时压缩为本地 dataURL 暂存（随装备落入离线仓库，恢复后自动上传）；
+      // 在线时压缩并上传到服务端（服务端受检）
+      if (!networkOnline.value) {
+        form.photo = await compressImageToDataURL(tempPath);
+        logInfo("登录态离线选封面(本地 dataURL 暂存)", { trace_id: traceId }, undefined, "gear_photo_offline_local", traceId);
+      }
       const compressed = await new Promise<string>((resolve, reject) => {
         uni.compressImage({
           src: tempPath,

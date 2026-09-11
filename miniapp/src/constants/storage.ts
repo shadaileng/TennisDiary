@@ -24,3 +24,28 @@ export const STORAGE_KEYS = {
   /** 有分析正在启动中（上传阶段 analysis 记录尚未创建，Step 139） */
   pendingAnalysisAt: "td_pending_analysis_at",
 } as const;
+
+/**
+ * 登录态离线仓库 / 云端快照缓存的账号隔离键生成（Step 141）。
+ * 全部收口 `td_` 前缀，按 userId 隔离，避免换号/登出串数据。
+ */
+
+/** 离线待同步仓库键（td_offline_{userId}_{entity}） */
+export function offlineKey(userId: number, entity: "diaries" | "gears" | "weights"): string {
+  return `td_offline_${userId}_${entity}`;
+}
+
+/** 云端快照缓存键（td_cache_{userId}_{entity}） */
+export function cacheKey(userId: number, entity: "diaries" | "gears" | "weights" | "analyses"): string {
+  return `td_cache_${userId}_${entity}`;
+}
+
+/** 分析详情缓存键（td_cache_{userId}_analysis_{id}） */
+export function analysisDetailKey(userId: number, id: number): string {
+  return `td_cache_${userId}_analysis_${id}`;
+}
+
+/** 分析详情 LRU 索引键（td_cache_{userId}_analysis_index） */
+export function analysisIndexKey(userId: number): string {
+  return `td_cache_${userId}_analysis_index`;
+}

@@ -9,6 +9,8 @@ import { useAuthStore } from "@/stores/auth";
 import { useSettingsStore } from "@/stores/settings";
 import { useCostTagsStore } from "@/stores/costTags";
 import { logFatal, logWarn, flushPendingEvents } from "@/utils/eventLogger";
+import { networkOnline, probeNetwork } from "@/utils/network";
+import { syncOfflineData } from "@/services/sync";
 
 onLaunch(() => {
   // 恢复持久化的登录态与偏好设置；不主动静默登录，未登录即为游客
@@ -17,6 +19,18 @@ onLaunch(() => {
   useSettingsStore().init();
   // 恢复本地费用学习标签候选池
   useCostTagsStore().init();
+  // 网络态初始化（Step 141）：探针 + 监听变化，驱动离线横幅/媒体占位/写门禁
+  probeNetwork();
+  // #ifdef MP-WEIXIN
+  uni.onNetworkStatusChange((res) => {
+    const online = res.isConnected && res.networkType !== "none";
+    networkOnline.value = online;
+    // 网络恢复：自动补传账号离线新建（登录态）
+    if (online && !useAuthStore().isGuest) {
+      syncOfflineData();
+    }
+  });
+  // #endif
   // 启动时补发离线事件
   flushPendingEvents();
 

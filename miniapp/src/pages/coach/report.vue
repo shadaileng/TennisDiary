@@ -1,822 +1,377 @@
 <template>
-  <page-meta :page-style="themeStyle" :background-color="themeBg" />
-  <view class="report-page">
-    <view v-if="!analysis" class="report-loading">
+  <view class="container" v-if="analysis">
+    <!-- 离线提示：缓存命中但无网络时媒体占位 -->
+    <view v-if="offline" class="offline-banner">
+      <text>📡 离线浏览中：文字报告来自本地缓存，视频/封面需联网后查看</text>
+    </view>
+
+    <!-- 头部 -->
+    <view class="header">
+      <image
+        class="cover"
+        :src="imgSrc(analysis.thumb || '')"
+        mode="aspectFill"
+        @error="onImgError(analysis.thumb || '')"
+      />
+      <view class="header-info">
+        <text class="title">{{ analysis.kind }}<text v-if="analysis.mode" class="analysis-mode"> · {{ analysis.mode === 'full' ? '综合' : '单次' }}</text></text>
+        <text class="sub">{{ analysis.date }}</text>
+        <view class="score-badge" v-if="analysis.score != null">
+          <text>总分 {{ analysis.score }}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 摘要 -->
+    <view class="section" v-if="analysis.summary">
+      <text class="section-title">总体点评</text>
+      <text class="summary-text">{{ analysis.summary }}</text>
+    </view>
+
+    <!-- 高光 / 骨架帧 -->
+    <view class="section" v-if="analysis.highlights && analysis.highlights.length">
+      <text class="section-title">高光帧</text>
+      <view class="frame-row">
+        <image
+          v-for="(h, i) in analysis.highlights"
+          :key="i"
+          class="frame"
+          :src="imgSrc(h)"
+          mode="aspectFill"
+          @error="onImgError(h)"
+        />
+      </view>
+    </view>
+
+    <!-- 视频 -->
+    <view class="section" v-if="analysis.video_url">
+      <text class="section-title">分析视频</text>
+      <view class="video-wrap">
+        <video
+          v-if="networkOnline"
+          class="hl-video"
+          :src="resolveMediaSrc(analysis.video_url || '', true)"
+          controls
+          :poster="imgSrc(analysis.thumb || '')"
+        />
+        <view v-else class="video-mask">
+          <image class="mask-img" :src="OFFLINE_MEDIA_PLACEHOLDER" mode="aspectFill" />
+          <text class="mask-text">网络不可用，请联网后查看</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 维度得分 -->
+    <view class="section" v-if="analysis.report && analysis.report.dimensions.length">
+      <text class="section-title">维度得分</text>
+      <view class="dim-item" v-for="(d, i) in analysis.report.dimensions" :key="i">
+        <view class="dim-head">
+          <text class="dim-name">{{ d.name }}</text>
+          <text class="dim-score">{{ d.score }}</text>
+        </view>
+        <text class="dim-comment">{{ d.comment }}</text>
+      </view>
+    </view>
+
+    <!-- 姿态 -->
+    <view class="section" v-if="analysis.pose && analysis.pose.detected">
+      <text class="section-title">姿态分析</text>
+      <view class="frame-row" v-if="analysis.pose.skeleton_frames && analysis.pose.skeleton_frames.length">
+        <image
+          v-for="(s, i) in analysis.pose.skeleton_frames"
+          :key="i"
+          class="frame"
+          :src="imgSrc(s)"
+          mode="aspectFill"
+          @error="onImgError(s)"
+        />
+      </view>
+      <view class="video-wrap" v-if="analysis.pose.skeleton_video_url">
+        <video
+          v-if="networkOnline"
+          class="hl-video"
+          :src="resolveMediaSrc(analysis.pose.skeleton_video_url || '', true)"
+          controls
+        />
+        <view v-else class="video-mask">
+          <image class="mask-img" :src="OFFLINE_MEDIA_PLACEHOLDER" mode="aspectFill" />
+          <text class="mask-text">网络不可用，请联网后查看</text>
+        </view>
+      </view>
+      <text class="pose-metrics" v-if="analysis.pose.metrics">
+        肘角 {{ analysis.pose.metrics.elbowAngle }}° · 膝角 {{ analysis.pose.metrics.kneeAngle }}° · 躯干倾角 {{ analysis.pose.metrics.trunkLean }}°
+      </text>
+    </view>
+
+    <!-- 改进建议 -->
+    <view class="section" v-if="analysis.report && analysis.report.improvements.length">
+      <text class="section-title">改进建议</text>
+      <view class="improve-item" v-for="(im, i) in analysis.report.improvements" :key="i">
+        <text class="improve-issue">· {{ im.issue }}</text>
+        <text class="improve-advice">{{ im.advice }}</text>
+      </view>
+    </view>
+
+    <!-- 加载中（首次无缓存） -->
+    <view v-if="loading" class="loading-tip">
       <text>加载中…</text>
-    </view>
-
-    <view v-else-if="isProcessing" class="processing-block">
-      <view class="proc-spinner" />
-      <text class="proc-title">AI 分析进行中</text>
-      <text class="proc-pct">{{ pipelinePercent }}%</text>
-      <view class="proc-track">
-        <view class="proc-bar" :style="{ width: pipelinePercent + '%' }" />
-      </view>
-      <text class="proc-step">{{ pipelineStepText }}</text>
-      <text class="proc-tip">分析约需 30~60 秒，可先返回列表，稍后回来查看报告</text>
-    </view>
-
-    <!-- 失败状态（与 isProcessing 互斥，单独展示） -->
-    <view v-else-if="analysis.status === 'failed'" class="failed-block">
-      <view class="failed-banner">
-        <text class="failed-icon">⚠️</text>
-        <text class="failed-text">分析失败</text>
-        <text class="failed-reason">{{ failedReasonText }}</text>
-      </view>
-      <view class="delete-btn press-btn" @tap="confirmRemove">删除这条记录</view>
-    </view>
-
-    <view v-else class="report-body">
-      <!-- 封面 + 评分圆徽 -->
-      <view class="cover-wrap">
-        <image v-if="coverSrc" :src="coverSrc" mode="aspectFill" class="cover-img" />
-        <view v-else class="cover-placeholder">🎾</view>
-        <view v-if="(analysis.score || 0) > 0" class="score-badge">
-          <text class="score-badge-value">{{ analysis.score }}</text>
-          <text class="score-badge-label">SCORE</text>
-        </view>
-        <text v-if="pose?.detected" class="skeleton-badge">🦴 骨架标注</text>
-      </view>
-
-      <!-- 摘要 -->
-      <view class="summary-block">
-        <view class="summary-tags">
-          <text class="tag-kind">{{ analysis.kind }}</text>
-          <text v-if="analysis.ntrp" class="tag-ntrp">NTRP {{ analysis.ntrp }}</text>
-          <text class="tag-mode">{{ analysis.mode === "single" ? "单次挥拍分析" : "综合分析" }} · {{ analysis.date }}</text>
-        </view>
-        <text class="summary-text">{{ analysis.summary }}</text>
-        <text v-if="analysis.ntrp" class="ntrp-note">NTRP 为基于本段视频的参考评估，仅供对照成长，非官方定级</text>
-      </view>
-
-      <!-- 六维评分：雷达图 + 逐项点评 -->
-      <view v-if="report && report.dimensions && report.dimensions.length > 0" class="form-card">
-        <text class="card-title">📐 分维度点评</text>
-        <RadarChart v-if="report.dimensions.length >= 3" :data="report.dimensions" :color="settingsStore.themePalette.accent" class="radar-chart" />
-        <view v-for="d in report.dimensions" :key="d.name" class="dim-item">
-          <view class="dim-head">
-            <text class="dim-name">{{ d.name }}</text>
-            <text class="dim-score">{{ d.score }}</text>
-          </view>
-          <view class="dim-bar">
-            <view class="dim-bar-fill" :style="{ width: dimWidth(d.score) }" />
-          </view>
-          <text class="dim-comment">{{ d.comment }}</text>
-        </view>
-      </view>
-
-      <!-- 姿态测量 + 视频回看（Step 83） -->
-      <view v-if="pose?.detected || analysis.video_url" class="form-card">
-        <text class="card-title">🦴 姿态测量</text>
-        <view v-if="pose?.detected && pose.metrics" class="pose-metrics">
-          <view class="pose-metric">
-            <text class="pose-metric-value">{{ Math.round(pose.metrics.elbowAngle) }}°</text>
-            <text class="pose-metric-label">肘角</text>
-          </view>
-          <view class="pose-metric">
-            <text class="pose-metric-value">{{ Math.round(pose.metrics.kneeAngle) }}°</text>
-            <text class="pose-metric-label">膝角</text>
-          </view>
-          <view class="pose-metric">
-            <text class="pose-metric-value">{{ Math.round(pose.metrics.trunkLean) }}°</text>
-            <text class="pose-metric-label">躯干倾斜</text>
-          </view>
-        </view>
-        <text v-else class="pose-none">未检测到清晰的人体姿态，可查看原视频回放</text>
-
-        <view v-if="skeletonVideoSrc || originalVideoSrc" class="pose-video">
-          <view v-if="skeletonVideoSrc && originalVideoSrc" class="video-toggle">
-            <view
-              class="video-toggle-pill press-btn"
-              :class="activeVideo === 'original' ? 'video-toggle-pill--active' : ''"
-              @tap="activeVideo = 'original'"
-            >原视频</view>
-            <view
-              class="video-toggle-pill press-btn"
-              :class="activeVideo === 'skeleton' ? 'video-toggle-pill--active' : ''"
-              @tap="activeVideo = 'skeleton'"
-            >骨架视频</view>
-          </view>
-          <video
-            v-if="activeVideoSrc"
-            class="pose-video-el"
-            :src="activeVideoSrc"
-            controls
-          />
-          <text v-if="activeVideo === 'skeleton'" class="pose-video-note">骨架动画由采样帧拼接，帧率较慢，仅示意</text>
-        </view>
-
-        <scroll-view v-else-if="skeletonFrameSrcs.length > 0" scroll-x class="skeleton-frames">
-          <view v-for="(src, i) in skeletonFrameSrcs" :key="i" class="skeleton-frame">
-            <image :src="src" mode="aspectFill" class="skeleton-frame-img" />
-          </view>
-        </scroll-view>
-      </view>
-
-      <!-- 节奏与战术 -->
-      <view v-if="report?.rhythm" class="form-card">
-        <text class="card-title">🎵 节奏与战术</text>
-        <text class="card-text">{{ report.rhythm }}</text>
-      </view>
-
-      <!-- 亮点总结 -->
-      <view v-if="report && report.strengths && report.strengths.length > 0" class="form-card">
-        <text class="card-title">⭐ 亮点总结</text>
-        <view v-for="(s, i) in report.strengths" :key="i" class="strength-item">
-          <text class="strength-index">{{ i + 1 }}</text>
-          <text class="card-text">{{ s }}</text>
-        </view>
-      </view>
-
-      <!-- 待改进 & 建议 -->
-      <view v-if="report && report.improvements && report.improvements.length > 0" class="form-card">
-        <text class="card-title">🎯 待改进 & 建议</text>
-        <view v-for="(im, i) in report.improvements" :key="i" class="impr-item">
-          <text class="impr-issue">⚠️ {{ im.issue }}</text>
-          <text class="impr-advice">💡 {{ im.advice }}</text>
-        </view>
-      </view>
-
-      <!-- 删除 -->
-      <view class="delete-btn press-btn" @tap="confirmRemove">删除这条分析</view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { onLoad, onUnload } from "@dcloudio/uni-app";
-
-import RadarChart from "@/components/RadarChart.vue";
-import { useThemeStyle } from "@/composables/useTheme";
-import { useSettingsStore } from "@/stores";
-import { deleteAnalysis, getAnalysis } from "@/services/data";
-import { createStatusSubscriber, stepLabel, type AnalysisStatus } from "@/services/analysisStatus";
+import { onLoad } from "@dcloudio/uni-app";
+import { ref } from "vue";
+import { getAnalysis } from "@/services/data";
+import { getAnalysisDetail, setAnalysisDetail } from "@/services/cloudCache";
+import { useAuthStore } from "@/stores/auth";
+import { networkOnline } from "@/utils/network";
+import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
+import type { ApiError } from "@/services/request";
 import type { Analysis } from "@/types";
-import { resolveUploadUrl, safeNavigateBack } from "@/utils";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const analysis = ref<Analysis | null>(null);
-const { themeStyle, themeBg } = useThemeStyle();
-const settingsStore = useSettingsStore();
-const report = computed(() => analysis.value?.report);
-const pose = computed(() => analysis.value?.pose);
+const loading = ref(false);
+const offline = ref(false);
+/** 媒体加载失败（URL 失效/401）回退占位的 url 集合 */
+const failedImages = ref<Set<string>>(new Set());
 
-// ============ 进行中：订阅管线进度（避免退出再进入时看到空报告误以为失败） ============
-const isProcessing = computed(() => analysis.value?.status === "processing");
-const pipelinePercent = ref(0);
-const pipelineStepText = ref("准备中…");
-let statusSubscriber: { start: () => void; stop: () => void } | null = null;
+const auth = useAuthStore();
+let id = 0;
+let timer: ReturnType<typeof setInterval> | undefined;
 
-/** 把后端 pipeline_status.error 转为用户可见文案：
- * - 已知业务错误（"片段起点/终点超出视频范围" 等）原样透传
- * - SQL 异常 / IntegrityError / UNIQUE 等技术性错误统一降级，避免泄漏
- *   schema / md5 / 内部参数等敏感信息给终端用户
- */
-const _TECHNICAL_PATTERNS = [
-  /(sqlite3\.[A-Za-z.]+)/i,
-  /UNIQUE constraint|IntegrityError|sqlalchemy/i,
-  /\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bSELECT\b/i,
-  /sqlalche\.me\/e\//i,
-];
-function formatUserError(raw: string | undefined | null): string {
-  const text = (raw || "").trim();
-  if (!text) return "分析失败，请重新上传视频";
-  if (_TECHNICAL_PATTERNS.some((p) => p.test(text))) {
-    return "分析失败，请重新上传视频（服务端处理异常，已记录到日志）";
-  }
-  return text;
+function imgSrc(url: string): string {
+  if (!url) return OFFLINE_MEDIA_PLACEHOLDER;
+  if (failedImages.value.has(url)) return OFFLINE_MEDIA_PLACEHOLDER;
+  return resolveMediaSrc(url, networkOnline.value);
 }
 
-/** 失败原因展示：后端置 failed 时会同步写入 summary（截断后的原因），
- * 前端统一从 summary 读取并脱敏，覆盖"停留报告页失败"与"从列表重新进入"两个场景。
- */
-const failedReasonText = computed(() => formatUserError(analysis.value?.summary));
-
-function stopStatusSubscriber() {
-  if (statusSubscriber) {
-    statusSubscriber.stop();
-    statusSubscriber = null;
-  }
+function onImgError(url: string) {
+  failedImages.value.add(url);
 }
 
-/** 订阅状态：完成后重新拉取完整报告，失败则展示失败提示 */
-function subscribeStatus(id: number) {
-  stopStatusSubscriber();
-  statusSubscriber = createStatusSubscriber(id, (status: AnalysisStatus) => {
-    if (status.pipeline_status) {
-      pipelinePercent.value = Math.min(Math.max(Math.round(status.pipeline_status.progress || 0), 0), 100);
-      pipelineStepText.value = stepLabel(status.pipeline_status.step);
-    }
-
-    if (status.status === "completed") {
-      stopStatusSubscriber();
-      reloadAnalysis(id);
-      return;
-    }
-
-    if (status.status === "failed") {
-      stopStatusSubscriber();
-      if (analysis.value) {
-        // 用 pipeline_status.error 作为用户可见的失败原因，
-        // 避免直接把 SQL 异常原文显示在界面上（易泄漏 schema / md5 等内部信息）
-        const errorMsg = formatUserError(status.pipeline_status?.error);
-        analysis.value = {
-          ...analysis.value,
-          status: "failed",
-          summary: errorMsg,
-        };
+function subscribe() {
+  if (timer || !networkOnline.value) return;
+  timer = setInterval(async () => {
+    try {
+      const detail = await getAnalysis(id);
+      analysis.value = detail;
+      const u = auth.user?.id;
+      if (u != null) setAnalysisDetail(u, detail);
+      if (detail.status === "completed" || detail.status === "failed") {
+        if (timer) clearInterval(timer);
+        timer = undefined;
       }
+    } catch {
+      if (timer) clearInterval(timer);
+      timer = undefined;
     }
-  }, {
-    // 139：超时必须提示用户，否则会出现"已停止请求但页面仍显示进行中"
-    onTimeout: () => {
-      pipelineStepText.value = "分析超时，请返回列表下拉刷新";
-      uni.showToast({ title: "分析超时，请稍后重试", icon: "none" });
-    },
-  });
-  statusSubscriber.start();
+  }, 3000);
 }
 
-async function reloadAnalysis(id: number) {
-  try {
-    analysis.value = await getAnalysis(id);
-  } catch (e) {
-    logError("分析报告刷新失败", { analysis_id: id, error: (e as Error).message }, undefined, "report_reload_failed");
+async function load() {
+  if (!id) return;
+  const u = auth.user?.id;
+  // 缓存优先：立即渲染详情（离线可看文字报告与骨架帧占位）
+  if (u != null) {
+    const cached = getAnalysisDetail(u, id);
+    if (cached) analysis.value = cached;
   }
-}
-
-onUnload(() => stopStatusSubscriber());
-
-/** 封面：优先骨架标注帧（相对 media URL），兼容旧 base64 封面 */
-const coverSrc = computed(() => resolveUploadUrl(analysis.value?.thumb || ""));
-
-const activeVideo = ref<"original" | "skeleton">("original");
-
-const originalVideoSrc = computed(() => resolveUploadUrl(analysis.value?.video_url || ""));
-const skeletonVideoSrc = computed(() => resolveUploadUrl(pose.value?.skeleton_video_url || ""));
-const skeletonFrameSrcs = computed(() =>
-  (pose.value?.skeleton_frames || []).map(resolveUploadUrl),
-);
-
-/** 当前播放的视频地址：骨架模式时优先骨架动画，否则回退原视频 */
-const activeVideoSrc = computed(() => {
-  if (activeVideo.value === "skeleton" && skeletonVideoSrc.value) return skeletonVideoSrc.value;
-  if (activeVideo.value === "original" && originalVideoSrc.value) return originalVideoSrc.value;
-  return skeletonVideoSrc.value || originalVideoSrc.value;
-});
-
-/** 分数 → 进度条宽度（0-100 映射 0-100%） */
-function dimWidth(score: number): string {
-  const v = Math.max(0, Math.min(100, Number(score) || 0));
-  return `${v}%`;
-}
-
-onLoad(async (query) => {
-  const id = Number(query?.id);
-  if (!id) {
-    uni.showToast({ title: "参数错误", icon: "none" });
+  if (!networkOnline.value) {
+    offline.value = true;
     return;
   }
-  const traceId = createTraceId();
-  logInfo("加载分析报告", { trace_id: traceId, analysis_id: id }, undefined, "report_load", traceId);
+  loading.value = true;
   try {
-    analysis.value = await getAnalysis(id);
-    logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, undefined, "report_loaded", traceId);
-    // 进行中：订阅管线进度，完成后自动刷新为完整报告
-    if (analysis.value?.status === "processing") {
-      logInfo("分析进行中，订阅进度", { trace_id: traceId, analysis_id: id }, undefined, "report_subscribe_start", traceId);
-      subscribeStatus(id);
-    }
+    const detail = await getAnalysis(id);
+    analysis.value = detail;
+    if (u != null) setAnalysisDetail(u, detail);
+    offline.value = false;
+    if (detail.status === "processing") subscribe();
   } catch (e) {
-    logError("分析报告加载失败", { trace_id: traceId, analysis_id: id, error: (e as Error).message }, undefined, "report_load_failed", undefined, traceId);
-    uni.showToast({ title: "报告加载失败", icon: "none" });
+    const err = e as ApiError;
+    if (err && err.status === -1) {
+      offline.value = true;
+    } else {
+      offline.value = false;
+    }
+  } finally {
+    loading.value = false;
   }
-});
-
-
-
-function confirmRemove() {
-  if (!analysis.value) return;
-  const traceId = createTraceId();
-  logInfo("删除分析报告", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_delete", traceId);
-  uni.showModal({
-    title: "删除分析",
-    content: "确定删除这条分析记录？",
-    confirmColor: settingsStore.themePalette.dark,
-    success: async (res) => {
-      if (!res.confirm || !analysis.value) return;
-      try {
-        await deleteAnalysis(analysis.value.id);
-        logInfo("分析报告删除成功", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_deleted", traceId);
-        uni.showToast({ title: "已删除", icon: "success" });
-        setTimeout(() => safeNavigateBack("/pages/coach/coach"), 600);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "删除失败";
-        logError("分析报告删除失败", { trace_id: traceId, analysis_id: analysis.value.id, error: msg }, undefined, "analysis_delete_failed", undefined, traceId);
-        uni.showToast({ title: msg, icon: "none" });
-      }
-    },
-  });
 }
+
+onLoad((q) => {
+  id = Number(q?.id);
+  load();
+});
 </script>
 
-<style scoped lang="scss">
-.report-page {
-  min-height: 100vh;
-  background-color: var(--color-page-bg, #F2F2EF);
+<style scoped>
+.container {
+  padding: 24rpx;
+  box-sizing: border-box;
 }
-
-.report-loading {
+.offline-banner {
+  background: #fff7e6;
+  border: 1rpx solid #ffd591;
+  color: #ad6800;
+  padding: 12rpx 20rpx;
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+  font-size: 24rpx;
+}
+.header {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
-  font-size: 13px;
-  color: $color-olive-light;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 16rpx;
 }
-
-// ========== 进行中进度 ==========
-.processing-block {
-  min-height: 60vh;
-  margin: $space-lg;
-  padding: $space-xl $space-lg;
-  background-color: var(--color-card, #FFFFFF);
-  border-radius: $radius-card;
-  box-shadow: $shadow-card-md;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: $space-sm;
+.cover {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 12rpx;
+  background: #f0f0f0;
 }
-
-.proc-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--color-accent-soft, $color-lime-soft);
-  border-top-color: var(--color-accent-dark, $color-lime-dark);
-  border-radius: 50%;
-  animation: proc-spin 0.8s linear infinite;
-}
-
-.proc-title {
-  font-size: $font-size-base;
-  font-weight: 600;
-  color: $color-ink;
-}
-
-.proc-pct {
-  font-size: 30px;
-  font-weight: 700;
-  color: $color-ink;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-.proc-track {
-  width: 100%;
-  max-width: 220px;
-  height: 8px;
-  border-radius: 9999px;
-  background-color: var(--color-page-bg, #F2F2EF);
-  overflow: hidden;
-}
-
-.proc-bar {
-  height: 100%;
-  border-radius: 9999px;
-  background-color: var(--color-accent, #C8DA2B);
-  transition: width 0.3s ease;
-}
-
-.proc-step {
-  display: block;
-  font-size: $font-size-sm;
-  color: $color-olive;
-}
-
-.proc-tip {
-  display: block;
-  margin-top: $space-sm;
-  font-size: 12px;
-  color: $color-olive-light;
-  text-align: center;
-}
-
-@keyframes proc-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.report-body {
-  padding: $space-lg;
-  padding-top: $space-xl;
-  display: flex;
-  flex-direction: column;
-  gap: $space-md;
-}
-
-// ========== 失败状态（独立展示，与进行中/报告体互斥）==========
-.failed-block {
-  min-height: 60vh;
-  margin: $space-lg;
-  padding: $space-xl $space-lg;
-  background-color: var(--color-card, #FFFFFF);
-  border-radius: $radius-card;
-  box-shadow: $shadow-card-md;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: $space-md;
-}
-
-.failed-banner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: $space-xl $space-lg;
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
-  border-radius: $radius-card;
-  gap: 6px;
-  width: 100%;
-}
-
-.failed-icon {
-  font-size: 32px;
-}
-
-.failed-text {
-  font-size: 16px;
-  font-weight: 600;
-  color: #DC2626;
-}
-
-.failed-reason {
-  font-size: 13px;
-  color: #991B1B;
-  text-align: center;
-  line-height: 1.5;
-}
-
-// ========== 封面 ==========
-.cover-wrap {
-  position: relative;
-}
-
-.cover-img {
-  width: 100%;
-  border-radius: $radius-card;
-  background-color: $color-olive;
-}
-
-.cover-placeholder {
-  width: 100%;
-  height: 176px;
-  border-radius: $radius-card;
-  background-color: $color-olive;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40px;
-}
-
-.score-badge {
-  position: absolute;
-  right: 20px;
-  bottom: -16px;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.45), transparent 55%);
-  background-color: var(--color-accent, #C8DA2B);
-  border: 4px solid var(--color-border, #E7E9DF);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.score-badge-value {
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.1;
-  color: $color-ink;
-}
-
-.score-badge-label {
-  font-size: 9px;
-  font-weight: 600;
-  opacity: 0.7;
-  color: $color-ink;
-}
-
-.skeleton-badge {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: $color-ink;
-  background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.92);
-  border-radius: 9999px;
-  padding: 4px 10px;
-}
-
-// ========== 雷达图 ==========
-.radar-chart {
-  margin-bottom: $space-lg;
-}
-
-// ========== 姿态测量 ==========
-.pose-metrics {
-  display: flex;
-  gap: $space-sm;
-  margin-bottom: $space-lg;
-}
-
-.pose-metric {
+.header-info {
   flex: 1;
-  background-color: var(--color-page-bg, #F2F2EF);
-  border-radius: 16px;
-  padding: 12px 0;
+  margin-left: 20rpx;
   display: flex;
   flex-direction: column;
-  align-items: center;
-}
-
-.pose-metric-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--color-accent-dark, #A8B822);
-}
-
-.pose-metric-label {
-  margin-top: 2px;
-  font-size: 11px;
-  color: $color-olive-light;
-}
-
-.pose-none {
-  display: block;
-  font-size: 13px;
-  color: $color-olive-light;
-  margin-bottom: $space-md;
-}
-
-.pose-video {
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.video-toggle {
-  display: flex;
-  gap: 8px;
-  margin-bottom: $space-sm;
-}
-
-.video-toggle-pill {
-  font-size: 12px;
-  color: $color-olive-light;
-  background-color: var(--color-page-bg, #F2F2EF);
-  border-radius: 9999px;
-  padding: 6px 14px;
-
-  &--active {
-    color: $color-ink;
-    background-color: var(--color-accent, #C8DA2B);
-    font-weight: 600;
-  }
-}
-
-.pose-video-el {
-  width: 100%;
-  border-radius: 12px;
-  background-color: $color-olive;
-}
-
-.pose-video-note {
-  display: block;
-  margin-top: 6px;
-  font-size: 11px;
-  color: $color-olive-light;
-}
-
-.skeleton-frames {
-  white-space: nowrap;
-  width: 100%;
-}
-
-.skeleton-frame {
-  display: inline-block;
-  width: 88px;
-  height: 88px;
-  border-radius: 12px;
-  overflow: hidden;
-  margin-right: 8px;
-
-  &:last-child {
-    margin-right: 0;
-  }
-}
-
-.skeleton-frame-img {
-  width: 100%;
-  height: 100%;
-}
-
-// ========== 摘要 ==========
-.summary-block {
-  padding: $space-lg $space-sm $space-sm;
-}
-
-.summary-tags {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.tag-kind {
-  font-size: 12px;
-  font-weight: 700;
-  color: $color-ink;
-  background: var(--color-accent, #C8DA2B);
-  border-radius: 9999px;
-  padding: 3px 10px;
-}
-
-.tag-ntrp {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-accent, #C8DA2B);
-  background: $color-olive;
-  border-radius: 9999px;
-  padding: 3px 10px;
-}
-
-.tag-mode {
-  font-size: 12px;
-  color: $color-olive-light;
-}
-
-.summary-text {
-  display: block;
-  margin-top: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: $color-ink;
-  line-height: 1.5;
-}
-
-.ntrp-note {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-  color: $color-olive-light;
-}
-
-// ========== 卡片 ==========
-.form-card {
-  background-color: var(--color-card, #FFFFFF);
-  border-radius: $radius-card;
-  padding: $space-lg;
-  box-shadow: $shadow-card;
-}
-
-.card-title {
-  display: block;
-  font-size: $font-size-base;
-  font-weight: 600;
-  color: $color-ink;
-  margin-bottom: $space-md;
-}
-
-.card-text {
-  display: block;
-  font-size: 13px;
-  color: $color-olive-light;
-  line-height: 1.7;
-}
-
-// ========== 六维 ==========
-.dim-item {
-  margin-bottom: $space-md;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.dim-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.dim-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: $color-ink;
-}
-
-.dim-score {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--color-accent-dark, #A8B822);
-}
-
-.dim-bar {
-  height: 8px;
-  border-radius: 9999px;
-  background-color: var(--color-page-bg, #F2F2EF);
-  overflow: hidden;
-}
-
-.dim-bar-fill {
-  height: 100%;
-  border-radius: 9999px;
-  background-color: var(--color-accent, #C8DA2B);
-}
-
-.dim-comment {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  color: $color-olive-light;
-  line-height: 1.5;
-}
-
-// ========== 亮点 / 建议 ==========
-.strength-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: $space-sm;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.strength-index {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background-color: var(--color-accent, #C8DA2B);
-  color: $color-ink;
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  margin-top: 1px;
 }
-
-.impr-item {
-  background-color: var(--color-page-bg, #F2F2EF);
-  border-radius: 16px;
-  padding: $space-md;
-  margin-bottom: $space-sm;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.impr-issue {
-  display: block;
-  font-size: 13px;
+.title {
+  font-size: 32rpx;
   font-weight: 600;
-  color: $color-ink;
-  line-height: 1.5;
+  color: #222;
 }
-
-.impr-advice {
+.analysis-mode {
+  font-size: 24rpx;
+  font-weight: 400;
+  color: #999;
+}
+.sub {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+.score-badge {
+  margin-top: 16rpx;
+  align-self: flex-start;
+  background: #f9f0ff;
+  color: #722ed1;
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 10rpx;
+}
+.section {
+  margin-top: 24rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 20rpx;
+}
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #333;
   display: block;
-  margin-top: 6px;
-  font-size: 12px;
-  color: $color-olive-light;
+  margin-bottom: 16rpx;
+}
+.summary-text {
+  font-size: 26rpx;
+  color: #555;
   line-height: 1.6;
 }
-
-// ========== 删除 ==========
-.delete-btn {
-  margin-top: $space-sm;
+.frame-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+.frame {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 12rpx;
+  background: #f0f0f0;
+}
+.video-wrap {
+  margin-top: 8rpx;
+}
+.hl-video {
+  width: 100%;
+  height: 360rpx;
+  border-radius: 12rpx;
+  background: #000;
+}
+.video-mask {
+  position: relative;
+  width: 100%;
+  height: 360rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+.mask-img {
+  width: 100%;
+  height: 100%;
+  filter: grayscale(1);
+}
+.mask-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
   text-align: center;
-  font-size: 14px;
-  color: #e05c5c;
-  padding: 14px 0;
-  background-color: var(--color-card, #FFFFFF);
-  border-radius: $radius-card;
-  box-shadow: $shadow-card;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 24rpx;
+  padding: 12rpx 0;
+}
+.dim-item {
+  padding: 12rpx 0;
+  border-top: 1rpx solid #f0f0f0;
+}
+.dim-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dim-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #222;
+}
+.dim-score {
+  font-size: 26rpx;
+  color: #722ed1;
+}
+.dim-comment {
+  font-size: 26rpx;
+  color: #555;
+  margin-top: 6rpx;
+}
+.pose-metrics {
+  display: block;
+  font-size: 24rpx;
+  color: #888;
+  margin-top: 12rpx;
+}
+.improve-item {
+  padding: 12rpx 0;
+  border-top: 1rpx solid #f0f0f0;
+}
+.improve-issue {
+  font-size: 26rpx;
+  color: #333;
+}
+.improve-advice {
+  display: block;
+  font-size: 26rpx;
+  color: #555;
+  margin-top: 6rpx;
+  line-height: 1.6;
+}
+.loading-tip {
+  text-align: center;
+  color: #999;
+  padding: 40rpx 0;
+  font-size: 28rpx;
 }
 </style>

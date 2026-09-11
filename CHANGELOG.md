@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.85.0] - 2026-09-11
+
+### Added
+
+- 登录态离线缓存与自动同步（141）：日记/装备/体重列表与详情渲染源统一收敛为本地缓存合并视图（`merge(账号云端快照缓存, 账号离线待同步仓库)`），页面先 hydrate 缓存立即渲染、仅网络可用且已登录才拉取远端刷新缓存；断网可浏览缓存并新建记录（落按 userId 隔离的 `td_offline_{userId}_*`），恢复后按 `business_time` 升序自动静默同步，冲突按时间戳后写胜；分析记录可离线浏览列表与文字报告、视频/封面等媒体离线统一占位不破图；含离线横幅、待同步标记、加载态（loading）三态与媒体 `resolveMediaSrc` 占位；新增 `storageBase`/`offlineRepo`/`cloudCache`/`utils/media`/`utils/network`，游客态现有本地降级机制（129）零改动。
+
 ## [1.84.0] - 2026-09-09
 
 ### Added

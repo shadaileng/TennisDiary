@@ -1,406 +1,230 @@
 <template>
-  <page-meta :page-style="themeStyle" :background-color="themeBg" />
-  <view class="coach-page">
-    <!-- hero 卡（深橄榄渐变 + 青柠光斑） -->
-    <view class="hero-card">
-      <text class="hero-badge">🎾 7×24H · 专属私教</text>
-      <text class="hero-title">上传视频，让教练帮你复盘</text>
-      <view class="hero-features">
-        <text v-for="f in FEATURES" :key="f" class="hero-feature">{{ f }}</text>
-      </view>
-      <view class="hero-btn press-btn" @tap="goAnalyze">开始分析</view>
+  <view class="container">
+    <!-- 离线横幅：缓存命中但当前无网络 -->
+    <view v-if="offline && analyses.length > 0" class="offline-banner">
+      <text>📡 离线浏览中，数据来自本地缓存</text>
     </view>
 
-    <!-- 历史分析 -->
-    <view class="history-header">
-      <text class="history-title">历史分析</text>
-      <text class="history-count">{{ analyses.length }} 条</text>
-    </view>
-
-    <Empty v-if="analyses.length === 0" icon="🎥" text="还没有分析记录" buttonText="去分析" @action="goAnalyze" />
-
-    <view v-else class="history-list">
-      <view
+    <!-- 列表 -->
+    <view v-if="analyses.length > 0" class="analysis-list">
+      <navigator
         v-for="a in analyses"
         :key="a.id"
-        class="history-item press-btn"
-        @tap="goReport(a.id)"
+        :url="`/pages/coach/report?id=${a.id}`"
+        class="analysis-card"
+        hover-class="card-hover"
       >
-        <view class="history-thumb">
-          <image v-if="a.thumb" :src="resolveUploadUrl(a.thumb)" mode="aspectFill" class="history-thumb-img" />
-          <text v-else class="history-thumb-placeholder">🎾</text>
-          <text v-if="a.status === 'failed'" class="thumb-badge thumb-badge-fail">✕</text>
-          <text v-else-if="a.status === 'processing'" class="thumb-badge thumb-badge-processing">⏳</text>
-          <text v-else-if="a.pose?.detected" class="thumb-badge">🦴</text>
-        </view>
-        <view class="history-info">
-          <view class="history-tags">
-            <text class="tag-kind">{{ a.kind }}</text>
-            <text class="tag-mode">{{ a.mode === "single" ? "单次挥拍" : "综合分析" }} · {{ a.date }}</text>
+        <image
+          class="analysis-thumb"
+          :src="thumbSrc(a)"
+          mode="aspectFill"
+          @error="onThumbError(a.id)"
+        />
+        <view class="analysis-info">
+          <text class="analysis-title">{{ a.kind }}<text v-if="a.mode" class="analysis-mode"> · {{ a.mode === 'full' ? '综合' : '单次' }}</text></text>
+          <text class="analysis-sub">{{ a.date }}</text>
+          <view class="analysis-tags">
+            <text v-if="a.status === 'processing'" class="tag tag-processing">分析中</text>
+            <text v-else-if="a.status === 'completed'" class="tag tag-done">已完成</text>
+            <text v-else-if="a.status === 'failed'" class="tag tag-fail">失败</text>
+            <text v-if="a.score != null" class="tag tag-score">总分 {{ a.score }}</text>
           </view>
-          <text v-if="a.status === 'processing'" class="history-summary history-summary--processing">
-            分析进行中…
-          </text>
-          <text v-else class="history-summary">
-            {{ a.status === "failed" ? "分析失败" : (a.summary || "暂无摘要") }}
-          </text>
         </view>
-        <view class="history-score">
-          <template v-if="a.status === 'processing'">
-            <view class="score-spinner" />
-            <text class="score-processing">分析中</text>
-          </template>
-          <template v-else-if="a.status === 'failed'">
-            <text class="score-fail">失败</text>
-          </template>
-          <template v-else-if="(a.score || 0) > 0">
-            <text class="score-value">{{ a.score }}</text>
-            <text class="score-label">评分</text>
-          </template>
-          <text v-else class="score-local">本地</text>
-        </view>
-      </view>
+      </navigator>
+    </view>
+
+    <!-- 加载中（首次无缓存且正在请求） -->
+    <view v-else-if="loading" class="empty-state">
+      <text>加载中…</text>
+    </view>
+
+    <!-- 空态：无缓存且无网络 / 确实无数据 -->
+    <view v-else class="empty-state">
+      <text v-if="offline">网络不可用，暂无可浏览的本地分析</text>
+      <text v-else>还没有分析记录，去上传一段训练视频吧</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { onPullDownRefresh, onShow, onUnload } from "@dcloudio/uni-app";
-
-import Empty from "@/components/Empty.vue";
-import { useThemeStyle } from "@/composables/useTheme";
-import { STORAGE_KEYS } from "@/constants/storage";
-import { getAnalyses } from "@/services/data";
+import { computed, ref } from "vue";
+import { onShow } from "@dcloudio/uni-app";
+import { getAnalyses, getAnalysis } from "@/services/data";
+import { getAnalysesCache, setAnalysesCache } from "@/services/cloudCache";
+import { useAuthStore } from "@/stores/auth";
+import { networkOnline } from "@/utils/network";
+import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
+import type { ApiError } from "@/services/request";
 import type { Analysis } from "@/types";
-import { ANALYSIS_EVENTS, resolveUploadUrl } from "@/utils";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
-const { themeStyle, themeBg } = useThemeStyle();
-
-const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
+const auth = useAuthStore();
+const uid = computed(() => auth.user?.id ?? null);
 
 const analyses = ref<Analysis[]>([]);
+const loading = ref(false);
+const offline = ref(false);
+/** 缩略图加载失败（URL 失效/401）后回退占位的 id 集合 */
+const failedThumbs = ref<Set<number>>(new Set());
+
+/** 订阅仍在处理中的分析；离线时跳过 */
+const timers: Record<number, ReturnType<typeof setInterval>> = {};
+function subscribeIfProcessing(a: Analysis) {
+  if (!networkOnline.value || timers[a.id]) return;
+  timers[a.id] = setInterval(async () => {
+    try {
+      const detail = await getAnalysis(a.id);
+      const idx = analyses.value.findIndex((x) => x.id === a.id);
+      if (idx >= 0) analyses.value[idx] = detail;
+      if (detail.status === "completed" || detail.status === "failed") {
+        clearInterval(timers[a.id]);
+        delete timers[a.id];
+        const u = uid.value;
+        if (u != null) setAnalysesCache(u, analyses.value);
+      }
+    } catch {
+      clearInterval(timers[a.id]);
+      delete timers[a.id];
+    }
+  }, 3000);
+}
 
 async function loadAnalyses() {
-  const traceId = createTraceId();
-  logInfo("加载历史分析", { trace_id: traceId }, undefined, "analyses_load", traceId);
+  const id = uid.value;
+  if (id == null) {
+    analyses.value = [];
+    return;
+  }
+  // 缓存优先：立即渲染缓存（离线可直接浏览历史列表与文字报告）
+  const cached = getAnalysesCache(id);
+  analyses.value = cached;
+  failedThumbs.value = new Set();
+  if (!networkOnline.value) {
+    offline.value = true;
+    return;
+  }
+  loading.value = true;
   try {
     const data = await getAnalyses();
-    analyses.value = data.items || [];
-    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, undefined, "analyses_loaded", traceId);
+    const items = data.items || [];
+    setAnalysesCache(id, items);
+    analyses.value = items;
+    offline.value = false;
+    items.forEach((a) => {
+      if (a.status === "processing") subscribeIfProcessing(a);
+    });
   } catch (e) {
-    analyses.value = [];
-    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "analyses_load_failed", undefined, traceId);
-  }
-}
-
-/** 新分析记录已创建（可能在上传阶段就返回了列表，此时列表还没有这条） */
-function handleAnalysisStarted() {
-  loadAnalyses();
-}
-
-onMounted(() => {
-  uni.$on(ANALYSIS_EVENTS.started, handleAnalysisStarted);
-});
-
-onShow(async () => {
-  await loadAnalyses();
-  // 兜底：存在"分析启动中"标记说明上传尚未完成、记录未创建，
-  // 稍后补刷一次（正常路径由 analysis:started 事件即时刷新）
-  if (uni.getStorageSync(STORAGE_KEYS.pendingAnalysisAt)) {
-    setTimeout(() => {
-      loadAnalyses();
-    }, 3000);
-  }
-});
-
-onUnload(() => {
-  uni.$off(ANALYSIS_EVENTS.started, handleAnalysisStarted);
-});
-
-/** 下拉刷新：由用户主动触发更新（替代自动轮询，避免 processing 卡住时无限请求） */
-onPullDownRefresh(async () => {
-  const traceId = createTraceId();
-  logInfo("下拉刷新历史分析", { trace_id: traceId }, undefined, "analyses_pull_refresh", traceId);
-  try {
-    await loadAnalyses();
+    const err = e as ApiError;
+    if (err && err.status === -1) {
+      offline.value = true;
+    } else {
+      offline.value = false;
+    }
   } finally {
-    uni.stopPullDownRefresh();
+    loading.value = false;
   }
+}
+
+function thumbSrc(a: Analysis): string {
+  if (failedThumbs.value.has(a.id)) return OFFLINE_MEDIA_PLACEHOLDER;
+  return resolveMediaSrc(a.thumb || "", networkOnline.value);
+}
+
+function onThumbError(id: number) {
+  failedThumbs.value.add(id);
+}
+
+onShow(() => {
+  loadAnalyses();
 });
-
-function goAnalyze() {
-  uni.navigateTo({ url: "/pages/coach/analyze" });
-}
-
-function goReport(id: number) {
-  uni.navigateTo({ url: `/pages/coach/report?id=${id}` });
-}
 </script>
 
-<style scoped lang="scss">
-.coach-page {
-  min-height: 100vh;
-  background-color: var(--color-page-bg, #F2F2EF);
-  padding: $space-lg;
-  padding-bottom: $space-3xl;
+<style scoped>
+.container {
+  padding: 24rpx;
   box-sizing: border-box;
 }
-
-// ========== hero 卡 ==========
-.hero-card {
-  position: relative;
-  overflow: hidden;
-  background: linear-gradient(135deg, var(--color-hero-a, #242B1F), var(--color-hero-b, #3A4433));
-  border-radius: $radius-card;
-  padding: $space-lg;
-  margin-bottom: $space-lg;
+.offline-banner {
+  background: #fff7e6;
+  border: 1rpx solid #ffd591;
+  color: #ad6800;
+  padding: 12rpx 20rpx;
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+  font-size: 24rpx;
+}
+.analysis-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: -80px;
-    right: -40px;
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.16);
-    filter: blur(36px);
-  }
+  gap: 16rpx;
 }
-
-.hero-badge {
-  position: relative;
-  z-index: 1;
-  font-size: 11px;
-  color: var(--color-accent, #C8DA2B);
-  background: rgba(var(--color-accent-rgb, 200, 218, 43), 0.14);
-  border: 1px solid rgba(var(--color-accent-rgb, 200, 218, 43), 0.3);
-  border-radius: 9999px;
-  padding: 4px 10px;
-  letter-spacing: 1px;
-}
-
-.hero-title {
-  position: relative;
-  z-index: 1;
-  display: block;
-  margin-top: 14px;
-  font-size: 22px;
-  font-weight: 700;
-  color: $color-white;
-  line-height: 1.4;
-}
-
-.hero-features {
-  position: relative;
-  z-index: 1;
+.analysis-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 14px;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
 }
-
-.hero-feature {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 9999px;
-  padding: 4px 10px;
+.card-hover {
+  opacity: 0.9;
 }
-
-.hero-btn {
-  position: relative;
-  z-index: 1;
-  margin-top: 20px;
-  background: var(--color-accent, #C8DA2B);
-  color: $color-ink;
-  font-size: 15px;
-  font-weight: 600;
-  padding: 12px 28px;
-  border-radius: 9999px;
-  box-shadow: 0 4px 12px rgba(var(--color-accent-rgb, 200, 218, 43), 0.35);
+.analysis-thumb {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 12rpx;
+  background: #f0f0f0;
 }
-
-// ========== 历史分析 ==========
-.history-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px $space-sm;
-}
-
-.history-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: $color-ink;
-}
-
-.history-count {
-  font-size: 12px;
-  color: $color-olive-light;
-}
-
-.history-list {
-  margin-top: $space-md;
-  display: flex;
-  flex-direction: column;
-  gap: $space-sm;
-}
-
-.history-item {
-  background: $color-white;
-  border-radius: $radius-card;
-  box-shadow: $shadow-card;
-  padding: $space-md;
-  display: flex;
-  align-items: center;
-  gap: $space-md;
-}
-
-.history-thumb {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  overflow: hidden;
-  background-color: $color-olive;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.history-thumb-img {
-  width: 100%;
-  height: 100%;
-}
-
-.history-thumb-placeholder {
-  font-size: 26px;
-}
-
-.thumb-badge {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  font-size: 12px;
-  background: var(--color-accent, #C8DA2B);
-  border: 2px solid $color-white;
-  border-radius: 50%;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.thumb-badge-fail {
-  background: #E74C3C;
-  color: $color-white;
-  font-size: 10px;
-}
-
-.history-info {
+.analysis-info {
   flex: 1;
-  min-width: 0;
-}
-
-.history-tags {
+  margin-left: 20rpx;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  justify-content: center;
 }
-
-.tag-kind {
-  font-size: 11px;
-  font-weight: 700;
-  color: $color-ink;
-  background: var(--color-accent, #C8DA2B);
-  border-radius: 9999px;
-  padding: 2px 8px;
+.analysis-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #222;
 }
-
-.tag-mode {
-  font-size: 11px;
-  color: $color-olive-light;
+.analysis-mode {
+  font-size: 24rpx;
+  font-weight: 400;
+  color: #999;
 }
-
-.history-summary {
-  display: block;
-  margin-top: 6px;
-  font-size: 13px;
-  color: $color-olive-light;
-  line-height: 1.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.analysis-sub {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
 }
-
-.history-score {
-  flex-shrink: 0;
+.analysis-tags {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+.tag {
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+.tag-processing {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+.tag-done {
+  background: #f6ffed;
+  color: #52c41a;
+}
+.tag-fail {
+  background: #fff1f0;
+  color: #f5222d;
+}
+.tag-score {
+  background: #f9f0ff;
+  color: #722ed1;
+}
+.empty-state {
   text-align: center;
-}
-
-.score-value {
-  display: block;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--color-accent-dark, #A8B822);
-  line-height: 1.2;
-}
-
-.score-label {
-  font-size: 10px;
-  color: $color-olive-light;
-}
-
-.score-local {
-  font-size: 11px;
-  color: $color-olive-light;
-}
-
-.score-fail {
-  font-size: 11px;
-  color: #E74C3C;
-  font-weight: 600;
-}
-
-.score-spinner {
-  width: 18px;
-  height: 18px;
-  margin: 0 auto 2px;
-  border: 3px solid var(--color-accent-soft, $color-lime-soft);
-  border-top-color: var(--color-accent-dark, $color-lime-dark);
-  border-radius: 50%;
-  animation: score-spin 0.8s linear infinite;
-}
-
-.score-processing {
-  font-size: 11px;
-  color: var(--color-accent-dark, #A8B822);
-  font-weight: 600;
-}
-
-.thumb-badge-processing {
-  background: var(--color-accent, #C8DA2B);
-  font-size: 11px;
-}
-
-.history-summary--processing {
-  color: var(--color-accent-dark, #A8B822);
-}
-
-@keyframes score-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  color: #999;
+  padding: 80rpx 0;
+  font-size: 28rpx;
 }
 </style>

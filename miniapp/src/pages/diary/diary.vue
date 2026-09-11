@@ -6,6 +6,11 @@
       <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
+    <!-- 离线横幅：缓存命中但当前无网络 -->
+    <view v-if="!authStore.isGuest && diaryStore.offline && diaryStore.diaries.length > 0" class="offline-banner">
+      <text>📡 离线浏览中，数据来自本地缓存</text>
+    </view>
+
     <!-- Hero：累计时长 -->
     <view class="diary-hero">
       <!-- 装饰光晕 -->
@@ -33,11 +38,16 @@
       </view>
     </view>
 
+    <!-- 加载中（首次无缓存且正在请求） -->
+    <view v-if="diaryStore.loading && diaryStore.diaries.length === 0" class="diary-loading">
+      <text>加载中…</text>
+    </view>
+
     <!-- 空态 -->
-    <view v-if="!diaryStore.loading && diaryStore.diaries.length === 0" class="diary-empty">
+    <view v-else-if="!diaryStore.loading && diaryStore.diaries.length === 0" class="diary-empty">
       <Empty
         icon="🏸"
-        text="还没有日记，打完球来记一笔吧"
+        :text="diaryStore.offline ? '网络不可用，暂无可浏览的本地数据' : '还没有日记，打完球来记一笔吧'"
         button-text="记录今天"
         @action="goCreate"
       />
@@ -69,6 +79,7 @@
             <view class="diary-card-content">
               <view class="diary-card-header">
                 <text class="diary-card-type">{{ d.type }}</text>
+                <text v-if="isPending(d)" class="diary-card-pending">待同步</text>
                 <text class="diary-card-time">{{ d.date.slice(5) }} {{ weekdayCN(d.date) }} {{ d.time }}</text>
               </view>
               <view class="diary-card-meta">
@@ -104,7 +115,7 @@ import { useAuthStore, useDiaryStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { INTENSITY, MOOD, fmtDuration, fmtMoney, sumCosts, weekdayCN } from "@/utils";
 import { getEntryId } from "@/types";
-import type { AnyDiary } from "@/types";
+import type { AnyDiary, LocalDiary } from "@/types";
 const authStore = useAuthStore();
 const diaryStore = useDiaryStore();
 const settingsStore = useSettingsStore();
@@ -140,6 +151,11 @@ function costOf(d: AnyDiary): number {
 
 function costText(d: AnyDiary): string {
   return settingsStore.hideAmounts ? "¥**" : fmtMoney(costOf(d));
+}
+
+/** 是否本地待同步条目（localId 存在即离线新建，尚未上云） */
+function isPending(d: AnyDiary): boolean {
+  return (d as LocalDiary).localId != null;
 }
 
 /** 累计训练时长（分钟） */
@@ -205,6 +221,25 @@ onShow(() => {
   color: var(--color-accent-dark, #A8B822);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.offline-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: #fff7e6;
+  color: #ad6800;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.diary-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-olive-light;
+  font-size: 14px;
 }
 
 // Hero
@@ -407,6 +442,16 @@ onShow(() => {
   font-size: 15px;
   font-weight: 600;
   color: $color-ink;
+}
+
+.diary-card-pending {
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background-color: #fff7e6;
+  color: #ad6800;
+  border: 1rpx solid #ffd591;
 }
 
 .diary-card-time {

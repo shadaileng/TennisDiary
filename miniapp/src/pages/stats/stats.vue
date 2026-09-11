@@ -6,6 +6,11 @@
       <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
+    <!-- 离线横幅：统计数据来自本地缓存兜底 -->
+    <view v-if="!authStore.isGuest && offlineStats" class="offline-banner">
+      <text>📡 离线浏览中，统计为本地缓存估算（可能不含最新云端数据）</text>
+    </view>
+
     <!-- 汇总卡片 -->
     <view class="stats-summary">
       <view class="stats-summary-header">
@@ -162,8 +167,9 @@ import LineChart from "@/components/LineChart.vue";
 import MoneyToggle from "@/components/MoneyToggle.vue";
 import Popup from "@/components/Popup.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
+import { useAuthStore, useSettingsStore, useWeightStore, useDiaryStore, useGearStore } from "@/stores";
 import { getStats } from "@/services/data";
+import type { ApiError } from "@/services/request";
 import { getPendingDiaries, getPendingGears } from "@/services/pendingRepo";
 import { aggregateLocalStats } from "@/services/localStats";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
@@ -173,6 +179,8 @@ import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const authStore = useAuthStore();
 const weightStore = useWeightStore();
+const diaryStore = useDiaryStore();
+const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
 const { themeStyle, themeBg } = useThemeStyle();
 
@@ -182,6 +190,9 @@ const stats = ref<Stats | null>(null);
 
 /** 汇总统计加载中 */
 const statsLoading = ref(false);
+
+/** 汇总统计来自本地缓存兜底（离线） */
+const offlineStats = ref(false);
 
 /** 是否没有任何统计数据 */
 const hasAnyData = computed(() =>
@@ -335,14 +346,26 @@ onShow(() => {
   }
   logInfo("加载统计数据", { trace_id: traceId }, undefined, "stats_load", traceId);
   weightStore.fetchList();
+  // 日记/装备本地缓存合并视图（仅本地读，供离线兜底聚合）
+  diaryStore.hydrate();
+  gearStore.hydrate();
   statsLoading.value = true;
+  offlineStats.value = false;
   getStats()
     .then((s) => {
       stats.value = s;
       logInfo("统计数据加载成功", { trace_id: traceId, total_sessions: s.total_sessions, total_duration: s.total_duration, total_cost: s.total_cost, total_gears: s.total_gears }, undefined, "stats_loaded", traceId);
     })
     .catch((e) => {
-      logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "stats_load_failed", undefined, traceId);
+      const err = e as ApiError;
+      if (err && err.status === -1) {
+        // 离线兜底：聚合本地缓存（云端快照 + 离线待同步），口径对齐 /api/stats
+        stats.value = aggregateLocalStats(diaryStore.diaries, gearStore.gears);
+        offlineStats.value = true;
+        logInfo("离线统计兜底（本地聚合）", { trace_id: traceId, total_sessions: stats.value.total_sessions }, undefined, "stats_offline_fallback", traceId);
+      } else {
+        logError("统计数据加载失败", { trace_id: traceId, error: (err as Error).message }, undefined, "stats_load_failed", undefined, traceId);
+      }
     })
     .finally(() => {
       statsLoading.value = false;
@@ -364,6 +387,16 @@ onShow(() => {
   border-radius: $radius-card;
   background-color: var(--color-accent-soft, #F0F5CE);
   color: var(--color-accent-dark, #A8B822);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.offline-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: #fff7e6;
+  color: #ad6800;
   font-size: 12px;
   line-height: 1.4;
 }

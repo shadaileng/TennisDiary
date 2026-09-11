@@ -1,66 +1,21 @@
 /**
- * 本地待同步仓库（Step 129 游客本地降级）
+ * 游客本地待同步仓库（Step 129 游客本地降级）
  *
  * 封装三实体（diary/gear/weight）在本地 storage 的读写与增删改，供游客态离线完整使用。
  * - storage 键见 `constants/storage.ts`（`td_pending_*`，沿用 `td_cost_tags` 本地持久化先例）
  * - 数据形态：每个 storage 值为 `LocalXxx[]`（见 `types/index.ts`）
- * - 容量容错：写前估算序列化长度，超过单 key 阈值时 toast 提示并返回 false，不写坏数据
- * - 损坏容错：JSON.parse 失败 → 返回 [] 并清理坏键，不崩溃
+ * - 底层能力（load/persist/容量保护/损坏容错/genLocalId）自 Step 141 起统一复用 `storageBase`
  *
  * 依赖注入：本模块不依赖任何 store / request，仅用 uni.* 与常量，避免循环依赖。
  */
 
 import { STORAGE_KEYS } from "@/constants/storage";
+import { genLocalId, load, persist } from "@/services/storageBase";
 import type { LocalDiary, LocalGear, LocalWeight } from "@/types";
 
-/** 单 key 容量安全阈值（wx storage 单 key 上限 1MB，留安全余量） */
-const CAPACITY_LIMIT = 900 * 1024;
-
-/** 生成本地唯一 id：`{prefix}_{时间戳}_{随机串}`，避免 tab 快速操作撞 key */
-export function genLocalId(prefix: string): string {
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${prefix}_${Date.now()}_${rand}`;
-}
-
-/** 估算 JSON 序列化长度（字节） */
-function estimateSize(value: unknown): number {
-  try {
-    return JSON.stringify(value).length;
-  } catch {
-    return Number.MAX_SAFE_INTEGER;
-  }
-}
-
-/**
- * 写回 storage。容量不足或写入异常时返回 false（调用方可选择保留内存态）。
- * 不在此抛错：存储失败不应导致页面崩溃，交由调用方决策。
- */
-function persist(key: string, value: unknown): boolean {
-  if (estimateSize(value) > CAPACITY_LIMIT) {
-    uni.showToast({ title: "本地空间不足，请先登录同步", icon: "none" });
-    return false;
-  }
-  try {
-    uni.setStorageSync(key, JSON.stringify(value));
-    return true;
-  } catch {
-    uni.showToast({ title: "本地保存失败，请先登录同步", icon: "none" });
-    return false;
-  }
-}
-
-/** 读全量（损坏容错：parse 失败 → 返回 [] 并清理坏键） */
-function load<T>(key: string): T[] {
-  try {
-    const raw = uni.getStorageSync(key) as string;
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    uni.removeStorageSync(key);
-    return [];
-  }
-}
+// 对外 API、游客键、行为完全不变；仅底层实现下沉到 storageBase。
+// 保留 genLocalId 的再导出，兼容既有从 pendingRepo 引入的调用方（stores/*）。
+export { genLocalId };
 
 // ==================== 日记 ====================
 

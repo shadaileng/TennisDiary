@@ -6,6 +6,11 @@
       <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
+    <!-- 离线横幅：缓存命中但当前无网络 -->
+    <view v-if="!authStore.isGuest && gearStore.offline && gearStore.gears.length > 0" class="offline-banner">
+      <text>📡 离线浏览中，数据来自本地缓存</text>
+    </view>
+
     <!-- Sticky 容器：Hero + 筛选栏 -->
     <view class="gear-sticky">
       <!-- Hero：装备投入 -->
@@ -54,9 +59,13 @@
       </view>
     </view>
 
+    <!-- 加载中（首次无缓存且正在请求） -->
+    <view v-if="gearStore.loading && gearStore.gears.length === 0" class="gear-loading">
+      <text>加载中…</text>
+    </view>
     <!-- 空态 -->
-    <view v-if="!gearStore.loading && gearStore.gears.length === 0" class="gear-empty">
-      <Empty icon="🎒" text="还没有装备记录，点右下角添加" button-text="添加装备" @action="goCreate" />
+    <view v-else-if="!gearStore.loading && gearStore.gears.length === 0" class="gear-empty">
+      <Empty icon="🎒" :text="gearStore.offline ? '网络不可用，暂无可浏览的本地数据' : '还没有装备记录，点右下角添加'" button-text="添加装备" @action="goCreate" />
     </view>
     <view v-else-if="!gearStore.loading && filtered.length === 0" class="gear-empty">
       <Empty icon="🔍" text="该筛选条件下没有装备" button-text="清除筛选" @action="clearFilter" />
@@ -73,15 +82,17 @@
         <!-- 照片封面 / 无照片渐变 -->
         <image
           v-if="g.photo"
-          :src="resolveUploadUrl(g.photo)"
+          :src="gearImgSrc(g)"
           mode="aspectFill"
           class="gear-card-image"
+          @error="onGearImgError(g)"
         />
         <view v-else class="gear-card-placeholder" :style="noPhotoBg">
           <text class="gear-card-placeholder-icon">{{ catIcon(g.category) }}</text>
         </view>
 
         <text class="gear-card-category">{{ g.category }}</text>
+        <text v-if="isPending(g)" class="gear-card-pending">待同步</text>
 
         <view class="gear-card-footer">
           <text class="gear-card-name">{{ g.name }}</text>
@@ -107,9 +118,11 @@ import MoneyToggle from "@/components/MoneyToggle.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
-import { GEAR_CATEGORIES, fmtMoney, resolveUploadUrl } from "@/utils";
+import { GEAR_CATEGORIES, fmtMoney } from "@/utils";
+import { networkOnline } from "@/utils/network";
+import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
 import { getEntryId } from "@/types";
-import type { AnyGear } from "@/types";
+import type { AnyGear, LocalGear } from "@/types";
 const authStore = useAuthStore();
 const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
@@ -189,6 +202,21 @@ function goEdit(id: number | string) {
   uni.navigateTo({ url: `/pages/gear/form?id=${id}` });
 }
 
+/** 封面图源：离线/远程 URL 失败时回退占位 */
+const failedGear = ref<Set<string>>(new Set());
+function gearImgSrc(g: AnyGear): string {
+  const key = String(getEntryId(g));
+  if (failedGear.value.has(key)) return OFFLINE_MEDIA_PLACEHOLDER;
+  return resolveMediaSrc(g.photo || "", networkOnline.value);
+}
+function onGearImgError(g: AnyGear) {
+  failedGear.value.add(String(getEntryId(g)));
+}
+/** 是否本地待同步条目 */
+function isPending(g: AnyGear): boolean {
+  return (g as LocalGear).localId != null;
+}
+
 onShow(() => {
   if (authStore.isGuest) {
     // 游客态：不发请求，直接载入本地待同步装备（仅本机可见）
@@ -216,6 +244,25 @@ onShow(() => {
   color: var(--color-accent-dark, #A8B822);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.offline-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: #fff7e6;
+  color: #ad6800;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.gear-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-olive-light;
+  font-size: 14px;
 }
 
 // Sticky 容器
@@ -406,6 +453,19 @@ onShow(() => {
   font-weight: bold;
   border-radius: 9999px;
   padding: $space-xs $space-sm;
+}
+
+.gear-card-pending {
+  position: absolute;
+  top: $space-sm;
+  right: $space-sm;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background-color: #fff7e6;
+  color: #ad6800;
+  border: 1rpx solid #ffd591;
 }
 
 .gear-card-footer {

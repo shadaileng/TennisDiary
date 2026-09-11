@@ -174,6 +174,7 @@ import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useCostTagsStore, useDiaryStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
+import type { ApiError } from "@/services/request";
 import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 import type { AnyDiary, SessionType } from "@/types";
@@ -245,7 +246,9 @@ onLoad(async (query) => {
   logInfo("加载日记详情", { trace_id: traceId, diary_id: id }, undefined, "diary_detail_load", traceId);
   try {
     let d: AnyDiary;
-    if (useAuthStore().isGuest) {
+    // 本地待同步条目（localId）或游客态：从本地仓库加载（可离线编辑）
+    const isLocal = typeof id === "string" && (id.startsWith("d_") || isNaN(Number(id)));
+    if (useAuthStore().isGuest || isLocal) {
       const local = diaryStore.getLocalDiary(String(id));
       if (!local) throw new Error("本地日记不存在");
       d = local;
@@ -262,8 +265,13 @@ onLoad(async (query) => {
     form.gears = d.gears.map((g) => ({ name: g.name, feeling: g.feeling }));
     form.notes = d.notes || "";
   } catch (e) {
-    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, undefined, "diary_detail_load_failed", undefined, traceId);
-    uni.showToast({ title: "日记加载失败", icon: "none" });
+    const err = e as ApiError;
+    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (err as Error).message }, undefined, "diary_detail_load_failed", undefined, traceId);
+    if (err && err.status === -1) {
+      uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
+    } else {
+      uni.showToast({ title: "日记加载失败", icon: "none" });
+    }
   }
 });
 

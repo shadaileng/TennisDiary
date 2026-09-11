@@ -5,7 +5,7 @@
  * avg_intensity/avg_mood=均值(保留2位)、total_cost=Σ 日记 costs.amount、
  * total_gears=装备 count；游客无分析记录，total_analyses/avg_score 恒 0。
  */
-import type { LocalDiary, LocalGear, Stats } from "@/types";
+import type { AnyDiary, AnyGear, Stats } from "@/types";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -19,8 +19,10 @@ function sumCostAmount(costs: { amount: number }[] | undefined): number {
   return (costs || []).reduce((s, c) => s + (Number(c.amount) || 0), 0);
 }
 
-/** 基于本地待同步数据实时聚合（口径对齐后端 /api/stats） */
-export function aggregateLocalStats(diaries: LocalDiary[], gears: LocalGear[]): Stats {
+/** 基于本地（缓存合并视图）数据实时聚合（口径对齐后端 /api/stats）
+ * 入参为 diary/gear store 的合并视图（云端快照 + 离线待同步），
+ * 仅读取统计所需公共字段，对 Diary/Gear 与 LocalXxx 均适用。 */
+export function aggregateLocalStats(diaries: AnyDiary[], gears: AnyGear[]): Stats {
   const n = diaries.length;
   const total_duration = diaries.reduce((s, d) => s + (d.duration || 0), 0);
   const avg_intensity = n ? round2(mean(diaries.map((d) => d.intensity))) : 0;
