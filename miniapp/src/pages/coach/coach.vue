@@ -2,7 +2,7 @@
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="coach-page">
     <!-- 离线横幅：缓存命中但当前无网络 -->
-    <view v-if="offline && analyses.length > 0" class="offline-banner">
+    <view v-if="analysisStore.offline && analysisStore.analyses.length > 0" class="offline-banner">
       <text>📡 离线浏览中，数据来自本地缓存</text>
     </view>
 
@@ -19,14 +19,22 @@
     <!-- 历史分析 -->
     <view class="history-header">
       <text class="history-title">历史分析</text>
-      <text class="history-count">{{ analyses.length }} 条</text>
+      <text class="history-count">{{ analysisStore.analyses.length }} 条</text>
     </view>
 
-    <Empty v-if="analyses.length === 0" icon="🎥" text="还没有分析记录" buttonText="去分析" @action="goAnalyze" />
+    <!-- 加载中（首次无缓存且正在请求） -->
+    <view v-if="analysisStore.loading && analysisStore.analyses.length === 0" class="coach-loading">
+      <text>加载中…</text>
+    </view>
+
+    <!-- 空态 -->
+    <view v-else-if="!analysisStore.loading && analysisStore.analyses.length === 0" class="coach-empty">
+      <Empty icon="🎥" text="还没有分析记录" buttonText="去分析" @action="goAnalyze" />
+    </view>
 
     <view v-else class="history-list">
       <view
-        v-for="a in analyses"
+        v-for="a in analysisStore.analyses"
         :key="a.id"
         class="history-item press-btn"
         @tap="goReport(a.id)"
@@ -70,64 +78,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { onPullDownRefresh, onShow, onUnload } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { STORAGE_KEYS } from "@/constants/storage";
-import { getAnalyses } from "@/services/data";
-import { getAnalysesCache, setAnalysesCache } from "@/services/cloudCache";
-import { useAuthStore } from "@/stores/auth";
 import { networkOnline } from "@/utils/network";
 import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
-import type { Analysis } from "@/types";
+import { useAnalysisStore } from "@/stores";
 import { ANALYSIS_EVENTS } from "@/utils";
-import type { ApiError } from "@/services/request";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 
 const { themeStyle, themeBg } = useThemeStyle();
 
-const auth = useAuthStore();
-const uid = computed(() => auth.user?.id ?? null);
+const analysisStore = useAnalysisStore();
 
 const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
 
-const analyses = ref<Analysis[]>([]);
-const offline = ref(false);
 /** 缩略图加载失败（URL 失效/401）后回退占位的 url 集合 */
 const failedThumbs = ref<Set<string>>(new Set());
-
-async function loadAnalyses() {
-  const traceId = createTraceId();
-  const id = uid.value;
-  // 缓存优先：立即渲染本地快照（断网也能回看历史列表）
-  if (id != null) {
-    const cached = getAnalysesCache(id);
-    if (cached.length) {
-      analyses.value = cached;
-      failedThumbs.value = new Set();
-    }
-  }
-  if (!networkOnline.value) {
-    offline.value = true;
-    logInfo("历史分析离线渲染", { trace_id: traceId, count: analyses.value.length }, undefined, "analyses_offline", traceId);
-    return;
-  }
-  logInfo("加载历史分析", { trace_id: traceId }, undefined, "analyses_load", traceId);
-  try {
-    const data = await getAnalyses();
-    analyses.value = data.items || [];
-    failedThumbs.value = new Set();
-    offline.value = false;
-    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, undefined, "analyses_loaded", traceId);
-    if (id != null) setAnalysesCache(id, data.items || []);
-  } catch (e) {
-    const err = e as ApiError;
-    offline.value = !!(err && err.status === -1);
-    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "analyses_load_failed", undefined, traceId);
-  }
-}
 
 /** 缩略图：dataURL/本地路径原样；远程源在线解析、离线或加载失败回退占位图 */
 function thumbSrc(url?: string): string {
@@ -142,7 +111,7 @@ function onThumbError(url?: string) {
 
 /** 新分析记录已创建（可能在上传阶段就返回了列表，此时列表还没有这条） */
 function handleAnalysisStarted() {
-  loadAnalyses();
+  analysisStore.fetchList();
 }
 
 onMounted(() => {
@@ -150,12 +119,12 @@ onMounted(() => {
 });
 
 onShow(async () => {
-  await loadAnalyses();
+  await analysisStore.fetchList();
   // 兜底：存在"分析启动中"标记说明上传尚未完成、记录未创建，
   // 稍后补刷一次（正常路径由 analysis:started 事件即时刷新）
   if (uni.getStorageSync(STORAGE_KEYS.pendingAnalysisAt)) {
     setTimeout(() => {
-      loadAnalyses();
+      analysisStore.fetchList();
     }, 3000);
   }
 });
@@ -166,10 +135,8 @@ onUnload(() => {
 
 /** 下拉刷新：由用户主动触发更新（替代自动轮询，避免 processing 卡住时无限请求） */
 onPullDownRefresh(async () => {
-  const traceId = createTraceId();
-  logInfo("下拉刷新历史分析", { trace_id: traceId }, undefined, "analyses_pull_refresh", traceId);
   try {
-    await loadAnalyses();
+    await analysisStore.fetchList();
   } finally {
     uni.stopPullDownRefresh();
   }
@@ -191,6 +158,8 @@ function goReport(id: number) {
   padding: $space-lg;
   padding-bottom: $space-3xl;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .offline-banner {
@@ -201,6 +170,20 @@ function goReport(id: number) {
   border-radius: 12rpx;
   margin-bottom: $space-md;
   font-size: 24rpx;
+}
+
+.coach-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: $color-olive-light;
+  font-size: 14px;
+}
+
+.coach-empty {
+  min-height: 60vh;
 }
 
 // ========== hero 卡 ==========

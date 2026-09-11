@@ -1,13 +1,12 @@
 <template>
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="report-page">
-    <!-- 离线横幅：缓存命中但当前无网络 -->
-    <view v-if="offline && analysis" class="offline-banner">
-      <text>📡 离线浏览中：文字报告来自本地缓存，视频/封面需联网后查看</text>
-    </view>
-
     <view v-if="!analysis" class="report-loading">
-      <text>加载中…</text>
+      <!-- 离线提示：详情不缓存，需联网查看 -->
+      <view v-if="offline" class="offline-banner">
+        <text>📡 当前离线，报告详情需联网后查看</text>
+      </view>
+      <text v-else>加载中…</text>
     </view>
 
     <view v-else-if="isProcessing" class="processing-block">
@@ -156,8 +155,7 @@ import RadarChart from "@/components/RadarChart.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useSettingsStore } from "@/stores";
 import { deleteAnalysis, getAnalysis } from "@/services/data";
-import { getAnalysisDetail, setAnalysisDetail } from "@/services/cloudCache";
-import { useAuthStore } from "@/stores/auth";
+import { useAnalysisStore } from "@/stores";
 import { networkOnline } from "@/utils/network";
 import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
 import { createStatusSubscriber, stepLabel, type AnalysisStatus } from "@/services/analysisStatus";
@@ -169,7 +167,7 @@ import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
 const analysis = ref<Analysis | null>(null);
 const { themeStyle, themeBg } = useThemeStyle();
 const settingsStore = useSettingsStore();
-const auth = useAuthStore();
+const analysisStore = useAnalysisStore();
 const offline = ref(false);
 /** 媒体加载失败（URL 失效/401）回退占位的 url 集合 */
 const failedImages = ref<Set<string>>(new Set());
@@ -264,8 +262,6 @@ function subscribeStatus(id: number) {
 async function reloadAnalysis(id: number) {
   try {
     analysis.value = await getAnalysis(id);
-    const u = auth.user?.id;
-    if (u != null && analysis.value) setAnalysisDetail(u, analysis.value);
   } catch (e) {
     logError("分析报告刷新失败", { analysis_id: id, error: (e as Error).message }, undefined, "report_reload_failed");
   }
@@ -302,22 +298,16 @@ onLoad(async (query) => {
     return;
   }
   const traceId = createTraceId();
-  const uidVal = auth.user?.id;
-  // 缓存优先：立即渲染详情（离线可看文字报告与骨架帧占位）
-  if (uidVal != null) {
-    const cached = getAnalysisDetail(uidVal, id);
-    if (cached) analysis.value = cached;
-  }
+  // 详情不缓存：离线直接提示，联网才拉取（电子教练无离线创建场景，且报告内容大、媒体离线也看不了）
   if (!networkOnline.value) {
     offline.value = true;
-    logInfo("分析报告离线渲染", { trace_id: traceId, analysis_id: id }, undefined, "report_offline", traceId);
+    logInfo("分析报告离线拦截", { trace_id: traceId, analysis_id: id }, undefined, "report_offline", traceId);
     return;
   }
   logInfo("加载分析报告", { trace_id: traceId, analysis_id: id }, undefined, "report_load", traceId);
   try {
     analysis.value = await getAnalysis(id);
     logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, undefined, "report_loaded", traceId);
-    if (uidVal != null) setAnalysisDetail(uidVal, analysis.value);
     // 进行中：订阅管线进度，完成后自动刷新为完整报告
     if (analysis.value?.status === "processing") {
       logInfo("分析进行中，订阅进度", { trace_id: traceId, analysis_id: id }, undefined, "report_subscribe_start", traceId);
@@ -345,6 +335,7 @@ function confirmRemove() {
       if (!res.confirm || !analysis.value) return;
       try {
         await deleteAnalysis(analysis.value.id);
+        analysisStore.removeAnalysis(analysis.value.id);
         logInfo("分析报告删除成功", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_deleted", traceId);
         uni.showToast({ title: "已删除", icon: "success" });
         setTimeout(() => safeNavigateBack("/pages/coach/coach"), 600);

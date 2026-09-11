@@ -39,13 +39,3 @@ export function offlineKey(userId: number, entity: "diaries" | "gears" | "weight
 export function cacheKey(userId: number, entity: "diaries" | "gears" | "weights" | "analyses"): string {
   return `td_cache_${userId}_${entity}`;
 }
-
-/** 分析详情缓存键（td_cache_{userId}_analysis_{id}） */
-export function analysisDetailKey(userId: number, id: number): string {
-  return `td_cache_${userId}_analysis_${id}`;
-}
-
-/** 分析详情 LRU 索引键（td_cache_{userId}_analysis_index） */
-export function analysisIndexKey(userId: number): string {
-  return `td_cache_${userId}_analysis_index`;
-}
