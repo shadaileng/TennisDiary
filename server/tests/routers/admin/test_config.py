@@ -235,7 +235,7 @@ class TestConfigPermissions:
         finally:
             client.headers["X-Auth-Token"] = admin_token
 
-    def test_forbidden_without_permission(self, client, test_db):
+    def test_forbidden_without_permission(self, client, test_db, test_roles):
         """普通管理员（无 system:config）→ 403"""
         role = test_db.query(Role).filter(Role.code == "admin").first()
         admin = Admin(
