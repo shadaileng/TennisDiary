@@ -414,13 +414,13 @@ function cancelUpload() {
   // 指纹/秒传预检阶段尚无上传任务：标记取消，流程在下一个检查点中断
   if (!task) {
     canceling.value = true;
-    logInfo("取消分析（预检阶段）", { trace_id: currentTraceId }, undefined, "video_upload_canceled", currentTraceId);
+    logInfo("取消分析（预检阶段）", { }, undefined, "video_upload_canceled", currentTraceId);
     uni.showToast({ title: "正在取消…", icon: "none" });
     return;
   }
 
   uploadTask = null;
-  logInfo("取消视频上传", { trace_id: currentTraceId }, undefined, "video_upload_canceled", currentTraceId);
+  logInfo("取消视频上传", { }, undefined, "video_upload_canceled", currentTraceId);
   task.abort();
   uni.showToast({ title: "已取消上传", icon: "none" });
   // 兜底：个别基础库 abort 不回调，避免模态卡死
@@ -469,7 +469,7 @@ function resetTimelineBits() {
 // ============ 选择视频 ============
 function chooseVideo() {
   const traceId = createTraceId();
-  logInfo("选择视频", { trace_id: traceId }, undefined, "choose_video", traceId);
+  logInfo("选择视频", { }, undefined, "choose_video", traceId);
 
   // 已使用 chooseMedia 替代已废弃的 chooseVideo，无需超时兜底；
   // 大视频在系统相册选择/压缩时可能耗时较长，固定超时会导致误报。
@@ -485,7 +485,7 @@ function chooseVideo() {
 
       const file = res.tempFiles?.[0];
       if (!file || !file.tempFilePath) {
-        logError("选择视频返回为空", { trace_id: traceId }, undefined, "choose_video_empty", undefined, traceId);
+        logError("选择视频返回为空", { }, undefined, "choose_video_empty", undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
         return;
       }
@@ -493,7 +493,7 @@ function chooseVideo() {
       const dur = Number(file.duration) || 0;
       if (dur > UPLOAD_MAX) {
         uni.showToast({ title: `视频 ${Math.round(dur)}s 超过 3 分钟，请先在相册裁剪`, icon: "none" });
-        logInfo("视频超长被拒", { trace_id: traceId, duration: dur }, undefined, "choose_video_too_long", traceId);
+        logInfo("视频超长被拒", { duration: dur }, undefined, "choose_video_too_long", traceId);
         return;
       }
       videoPath.value = file.tempFilePath;
@@ -505,7 +505,7 @@ function chooseVideo() {
       pps.value = TRACK_PPS;
       zoomInitialized = false;
       measureBar();
-      logInfo("视频选择成功", { trace_id: traceId, duration: dur }, undefined, "choose_video_success", traceId);
+      logInfo("视频选择成功", { duration: dur }, undefined, "choose_video_success", traceId);
 
       // 异步预计算指纹（与剪辑/设置击球点并行，不在关键路径）
       precomputeFingerprint(file.tempFilePath, Number(file.size) || 0, traceId);
@@ -515,15 +515,15 @@ function chooseVideo() {
       finished = true;
 
       if (isUserCancel(err)) {
-        logInfo("用户取消选择视频", { trace_id: traceId }, undefined, "choose_video_cancel", traceId);
+        logInfo("用户取消选择视频", { }, undefined, "choose_video_cancel", traceId);
       } else if (isRuntimePermissionDenied(err)) {
-        logError("选择视频权限被拒绝", { trace_id: traceId, error: err.errMsg }, undefined, "choose_video_denied", undefined, traceId);
+        logError("选择视频权限被拒绝", { error: err.errMsg }, undefined, "choose_video_denied", undefined, traceId);
         uni.showToast({ title: "需要授权使用相册/相机功能", icon: "none" });
       } else if (isPrivacyScopeError(err)) {
-        logError("隐私声明未配置", { trace_id: traceId, error: err.errMsg }, undefined, "choose_video_privacy", undefined, traceId);
+        logError("隐私声明未配置", { error: err.errMsg }, undefined, "choose_video_privacy", undefined, traceId);
         uni.showToast({ title: "隐私权限未配置，请联系开发者", icon: "none" });
       } else {
-        logError("选择视频失败", { trace_id: traceId, error: err.errMsg }, undefined, "choose_video_failed", undefined, traceId);
+        logError("选择视频失败", { error: err.errMsg }, undefined, "choose_video_failed", undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
       }
     },
@@ -541,7 +541,7 @@ function chooseVideo() {
  */
 function precomputeFingerprint(path: string, size: number, traceId: string) {
   if (size && size > FINGERPRINT_MAX_SIZE) {
-    logInfo("视频过大跳过指纹预计算", { trace_id: traceId, size }, undefined, "video_fingerprint_skipped", traceId);
+    logInfo("视频过大跳过指纹预计算", { size }, undefined, "video_fingerprint_skipped", traceId);
     return;
   }
   void getFileFingerprint(path)
@@ -551,14 +551,14 @@ function precomputeFingerprint(path: string, size: number, traceId: string) {
       videoFingerprint.value = fp;
       logInfo(
         "视频指纹预计算完成",
-        { trace_id: traceId, size: fp.size, duration_ms: fp.durationMs },
+        { size: fp.size, duration_ms: fp.durationMs },
         undefined,
         "video_fingerprint_ready",
         traceId,
       );
     })
     .catch(() => {
-      logInfo("视频指纹预计算失败，退回整体上传", { trace_id: traceId }, undefined, "video_fingerprint_failed", traceId);
+      logInfo("视频指纹预计算失败，退回整体上传", { }, undefined, "video_fingerprint_failed", traceId);
     });
 }
 
@@ -845,10 +845,10 @@ function warnWeakNetwork(traceId: string): Promise<void> {
       success: (res: any) => {
         const type = (res?.networkType as string) || "";
         if (type === "none") {
-          logError("上传前检测到无网络", { trace_id: traceId }, undefined, "video_upload_offline", undefined, traceId);
+          logError("上传前检测到无网络", { }, undefined, "video_upload_offline", undefined, traceId);
           uni.showToast({ title: "当前无网络，请检查后重试", icon: "none" });
         } else if (type === "2g" || type === "3g") {
-          logInfo("上传前检测到弱网", { trace_id: traceId, network_type: type }, undefined, "video_upload_weak_network", traceId);
+          logInfo("上传前检测到弱网", { network_type: type }, undefined, "video_upload_weak_network", traceId);
           uni.showToast({ title: "当前网络较慢，上传可能需要较长时间", icon: "none" });
         }
         resolve();
@@ -879,7 +879,7 @@ async function uploadVideoChunkedInternal(
 
   logInfo(
     "开始分片上传",
-    { trace_id: traceId, total, size: fp.size, chunk_size: plan.sizeBytes },
+    { total, size: fp.size, chunk_size: plan.sizeBytes },
     undefined,
     "video_chunk_start",
     traceId,
@@ -910,7 +910,7 @@ async function uploadVideoChunkedInternal(
     onEvent: (name, payload) =>
       logInfo(
         `分片事件: ${name}`,
-        { trace_id: traceId, ...(payload || {}) },
+        { ...(payload || {}) },
         undefined,
         name,
         traceId,
@@ -939,7 +939,7 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       fp = await getFileFingerprint(path);
       videoFingerprint.value = fp;
     } catch {
-      logInfo("指纹计算失败，直接上传", { trace_id: traceId }, undefined, "video_fingerprint_failed", traceId);
+      logInfo("指纹计算失败，直接上传", { }, undefined, "video_fingerprint_failed", traceId);
     }
   }
 
@@ -950,14 +950,14 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       if (check.hit && check.safe && check.file_id) {
         logInfo(
           "视频秒传命中",
-          { trace_id: traceId, file_id: check.file_id, size: fp.size },
+          { file_id: check.file_id, size: fp.size },
           undefined,
           "video_upload_mirage",
           traceId,
         );
         return check.file_id;
       }
-      logInfo("视频预检未命中", { trace_id: traceId, hit: check.hit }, undefined, "video_check_miss", traceId);
+      logInfo("视频预检未命中", { hit: check.hit }, undefined, "video_check_miss", traceId);
 
       // 140：未命中且文件达到分片阈值 → 分片上传（失败静默降级为整体上传）
       const plan = normalizeChunkPlan(check.chunk);
@@ -967,7 +967,7 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
         } catch (err) {
           logInfo(
             "分片上传失败，降级整体上传",
-            { trace_id: traceId, error: (err as Error)?.message || "", size: fp.size },
+            { error: (err as Error)?.message || "", size: fp.size },
             undefined,
             "video_chunk_degraded",
             traceId,
@@ -975,7 +975,7 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
         }
       }
     } catch {
-      logInfo("视频预检失败，退回上传", { trace_id: traceId }, undefined, "video_check_failed", traceId);
+      logInfo("视频预检失败，退回上传", { }, undefined, "video_check_failed", traceId);
     }
   }
 
@@ -1006,7 +1006,7 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       uploadPercent.value = 100;
       logInfo(
         "视频上传成功",
-        { trace_id: traceId, duration_ms: durationMs, size: fp?.size || 0 },
+        { duration_ms: durationMs, size: fp?.size || 0 },
         undefined,
         "video_upload_success",
         traceId,
@@ -1017,7 +1017,7 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       uploadPercent.value = 100;
       logInfo(
         "视频上传命中秒传",
-        { trace_id: traceId, duration_ms: durationMs },
+        { duration_ms: durationMs },
         undefined,
         "video_upload_mirage",
         traceId,
@@ -1026,7 +1026,7 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
     onFailed: (error, durationMs) => {
       logError(
         "视频上传失败",
-        { trace_id: traceId, duration_ms: durationMs, error: error.message, size: fp?.size || 0 },
+        { duration_ms: durationMs, error: error.message, size: fp?.size || 0 },
         undefined,
         "video_upload_failed",
         undefined,
@@ -1093,14 +1093,14 @@ async function startAnalysisUnified() {
 
     // === 整体入口 ===
     logInfo("开始AI分析（统一端点）", {
-      trace_id: traceId, mode: mode.value, kind: kind.value,
+      mode: mode.value, kind: kind.value,
       has_cuts: trimmed.value, video_duration: videoDuration.value,
       segment_count: segments.value.length,
     }, undefined, "analysis_started", traceId);
 
     // === 步骤1: 解析 file_id（秒传预检 / 整体上传） ===
     progress.value = "准备上传…";
-    logInfo("统一分析开始", { trace_id: traceId }, undefined, "unified_analysis_start", traceId);
+    logInfo("统一分析开始", { }, undefined, "unified_analysis_start", traceId);
     const tStart = Date.now();
 
     const fileId = await resolveVideoFileId(traceId);
@@ -1127,12 +1127,12 @@ async function startAnalysisUnified() {
     uni.removeStorageSync(PENDING_ANALYSIS_KEY);
     uni.$emit(ANALYSIS_STARTED_EVENT, { id: analysisId });
     logInfo("统一分析已启动", {
-      trace_id: traceId, duration_ms: Date.now() - tStart, analysis_id: analysisId, file_id: fileId,
+      duration_ms: Date.now() - tStart, analysis_id: analysisId, file_id: fileId,
     }, undefined, "unified_analysis_launched", traceId);
 
     // === 步骤3: 订阅状态更新 ===
     progress.value = "分析中，请稍候…";
-    logInfo("状态订阅开始", { trace_id: traceId, analysis_id: analysisId }, undefined, "status_subscribe_start", traceId);
+    logInfo("状态订阅开始", { analysis_id: analysisId }, undefined, "status_subscribe_start", traceId);
 
     await new Promise<void>((resolve, reject) => {
       statusSubscriber = createStatusSubscriber(analysisId, (status: AnalysisStatus) => {
@@ -1147,7 +1147,7 @@ async function startAnalysisUnified() {
         // 完成时跳转报告页
         if (status.status === "completed") {
           logInfo("分析完成", {
-            trace_id: traceId, analysis_id: analysisId,
+            analysis_id: analysisId,
             total_duration_ms: Date.now() - t0,
           }, undefined, "analysis_completed", traceId);
           stopStatusSubscriber();
@@ -1159,7 +1159,7 @@ async function startAnalysisUnified() {
         if (status.status === "failed") {
           const errorMsg = status.pipeline_status?.error || "分析失败，请重试";
           logError("分析失败", {
-            trace_id: traceId, analysis_id: analysisId, error: errorMsg,
+            analysis_id: analysisId, error: errorMsg,
           }, undefined, "analysis_failed", undefined, traceId);
           stopStatusSubscriber();
           reject(new Error(errorMsg));
@@ -1171,7 +1171,7 @@ async function startAnalysisUnified() {
         onTimeout: () => {
           stopStatusSubscriber();
           logError("分析状态订阅超时", {
-            trace_id: traceId, analysis_id: analysisId,
+            analysis_id: analysisId,
             total_duration_ms: Date.now() - t0,
           }, undefined, "analysis_subscribe_timeout", traceId);
           reject(new Error("分析超时，请稍后到列表查看结果"));
@@ -1185,7 +1185,7 @@ async function startAnalysisUnified() {
     // 用户主动取消：已单独提示，不再弹失败文案
     if (uploadCanceled) return;
     logError("统一分析失败", {
-      trace_id: traceId, error: msg,
+      error: msg,
       mode: mode.value, kind: kind.value,
       total_duration_ms: Date.now() - t0,
     }, undefined, "analysis_failed", undefined, traceId);

@@ -204,18 +204,18 @@ export const useDiaryStore = defineStore("diary", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("创建日记", { trace_id: traceId, type: body.type, date: body.date }, undefined, "diary_create", traceId);
+        logInfo("创建日记", { type: body.type, date: body.date }, undefined, "diary_create", traceId);
         const d = await createDiary(body);
         setCloudDiaries(uid, [d, ...getCloudDiaries(uid)]);
         this.hydrate();
-        logInfo("日记创建成功", { trace_id: traceId, diary_id: d.id }, undefined, "diary_created", traceId);
+        logInfo("日记创建成功", { diary_id: d.id }, undefined, "diary_created", traceId);
         return d;
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           return this.createOffline(body);
         }
-        logError("日记创建失败", { trace_id: traceId, error: err?.message, type: body.type, date: body.date }, undefined, "diary_create_failed", undefined, traceId);
+        logError("日记创建失败", { error: err?.message, type: body.type, date: body.date }, undefined, "diary_create_failed", undefined, traceId);
         throw e;
       }
     },
@@ -237,11 +237,11 @@ export const useDiaryStore = defineStore("diary", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("编辑日记", { trace_id: traceId, diary_id: id }, undefined, "diary_update", traceId);
+        logInfo("编辑日记", { diary_id: id }, undefined, "diary_update", traceId);
         const d = await updateDiary(id, body);
         setCloudDiaries(uid, getCloudDiaries(uid).map((x) => (x.id === id ? d : x)));
         this.hydrate();
-        logInfo("日记更新成功", { trace_id: traceId, diary_id: id }, undefined, "diary_updated", traceId);
+        logInfo("日记更新成功", { diary_id: id }, undefined, "diary_updated", traceId);
         return d;
       } catch (e) {
         const err = e as ApiError;
@@ -249,7 +249,7 @@ export const useDiaryStore = defineStore("diary", {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("日记更新失败", { trace_id: traceId, diary_id: id, error: err?.message }, undefined, "diary_update_failed", undefined, traceId);
+        logError("日记更新失败", { diary_id: id, error: err?.message }, undefined, "diary_update_failed", undefined, traceId);
         throw e;
       }
     },
@@ -270,18 +270,18 @@ export const useDiaryStore = defineStore("diary", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("删除日记", { trace_id: traceId, diary_id: id }, undefined, "diary_delete", traceId);
+        logInfo("删除日记", { diary_id: id }, undefined, "diary_delete", traceId);
         await deleteDiary(id);
         setCloudDiaries(uid, getCloudDiaries(uid).filter((x) => x.id !== id));
         this.hydrate();
-        logInfo("日记删除成功", { trace_id: traceId, diary_id: id }, undefined, "diary_deleted", traceId);
+        logInfo("日记删除成功", { diary_id: id }, undefined, "diary_deleted", traceId);
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("日记删除失败", { trace_id: traceId, diary_id: id, error: err?.message }, undefined, "diary_delete_failed", undefined, traceId);
+        logError("日记删除失败", { diary_id: id, error: err?.message }, undefined, "diary_delete_failed", undefined, traceId);
         throw e;
       }
     },

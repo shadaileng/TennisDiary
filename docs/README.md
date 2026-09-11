@@ -297,6 +297,8 @@ docs/
 | 139：管线异常状态兜底与日志规范修正 | v1.6.0 | 方案 | `plans/139-管线异常状态兜底与日志规范修正.md` | 修复管线异常中断后 `status` 永久 `processing` 故障：`register_batch` flush 补 rollback 防连接污染 + 管线 except 先 rollback 再写 failed 并叠加独立连接兜底 + 孤儿 processing 超时清理 + **步骤异常 fail-fast（抽帧/播放短片登记改致命、`_finalize` 空 video_url 置 failed、可降级项打标）** + **小程序端：列表 4s 轮询改用户主动下拉刷新（已实施）+ 订阅泄漏修复（页面清理 `onUnmounted`→`onUnload`、轮询超时自停）**；确立 loguru `{}` 日志规范，全量清除失效的 `%s` 日志并修正 `AGENTS.md` 条款 | 🏁 已完成 |
 | 140：视频分片上传与断点续传（137 阶段二） | v2.2.0 | 方案 | `plans/140-视频分片上传与断点续传.md` | 大视频 5MB 切片串行上传 + 单片失败只重传该片 + 中断后仅传缺失/失败分片（断点续传）；服务端以**单文件 `data.bin` 定位写（`os.pwrite`）+ `manifest.json` 权威登记**（写成功才入账、失败段也入账，片级 `length`+`crc32` 校验，manifest 原子写），complete 免合并直接校验登记（`/upload/video/chunk`、`/chunks`、`/complete`），最终统一交付 `file_id`；§十 FAQ 沉淀会话定义 / `data.bin` 大小形态 / 续传起点 / 进度感知四问 | 🚧 进行中 |
 | 141：登录态离线缓存与自动同步 | v1.0.0 | 方案 | `plans/141-登录态离线缓存与自动同步.md` | 登录态日记/装备/体重/分析记录的本地缓存合并视图渲染、离线新建与自动静默同步（游客降级机制 Step 129 零改动） | 📋 待执行 |
+| 142：小程序埋点补盲与扩展字段重构 | v1.0.0 | 方案 | `plans/142-埋点补盲与扩展字段重构.md` | 小程序埋点补盲（setTheme/analysis 列表）、share 冗余精简、扩展字段 params 重构与调用方冗余清理 | 📋 待执行 |
+| 141：登录态离线缓存与自动同步 | v1.0.0 | 方案 | `plans/141-登录态离线缓存与自动同步.md` | 登录态日记/装备/体重/分析记录的本地缓存合并视图渲染、离线新建与自动静默同步（游客降级机制 Step 129 零改动） | 📋 待执行 |
 
 ## 文档类型说明
 
@@ -447,6 +449,7 @@ docs/
 | 139-管线异常状态兜底与日志规范修正 | 后端 + 小程序前端 | 🏁 已完成 | 2026-09-08 | Step 1-9 全部完成：`register_batch` flush 补 rollback、管线 except 先 rollback 再写 failed + `_force_fail` 独立连接兜底、步骤 fail-fast（抽帧/播放短片致命化 + 0 帧校验 + `_finalize` 空 video_url 置 failed + `_mark_degraded`）、34 处日志 `%s`→`{}` 与 10 处改 `log.exception` 并修正 `AGENTS.md` 规范、孤儿 processing 超时清理（接入启动与列表惰性触发）、列表改下拉刷新、前端 `onUnmounted`→`onUnload` 与轮询 5 分钟上限；后端 fast 177 passed、ruff 干净，小程序 type-check + build 通过，待真机验证 |
 | 140-视频分片上传与断点续传 | 后端 + 小程序前端 | 🚧 进行中 | 2026-09-09 | Step 1-7 已实施：存储层 `pwrite_chunk` + manifest 原子读写 + 门面 `open_chunk_session`/`register_chunk`/`list_chunks`/`chunk_status`/`complete_chunk_upload`（免合并）+ 三个端点 + `/check` 下发 + Admin `/cleanup` 联动 + 小程序 `crc32.ts`/`chunkUpload.ts`/`analyze.vue` 接入；后端新增 55 用例通过、fast 216 passed、ruff 干净，miniapp type-check + build 通过，待真机验证；v2.2.0 增 §4.2 会话/`data.bin` 机制澄清 + §4.6 进度感知双层次 + §十 FAQ |
 | 141-登录态离线缓存与自动同步 | 小程序前端 | 📋 待执行 | 2026-09-11 | - |
+| 142-小程序埋点补盲与扩展字段重构 | 小程序埋点重构 | 📋 待执行 | 2026-09-11 | - |
 
 ## 约定
 

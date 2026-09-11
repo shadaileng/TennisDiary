@@ -200,7 +200,7 @@ export async function syncPendingLocalData(): Promise<SyncResult> {
     };
     logInfo(
       "本地数据同步完成",
-      { trace_id: traceId, ...result },
+      { ...result },
       undefined,
       "pending_sync_done",
       traceId,
@@ -335,12 +335,12 @@ export async function syncOfflineData(): Promise<SyncOfflineResult> {
     };
     const total = result.diariesOk + result.diariesFail + result.gearsOk + result.gearsFail + result.weightsOk + result.weightsFail;
     if (total > 0) {
-      logInfo("离线待同步数据同步完成", { trace_id: traceId, ...result }, undefined, "offline_sync_done", traceId);
+      logInfo("离线待同步数据同步完成", { ...result }, undefined, "offline_sync_done", traceId);
     }
     if (total > 0) await refreshStores();
     return result;
   } catch (e) {
-    logError("离线同步异常", { trace_id: traceId, error: (e as Error).message }, undefined, "offline_sync_failed", undefined, traceId);
+    logError("离线同步异常", { error: (e as Error).message }, undefined, "offline_sync_failed", undefined, traceId);
     return EMPTY_OFFLINE;
   } finally {
     syncingOffline = false;

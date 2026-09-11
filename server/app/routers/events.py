@@ -19,15 +19,8 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 @router.post("", response_model=ApiResponse[EventLogResponse])
 def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
     """上报事件日志（小程序端调用，无需鉴权）"""
-    user_id = body.extra.get("user_id")
-    if user_id:
-        try:
-            user_id = int(user_id)
-        except (ValueError, TypeError):
-            user_id = None
-
     event = EventLog(
-        user_id=user_id,
+        user_id=body.user_id,
         level=body.level,
         type=body.type,
         trace_id=body.trace_id,
@@ -35,7 +28,7 @@ def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
         message=body.message,
         stack=body.stack,
         page=body.page,
-        extra=json.dumps(body.extra, ensure_ascii=False),
+        params=json.dumps(body.params, ensure_ascii=False),
         device_info=json.dumps(body.device_info, ensure_ascii=False),
         client_time=body.client_time,
     )

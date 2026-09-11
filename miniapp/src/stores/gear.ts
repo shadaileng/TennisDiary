@@ -189,18 +189,18 @@ export const useGearStore = defineStore("gear", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("添加装备", { trace_id: traceId, name: body.name }, undefined, "gear_create", traceId);
+        logInfo("添加装备", { name: body.name }, undefined, "gear_create", traceId);
         const g = await createGear(body);
         setCloudGears(uid, [g, ...getCloudGears(uid)]);
         this.hydrate();
-        logInfo("装备添加成功", { trace_id: traceId, gear_id: g.id }, undefined, "gear_created", traceId);
+        logInfo("装备添加成功", { gear_id: g.id }, undefined, "gear_created", traceId);
         return g;
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           return this.createOffline(body);
         }
-        logError("装备添加失败", { trace_id: traceId, error: err?.message, name: body.name }, undefined, "gear_create_failed", undefined, traceId);
+        logError("装备添加失败", { error: err?.message, name: body.name }, undefined, "gear_create_failed", undefined, traceId);
         throw e;
       }
     },
@@ -223,11 +223,11 @@ export const useGearStore = defineStore("gear", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("编辑装备", { trace_id: traceId, gear_id: id }, undefined, "gear_update", traceId);
+        logInfo("编辑装备", { gear_id: id }, undefined, "gear_update", traceId);
         const g = await updateGear(id, body);
         setCloudGears(uid, getCloudGears(uid).map((x) => (x.id === id ? g : x)));
         this.hydrate();
-        logInfo("装备更新成功", { trace_id: traceId, gear_id: id }, undefined, "gear_updated", traceId);
+        logInfo("装备更新成功", { gear_id: id }, undefined, "gear_updated", traceId);
         return g;
       } catch (e) {
         const err = e as ApiError;
@@ -235,7 +235,7 @@ export const useGearStore = defineStore("gear", {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("装备更新失败", { trace_id: traceId, gear_id: id, error: err?.message }, undefined, "gear_update_failed", undefined, traceId);
+        logError("装备更新失败", { gear_id: id, error: err?.message }, undefined, "gear_update_failed", undefined, traceId);
         throw e;
       }
     },
@@ -257,18 +257,18 @@ export const useGearStore = defineStore("gear", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("删除装备", { trace_id: traceId, gear_id: id }, undefined, "gear_delete", traceId);
+        logInfo("删除装备", { gear_id: id }, undefined, "gear_delete", traceId);
         await deleteGear(id);
         setCloudGears(uid, getCloudGears(uid).filter((x) => x.id !== id));
         this.hydrate();
-        logInfo("装备删除成功", { trace_id: traceId, gear_id: id }, undefined, "gear_deleted", traceId);
+        logInfo("装备删除成功", { gear_id: id }, undefined, "gear_deleted", traceId);
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("装备删除失败", { trace_id: traceId, gear_id: id, error: err?.message }, undefined, "gear_delete_failed", undefined, traceId);
+        logError("装备删除失败", { gear_id: id, error: err?.message }, undefined, "gear_delete_failed", undefined, traceId);
         throw e;
       }
     },

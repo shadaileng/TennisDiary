@@ -332,11 +332,12 @@ class EventLogCreate(BaseModel):
     level: str = Field(..., pattern="^(info|warn|error|fatal)$")
     type: str = "custom"
     trace_id: str | None = None
+    user_id: int | None = None
     action: str | None = None
     message: str
     stack: str = ""
     page: str = ""
-    extra: dict = {}
+    params: dict = {}
     device_info: dict = {}
     client_time: int | None = None
 
@@ -351,14 +352,14 @@ class EventLogResponse(BaseModel):
     message: str
     stack: str = ""
     page: str = ""
-    extra: dict = {}
+    params: dict = {}
     device_info: dict = {}
     client_time: int | None
     created_at: float
 
     model_config = {"from_attributes": True}
 
-    @field_validator("extra", "device_info", mode="before")
+    @field_validator("params", "device_info", mode="before")
     @classmethod
     def parse_json_field(cls, v):
         if isinstance(v, str):

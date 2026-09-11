@@ -104,11 +104,9 @@ onShow(async () => {
   const traceId = createTraceId();
   const t0 = Date.now();
 
-  logInfo("分享数据加载开始", { trace_id: traceId }, undefined, "share_data_load_start", traceId);
-
   // 并行加载两个端点
-  logInfo("加载日记列表开始", { trace_id: traceId }, undefined, "share_load_diaries_start", traceId);
-  logInfo("加载分析报告开始", { trace_id: traceId }, undefined, "share_load_analyses_start", traceId);
+  logInfo("加载日记列表开始", { }, undefined, "share_load_diaries_start", traceId);
+  logInfo("加载分析报告开始", { }, undefined, "share_load_analyses_start", traceId);
 
   const tDiaries = Date.now();
   const tAnalyses = Date.now();
@@ -118,12 +116,12 @@ onShow(async () => {
 
     // 日记列表结果
     logInfo("加载日记列表成功", {
-      trace_id: traceId, duration_ms: Date.now() - tDiaries, count: ds?.length,
+      duration_ms: Date.now() - tDiaries, count: ds?.length,
     }, undefined, "share_load_diaries_success", traceId);
 
     // 分析报告结果
     logInfo("加载分析报告成功", {
-      trace_id: traceId, duration_ms: Date.now() - tAnalyses, count: as?.items?.length,
+      duration_ms: Date.now() - tAnalyses, count: as?.items?.length,
     }, undefined, "share_load_analyses_success", traceId);
 
     diaries.value = ds;
@@ -132,13 +130,9 @@ onShow(async () => {
     caption.value = genCaption(pipe);
     await nextTick();
     draw();
-
-    logInfo("分享数据加载完成", {
-      trace_id: traceId, total_duration_ms: Date.now() - t0,
-    }, undefined, "share_data_load_success", traceId);
   } catch (e) {
     logError("分享数据加载失败", {
-      trace_id: traceId, error: (e as Error).message, total_duration_ms: Date.now() - t0,
+      error: (e as Error).message, total_duration_ms: Date.now() - t0,
     }, undefined, "share_data_load_failed", undefined, traceId);
     uni.showToast({ title: "数据加载失败", icon: "none" });
   }
@@ -269,12 +263,12 @@ async function regenerate() {
   try {
     const res = await generateCaption(tpl.value, style.value, originalText);
     caption.value = res.caption || originalText;
-    logInfo("润色分享文案", { trace_id: traceId, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai", traceId);
+    logInfo("润色分享文案", { template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai", traceId);
     uni.showToast({ title: "已润色文案", icon: "none" });
   } catch (e) {
     const pipe = buildContext(tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
     caption.value = genCaption(pipe);
-    logError("文案润色失败，降级本地模板", { trace_id: traceId, error: (e as Error).message, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai_failed", undefined, traceId);
+    logError("文案润色失败，降级本地模板", { error: (e as Error).message, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai_failed", undefined, traceId);
     uni.showToast({ title: "润色失败，已用模板文案", icon: "none" });
   } finally {
     regenerating.value = false;
@@ -283,7 +277,7 @@ async function regenerate() {
 
 function copyCaption() {
   const traceId = createTraceId();
-  logInfo("复制分享文案", { trace_id: traceId }, undefined, "caption_copied", traceId);
+  logInfo("复制分享文案", { }, undefined, "caption_copied", traceId);
   uni.setClipboardData({
     data: caption.value,
     success: () => uni.showToast({ title: "文案已复制", icon: "success" }),
@@ -293,7 +287,7 @@ function copyCaption() {
 function saveImage() {
   if (saving.value || !cardURL.value) return;
   const traceId = createTraceId();
-  logInfo("保存分享图片", { trace_id: traceId, template: tpl.value }, undefined, "share_image_save", traceId);
+  logInfo("保存分享图片", { template: tpl.value }, undefined, "share_image_save", traceId);
   saving.value = true;
 
   let saveTimedOut = false
@@ -310,7 +304,7 @@ function saveImage() {
     success: () => {
       if (saveTimedOut) return
       clearImageSaveTimeout()
-      logInfo("分享图片保存成功", { trace_id: traceId, template: tpl.value }, undefined, "share_image_saved", traceId);
+      logInfo("分享图片保存成功", { template: tpl.value }, undefined, "share_image_saved", traceId);
       uni.showToast({ title: "已保存到相册", icon: "success" })
       saving.value = false
     },
@@ -318,7 +312,7 @@ function saveImage() {
       if (saveTimedOut) return
       clearImageSaveTimeout()
       if (isRuntimePermissionDenied(err)) {
-        logError("保存图片权限被拒绝", { trace_id: traceId, error: err.errMsg, template: tpl.value }, undefined, "share_image_denied", undefined, traceId);
+        logError("保存图片权限被拒绝", { error: err.errMsg, template: tpl.value }, undefined, "share_image_denied", undefined, traceId);
         uni.showModal({
           title: "提示",
           content: "需要授权使用相册功能，请在设置中开启",
@@ -328,7 +322,7 @@ function saveImage() {
           },
         });
       } else {
-        logError("保存图片失败", { trace_id: traceId, error: err.errMsg, template: tpl.value }, undefined, "share_image_failed", undefined, traceId);
+        logError("保存图片失败", { error: err.errMsg, template: tpl.value }, undefined, "share_image_failed", undefined, traceId);
         uni.showToast({ title: "保存失败，请重试", icon: "none" });
       }
       saving.value = false

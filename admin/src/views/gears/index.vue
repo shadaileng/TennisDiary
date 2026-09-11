@@ -13,10 +13,6 @@
         ¥{{ value?.toFixed(2) || '0.00' }}
       </template>
 
-      <template #cell-created_at="{ value }">
-        {{ formatTs(value) }}
-      </template>
-
       <template #cell-business_time="{ value }">
         {{ value ? formatTs(value) : '--' }}
       </template>
@@ -125,13 +121,12 @@ import { formatTs } from '@/utils/date'
 import { fileUrl } from '@/utils/fileUrl'
 
 const columns = [
-  { key: 'id', title: 'ID' },
-  { key: 'user', title: '用户' },
-  { key: 'name', title: '名称' },
-  { key: 'category', title: '种类' },
-  { key: 'price', title: '价格' },
-  { key: 'created_at', title: '创建时间' },
-  { key: 'business_time', title: '业务时间' }
+  { key: 'id', title: 'ID', width: 60 },
+  { key: 'user', title: '用户', width: 120 },
+  { key: 'name', title: '名称', width: 140 },
+  { key: 'category', title: '种类', width: 100 },
+  { key: 'price', title: '价格', width: 100 },
+  { key: 'business_time', title: '业务时间', width: 160 }
 ]
 
 const gears = ref<Gear[]>([])

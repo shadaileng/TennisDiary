@@ -250,9 +250,9 @@
           </div>
 
           <!-- 扩展字段 -->
-          <div v-if="Object.keys(selectedEvent.extra).length > 0" class="mb-4">
+          <div v-if="Object.keys(selectedEvent.params).length > 0" class="mb-4">
             <span class="text-sm font-medium text-gray-500">扩展字段</span>
-            <pre class="mt-1 text-xs text-gray-700 bg-gray-50 rounded px-3 py-2 overflow-x-auto whitespace-pre-wrap break-words">{{ JSON.stringify(selectedEvent.extra, null, 2) }}</pre>
+            <pre class="mt-1 text-xs text-gray-700 bg-gray-50 rounded px-3 py-2 overflow-x-auto whitespace-pre-wrap break-words">{{ JSON.stringify(selectedEvent.params, null, 2) }}</pre>
           </div>
         </div>
 

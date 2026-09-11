@@ -19,10 +19,6 @@
         {{ value }} 分钟
       </template>
 
-      <template #cell-created_at="{ value }">
-        {{ formatTs(value) }}
-      </template>
-
       <template #cell-business_time="{ value }">
         {{ value ? formatTs(value) : '--' }}
       </template>
@@ -147,13 +143,12 @@ import Pagination from '@/components/common/Pagination.vue'
 import { formatTs } from '@/utils/date'
 
 const columns = [
-  { key: 'id', title: 'ID' },
-  { key: 'user', title: '用户' },
-  { key: 'date', title: '日期' },
-  { key: 'type', title: '类型' },
-  { key: 'duration', title: '时长' },
-  { key: 'created_at', title: '创建时间' },
-  { key: 'business_time', title: '业务时间' }
+  { key: 'id', title: 'ID', width: 60 },
+  { key: 'user', title: '用户', width: 120 },
+  { key: 'date', title: '日期', width: 110 },
+  { key: 'type', title: '类型', width: 100 },
+  { key: 'duration', title: '时长', width: 80 },
+  { key: 'business_time', title: '业务时间', width: 160 }
 ]
 
 const diaries = ref<Diary[]>([])
