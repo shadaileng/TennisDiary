@@ -227,6 +227,45 @@ import {
   type ChunkPlan,
 } from "@/utils/chunkUpload";
 
+// ============ 事件常量（消除魔法字符串，统一 action 命名） ============
+const EV = {
+  // 视频选择
+  CHOOSE_VIDEO: "choose_video",
+  CHOOSE_VIDEO_SUCCESS: "choose_video_success",
+  CHOOSE_VIDEO_TOO_LONG: "choose_video_too_long",
+  CHOOSE_VIDEO_CANCEL: "choose_video_cancel",
+  CHOOSE_VIDEO_EMPTY: "choose_video_empty",
+  CHOOSE_VIDEO_DENIED: "choose_video_denied",
+  CHOOSE_VIDEO_PRIVACY: "choose_video_privacy",
+  CHOOSE_VIDEO_FAILED: "choose_video_failed",
+  // 指纹
+  FP_SKIPPED: "video_fingerprint_skipped",
+  FP_READY: "video_fingerprint_ready",
+  FP_FAILED: "video_fingerprint_failed",
+  // 网络
+  NETWORK_WARNING: "network_warning",
+  // 分片
+  CHUNK_START: "video_chunk_start",
+  CHUNK_DEGRADED: "video_chunk_degraded",
+  // 预检
+  VIDEO_CHECK: "video_check",
+  VIDEO_CHECK_HIT: "video_check_hit",
+  VIDEO_CHECK_MISS: "video_check_miss",
+  VIDEO_CHECK_ERROR: "video_check_error",
+  // 上传
+  VIDEO_UPLOAD_START: "video_upload_start",
+  VIDEO_UPLOAD_SUCCESS: "video_upload_success",
+  VIDEO_UPLOAD_FAILED: "video_upload_failed",
+  VIDEO_UPLOAD_CANCELED: "video_upload_canceled",
+  // 分析
+  ANALYSIS_STARTED: "analysis_started",
+  ANALYSIS_LAUNCH: "analysis_launch",
+  ANALYSIS_LAUNCHED: "analysis_launched",
+  STATUS_SUBSCRIBE: "status_subscribe",
+  ANALYSIS_COMPLETED: "analysis_completed",
+  ANALYSIS_FAILED: "analysis_failed",
+} as const;
+
 const { themeStyle, themeBg } = useThemeStyle();
 
 type Mode = "single" | "full";
@@ -414,13 +453,16 @@ function cancelUpload() {
   // 指纹/秒传预检阶段尚无上传任务：标记取消，流程在下一个检查点中断
   if (!task) {
     canceling.value = true;
-    logInfo("取消分析（预检阶段）", { }, undefined, "video_upload_canceled", currentTraceId);
+    logInfo("取消分析（预检阶段）", {}, undefined, EV.VIDEO_UPLOAD_CANCELED, currentTraceId);
     uni.showToast({ title: "正在取消…", icon: "none" });
     return;
   }
 
   uploadTask = null;
-  logInfo("取消视频上传", { }, undefined, "video_upload_canceled", currentTraceId);
+  logInfo("取消视频上传", {
+    uploaded_bytes: uploadSent.value,
+    total_bytes: uploadTotal.value,
+  }, undefined, EV.VIDEO_UPLOAD_CANCELED, currentTraceId);
   task.abort();
   uni.showToast({ title: "已取消上传", icon: "none" });
   // 兜底：个别基础库 abort 不回调，避免模态卡死
@@ -469,7 +511,7 @@ function resetTimelineBits() {
 // ============ 选择视频 ============
 function chooseVideo() {
   const traceId = createTraceId();
-  logInfo("选择视频", { }, undefined, "choose_video", traceId);
+  logInfo("选择视频", {}, undefined, EV.CHOOSE_VIDEO, traceId);
 
   // 已使用 chooseMedia 替代已废弃的 chooseVideo，无需超时兜底；
   // 大视频在系统相册选择/压缩时可能耗时较长，固定超时会导致误报。
@@ -485,7 +527,7 @@ function chooseVideo() {
 
       const file = res.tempFiles?.[0];
       if (!file || !file.tempFilePath) {
-        logError("选择视频返回为空", { }, undefined, "choose_video_empty", undefined, traceId);
+        logError("选择视频返回为空", {}, undefined, EV.CHOOSE_VIDEO_EMPTY, undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
         return;
       }
@@ -493,7 +535,7 @@ function chooseVideo() {
       const dur = Number(file.duration) || 0;
       if (dur > UPLOAD_MAX) {
         uni.showToast({ title: `视频 ${Math.round(dur)}s 超过 3 分钟，请先在相册裁剪`, icon: "none" });
-        logInfo("视频超长被拒", { duration: dur }, undefined, "choose_video_too_long", traceId);
+        logInfo("视频超长被拒", { duration: dur, max_duration: UPLOAD_MAX }, undefined, EV.CHOOSE_VIDEO_TOO_LONG, traceId);
         return;
       }
       videoPath.value = file.tempFilePath;
@@ -505,7 +547,11 @@ function chooseVideo() {
       pps.value = TRACK_PPS;
       zoomInitialized = false;
       measureBar();
-      logInfo("视频选择成功", { duration: dur }, undefined, "choose_video_success", traceId);
+      logInfo("视频选择成功", {
+        duration: dur,
+        size: Number(file.size) || 0,
+        path: file.tempFilePath,
+      }, undefined, EV.CHOOSE_VIDEO_SUCCESS, traceId);
 
       // 异步预计算指纹（与剪辑/设置击球点并行，不在关键路径）
       precomputeFingerprint(file.tempFilePath, Number(file.size) || 0, traceId);
@@ -515,15 +561,15 @@ function chooseVideo() {
       finished = true;
 
       if (isUserCancel(err)) {
-        logInfo("用户取消选择视频", { }, undefined, "choose_video_cancel", traceId);
+        logInfo("用户取消选择视频", {}, undefined, EV.CHOOSE_VIDEO_CANCEL, traceId);
       } else if (isRuntimePermissionDenied(err)) {
-        logError("选择视频权限被拒绝", { error: err.errMsg }, undefined, "choose_video_denied", undefined, traceId);
+        logError("选择视频权限被拒绝", { error: err.errMsg }, undefined, EV.CHOOSE_VIDEO_DENIED, undefined, traceId);
         uni.showToast({ title: "需要授权使用相册/相机功能", icon: "none" });
       } else if (isPrivacyScopeError(err)) {
-        logError("隐私声明未配置", { error: err.errMsg }, undefined, "choose_video_privacy", undefined, traceId);
+        logError("隐私声明未配置", { error: err.errMsg }, undefined, EV.CHOOSE_VIDEO_PRIVACY, undefined, traceId);
         uni.showToast({ title: "隐私权限未配置，请联系开发者", icon: "none" });
       } else {
-        logError("选择视频失败", { error: err.errMsg }, undefined, "choose_video_failed", undefined, traceId);
+        logError("选择视频失败", { error: err.errMsg }, undefined, EV.CHOOSE_VIDEO_FAILED, undefined, traceId);
         uni.showToast({ title: "选择视频失败，请重试", icon: "none" });
       }
     },
@@ -541,7 +587,7 @@ function chooseVideo() {
  */
 function precomputeFingerprint(path: string, size: number, traceId: string) {
   if (size && size > FINGERPRINT_MAX_SIZE) {
-    logInfo("视频过大跳过指纹预计算", { size }, undefined, "video_fingerprint_skipped", traceId);
+    logInfo("视频过大跳过指纹预计算", { size, threshold: FINGERPRINT_MAX_SIZE }, undefined, EV.FP_SKIPPED, traceId);
     return;
   }
   void getFileFingerprint(path)
@@ -551,14 +597,14 @@ function precomputeFingerprint(path: string, size: number, traceId: string) {
       videoFingerprint.value = fp;
       logInfo(
         "视频指纹预计算完成",
-        { size: fp.size, duration_ms: fp.durationMs },
+        { md5: fp.md5, size: fp.size, duration_ms: fp.durationMs },
         undefined,
-        "video_fingerprint_ready",
+        EV.FP_READY,
         traceId,
       );
     })
     .catch(() => {
-      logInfo("视频指纹预计算失败，退回整体上传", { }, undefined, "video_fingerprint_failed", traceId);
+      logInfo("视频指纹预计算失败，退回整体上传", {}, undefined, EV.FP_FAILED, traceId);
     });
 }
 
@@ -845,10 +891,10 @@ function warnWeakNetwork(traceId: string): Promise<void> {
       success: (res: any) => {
         const type = (res?.networkType as string) || "";
         if (type === "none") {
-          logError("上传前检测到无网络", { }, undefined, "video_upload_offline", undefined, traceId);
+          logError("上传前检测到无网络", { network_type: type, reason: "offline" }, undefined, EV.NETWORK_WARNING, undefined, traceId);
           uni.showToast({ title: "当前无网络，请检查后重试", icon: "none" });
         } else if (type === "2g" || type === "3g") {
-          logInfo("上传前检测到弱网", { network_type: type }, undefined, "video_upload_weak_network", traceId);
+          logInfo("上传前检测到弱网", { network_type: type, reason: "slow" }, undefined, EV.NETWORK_WARNING, traceId);
           uni.showToast({ title: "当前网络较慢，上传可能需要较长时间", icon: "none" });
         }
         resolve();
@@ -881,7 +927,7 @@ async function uploadVideoChunkedInternal(
     "开始分片上传",
     { total, size: fp.size, chunk_size: plan.sizeBytes },
     undefined,
-    "video_chunk_start",
+    EV.CHUNK_START,
     traceId,
   );
 
@@ -939,25 +985,26 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       fp = await getFileFingerprint(path);
       videoFingerprint.value = fp;
     } catch {
-      logInfo("指纹计算失败，直接上传", { }, undefined, "video_fingerprint_failed", traceId);
+      logInfo("指纹计算失败，直接上传", {}, undefined, EV.FP_FAILED, traceId);
     }
   }
 
   // 2. 秒传预检（按 video 来源隔离）
   if (fp?.md5) {
     try {
+      logInfo("视频预检发起", { md5: fp.md5, size: fp.size, category: "video" }, undefined, EV.VIDEO_CHECK, traceId);
       const check = await checkFile(fp.md5, fp.size, "video");
       if (check.hit && check.safe && check.file_id) {
         logInfo(
           "视频秒传命中",
-          { file_id: check.file_id, size: fp.size },
+          { file_id: check.file_id, safe: check.safe, size: fp.size },
           undefined,
-          "video_upload_mirage",
+          EV.VIDEO_CHECK_HIT,
           traceId,
         );
         return check.file_id;
       }
-      logInfo("视频预检未命中", { hit: check.hit }, undefined, "video_check_miss", traceId);
+      logInfo("视频预检未命中", { size: fp.size }, undefined, EV.VIDEO_CHECK_MISS, traceId);
 
       // 140：未命中且文件达到分片阈值 → 分片上传（失败静默降级为整体上传）
       const plan = normalizeChunkPlan(check.chunk);
@@ -969,19 +1016,20 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
             "分片上传失败，降级整体上传",
             { error: (err as Error)?.message || "", size: fp.size },
             undefined,
-            "video_chunk_degraded",
+            EV.CHUNK_DEGRADED,
             traceId,
           );
         }
       }
     } catch {
-      logInfo("视频预检失败，退回上传", { }, undefined, "video_check_failed", traceId);
+      logInfo("视频预检失败，退回上传", { size: fp?.size || 0 }, undefined, EV.VIDEO_CHECK_ERROR, traceId);
     }
   }
 
   // 3. 整体上传
   await warnWeakNetwork(traceId);
   uploadPercent.value = 0;
+  logInfo("视频上传开始", { size: fp?.size || 0, method: "whole" }, undefined, EV.VIDEO_UPLOAD_START, traceId);
   const res = await uploadRaw<{ file_id?: number; mirage?: boolean }>({
     path: "/upload/video",
     filePath: path,
@@ -1006,9 +1054,9 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       uploadPercent.value = 100;
       logInfo(
         "视频上传成功",
-        { duration_ms: durationMs, size: fp?.size || 0 },
+        { file_id: _result?.file_id, size: fp?.size || 0, duration_ms: durationMs, mirage: _result?.mirage ?? false },
         undefined,
-        "video_upload_success",
+        EV.VIDEO_UPLOAD_SUCCESS,
         traceId,
       );
     },
@@ -1017,18 +1065,18 @@ async function resolveVideoFileId(traceId: string): Promise<number> {
       uploadPercent.value = 100;
       logInfo(
         "视频上传命中秒传",
-        { duration_ms: durationMs },
+        { file_id: _result?.file_id, size: fp?.size || 0, duration_ms: durationMs, mirage: true },
         undefined,
-        "video_upload_mirage",
+        EV.VIDEO_UPLOAD_SUCCESS,
         traceId,
       );
     },
     onFailed: (error, durationMs) => {
       logError(
         "视频上传失败",
-        { duration_ms: durationMs, error: error.message, size: fp?.size || 0 },
+        { error: error.message, size: fp?.size || 0, duration_ms: durationMs },
         undefined,
-        "video_upload_failed",
+        EV.VIDEO_UPLOAD_FAILED,
         undefined,
         traceId,
       );
@@ -1091,21 +1139,27 @@ async function startAnalysisUnified() {
       throw new Error("视频文件已失效，请重新选择");
     }
 
-    // === 整体入口 ===
-    logInfo("开始AI分析（统一端点）", {
-      mode: mode.value, kind: kind.value,
-      has_cuts: trimmed.value, video_duration: videoDuration.value,
-      segment_count: segments.value.length,
-    }, undefined, "analysis_started", traceId);
-
     // === 步骤1: 解析 file_id（秒传预检 / 整体上传） ===
     progress.value = "准备上传…";
-    logInfo("统一分析开始", { }, undefined, "unified_analysis_start", traceId);
     const tStart = Date.now();
 
     const fileId = await resolveVideoFileId(traceId);
     // 取消检查点：预检/上传阶段被取消则不再启动分析
     if (uploadCanceled) throw new Error("已取消上传");
+
+    // === 整体入口（file_id 解析后，参数完整） ===
+    logInfo("开始AI分析", {
+      file_id: fileId,
+      date: todayStr(),
+      kind: kind.value,
+      mode: mode.value,
+      hit_time: mode.value === "single" && hitTime.value > 0 ? Number(hitTime.value.toFixed(2)) : 0,
+      cuts: trimmed.value
+        ? segments.value.map((s) => ({ start: round2(s.start), end: round2(s.end) }))
+        : undefined,
+      video_duration: videoDuration.value,
+      segment_count: segments.value.length,
+    }, undefined, EV.ANALYSIS_STARTED, traceId);
 
     // === 步骤2: 凭 file_id 启动后台分析管线 ===
     analysisStage.value = "analyze";
@@ -1126,13 +1180,15 @@ async function startAnalysisUnified() {
     // （用户可能在上传阶段就返回了列表，此时列表还没有这条记录）
     uni.removeStorageSync(PENDING_ANALYSIS_KEY);
     uni.$emit(ANALYSIS_STARTED_EVENT, { id: analysisId });
-    logInfo("统一分析已启动", {
-      duration_ms: Date.now() - tStart, analysis_id: analysisId, file_id: fileId,
-    }, undefined, "unified_analysis_launched", traceId);
+    logInfo("分析已启动", {
+      analysis_id: analysisId,
+      file_id: fileId,
+      duration_ms: Date.now() - tStart,
+    }, undefined, EV.ANALYSIS_LAUNCHED, traceId);
 
     // === 步骤3: 订阅状态更新 ===
     progress.value = "分析中，请稍候…";
-    logInfo("状态订阅开始", { analysis_id: analysisId }, undefined, "status_subscribe_start", traceId);
+    logInfo("状态订阅开始", { analysis_id: analysisId }, undefined, EV.STATUS_SUBSCRIBE, traceId);
 
     await new Promise<void>((resolve, reject) => {
       statusSubscriber = createStatusSubscriber(analysisId, (status: AnalysisStatus) => {
@@ -1149,7 +1205,7 @@ async function startAnalysisUnified() {
           logInfo("分析完成", {
             analysis_id: analysisId,
             total_duration_ms: Date.now() - t0,
-          }, undefined, "analysis_completed", traceId);
+          }, undefined, EV.ANALYSIS_COMPLETED, traceId);
           stopStatusSubscriber();
           uni.redirectTo({ url: `/pages/coach/report?id=${analysisId}` });
           resolve();
@@ -1159,8 +1215,8 @@ async function startAnalysisUnified() {
         if (status.status === "failed") {
           const errorMsg = status.pipeline_status?.error || "分析失败，请重试";
           logError("分析失败", {
-            analysis_id: analysisId, error: errorMsg,
-          }, undefined, "analysis_failed", undefined, traceId);
+            analysis_id: analysisId, error: errorMsg, stage: "status",
+          }, undefined, EV.ANALYSIS_FAILED, undefined, traceId);
           stopStatusSubscriber();
           reject(new Error(errorMsg));
         }
@@ -1171,9 +1227,9 @@ async function startAnalysisUnified() {
         onTimeout: () => {
           stopStatusSubscriber();
           logError("分析状态订阅超时", {
-            analysis_id: analysisId,
+            analysis_id: analysisId, stage: "timeout",
             total_duration_ms: Date.now() - t0,
-          }, undefined, "analysis_subscribe_timeout", traceId);
+          }, undefined, EV.ANALYSIS_FAILED, undefined, traceId);
           reject(new Error("分析超时，请稍后到列表查看结果"));
         },
       });
@@ -1185,10 +1241,10 @@ async function startAnalysisUnified() {
     // 用户主动取消：已单独提示，不再弹失败文案
     if (uploadCanceled) return;
     logError("统一分析失败", {
-      error: msg,
+      error: msg, stage: "api",
       mode: mode.value, kind: kind.value,
       total_duration_ms: Date.now() - t0,
-    }, undefined, "analysis_failed", undefined, traceId);
+    }, undefined, EV.ANALYSIS_FAILED, undefined, traceId);
     // 文件失效（file_id 指向的物理文件已不在）：清掉指纹，重试时会重新上传
     if (msg.includes("失效") || msg.includes("不存在")) {
       videoFingerprint.value = null;
