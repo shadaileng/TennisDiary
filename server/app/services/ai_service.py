@@ -158,11 +158,33 @@ async def chat_text(
 
 
 def extract_json(text: str) -> dict:
-    """从 AI 返回文本中提取 JSON 对象（容错前后缀文字 / 代码块）"""
+    """从 AI 返回文本中提取 JSON 对象（容错修复 + 代码块剥离）
+
+    流程：直接解析 → json-repair 修复 → 抛异常并记录原始文本。
+    """
     match = re.search(r"\{[\s\S]*\}", text)
     if not match:
         raise ValueError("AI 返回内容无法解析")
-    return json.loads(match.group(0))
+    raw = match.group(0)
+
+    # 1. 直接解析
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. json-repair 修复常见 LLM 格式问题（未转义引号、trailing comma、缺失逗号等）
+    try:
+        from json_repair import repair_json
+
+        repaired = repair_json(raw, ensure_ascii=False)
+        return json.loads(repaired)
+    except (json.JSONDecodeError, ImportError):
+        pass
+
+    # 3. 修复仍失败，记录原始文本后抛异常
+    logger.warning("AI JSON 修复失败，原始文本前 500 字符: {}", text[:500])
+    raise json.JSONDecodeError("AI 返回 JSON 无法修复", raw, 0)
 
 
 async def analyze_swing(
@@ -192,7 +214,13 @@ async def analyze_swing(
 
     prompt = _build_analyze_prompt(kind, mode)
     text = await chat_vision(frames, prompt, ai_config, max_tokens=2500)
-    report = extract_json(text)
+    try:
+        report = extract_json(text)
+    except (json.JSONDecodeError, ValueError):
+        # 首次解析失败（含 repair 兜底），重试一次（LLM 输出具有随机性）
+        logger.warning("AI JSON 首次解析失败，重试中 kind={} mode={}", kind, mode)
+        text = await chat_vision(frames, prompt, ai_config, max_tokens=2500)
+        report = extract_json(text)
 
     # 兜底校验（与参考版 analyzeSwing 尾部一致）
     dimensions = report.get("dimensions")

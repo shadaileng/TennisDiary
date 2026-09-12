@@ -227,6 +227,7 @@ export default defineConfig({
             { text: '游客装备封面安全检查-fail-open-修复', link: '/plans/133-游客装备封面安全检查-fail-open-修复' },
             { text: '游客装备封面保存失败问题修复', link: '/plans/134-游客装备封面保存失败问题修复' },
             { text: '139：管线异常状态兜底与日志规范修正', link: '/plans/139-管线异常状态兜底与日志规范修正' },
+            { text: '145：AI 评分 JSON 解析容错与重试', link: '/plans/145-AI评分JSON解析容错与重试' },
 ],
         },
         {

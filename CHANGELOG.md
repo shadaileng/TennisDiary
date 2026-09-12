@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.86.0] - 2026-09-13
+
+### Added
+
+- AI 评分 JSON 解析容错与重试（145）：`extract_json` 增加 `json-repair` 修复层，可自动修复 LLM 返回的常见 JSON 格式问题（未转义引号、trailing comma、缺失逗号等）；`analyze_swing` 首次解析失败后自动重试 1 次（LLM 输出具有随机性）；修复仍失败时记录原始 AI 响应文本前 500 字符便于事后诊断；新增 9 个 `extract_json` 单元测试。
+
 ## [1.85.1] - 2026-09-11
 
 ### Fixed
