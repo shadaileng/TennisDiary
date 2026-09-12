@@ -60,7 +60,7 @@
         </div>
         <div class="flex items-end gap-2">
           <button
-            @click="fetchEvents"
+            @click="currentPage = 1; fetchEvents()"
             class="px-4 py-2 bg-olive-600 text-white rounded-md hover:bg-olive-700"
           >
             查询

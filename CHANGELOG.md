@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.86.1] - 2026-09-13
+
+### Fixed
+
+- Admin 事件日志查询页码未重置：点击"查询"按钮时若当前页非第 1 页（如 page=2），仍沿用旧页码发送请求，导致查到空结果；修复为查询前始终重置到 page=1。
+
 ## [1.86.0] - 2026-09-13
 
 ### Added
