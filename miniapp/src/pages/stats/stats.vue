@@ -176,6 +176,7 @@ import { fmtDuration, fmtMoney, todayStr } from "@/utils";
 import { getEntryId } from "@/types";
 import type { AnyWeight, Stats, WeightRecord } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 const authStore = useAuthStore();
 const weightStore = useWeightStore();
@@ -341,10 +342,10 @@ onShow(() => {
     weightStore.fetchList();
     stats.value = aggregateLocalStats(getPendingDiaries(), getPendingGears());
     statsLoading.value = false;
-    logInfo("游客本地统计聚合", { total_sessions: stats.value.total_sessions }, undefined, "stats_guest_local", traceId);
+    logInfo("游客本地统计聚合", { total_sessions: stats.value.total_sessions }, undefined, EV.STATS_GUEST_LOCAL, traceId);
     return;
   }
-  logInfo("加载统计数据", { }, undefined, "stats_load", traceId);
+  logInfo("加载统计数据", { guest: authStore.isGuest }, undefined, EV.STATS_LOAD, traceId);
   weightStore.fetchList();
   // 日记/装备本地缓存合并视图（仅本地读，供离线兜底聚合）
   diaryStore.hydrate();
@@ -354,7 +355,7 @@ onShow(() => {
   getStats()
     .then((s) => {
       stats.value = s;
-      logInfo("统计数据加载成功", { total_sessions: s.total_sessions, total_duration: s.total_duration, total_cost: s.total_cost, total_gears: s.total_gears }, undefined, "stats_loaded", traceId);
+      logInfo("统计数据加载成功", { total_sessions: s.total_sessions, total_duration: s.total_duration, total_cost: s.total_cost, total_gears: s.total_gears }, undefined, EV.STATS_LOADED, traceId);
     })
     .catch((e) => {
       const err = e as ApiError;
@@ -362,9 +363,9 @@ onShow(() => {
         // 离线兜底：聚合本地缓存（云端快照 + 离线待同步），口径对齐 /api/stats
         stats.value = aggregateLocalStats(diaryStore.diaries, gearStore.gears);
         offlineStats.value = true;
-        logInfo("离线统计兜底（本地聚合）", { total_sessions: stats.value.total_sessions }, undefined, "stats_offline_fallback", traceId);
+        logInfo("离线统计兜底（本地聚合）", { total_sessions: stats.value.total_sessions }, undefined, EV.STATS_OFFLINE_FALLBACK, traceId);
       } else {
-        logError("统计数据加载失败", { error: (err as Error).message }, undefined, "stats_load_failed", undefined, traceId);
+        logError("统计数据加载失败", { error: (err as Error).message }, undefined, EV.STATS_LOAD_FAILED, undefined, traceId);
       }
     })
     .finally(() => {

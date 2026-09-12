@@ -36,6 +36,7 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import type { DiaryCreate, GearCreate, WeightCreate } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 import { uploadGearImage } from "@/utils/index";
 
 /** 进程级防并发标记（游客同步） */
@@ -202,7 +203,7 @@ export async function syncPendingLocalData(): Promise<SyncResult> {
       "本地数据同步完成",
       { ...result },
       undefined,
-      "pending_sync_done",
+      EV.PENDING_SYNC_DONE,
       traceId,
     );
     return result;
@@ -335,12 +336,12 @@ export async function syncOfflineData(): Promise<SyncOfflineResult> {
     };
     const total = result.diariesOk + result.diariesFail + result.gearsOk + result.gearsFail + result.weightsOk + result.weightsFail;
     if (total > 0) {
-      logInfo("离线待同步数据同步完成", { ...result }, undefined, "offline_sync_done", traceId);
+      logInfo("离线待同步数据同步完成", { ...result }, undefined, EV.OFFLINE_SYNC_DONE, traceId);
     }
     if (total > 0) await refreshStores();
     return result;
   } catch (e) {
-    logError("离线同步异常", { error: (e as Error).message }, undefined, "offline_sync_failed", undefined, traceId);
+    logError("离线同步异常", { error: (e as Error).message }, undefined, EV.OFFLINE_SYNC_FAILED, undefined, traceId);
     return EMPTY_OFFLINE;
   } finally {
     syncingOffline = false;

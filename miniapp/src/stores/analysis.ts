@@ -7,6 +7,7 @@ import { networkOnline } from "@/utils/network";
 import type { ApiError } from "@/services/request";
 import type { Analysis } from "@/types";
 import { createTraceId, logWarn } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 /** 当前登录用户 id（游客/未登录返回 null） */
 function currentUserId(): number | null {
@@ -59,7 +60,7 @@ export const useAnalysisStore = defineStore("analysis", {
       if (!networkOnline.value) {
         this.offline = true;
         this.fromCache = true;
-        logWarn("分析列表离线（无网络）", { fromCache: true }, undefined, "analysis_list_offline", createTraceId());
+        logWarn("分析列表离线（无网络）", { fromCache: true }, undefined, EV.ANALYSIS_LIST_OFFLINE, createTraceId());
         return;
       }
       this.loading = true;
@@ -76,7 +77,7 @@ export const useAnalysisStore = defineStore("analysis", {
           // 网络层失败：保持缓存视图，标记离线，不抛错、不清空
           this.offline = true;
           this.fromCache = true;
-          logWarn("分析列表加载失败，已降级为缓存视图", { error: err.message }, undefined, "analysis_list_load_failed", createTraceId());
+          logWarn("分析列表加载失败，已降级为缓存视图", { error: err.message }, undefined, EV.ANALYSIS_LIST_LOAD_FAILED, createTraceId());
         } else {
           // 业务错误不降级，上抛由页面提示
           this.offline = false;

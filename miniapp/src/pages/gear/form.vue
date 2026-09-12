@@ -98,6 +98,7 @@ import { getGear } from "@/services/data";
 import { networkOnline } from "@/utils/network";
 import { GEAR_CATEGORIES, compressImageToDataURL, guestCheckGearImage, resolveUploadUrl, safeNavigateBack, todayStr, uploadGearImage } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 import type { ApiError } from "@/services/request";
 import type { AnyGear } from "@/types";
 
@@ -133,7 +134,7 @@ onLoad(async (query) => {
   editingId.value = id;
   uni.setNavigationBarTitle({ title: "编辑装备" });
   const traceId = createTraceId();
-  logInfo("加载装备详情", { gear_id: id }, undefined, "gear_detail_load", traceId);
+  logInfo("加载装备详情", { gear_id: id }, undefined, EV.GEAR_DETAIL_LOAD, traceId);
   try {
     let g: AnyGear;
     // 本地待同步条目（localId）或游客态：从本地仓库加载（可离线编辑）
@@ -153,7 +154,7 @@ onLoad(async (query) => {
     form.photo = g.photo || "";
   } catch (e) {
     const err = e as ApiError;
-    logError("装备详情加载失败", { gear_id: editingId.value, error: (err as Error).message }, undefined, "gear_detail_load_failed", undefined, traceId);
+    logError("装备详情加载失败", { gear_id: editingId.value, error: (err as Error).message }, undefined, EV.GEAR_DETAIL_LOAD_FAILED, undefined, traceId);
     if (err && err.status === -1) {
       uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
     } else {
@@ -180,7 +181,7 @@ function onFeelingInput(e: any) {
 
 async function onPickPhoto() {
   const traceId = createTraceId();
-  logInfo("选择装备封面照片", { }, undefined, "gear_photo_choose", traceId);
+  logInfo("选择装备封面照片", { guest: useAuthStore().isGuest }, undefined, EV.GEAR_PHOTO_CHOOSE, traceId);
   try {
     // 选图（统一走 chooseMedia，避免 iOS 转圈兼容问题）
     const tempPath = await new Promise<string>((resolve, reject) => {
@@ -204,7 +205,7 @@ async function onPickPhoto() {
       const result = await guestCheckGearImage(tempPath, code);
       if (!result.ok) {
         // 技术故障：网络错误/服务器异常
-        logError("游客封面安全检查失败", { code: result.code, error: result.message }, undefined, "gear_photo_guest_check_failed", undefined, traceId);
+        logError("游客封面安全检查失败", { code: result.code, error: result.message }, undefined, EV.GEAR_PHOTO_GUEST_CHECK_FAILED, undefined, traceId);
         uni.showToast({ title: result.message, icon: "none" });
         return;
       }
@@ -214,13 +215,13 @@ async function onPickPhoto() {
         return;
       }
       form.photo = await compressImageToDataURL(tempPath);
-      logInfo("游客装备封面即检通过(本地保存)", { }, undefined, "gear_photo_guest_checked", traceId);
+      logInfo("游客装备封面即检通过(本地保存)", { safe: result.safe }, undefined, EV.GEAR_PHOTO_GUEST_CHECKED, traceId);
     } else {
       // 登录态：离线时压缩为本地 dataURL 暂存（随装备落入离线仓库，恢复后自动上传）；
       // 在线时压缩并上传到服务端（服务端受检）
       if (!networkOnline.value) {
         form.photo = await compressImageToDataURL(tempPath);
-        logInfo("登录态离线选封面(本地 dataURL 暂存)", { }, undefined, "gear_photo_offline_local", traceId);
+        logInfo("登录态离线选封面(本地 dataURL 暂存)", { guest: false }, undefined, EV.GEAR_PHOTO_OFFLINE_LOCAL, traceId);
       }
       const compressed = await new Promise<string>((resolve, reject) => {
         uni.compressImage({
@@ -237,7 +238,7 @@ async function onPickPhoto() {
             "装备封面秒传命中",
             { duration_ms: durationMs },
             undefined,
-            "gear_photo_mirage",
+            EV.GEAR_PHOTO_MIRAGE,
             traceId,
           ),
         onSuccess: (_u, durationMs) =>
@@ -245,18 +246,18 @@ async function onPickPhoto() {
             "装备封面上传成功",
             { duration_ms: durationMs },
             undefined,
-            "gear_photo_upload_success",
+            EV.GEAR_PHOTO_UPLOAD_SUCCESS,
             traceId,
           ),
       });
       if (url) {
         form.photo = url;
-        logInfo("装备封面照片选择成功", { }, undefined, "gear_photo_selected", traceId);
+        logInfo("装备封面照片选择成功", { path: tempPath }, undefined, EV.GEAR_PHOTO_SELECTED, traceId);
       }
     }
   } catch (e) {
     const msg = (e as Error).message || "上传失败";
-    logError("选择装备照片失败", { error: msg }, undefined, "gear_photo_failed", undefined, traceId);
+    logError("选择装备照片失败", { error: msg }, undefined, EV.GEAR_PHOTO_FAILED, undefined, traceId);
     uni.showToast({ title: msg, icon: "none" });
   }
 }

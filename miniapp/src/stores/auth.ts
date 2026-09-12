@@ -6,6 +6,7 @@ import { getLoginCode, login as loginApi } from "@/services/auth";
 import type { User } from "@/types";
 import { isLoggedIn as isTokenValid } from "@/utils/jwt";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 function getCurrentPage(): string {
   try {
@@ -85,14 +86,14 @@ export const useAuthStore = defineStore("auth", {
     async login() {
       const traceId = createTraceId();
       try {
-        logInfo("开始登录", { }, undefined, "login_start", traceId);
+        logInfo("开始登录", { platform: uni.getSystemInfoSync().platform }, undefined, EV.LOGIN_START, traceId);
         const code = await getLoginCode();
         const result = await loginApi({ code });
         this.setAuth(result.access_token, result.user);
-        logInfo("登录成功", { is_new: result.is_new }, undefined, "login_success", traceId);
+        logInfo("登录成功", { is_new: result.is_new }, undefined, EV.LOGIN_SUCCESS, traceId);
         return result.user;
       } catch (e) {
-        logError("登录失败", { error: (e as Error).message }, undefined, "login_failed", undefined, traceId);
+        logError("登录失败", { error: (e as Error).message }, undefined, EV.LOGIN_FAILED, undefined, traceId);
         throw e;
       }
     },
@@ -100,7 +101,7 @@ export const useAuthStore = defineStore("auth", {
     /** 资料更新后同步本地 user 缓存 */
     updateUser(user: User) {
       const traceId = createTraceId();
-      logInfo("更新个人资料", { nickname: user.nickname }, undefined, "profile_update", traceId);
+      logInfo("更新个人资料", { nickname: user.nickname }, undefined, EV.PROFILE_UPDATE, traceId);
       this.user = user;
       uni.setStorageSync(USER_KEY, JSON.stringify(user));
     },
@@ -118,7 +119,7 @@ export const useAuthStore = defineStore("auth", {
       try {
         await this.login();
       } catch (e) {
-        logError("静默续登失败", { error: (e as Error).message }, undefined, "ensure_login_failed", undefined, createTraceId());
+        logError("静默续登失败", { error: (e as Error).message }, undefined, EV.ENSURE_LOGIN_FAILED, undefined, createTraceId());
         this.logout();
       }
     },

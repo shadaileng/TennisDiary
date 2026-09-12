@@ -94,6 +94,7 @@ import { useThemeStyle } from "@/composables/useTheme";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import { resolveUploadUrl, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo, logWarn } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 import { checkPrivacySetting, requirePrivacyAuthorize } from "@/utils/privacy";
 
 const authStore = useAuthStore();
@@ -156,22 +157,23 @@ async function ensurePrivacyForNickname() {
   }
 
   privacyPrompting.value = true;
-  logInfo("昵称隐私授权引导", { privacy_contract: setting.privacyContractName }, undefined, "privacy_nickname_request");
+  const privacyTraceId = createTraceId();
+  logInfo("昵称隐私授权引导", { privacy_contract: setting.privacyContractName }, undefined, EV.PRIVACY_NICKNAME_REQUEST, privacyTraceId);
   try {
     const granted = await requirePrivacyAuthorize();
     if (granted) {
       nicknameNickNameEnabled.value = true;
       privacyAttempted.value = true;
-      logInfo("昵称隐私授权通过", undefined, undefined, "privacy_nickname_agree");
+      logInfo("昵称隐私授权通过", undefined, undefined, EV.PRIVACY_NICKNAME_AGREE, privacyTraceId);
       await focusNickName();
     } else {
       privacyAttempted.value = true;
-      logWarn("昵称隐私授权被拒，使用手动输入", undefined, "business", "privacy_nickname_denied");
+      logWarn("昵称隐私授权被拒，使用手动输入", undefined, "business", EV.PRIVACY_NICKNAME_DENIED, privacyTraceId);
       uni.showToast({ title: "未授权隐私，可手动输入昵称", icon: "none" });
     }
   } catch (err: any) {
     privacyAttempted.value = true;
-    logWarn("昵称隐私授权异常", { error: err?.message }, "business", "privacy_nickname_error");
+    logWarn("昵称隐私授权异常", { error: err?.message }, "business", EV.PRIVACY_NICKNAME_ERROR, privacyTraceId);
   } finally {
     privacyPrompting.value = false;
   }
@@ -228,26 +230,26 @@ async function uploadAndSaveAvatar(tempUrl: string) {
   const traceId = createTraceId();
   const t0 = Date.now();
 
-  logInfo("头像更新开始", { }, undefined, "avatar_update_start", traceId);
+  logInfo("头像更新开始", { has_old: !!authStore.user?.avatar_url }, undefined, EV.AVATAR_UPDATE_START, traceId);
 
   // 端点1: 上传头像文件
-  logInfo("头像上传开始", { }, undefined, "avatar_upload_start", traceId);
+  logInfo("头像上传开始", { temp_url: tempUrl.slice(-20) }, undefined, EV.AVATAR_UPLOAD_START, traceId);
   const tUpload = Date.now();
   let url: string;
   try {
     url = await uploadAvatar(tempUrl);
     logInfo("头像上传成功", {
       duration_ms: Date.now() - tUpload, avatar_url: url,
-    }, undefined, "avatar_upload_success", traceId);
+    }, undefined, EV.AVATAR_UPLOAD_SUCCESS, traceId);
   } catch (err: any) {
     logError("头像上传失败", {
       duration_ms: Date.now() - tUpload, error: err?.message,
-    }, undefined, "avatar_upload_failed", undefined, traceId);
+    }, undefined, EV.AVATAR_UPLOAD_FAILED, undefined, traceId);
     throw err;
   }
 
   // 端点2: 保存头像URL到用户资料
-  logInfo("保存头像资料开始", { }, undefined, "profile_save_avatar_start", traceId);
+  logInfo("保存头像资料开始", { url_length: url.length }, undefined, EV.PROFILE_SAVE_AVATAR_START, traceId);
   const tSave = Date.now();
   try {
     avatarUrl.value = resolveUploadUrl(url);
@@ -255,18 +257,18 @@ async function uploadAndSaveAvatar(tempUrl: string) {
     authStore.updateUser(result.user);
     logInfo("保存头像资料成功", {
       duration_ms: Date.now() - tSave,
-    }, undefined, "profile_save_avatar_success", traceId);
+    }, undefined, EV.PROFILE_SAVE_AVATAR_SUCCESS, traceId);
   } catch (err: any) {
     logError("保存头像资料失败", {
       duration_ms: Date.now() - tSave, error: err?.message,
-    }, undefined, "profile_save_avatar_failed", undefined, traceId);
+    }, undefined, EV.PROFILE_SAVE_AVATAR_FAILED, undefined, traceId);
     throw err;
   }
 
   // 整体成功
   logInfo("头像更新完成", {
     total_duration_ms: Date.now() - t0,
-  }, undefined, "avatar_update_success", traceId);
+  }, undefined, EV.AVATAR_UPDATE_COMPLETE, traceId);
   uni.showToast({ title: "头像已更新", icon: "success" });
 }
 
@@ -290,7 +292,7 @@ async function saveField(payload: Record<string, unknown>, successMsg: string) {
 
 function doLogout() {
   const traceId = createTraceId();
-  logInfo("准备退出登录", { }, undefined, "logout_start", traceId);
+  logInfo("准备退出登录", { }, undefined, EV.LOGOUT_START, traceId);
   uni.showModal({
     title: "确认退出",
     content: "退出登录后记录仍保留在本地。",
@@ -298,7 +300,7 @@ function doLogout() {
     success: (res) => {
       if (!res.confirm) return;
       authStore.logout();
-      logInfo("退出登录成功", { }, undefined, "logout", traceId);
+      logInfo("退出登录成功", { }, undefined, EV.LOGOUT, traceId);
       uni.showToast({ title: "已退出", icon: "success" });
       setTimeout(() => uni.switchTab({ url: "/pages/mine/mine" }), 300);
     },

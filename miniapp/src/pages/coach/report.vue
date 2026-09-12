@@ -163,12 +163,15 @@ import type { Analysis } from "@/types";
 import { resolveUploadUrl, safeNavigateBack } from "@/utils";
 import type { ApiError } from "@/services/request";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 const analysis = ref<Analysis | null>(null);
 const { themeStyle, themeBg } = useThemeStyle();
 const settingsStore = useSettingsStore();
 const analysisStore = useAnalysisStore();
 const offline = ref(false);
+/** 当前报告加载链路的 traceId（供 reloadAnalysis 复用） */
+let reportTraceId = "";
 /** 媒体加载失败（URL 失效/401）回退占位的 url 集合 */
 const failedImages = ref<Set<string>>(new Set());
 const report = computed(() => analysis.value?.report);
@@ -263,7 +266,7 @@ async function reloadAnalysis(id: number) {
   try {
     analysis.value = await getAnalysis(id);
   } catch (e) {
-    logError("分析报告刷新失败", { analysis_id: id, error: (e as Error).message }, undefined, "report_reload_failed");
+    logError("分析报告刷新失败", { analysis_id: id, error: (e as Error).message }, undefined, EV.REPORT_RELOAD_FAILED, undefined, reportTraceId);
   }
 }
 
@@ -298,25 +301,26 @@ onLoad(async (query) => {
     return;
   }
   const traceId = createTraceId();
+  reportTraceId = traceId;
   // 详情不缓存：离线直接提示，联网才拉取（电子教练无离线创建场景，且报告内容大、媒体离线也看不了）
   if (!networkOnline.value) {
     offline.value = true;
-    logInfo("分析报告离线拦截", { analysis_id: id }, undefined, "report_offline", traceId);
+    logInfo("分析报告离线拦截", { analysis_id: id }, undefined, EV.REPORT_OFFLINE, traceId);
     return;
   }
-  logInfo("加载分析报告", { analysis_id: id }, undefined, "report_load", traceId);
+  logInfo("加载分析报告", { analysis_id: id }, undefined, EV.REPORT_LOAD, traceId);
   try {
     analysis.value = await getAnalysis(id);
-    logInfo("分析报告加载成功", { analysis_id: id }, undefined, "report_loaded", traceId);
+    logInfo("分析报告加载成功", { analysis_id: id }, undefined, EV.REPORT_LOADED, traceId);
     // 进行中：订阅管线进度，完成后自动刷新为完整报告
     if (analysis.value?.status === "processing") {
-      logInfo("分析进行中，订阅进度", { analysis_id: id }, undefined, "report_subscribe_start", traceId);
+      logInfo("分析进行中，订阅进度", { analysis_id: id }, undefined, EV.REPORT_SUBSCRIBE_START, traceId);
       subscribeStatus(id);
     }
   } catch (e) {
     const err = e as ApiError;
     offline.value = !!(err && err.status === -1);
-    logError("分析报告加载失败", { analysis_id: id, error: (e as Error).message }, undefined, "report_load_failed", undefined, traceId);
+    logError("分析报告加载失败", { analysis_id: id, error: (e as Error).message }, undefined, EV.REPORT_LOAD_FAILED, undefined, traceId);
     if (!offline.value) uni.showToast({ title: "报告加载失败", icon: "none" });
   }
 });
@@ -326,7 +330,7 @@ onLoad(async (query) => {
 function confirmRemove() {
   if (!analysis.value) return;
   const traceId = createTraceId();
-  logInfo("删除分析报告", { analysis_id: analysis.value.id }, undefined, "analysis_delete", traceId);
+  logInfo("删除分析报告", { analysis_id: analysis.value.id }, undefined, EV.ANALYSIS_DELETE, traceId);
   uni.showModal({
     title: "删除分析",
     content: "确定删除这条分析记录？",
@@ -336,12 +340,12 @@ function confirmRemove() {
       try {
         await deleteAnalysis(analysis.value.id);
         analysisStore.removeAnalysis(analysis.value.id);
-        logInfo("分析报告删除成功", { analysis_id: analysis.value.id }, undefined, "analysis_deleted", traceId);
+        logInfo("分析报告删除成功", { analysis_id: analysis.value.id }, undefined, EV.ANALYSIS_DELETED, traceId);
         uni.showToast({ title: "已删除", icon: "success" });
         setTimeout(() => safeNavigateBack("/pages/coach/coach"), 600);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "删除失败";
-        logError("分析报告删除失败", { analysis_id: analysis.value.id, error: msg }, undefined, "analysis_delete_failed", undefined, traceId);
+        logError("分析报告删除失败", { analysis_id: analysis.value.id, error: msg }, undefined, EV.ANALYSIS_DELETE_FAILED, undefined, traceId);
         uni.showToast({ title: msg, icon: "none" });
       }
     },

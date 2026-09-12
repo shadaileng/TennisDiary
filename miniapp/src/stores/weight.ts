@@ -15,6 +15,7 @@ import { useAuthStore } from "@/stores/auth";
 import { networkOnline } from "@/utils/network";
 import type { AnyWeight, LocalWeight, WeightCreate, WeightRecord } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 function getCurrentPage(): string {
   try {
@@ -144,7 +145,7 @@ export const useWeightStore = defineStore("weight", {
       const item = buildLocalWeight(body, now);
       offlineWeights.upsert(uid, item);
       this.hydrate();
-      logInfo("离线新建体重（待同步）", { local_id: item.localId, date: body.date }, undefined, "offline_create_pending", createTraceId());
+      logInfo("离线新建体重（待同步）", { local_id: item.localId, date: body.date }, undefined, EV.WEIGHT_OFFLINE_CREATE_PENDING, createTraceId());
       return item;
     },
 
@@ -164,18 +165,18 @@ export const useWeightStore = defineStore("weight", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("记录体重", { date: body.date, weight: body.weight }, undefined, "weight_create", traceId);
+        logInfo("记录体重", { date: body.date, weight: body.weight }, undefined, EV.WEIGHT_CREATE, traceId);
         const w = await createWeight(body);
         setCloudWeights(uid, [w, ...getCloudWeights(uid)]);
         this.hydrate();
-        logInfo("体重记录成功", { weight_id: w.id }, undefined, "weight_created", traceId);
+        logInfo("体重记录成功", { weight_id: w.id }, undefined, EV.WEIGHT_CREATED, traceId);
         return w;
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           return this.createOffline(body);
         }
-        logError("体重记录失败", { error: err?.message, date: body.date }, undefined, "weight_create_failed", undefined, traceId);
+        logError("体重记录失败", { error: err?.message, date: body.date }, undefined, EV.WEIGHT_CREATE_FAILED, undefined, traceId);
         throw e;
       }
     },
@@ -196,18 +197,18 @@ export const useWeightStore = defineStore("weight", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("删除体重记录", { weight_id: id }, undefined, "weight_delete", traceId);
+        logInfo("删除体重记录", { weight_id: id }, undefined, EV.WEIGHT_DELETE, traceId);
         await deleteWeight(id);
         setCloudWeights(uid, getCloudWeights(uid).filter((x) => x.id !== id));
         this.hydrate();
-        logInfo("体重记录删除成功", { weight_id: id }, undefined, "weight_deleted", traceId);
+        logInfo("体重记录删除成功", { weight_id: id }, undefined, EV.WEIGHT_DELETED, traceId);
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("体重记录删除失败", { weight_id: id, error: err?.message }, undefined, "weight_delete_failed", undefined, traceId);
+        logError("体重记录删除失败", { weight_id: id, error: err?.message }, undefined, EV.WEIGHT_DELETE_FAILED, undefined, traceId);
         throw e;
       }
     },

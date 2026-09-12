@@ -1,7 +1,8 @@
 import { API_PREFIX, BASE_URL, REQUEST_TIMEOUT } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
 import { useAppStore } from "@/stores/app";
-import { logError, logWarn } from "@/utils/eventLogger";
+import { createTraceId, logError, logWarn } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 /**
  * 网络请求封装
@@ -166,6 +167,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
 
   return new Promise<T>((resolve, reject) => {
     setGlobalLoading(true);
+    const requestTraceId = createTraceId();
     uni.request({
       url: fullUrl,
       method,
@@ -192,7 +194,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
                 url,
                 statusCode,
                 code: apiRes.code,
-              }, undefined, "api_error");
+              }, undefined, EV.API_ERROR, undefined, requestTraceId);
               reject(new ApiError(statusCode, apiRes.message || "请求失败"));
             }
           } else {
@@ -203,7 +205,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
         }
         if (statusCode === 401 && handle401) {
           if (!url.includes("/auth/")) {
-            logWarn("请求返回401但非登录接口", { method, url, statusCode });
+            logWarn("请求返回401但非登录接口", { method, url, statusCode }, undefined, EV.HTTP_WARN, requestTraceId);
           }
           clearAuth();
           promptLogin();
@@ -213,7 +215,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           url,
           statusCode,
           code: (res.data as ApiResponse<unknown> | null)?.code,
-        }, undefined, "http_error");
+        }, undefined, EV.HTTP_ERROR, undefined, requestTraceId);
         reject(new ApiError(statusCode, parseDetail(res)));
       },
       fail: (err) => {
@@ -222,7 +224,7 @@ function request<T>(method: "GET" | "POST" | "PUT" | "DELETE", url: string, data
           method,
           url,
           status: -1,
-        }, "network", "network_error");
+        }, "network", EV.NETWORK_ERROR, undefined, requestTraceId);
         reject(new ApiError(-1, err.errMsg || "网络请求失败"));
       },
     });

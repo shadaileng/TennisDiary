@@ -16,6 +16,7 @@ import { useAuthStore } from "@/stores/auth";
 import { networkOnline } from "@/utils/network";
 import type { AnyDiary, Diary, DiaryCreate, DiaryUpdate, LocalDiary } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 function getCurrentPage(): string {
   try {
@@ -184,7 +185,7 @@ export const useDiaryStore = defineStore("diary", {
       const item = buildLocalDiary(body, now);
       offlineDiaries.upsert(uid, item);
       this.hydrate();
-      logInfo("离线新建日记（待同步）", { local_id: item.localId, date: body.date }, undefined, "offline_create_pending", createTraceId());
+      logInfo("离线新建日记（待同步）", { local_id: item.localId, date: body.date }, undefined, EV.DIARY_OFFLINE_CREATE_PENDING, createTraceId());
       return item;
     },
 
@@ -204,18 +205,18 @@ export const useDiaryStore = defineStore("diary", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("创建日记", { type: body.type, date: body.date }, undefined, "diary_create", traceId);
+        logInfo("创建日记", { type: body.type, date: body.date }, undefined, EV.DIARY_CREATE, traceId);
         const d = await createDiary(body);
         setCloudDiaries(uid, [d, ...getCloudDiaries(uid)]);
         this.hydrate();
-        logInfo("日记创建成功", { diary_id: d.id }, undefined, "diary_created", traceId);
+        logInfo("日记创建成功", { diary_id: d.id }, undefined, EV.DIARY_CREATED, traceId);
         return d;
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           return this.createOffline(body);
         }
-        logError("日记创建失败", { error: err?.message, type: body.type, date: body.date }, undefined, "diary_create_failed", undefined, traceId);
+        logError("日记创建失败", { error: err?.message, type: body.type, date: body.date }, undefined, EV.DIARY_CREATE_FAILED, undefined, traceId);
         throw e;
       }
     },
@@ -237,11 +238,11 @@ export const useDiaryStore = defineStore("diary", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("编辑日记", { diary_id: id }, undefined, "diary_update", traceId);
+        logInfo("编辑日记", { diary_id: id }, undefined, EV.DIARY_UPDATE, traceId);
         const d = await updateDiary(id, body);
         setCloudDiaries(uid, getCloudDiaries(uid).map((x) => (x.id === id ? d : x)));
         this.hydrate();
-        logInfo("日记更新成功", { diary_id: id }, undefined, "diary_updated", traceId);
+        logInfo("日记更新成功", { diary_id: id }, undefined, EV.DIARY_UPDATED, traceId);
         return d;
       } catch (e) {
         const err = e as ApiError;
@@ -249,7 +250,7 @@ export const useDiaryStore = defineStore("diary", {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("日记更新失败", { diary_id: id, error: err?.message }, undefined, "diary_update_failed", undefined, traceId);
+        logError("日记更新失败", { diary_id: id, error: err?.message }, undefined, EV.DIARY_UPDATE_FAILED, undefined, traceId);
         throw e;
       }
     },
@@ -270,18 +271,18 @@ export const useDiaryStore = defineStore("diary", {
       }
       const traceId = createTraceId();
       try {
-        logInfo("删除日记", { diary_id: id }, undefined, "diary_delete", traceId);
+        logInfo("删除日记", { diary_id: id }, undefined, EV.DIARY_DELETE, traceId);
         await deleteDiary(id);
         setCloudDiaries(uid, getCloudDiaries(uid).filter((x) => x.id !== id));
         this.hydrate();
-        logInfo("日记删除成功", { diary_id: id }, undefined, "diary_deleted", traceId);
+        logInfo("日记删除成功", { diary_id: id }, undefined, EV.DIARY_DELETED, traceId);
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("日记删除失败", { diary_id: id, error: err?.message }, undefined, "diary_delete_failed", undefined, traceId);
+        logError("日记删除失败", { diary_id: id, error: err?.message }, undefined, EV.DIARY_DELETE_FAILED, undefined, traceId);
         throw e;
       }
     },
