@@ -511,13 +511,14 @@ class TestEncodeSkeletonVideo:
     def test_produces_multi_frame_video(self, tmp_path, monkeypatch):
         """多张骨架帧 → ffmpeg 编码出多帧 mp4（nb_frames >= 输入帧数）"""
         import os
+        import shutil
         import subprocess
 
         from app.services import pose_service as ps
 
-        # 检查 ffmpeg 是否可用
-        if ps.find_ffmpeg() is None:
-            pytest.skip("ffmpeg 未安装，跳过真实编码测试")
+        # 检查 ffmpeg 和 ffprobe 是否可用
+        if ps.find_ffmpeg() is None or shutil.which("ffprobe") is None:
+            pytest.skip("ffmpeg/ffprobe 未安装，跳过真实编码测试")
 
         video_dir = tmp_path / "videos" / "1"
         video_dir.mkdir(parents=True)
