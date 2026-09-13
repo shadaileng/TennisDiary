@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.86.3] - 2026-09-13
+
+### Fixed
+
+- 事件日志上报 f-string + loguru 双重格式化导致 KeyError 崩溃：`log.info(f"...{body.type}", event_id=event.id)` 中 f-string 先求值将外部输入嵌入模板，loguru 再对结果做 `str.format(**kwargs)` 时将含 `{...}` 的值误解析为占位符，引发 `KeyError: '"@type"'`（客户端 `type` 字段含非预期内容）；改为 `{}` 位置参数模式，外部输入作为值传入而非模板一部分。
+
 ## [1.86.2] - 2026-09-13
 
 ### Fixed

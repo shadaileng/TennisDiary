@@ -36,5 +36,5 @@ def create_event_log(body: EventLogCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(event)
 
-    log.info(f"事件日志上报: {body.level} {body.type}", event_id=event.id)
+    log.info("事件日志上报: {} {}", body.level, body.type, event_id=event.id)
     return ApiResponse(data=EventLogResponse.model_validate(event))
