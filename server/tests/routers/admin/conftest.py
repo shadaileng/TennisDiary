@@ -16,6 +16,39 @@ from app.main import app
 from app.models.admin import Admin
 from app.models.role import Role
 
+_MISSING = object()
+
+
+def set_override(key, value):
+    """精准注册一项 dependency override，返回还原回调（Step 132）。
+
+    不用 `clear() + update(saved)`：module 级与 function 级 fixture 混用时，
+    全量替换会互相抹掉对方的 override，导致请求打到错误的数据库。
+    """
+    previous = app.dependency_overrides.get(key, _MISSING)
+    app.dependency_overrides[key] = value
+
+    def restore():
+        if previous is _MISSING:
+            app.dependency_overrides.pop(key, None)
+        else:
+            app.dependency_overrides[key] = previous
+
+    return restore
+
+
+@pytest.fixture(autouse=True)
+def _rollback_between_tests(test_db):
+    """每个用例前后回滚 module 级会话，杜绝 PendingRollbackError 级联（Step 132）。
+
+    module 级 test_db 被同模块多个用例共享，前一用例 flush 失败后会话进入
+    rollback-only 状态，后续用例会全部报 PendingRollbackError。此处在每个用例
+    开始前先 rollback，保证会话干净；仅回滚未提交事务，已 commit 的数据不受影响。
+    """
+    test_db.rollback()
+    yield
+    test_db.rollback()
+
 
 @pytest.fixture(scope="module")
 def test_engine():
@@ -105,12 +138,11 @@ def client(test_db, test_meta_db, _app_client):
     def override_get_backup_meta_db():
         yield test_meta_db
 
-    saved = dict(app.dependency_overrides)
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_backup_meta_db] = override_get_backup_meta_db
+    restore_db = set_override(get_db, override_get_db)
+    restore_meta = set_override(get_backup_meta_db, override_get_backup_meta_db)
     yield _app_client
-    app.dependency_overrides.clear()
-    app.dependency_overrides.update(saved)
+    restore_db()
+    restore_meta()
 
 
 @pytest.fixture(scope="module")
@@ -125,6 +157,11 @@ def admin_token(client, test_admin):
 
 @pytest.fixture(scope="module")
 def auth_client(client, admin_token):
-    """带鉴权的测试客户端"""
+    """带鉴权的测试客户端
+
+    TestClient 是 session 级共享对象，必须在 teardown 移除默认鉴权头，
+    否则会污染后续模块的无鉴权用例（Step 132：media query token 401）。
+    """
     client.headers["X-Auth-Token"] = admin_token
-    return client
+    yield client
+    client.headers.pop("X-Auth-Token", None)

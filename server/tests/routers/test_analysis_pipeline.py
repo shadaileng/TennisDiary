@@ -18,7 +18,7 @@ from app.core.config import settings
 from app.models.analysis import Analysis
 from app.models.analysis_video_info import AnalysisVideoInfo
 from app.models.file import File
-from app.services import pose_service, video_service
+from app.services import file_service, pose_service, video_service
 
 
 def _upload_dir(user_id: int = 1) -> str:
@@ -31,18 +31,19 @@ def _fake_process_video(abs_path: str, mode, hit_time, cuts=None):
     working = f"{base}_working.mp4"
     shutil.copyfile(abs_path, working)
 
-    frame_urls = []
+    frame_paths = []
     for i in range(2):
         fpath = f"{base}_f{i}.jpg"
         with open(fpath, "wb") as f:
             f.write(b"\xff\xd8fakejpeg\xff\xd9")
-        frame_urls.append(os.path.relpath(fpath, settings.UPLOAD_DIR))
+        frame_paths.append(fpath)
 
     return {
         "frames": ["data:image/jpeg;base64,AAAA"] * 2,
-        "frame_urls": frame_urls,
+        # 138：抽帧返回中间产物绝对路径，由路由登记为受管文件后产出 frame_urls
+        "frame_paths": frame_paths,
         "duration": 5.0,
-        "thumbnail": frame_urls[0],
+        "thumbnail": frame_paths[0],
         "video_url": os.path.relpath(working, settings.UPLOAD_DIR),
         "working_path": working,
         "segments": None,
@@ -111,9 +112,6 @@ def pipeline_mocks(monkeypatch):
     monkeypatch.setattr(video_service, "process_video", _fake_process_video)
     monkeypatch.setattr(pose_service, "is_available", lambda: True)
     monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_frames)
-    import app.services.content_security as cs
-
-    monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
     return {}
 
 
@@ -255,19 +253,20 @@ def _fake_process_video_full(abs_path: str, mode, hit_time, cuts=None):
     working = f"{base}_concat.mp4"
     shutil.copyfile(abs_path, working)
 
-    frame_urls = []
+    frame_paths = []
     for i in range(8):
         fpath = f"{base}_f{i}.jpg"
         with open(fpath, "wb") as f:
             f.write(b"\xff\xd8fakejpeg\xff\xd9")
-        frame_urls.append(os.path.relpath(fpath, settings.UPLOAD_DIR))
+        frame_paths.append(fpath)
 
     return {
         "frames": ["data:image/jpeg;base64,AAAA"] * 8,
-        "frame_urls": frame_urls,
+        # 138：抽帧返回中间产物绝对路径，由路由登记为受管文件后产出 frame_urls
+        "frame_paths": frame_paths,
         "duration": 7.0,
         "frame_rate": 30.0,
-        "thumbnail": frame_urls[0],
+        "thumbnail": frame_paths[0],
         "video_url": os.path.relpath(working, settings.UPLOAD_DIR),
         "working_path": working,
         "segments": [{"start": 0, "end": 3}, {"start": 5, "end": 9}],
@@ -397,10 +396,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         # init + start 分析
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
@@ -463,10 +458,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
         )
@@ -523,10 +514,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
         )
@@ -568,10 +555,11 @@ class TestSkeletonVideoAndCleanup:
         assert resp.status_code == 200
 
         # 验证：thumb 指向独立缩略图（非 _sk0000.jpg）
+        # 138：登记后统一重命名为 {md5}.{后缀}，故按受管路径 + 非骨架帧断言
         analysis = test_db.query(Analysis).filter(Analysis.id == aid).first()
         assert analysis.thumb is not None
         assert "_sk" not in analysis.thumb
-        assert "thumb" in analysis.thumb
+        assert file_service.exists(analysis.thumb)
 
     def test_delete_analysis_cleans_orphan_intermediate_frames(
         self, auth_client, test_db, monkeypatch
@@ -580,10 +568,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video_full)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_full_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "综合", "mode": "full"}
         )
@@ -652,10 +636,6 @@ class TestSkeletonVideoAndCleanup:
         monkeypatch.setattr(video_service, "process_video", _fake_process_video)
         monkeypatch.setattr(pose_service, "is_available", lambda: True)
         monkeypatch.setattr(pose_service, "analyze_frames", _fake_pose_analyze_single_frames)
-        import app.services.content_security as cs
-
-        monkeypatch.setattr(cs, "check_media_sync", lambda *a, **k: {})
-
         resp = auth_client.post(
             "/api/analyses/init", json={"date": "2026-09-01", "kind": "正手", "mode": "single"}
         )

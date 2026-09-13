@@ -1,13 +1,16 @@
 <template>
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="stats-page">
-    <!-- 游客空态：未登录不发请求，引导登录 -->
-    <view v-if="authStore.isGuest" class="stats-empty-guide">
-      <Empty icon="🔒" text="登录后即可查看打球数据与体重趋势" button-text="去登录" @action="goMine" />
+    <!-- 游客横幅：本地数据提示 -->
+    <view v-if="authStore.isGuest" class="guest-banner">
+      <text class="guest-banner__text">游客模式：数据仅保存在本机，登录后自动同步到云端</text>
     </view>
 
-    <!-- 已登录内容 -->
-    <template v-else>
+    <!-- 离线横幅：统计数据来自本地缓存兜底 -->
+    <view v-if="!authStore.isGuest && offlineStats" class="offline-banner">
+      <text>📡 离线浏览中，统计为本地缓存估算（可能不含最新云端数据）</text>
+    </view>
+
     <!-- 汇总卡片 -->
     <view class="stats-summary">
       <view class="stats-summary-header">
@@ -101,7 +104,7 @@
       <view v-else-if="weightStore.weights.length > 0" class="stats-weight-list">
         <view
           v-for="w in weightStore.sortedWeights"
-          :key="w.id"
+          :key="getEntryId(w)"
           class="stats-weight-item"
         >
           <text class="stats-weight-item-date">{{ w.date }}</text>
@@ -109,7 +112,7 @@
           <text v-if="w.bust || w.waist || w.hip" class="stats-weight-item-dims">
             {{ dimensionsText(w) }}
           </text>
-          <text class="stats-weight-item-delete" @tap="confirmRemove(w.id)">×</text>
+          <text class="stats-weight-item-delete" @tap="confirmRemove(getEntryId(w))">×</text>
         </view>
       </view>
     </view>
@@ -152,7 +155,6 @@
         <view class="stats-form-save press-btn" @tap="save">保存记录</view>
       </view>
     </Popup>
-    </template>
   </view>
 </template>
 
@@ -165,21 +167,23 @@ import LineChart from "@/components/LineChart.vue";
 import MoneyToggle from "@/components/MoneyToggle.vue";
 import Popup from "@/components/Popup.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useAuthStore, useSettingsStore, useWeightStore } from "@/stores";
+import { useAuthStore, useSettingsStore, useWeightStore, useDiaryStore, useGearStore } from "@/stores";
 import { getStats } from "@/services/data";
+import type { ApiError } from "@/services/request";
+import { getPendingDiaries, getPendingGears } from "@/services/pendingRepo";
+import { aggregateLocalStats } from "@/services/localStats";
 import { fmtDuration, fmtMoney, todayStr } from "@/utils";
-import type { Stats, WeightRecord } from "@/types";
+import { getEntryId } from "@/types";
+import type { AnyWeight, Stats, WeightRecord } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 const authStore = useAuthStore();
 const weightStore = useWeightStore();
+const diaryStore = useDiaryStore();
+const gearStore = useGearStore();
 const settingsStore = useSettingsStore();
 const { themeStyle, themeBg } = useThemeStyle();
-
-/** 跳转到「我的」页登录（游客空态按钮） */
-function goMine() {
-  uni.switchTab({ url: "/pages/mine/mine" });
-}
 
 // ==================== 汇总 ====================
 
@@ -187,6 +191,9 @@ const stats = ref<Stats | null>(null);
 
 /** 汇总统计加载中 */
 const statsLoading = ref(false);
+
+/** 汇总统计来自本地缓存兜底（离线） */
+const offlineStats = ref(false);
 
 /** 是否没有任何统计数据 */
 const hasAnyData = computed(() =>
@@ -219,7 +226,7 @@ const form = reactive({
 });
 
 /** 最近一条（按日期升序最后一条） */
-const latest = computed<WeightRecord | null>(() => {
+const latest = computed<AnyWeight | null>(() => {
   const list = weightStore.sortedWeights;
   return list.length ? list[list.length - 1] : null;
 });
@@ -239,15 +246,15 @@ const deltaColor = computed(() =>
   delta.value < 0 ? "stats-weight-card-value--down" : delta.value > 0 ? "stats-weight-card-value--up" : "",
 );
 
-/** 体重折线数据（最近 14 条，升序） */
+/** 体重折线数据（最近 14 条，升序：旧→新） */
 const weightData = computed(() =>
   [...weightStore.weights]
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-14)
+    .reverse()
+    .slice(0, 14)
     .map((w) => ({ label: w.date.slice(5), value: w.weight })),
 );
 
-function dimensionsText(w: WeightRecord): string {
+function dimensionsText(w: AnyWeight): string {
   const parts = [
     w.bust ? `胸${w.bust}` : "",
     w.waist ? `腰${w.waist}` : "",
@@ -308,7 +315,7 @@ async function save() {
   }
 }
 
-function confirmRemove(id: number) {
+function confirmRemove(id: number | string) {
   uni.showModal({
     title: "删除记录",
     content: "删除这条体重记录？",
@@ -330,23 +337,36 @@ function confirmRemove(id: number) {
 
 onShow(() => {
   const traceId = createTraceId();
-  // 游客态：不发请求，清空数据并展示游客引导
   if (authStore.isGuest) {
-    weightStore.setWeights([]);
-    stats.value = null;
+    // 游客态：本地聚合（日记/装备），体重取本地仓库；均不发请求
+    weightStore.fetchList();
+    stats.value = aggregateLocalStats(getPendingDiaries(), getPendingGears());
     statsLoading.value = false;
+    logInfo("游客本地统计聚合", { total_sessions: stats.value.total_sessions }, undefined, EV.STATS_GUEST_LOCAL, traceId);
     return;
   }
-  logInfo("加载统计数据", { trace_id: traceId }, undefined, "stats_load", traceId);
+  logInfo("加载统计数据", { guest: authStore.isGuest }, undefined, EV.STATS_LOAD, traceId);
   weightStore.fetchList();
+  // 日记/装备本地缓存合并视图（仅本地读，供离线兜底聚合）
+  diaryStore.hydrate();
+  gearStore.hydrate();
   statsLoading.value = true;
+  offlineStats.value = false;
   getStats()
     .then((s) => {
       stats.value = s;
-      logInfo("统计数据加载成功", { trace_id: traceId, total_sessions: s.total_sessions, total_duration: s.total_duration, total_cost: s.total_cost, total_gears: s.total_gears }, undefined, "stats_loaded", traceId);
+      logInfo("统计数据加载成功", { total_sessions: s.total_sessions, total_duration: s.total_duration, total_cost: s.total_cost, total_gears: s.total_gears }, undefined, EV.STATS_LOADED, traceId);
     })
     .catch((e) => {
-      logError("统计数据加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "stats_load_failed", undefined, traceId);
+      const err = e as ApiError;
+      if (err && err.status === -1) {
+        // 离线兜底：聚合本地缓存（云端快照 + 离线待同步），口径对齐 /api/stats
+        stats.value = aggregateLocalStats(diaryStore.diaries, gearStore.gears);
+        offlineStats.value = true;
+        logInfo("离线统计兜底（本地聚合）", { total_sessions: stats.value.total_sessions }, undefined, EV.STATS_OFFLINE_FALLBACK, traceId);
+      } else {
+        logError("统计数据加载失败", { error: (err as Error).message }, undefined, EV.STATS_LOAD_FAILED, undefined, traceId);
+      }
     })
     .finally(() => {
       statsLoading.value = false;
@@ -362,8 +382,24 @@ onShow(() => {
   padding-bottom: $space-3xl;
 }
 
-.stats-empty-guide {
-  padding-top: $space-3xl;
+.guest-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: var(--color-accent-soft, #F0F5CE);
+  color: var(--color-accent-dark, #A8B822);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.offline-banner {
+  margin: $space-md $space-md 0;
+  padding: $space-sm $space-md;
+  border-radius: $radius-card;
+  background-color: #fff7e6;
+  color: #ad6800;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 // 汇总

@@ -60,6 +60,7 @@ def create_gear(
         feeling=body.feeling,
         photo=body.photo,
         created_at=time.time(),
+        business_time=body.business_time,
     )
     db.add(gear)
     db.commit()
@@ -89,11 +90,8 @@ def update_gear(
     """编辑装备 — 仅更新传入的字段"""
     gear = _get_owned_gear(db, gear_id, current_user)
 
-    # 如果图片更新，递减旧图片的引用计数
-    if body.photo is not None and body.photo != gear.photo:
-        old_photo = gear.photo
-        if old_photo:
-            file_service.decrement_ref_count(db, current_user.id, old_photo)
+    # 图片更新：按最终引用集合重绑（旧图 -1，新图 +1，幂等）
+    photo_changed = body.photo is not None and body.photo != gear.photo
 
     if body.category is not None:
         gear.category = body.category
@@ -108,6 +106,17 @@ def update_gear(
     if body.photo is not None:
         gear.photo = body.photo
 
+    if photo_changed:
+        new_photo = body.photo or ""
+        file_service.rebind(
+            db,
+            current_user.id,
+            "gear",
+            gear.id,
+            [new_photo] if new_photo else [],
+            field="photo",
+        )
+
     db.commit()
     db.refresh(gear)
     log.info("更新装备成功", user_id=current_user.id, gear_id=gear.id)
@@ -121,12 +130,10 @@ def delete_gear(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除装备（同时递减关联文件引用计数）"""
+    """删除装备（同时解除关联文件的业务绑定）"""
     gear = _get_owned_gear(db, gear_id, current_user)
 
-    # 递减装备图片的引用计数
-    if gear.photo:
-        file_service.decrement_ref_count(db, current_user.id, gear.photo)
+    file_service.unbind_record(db, "gear", gear.id)
 
     db.delete(gear)
     db.commit()

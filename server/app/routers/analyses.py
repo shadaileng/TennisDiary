@@ -10,10 +10,7 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
-    File,
-    Form,
     HTTPException,
-    UploadFile,
     status,
 )
 from fastapi.responses import StreamingResponse
@@ -31,6 +28,7 @@ from app.schemas.schemas import (
     AnalysisCreate,
     AnalysisInitRequest,
     AnalysisResponse,
+    AnalysisStartRequest,
     AnalysisUpdate,
 )
 from app.services import file_service
@@ -38,6 +36,9 @@ from app.services import file_service
 log = get_logger("user")
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
+
+# 启动分析只接受来源为 video 的受管文件
+_VIDEO_SOURCE = "video"
 
 
 def _parse_json_field(raw: str | None) -> dict | list | None:
@@ -123,6 +124,27 @@ def init_analysis(
     return ApiResponse(data={"id": analysis.id})
 
 
+def _infer_file_source(rel_path: str, video_url: str | None, thumb: str | None) -> str:
+    """推断登记文件的 upload_source（131：细化骨架/封面来源，支撑文件分类）
+
+    此前除 video_url 外一律登记为 skeleton，封面、骨架视频、骨架帧混为一谈，
+    分类时无法区分。细化后各来源均落在 file_service.ANALYSIS_MATCH_SOURCES 内，
+    分类行为与原先一致但更准确。
+    """
+    if video_url and rel_path == video_url:
+        return "video"
+    if thumb and rel_path == thumb:
+        return "analysis_thumb"
+    name = os.path.basename(rel_path).lower()
+    if name.endswith("_skeleton.mp4"):
+        return "skeleton_video"
+    if name.endswith(("_thumb.jpg", "_thumb.jpeg", "_thumb.png")):
+        return "skeleton_thumb"
+    if name.endswith((".jpg", ".jpeg", ".png", ".webp")):
+        return "skeleton_frame"
+    return "skeleton"
+
+
 @router.post("", response_model=ApiResponse[AnalysisResponse])
 @audit(action="CREATE", resource_type="analysis")
 def create_analysis(
@@ -169,26 +191,25 @@ def create_analysis(
         if skeleton_thumb:
             files_to_register.append(skeleton_thumb)
 
-    # 批量注册文件（统一使用 get_or_create_file，每文件 savepoint 隔离）
-    if files_to_register:
-        for rel_path in files_to_register:
-            abs_path = file_service.rel_path_to_abs(rel_path)
-            if not os.path.exists(abs_path):
-                log.warning("文件不存在，跳过登记", rel_path=rel_path)
-                continue
-            try:
-                with db.begin_nested():
-                    source = "video" if rel_path == body.video_url else "skeleton"
-                    file_service.get_or_create_file(
-                        db=db,
-                        user_id=current_user.id,
-                        rel_path=rel_path,
-                        abs_path=abs_path,
-                        upload_source=source,
-                        original_name=os.path.basename(rel_path),
-                    )
-            except Exception as e:  # noqa: BLE001 - 文件登记失败不应阻断流程
-                log.warning("文件登记失败", rel_path=rel_path, error=type(e).__name__)
+    # 登记并绑定到该分析记录（已登记的文件按 MD5 命中复用，仅补绑定）
+    for rel_path in dict.fromkeys(files_to_register):
+        if not file_service.exists(rel_path):
+            log.warning("文件不存在，跳过登记", rel_path=rel_path)
+            continue
+        try:
+            with db.begin_nested():
+                source = _infer_file_source(rel_path, body.video_url, body.thumb)
+                file_service.register(
+                    db=db,
+                    user_id=current_user.id,
+                    src_path=file_service.abs_of(rel_path),
+                    category=source,
+                    original_name=os.path.basename(rel_path),
+                    ext=os.path.splitext(rel_path)[1],
+                    business=("analysis", analysis.id),
+                )
+        except Exception as exc:  # noqa: BLE001 - 文件登记失败不应阻断流程
+            log.warning("文件登记失败", rel_path=rel_path, error=type(exc).__name__)
 
     db.commit()
     db.refresh(analysis)
@@ -204,6 +225,11 @@ def list_analyses(
     current_user: User = Depends(get_current_user),
 ):
     """当前用户的历史分析报告列表，按创建时间倒序分页"""
+    # 139：惰性清理孤儿 processing 记录（带节流），避免列表里出现永不结束的"分析中"
+    from app.services.analysis_cleanup import maybe_cleanup_stuck_processing
+
+    maybe_cleanup_stuck_processing(db)
+
     query = db.query(Analysis).filter(Analysis.user_id == current_user.id)
     total = query.count()
     analyses = query.order_by(Analysis.created_at.desc()).offset(offset).limit(limit).all()
@@ -268,11 +294,13 @@ def delete_analysis(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """删除分析报告（同时递减所有关联文件引用计数：视频、帧、骨架产物）"""
+    """删除分析报告（同时解除所有关联文件的业务绑定：视频、帧、骨架产物）"""
     analysis = _get_owned_analysis(db, analysis_id, current_user)
 
-    # 递减所有关联文件的引用计数
-    file_service.decrement_analysis_files(db, analysis)
+    # 解除分析记录引用的全部文件绑定（ref_count 自动 -1）
+    file_service.unbind_record(db, "analysis", analysis.id)
+    # 兜底清理登记后残留的中间产物（_f*.jpg / _sk*.jpg）
+    file_service.cleanup_intermediates(current_user.id)
 
     db.delete(analysis)
     db.commit()
@@ -296,24 +324,6 @@ def _initial_pipeline_status() -> dict:
     }
 
 
-async def _save_uploaded_file(file: UploadFile, user_id: int) -> str:
-    """保存上传的视频文件到磁盘，返回绝对路径"""
-    from app.core.config import settings
-
-    upload_dir = os.path.join(os.path.abspath(settings.UPLOAD_DIR), "videos", str(user_id))
-    os.makedirs(upload_dir, exist_ok=True)
-
-    ext = os.path.splitext(file.filename or "video.mp4")[1] or ".mp4"
-    filename = f"{int(time.time() * 1000)}_{os.urandom(4).hex()}{ext}"
-    file_path = os.path.join(upload_dir, filename)
-
-    content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    return file_path
-
-
 def _run_analysis_pipeline(analysis_id: int, video_path: str, metadata: dict) -> None:
     """后台任务：执行分析管线（sync def → FastAPI 放入线程池，不阻塞事件循环）"""
     from app.core.database import SessionLocal
@@ -329,31 +339,51 @@ def _run_analysis_pipeline(analysis_id: int, video_path: str, metadata: dict) ->
 
 @router.post("/start", response_model=ApiResponse[dict])
 @audit(action="START", resource_type="analysis")
-async def start_analysis(
-    file: UploadFile = File(...),
-    date: str = Form(...),
-    kind: str = Form(default="综合"),
-    mode: str = Form(default="single"),
-    hit_time: float = Form(default=0.0),
-    cuts: str | None = Form(default=None),
+def start_analysis(
+    body: AnalysisStartRequest,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """统一分析端点：上传视频并启动后台分析管线
+    """统一分析端点：凭已上传视频的 file_id 启动后台分析管线（137 阶段一）
 
-    - 创建 Analysis 占位记录（status=processing）
-    - 保存视频文件
+    - 校验 file_id 归属当前用户、来源为 video、物理文件仍在
+    - 创建 Analysis 占位记录（status=processing）+ 绑定源文件（field=source）
     - 后台异步执行完整管线（upload → ai ∥ pose → finalize）
-    - 返回 analysis_id 和初始管线状态，前端通过轮询/SSE 获取进度
+    - 返回 analysis_id 与初始管线状态，前端通过轮询/SSE 获取进度
     """
-    # 1. 创建 Analysis 记录
+    # 1. 校验并定位已上传的视频文件（越权/失效一律 404，前端据此降级重传）
+    record = file_service.find_by_id(db, current_user.id, body.file_id)
+    if record is None or record.upload_source != _VIDEO_SOURCE:
+        log.warning(
+            "启动分析失败：文件不存在或来源非法",
+            user_id=current_user.id,
+            file_id=body.file_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="视频文件不存在或无权访问"
+        )
+
+    if not file_service.exists(record.rel_path):
+        log.warning(
+            "启动分析失败：物理文件缺失",
+            user_id=current_user.id,
+            file_id=record.id,
+            rel_path=record.rel_path,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="视频文件已失效，请重新上传"
+        )
+
+    video_path = file_service.abs_of(record.rel_path)
+
+    # 2. 创建 Analysis 记录
     pipeline_status = _initial_pipeline_status()
     analysis = Analysis(
         user_id=current_user.id,
-        date=date,
-        kind=kind,
-        mode=mode,
+        date=body.date,
+        kind=body.kind,
+        mode=body.mode,
         status="processing",
         pipeline_status=json.dumps(pipeline_status, ensure_ascii=False),
         created_at=time.time(),
@@ -363,48 +393,32 @@ async def start_analysis(
     db.refresh(analysis)
     analysis_id = analysis.id
 
-    # 2. 保存视频文件
-    video_path = await _save_uploaded_file(file, current_user.id)
-
-    # 3. 文件纳入管理（统一使用 get_or_create_file）
-    from app.services import file_service
-
-    rel_video = file_service.abs_path_to_rel(video_path)
-    file_service.get_or_create_file(
-        db=db,
-        user_id=current_user.id,
-        rel_path=rel_video,
-        abs_path=video_path,
-        upload_source="video",
-        original_name=file.filename or "video.mp4",
-        mime_type=file.content_type or "",
-    )
+    # 3. 绑定源文件到该分析记录（ref_count +1）
+    file_service.bind(db, current_user.id, record.rel_path, "analysis", analysis_id, field="source")
     db.commit()
-
-    # 4. 解析 cuts
-    cuts_list = None
-    if cuts:
-        try:
-            cuts_list = json.loads(cuts)
-        except (json.JSONDecodeError, TypeError):
-            log.warning("cuts JSON 解析失败", cuts=cuts)
 
     # 4. 启动后台任务
     metadata = {
-        "date": date,
-        "kind": kind,
-        "mode": mode,
-        "hit_time": hit_time,
-        "cuts": cuts_list,
+        "date": body.date,
+        "kind": body.kind,
+        "mode": body.mode,
+        "hit_time": body.hit_time,
+        "cuts": body.cuts,
     }
     background_tasks.add_task(_run_analysis_pipeline, analysis_id, video_path, metadata)
 
-    log.info("统一分析端点已触发", user_id=current_user.id, analysis_id=analysis_id)
+    log.info(
+        "统一分析端点已触发",
+        user_id=current_user.id,
+        analysis_id=analysis_id,
+        file_id=record.id,
+    )
     return ApiResponse(
         data={
             "id": analysis_id,
             "status": "processing",
             "pipeline_status": pipeline_status,
+            "file_id": record.id,
         }
     )
 

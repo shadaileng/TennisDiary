@@ -26,11 +26,10 @@ def test_create_role(auth_client):
 
 
 def test_create_role_duplicate(auth_client):
-    """测试重复编码"""
-    response = auth_client.post(
-        "/api/admin/roles",
-        json={"name": "角色2", "code": "test_role", "permissions": []},
-    )
+    """测试重复编码（用例内自包含，不依赖前序用例预置数据）"""
+    payload = {"name": "角色2", "code": "test_role_dup", "permissions": []}
+    assert auth_client.post("/api/admin/roles", json=payload).status_code == 200
+    response = auth_client.post("/api/admin/roles", json=payload)
     assert response.status_code == 400
 
 

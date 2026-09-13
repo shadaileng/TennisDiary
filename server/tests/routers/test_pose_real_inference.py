@@ -68,6 +68,10 @@ class TestRealInference:
         not pose_service.mediapipe_available(),
         reason="mediapipe 未安装",
     )
+    @pytest.mark.skipif(
+        not pose_service.find_model(),
+        reason="姿态模型缺失",
+    )
     def test_landmarker_loads_once(self):
         """_get_landmarker 懒加载成功 → 不抛异常"""
         lm = pose_service._get_landmarker()

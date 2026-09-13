@@ -43,6 +43,22 @@ function getToken(): string {
   return (uni.getStorageSync(STORAGE_KEYS.token) as string) || "";
 }
 
+// ==================== 步骤文案 ====================
+
+/** 管线步骤 → 中文文案（analyze 与 report 共用，避免两处各写一份） */
+const PIPELINE_STEP_LABELS: Record<string, string> = {
+  init: "初始化…",
+  upload: "处理视频…",
+  ai: "AI评分中…",
+  pose: "姿态分析中…",
+  finalize: "保存结果…",
+};
+
+/** 步骤文案（未知步骤统一回退「分析中…」） */
+export function stepLabel(step?: string | null): string {
+  return (step && PIPELINE_STEP_LABELS[step]) || "分析中…";
+}
+
 // ==================== 轮询模式 ====================
 
 /**
@@ -53,19 +69,40 @@ class PollingSubscriber {
   private analysisId: number;
   private callback: StatusCallback;
   private pollInterval: number;
+  /** 最长轮询时长（毫秒），超时自动停止，默认 5 分钟（139 决策 13） */
+  private maxDurationMs: number;
+  /** 超时回调：必须通知 UI，避免"已无请求但页面仍显示进行中"（139 §6.2） */
+  private onTimeout?: () => void;
+  private startedAt = 0;
 
-  constructor(analysisId: number, callback: StatusCallback, pollInterval = 2000) {
+  constructor(
+    analysisId: number,
+    callback: StatusCallback,
+    pollInterval = 2000,
+    maxDurationMs = 5 * 60 * 1000,
+    onTimeout?: () => void,
+  ) {
     this.analysisId = analysisId;
     this.callback = callback;
     this.pollInterval = pollInterval;
+    this.maxDurationMs = maxDurationMs;
+    this.onTimeout = onTimeout;
   }
 
   start() {
+    this.startedAt = Date.now();
+
     // 立即查询一次
     this.fetchStatus();
 
     // 定时轮询
     this.timer = setInterval(() => {
+      // 超时保护：后端长期卡 processing 时不再无限打请求
+      if (Date.now() - this.startedAt > this.maxDurationMs) {
+        this.stop();
+        this.onTimeout?.();
+        return;
+      }
       this.fetchStatus();
     }, this.pollInterval);
   }
@@ -116,10 +153,24 @@ class PollingSubscriber {
  * });
  * subscriber.start();
  * ```
+ *
+ * 可选：通过 options 设置轮询间隔、最长时长与超时回调（139）。
+ * 超时回调**必须**用于提示用户，否则会出现"已停止请求但页面仍显示进行中"。
  */
 export function createStatusSubscriber(
   analysisId: number,
-  callback: StatusCallback
+  callback: StatusCallback,
+  options?: {
+    pollInterval?: number;
+    maxDurationMs?: number;
+    onTimeout?: () => void;
+  }
 ): { start: () => void; stop: () => void } {
-  return new PollingSubscriber(analysisId, callback);
+  return new PollingSubscriber(
+    analysisId,
+    callback,
+    options?.pollInterval,
+    options?.maxDurationMs,
+    options?.onTimeout
+  );
 }

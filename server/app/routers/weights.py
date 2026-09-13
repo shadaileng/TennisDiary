@@ -62,6 +62,7 @@ def create_weight(
         waist=body.waist,
         hip=body.hip,
         created_at=time.time(),
+        business_time=body.business_time,
     )
     db.add(record)
     db.commit()

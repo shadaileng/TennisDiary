@@ -1,15 +1,13 @@
-"""文件使用标记测试（Step 111）
+"""文件使用状态测试（Step 111 / 138：基于业务引用注册表）
 
-覆盖 classify_file_usage 四类状态 + Admin 端点响应包含 usage_status：
+覆盖 `file_service.classify` 的状态判定 + Admin 端点响应包含 usage_status：
 - marked_deleted：deleted_at 非空
-- unreferenced / ref_count <= 0 / 业务记录不再引用
-- in_use：业务记录仍引用该 rel_path
-- orphan：扫描结果补 usage_status
+- missing：已登记但物理文件缺失
+- in_use：业务表（user/gear/analysis）仍引用该 rel_path
+- unreferenced：无任何业务引用
+- orphan / unregistered_ref：scan() 对未登记路径的分类
 
-路径匹配按精确字符串比对：
-- user：User.avatar_url == rel_path
-- gear：Gear.photo == rel_path
-- analysis：video_url / thumb / highlights / pose 任一包含 rel_path
+判定口径统一来自 `file_refs` 注册表，不再使用「某类来源不被消费」的硬编码名单。
 """
 
 import hashlib
@@ -40,7 +38,8 @@ def _next_seq():
     return _seq
 
 
-def _insert_file(db, user_id=None, rel_path=None, md5=None, **overrides):
+def _insert_file(db, user_id=None, rel_path=None, md5=None, write_disk=True, **overrides):
+    """插入一条文件记录；默认同时在受管目录创建物理文件"""
     seq = _next_seq()
     if user_id is None:
         user_id = 10000 + seq
@@ -64,6 +63,8 @@ def _insert_file(db, user_id=None, rel_path=None, md5=None, **overrides):
     db.add(rec)
     db.commit()
     db.refresh(rec)
+    if write_disk and not rec.deleted_at:
+        file_service.write_bytes(file_service.abs_of(rel_path), b"content")
     return rec
 
 
@@ -140,375 +141,177 @@ def auth_client(test_engine, test_db, _app_client):
     app.dependency_overrides.update(saved_overrides)
 
 
-# ==================== classify_file_usage 单元测试 ====================
+# ==================== classify 单元测试 ====================
 
 
-class TestClassifyFileUsage:
-    """纯函数 classify_file_usage 的行为测试，绕过路由层直接验证核心逻辑。"""
+def _classify(db, rec):
+    return file_service.classify(db, [rec])[rec.id]
 
-    def test_marked_deleted(self, test_engine, test_db):
+
+class TestClassify:
+    """基于业务引用注册表的状态判定"""
+
+    def test_marked_deleted(self, test_db):
         rec = _insert_file(test_db, rel_path="mk/1/a.jpg", deleted_at=time.time())
-        status, reason = file_service.classify_file_usage(test_db, rec)
+        status, reason = _classify(test_db, rec)
         assert status == "marked_deleted"
-        assert "待物理清理" in reason
+        assert "标记删除" in reason
 
-    def test_ref_count_zero(self, test_engine, test_db):
-        rec = _insert_file(test_db, ref_count=0)
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "归零" in reason
+    def test_missing_physical_file(self, test_db):
+        rec = _insert_file(test_db, rel_path="ms/1/a.jpg", write_disk=False)
+        status, reason = _classify(test_db, rec)
+        assert status == "missing"
+        assert "物理文件缺失" in reason
 
-    def test_no_business_id(self, test_engine, test_db):
-        rec = _insert_file(test_db, business_id=None, business_type=None)
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "未绑定业务记录" in reason
-
-    def test_user_source_infer_in_use(self, test_engine, test_db):
-        uid = 1100
-        rel = f"avatars/{uid}/pic.jpg"
-        test_db.add(User(id=uid, openid=f"oid_{uid}", avatar_url=rel))
+    def test_user_avatar_in_use(self, test_db):
+        rel = "avatars/11/a.jpg"
+        test_db.add(User(id=11, openid="u11", avatar_url=rel))
         test_db.commit()
-        # business_type=None, upload_source="avatar" → 走 upload_source 推断
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="avatar",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "头像引用有效" in reason
+        rec = _insert_file(test_db, user_id=11, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_user_source_infer_unreferenced(self, test_engine, test_db):
-        uid = 1101
-        rel = f"avatars/{uid}/pic.jpg"
-        # 没有对应的 User 记录
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="avatar",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "头像引用已失效" in reason
-
-    def test_gear_source_infer_in_use(self, test_engine, test_db):
-        uid = 2100
-        rel = f"gears/{uid}/ball.jpg"
-        test_db.add(Gear(id=300, user_id=uid, photo=rel))
+    def test_user_avatar_unreferenced_on_mismatch(self, test_db):
+        test_db.add(User(id=12, openid="u12", avatar_url="avatars/12/other.jpg"))
         test_db.commit()
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="gear_image",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "装备图片引用有效" in reason
+        rec = _insert_file(test_db, user_id=12, rel_path="avatars/12/a.jpg")
+        assert _classify(test_db, rec)[0] == "unreferenced"
 
-    def test_video_source_non_consumed(self, test_engine, test_db):
-        """原片 video 不被小程序直接消费 → 直接 unreferenced（118 §5.8）"""
-        uid = 3100
-        aid = 700
-        rel = f"videos/{uid}/{aid}.mp4"
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", video_url=rel))
+    def test_gear_photo_in_use(self, test_db):
+        rel = "gears/13/a.jpg"
+        test_db.add(Gear(user_id=13, name="拍", photo=rel))
         test_db.commit()
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="video",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "不被小程序直接消费" in reason
+        rec = _insert_file(test_db, user_id=13, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_video_playback_source_in_use(self, test_engine, test_db):
-        """播放短片 video_playback 被 Analysis.video_url 引用 → in_use（118 §5.8）"""
-        uid = 3101
-        aid = 701
-        rel = f"videos/{uid}/{aid}_working.mp4"
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", video_url=rel))
+    def test_analysis_video_url_in_use(self, test_db):
+        rel = "videos/14/a.mp4"
+        test_db.add(Analysis(user_id=14, date="2026-01-01", video_url=rel))
         test_db.commit()
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="video_playback",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "分析报告引用有效" in reason
+        rec = _insert_file(test_db, user_id=14, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_video_frame_source_non_consumed(self, test_engine, test_db):
-        """抽帧帧图 video_frame 不被小程序直接消费 → unreferenced（118 §5.8）"""
-        uid = 3102
-        aid = 702
-        rel = f"videos/{uid}/{aid}_f0.jpg"
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", highlights=rel))
+    def test_analysis_thumb_in_use(self, test_db):
+        rel = "videos/15/thumb.jpg"
+        test_db.add(Analysis(user_id=15, date="2026-01-01", thumb=rel))
         test_db.commit()
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="video_frame",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "不被小程序直接消费" in reason
+        rec = _insert_file(test_db, user_id=15, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_unknown_source_no_business_id(self, test_engine, test_db):
-        uid = 4100
-        rel = f"unknown/{uid}/x.jpg"
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            rel_path=rel,
-            business_type=None,
-            upload_source="other",
-            business_id=None,
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "未绑定业务记录" in reason
-
-    def test_user_in_use(self, test_engine, test_db):
-        uid = 1000
-        rel = f"avatars/{uid}/pic.jpg"
-        test_db.add(User(id=uid, openid=f"oid_{uid}", avatar_url=rel))
+    def test_analysis_highlights_json_list_in_use(self, test_db):
+        rel = "videos/16/h.jpg"
+        test_db.add(Analysis(user_id=16, date="2026-01-01", highlights=json.dumps([rel])))
         test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="user", business_id=uid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "头像引用有效" in reason
+        rec = _insert_file(test_db, user_id=16, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_user_unreferenced_missing_record(self, test_engine, test_db):
-        uid = 1001
-        rel = f"avatars/{uid}/pic.jpg"
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="user", business_id=uid + 999
+    def test_analysis_pose_skeleton_video_in_use(self, test_db):
+        rel = "videos/17/sk.mp4"
+        test_db.add(
+            Analysis(
+                user_id=17,
+                date="2026-01-01",
+                pose=json.dumps({"skeleton_video_url": rel, "skeleton_frames": []}),
+            )
         )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "头像引用已失效" in reason
-
-    def test_user_unreferenced_path_mismatch(self, test_engine, test_db):
-        uid = 1002
-        rel = f"avatars/{uid}/pic.jpg"
-        test_db.add(User(id=uid, openid=f"oid_{uid}", avatar_url="avatars/1002/other.jpg"))
         test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="user", business_id=uid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "头像引用已失效" in reason
+        rec = _insert_file(test_db, user_id=17, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_gear_in_use(self, test_engine, test_db):
-        uid = 2000
-        gid = 500
-        rel = f"gears/{uid}/{gid}.jpg"
-        test_db.add(Gear(id=gid, user_id=uid, photo=rel))
+    def test_analysis_pose_frames_list_in_use(self, test_db):
+        rel = "videos/18/sk0.jpg"
+        test_db.add(
+            Analysis(user_id=18, date="2026-01-01", pose=json.dumps({"skeleton_frames": [rel]}))
+        )
         test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="gear", business_id=gid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "装备图片引用有效" in reason
+        rec = _insert_file(test_db, user_id=18, rel_path=rel)
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_gear_unreferenced_missing_record(self, test_engine, test_db):
-        uid = 2001
-        gid = 501
-        rel = f"gears/{uid}/{gid}.jpg"
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="gear", business_id=gid + 777
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "装备记录引用已失效" in reason
-
-    def test_gear_unreferenced_path_mismatch(self, test_engine, test_db):
-        uid = 2002
-        gid = 502
-        rel = f"gears/{uid}/{gid}.jpg"
-        test_db.add(Gear(id=gid, user_id=uid, photo="data:image/png;base64,abc"))
+    def test_binding_alone_marks_in_use(self, test_db):
+        """仅存在绑定关系（无业务表字段）也判定为在用"""
+        rec = _insert_file(test_db, user_id=19, rel_path="videos/19/bound.mp4")
+        file_service.bind(test_db, 19, rec.rel_path, "analysis", 1, "video_url")
         test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="gear", business_id=gid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "装备记录引用已失效" in reason
+        assert _classify(test_db, rec)[0] == "in_use"
 
-    def test_analysis_in_use_video_url(self, test_engine, test_db):
-        uid = 3000
-        aid = 600
-        rel = f"videos/{uid}/{aid}.mp4"
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", video_url=rel))
-        test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="analysis", business_id=aid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "分析报告引用有效" in reason
-
-    def test_analysis_in_use_thumb(self, test_engine, test_db):
-        uid = 3001
-        aid = 601
-        rel = f"analyses/{uid}/{aid}_thumb.jpg"
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", thumb=rel))
-        test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="analysis", business_id=aid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "分析报告引用有效" in reason
-
-    def test_analysis_in_use_highlights(self, test_engine, test_db):
-        uid = 3002
-        aid = 602
-        rel = f"frames/{uid}/{aid}_f1.jpg"
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", highlights=json.dumps([rel])))
-        test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="analysis", business_id=aid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "分析报告引用有效" in reason
-
-    def test_analysis_in_use_pose_skeleton(self, test_engine, test_db):
-        uid = 3003
-        aid = 603
-        rel = f"skeleton/{uid}/{aid}_sk.mp4"
-        pose = {"skeleton_video_url": rel}
-        test_db.add(Analysis(id=aid, user_id=uid, date="2026-01-01", pose=json.dumps(pose)))
-        test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="analysis", business_id=aid
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "in_use"
-        assert "分析报告引用有效" in reason
-
-    def test_analysis_unreferenced_missing_record(self, test_engine, test_db):
-        uid = 3004
-        aid = 604
-        rel = f"videos/{uid}/{aid}.mp4"
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="analysis", business_id=aid + 10
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "分析报告引用已失效" in reason
-
-    def test_unknown_business_type(self, test_engine, test_db):
-        uid = 4000
-        rel = f"other/{uid}/x.jpg"
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="diary", business_id=123
-        )
-        status, reason = file_service.classify_file_usage(test_db, rec)
-        assert status == "unreferenced"
-        assert "未知业务类型 diary" in reason
+    def test_unreferenced_when_no_business(self, test_db):
+        rec = _insert_file(test_db, user_id=20, rel_path="videos/20/free.mp4")
+        assert _classify(test_db, rec)[0] == "unreferenced"
 
 
-# ==================== 扫描孤儿补 usage_status ====================
+# ==================== scan 五态 ====================
 
 
-class TestScanOrphanUsageStatus:
-    def test_orphan_has_usage_status(self, test_engine, test_db, tmp_path, monkeypatch):
-        from app.core.config import settings
-
-        data_dir = tmp_path / "data"
-        upload_dir = data_dir / "uploads"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
-        monkeypatch.setattr(settings, "UPLOAD_DIR", str(upload_dir))
-        monkeypatch.setattr(settings, "LOG_DIR", str(data_dir / "logs"))
-
-        # 放一个孤儿文件到磁盘
-        orphan_rel = "orphan-test/leaked.jpg"
-        orphan_abs = upload_dir / orphan_rel
-        orphan_abs.parent.mkdir(parents=True, exist_ok=True)
-        orphan_abs.write_bytes(b"leaked content")
-
-        result = file_service.scan_orphan_files(test_db)
-        orphans = result["orphans"]
-        assert len(orphans) >= 1
-        matched = [o for o in orphans if o["rel_path"] == orphan_rel]
+class TestScanStatus:
+    def test_orphan_status(self, test_db):
+        file_service.write_bytes(file_service.abs_of("orphan-test/leaked.jpg"), b"leaked")
+        result = file_service.scan(test_db)
+        matched = [i for i in result["items"] if i["rel_path"] == "orphan-test/leaked.jpg"]
         assert len(matched) == 1
-        assert matched[0]["usage_status"] == "orphan"
-        assert "磁盘孤儿" in matched[0]["usage_reason"]
+        assert matched[0]["status"] == "orphan"
+        assert "磁盘孤儿" in matched[0]["reason"]
+
+    def test_unregistered_ref_status(self, test_db):
+        rel = "gears/21/not-registered.jpg"
+        test_db.add(Gear(user_id=21, name="拍", photo=rel))
+        test_db.commit()
+        result = file_service.scan(test_db)
+        matched = [i for i in result["items"] if i["rel_path"] == rel]
+        assert len(matched) == 1
+        assert matched[0]["status"] == "unregistered_ref"
 
 
 # ==================== Admin 端点集成测试 ====================
 
 
 class TestAdminFileUsageListEndpoint:
-    def test_list_response_contains_usage_status(self, auth_client, test_db, tmp_path, monkeypatch):
-        from app.core.config import settings
-
-        data_dir = tmp_path / "data"
-        upload_dir = data_dir / "uploads"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        monkeypatch.setattr(settings, "DATA_DIR", str(data_dir))
-        monkeypatch.setattr(settings, "UPLOAD_DIR", str(upload_dir))
-        monkeypatch.setattr(settings, "LOG_DIR", str(data_dir / "logs"))
-
+    def test_list_response_contains_usage_status(self, auth_client, test_db):
         uid = 1
         rel = "usage-list/1/a.jpg"
         test_db.add(User(id=uid, openid="u1", avatar_url=rel))
         test_db.commit()
-        rec = _insert_file(
-            test_db, user_id=uid, rel_path=rel, business_type="user", business_id=uid
-        )
+        rec = _insert_file(test_db, user_id=uid, rel_path=rel)
 
         resp = auth_client.get("/api/admin/files")
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
-        assert len(items) >= 1
         found = [i for i in items if i["id"] == rec.id]
         assert len(found) == 1
         assert found[0]["usage_status"] == "in_use"
-        assert found[0]["usage_reason"] == "用户头像引用有效"
 
     def test_list_marked_deleted_filtered(self, auth_client, test_db):
-        rel = "usage-del/2/b.jpg"
-        rec = _insert_file(test_db, user_id=2, rel_path=rel, deleted_at=time.time())
+        rec = _insert_file(test_db, user_id=2, rel_path="usage-del/2/b.jpg", deleted_at=time.time())
         resp = auth_client.get("/api/admin/files")
         assert resp.status_code == 200
         items = resp.json()["data"]["items"]
-        # 软删文件默认被过滤，不返回
         assert not any(i["id"] == rec.id for i in items)
 
+    def test_list_filter_by_usage_status(self, auth_client, test_db):
+        used = "usage-filter/3/used.jpg"
+        free = "usage-filter/3/free.jpg"
+        test_db.add(User(id=3, openid="u3", avatar_url=used))
+        test_db.commit()
+        _insert_file(test_db, user_id=3, rel_path=used)
+        _insert_file(test_db, user_id=3, rel_path=free)
+
+        resp = auth_client.get("/api/admin/files", params={"usage_status": "unreferenced"})
+        assert resp.status_code == 200
+        paths = {i["rel_path"] for i in resp.json()["data"]["items"]}
+        assert free in paths
+        assert used not in paths
+
     def test_stats_include_new_counts(self, auth_client, test_db):
-        # 构造一条软删
         _insert_file(test_db, deleted_at=time.time())
-        # 构造一条 ref_count=0
         _insert_file(test_db, ref_count=0)
         resp = auth_client.get("/api/admin/files/stats/summary")
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data.get("marked_deleted_count") == 1
-        assert data.get("unreferenced_count") == 1
+        assert data.get("unreferenced_count") >= 1
+
+    def test_scan_endpoint_returns_status_counts(self, auth_client, test_db):
+        file_service.write_bytes(file_service.abs_of("scan-test/x.jpg"), b"x")
+        resp = auth_client.post("/api/admin/files/scan")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert "status_counts" in data
+        assert data["orphan_files"] >= 1

@@ -55,7 +55,12 @@
             "urlCheck" : false
         },
         "usingComponents" : true,
-        "__usePrivacyCheck__" : true
+        "__usePrivacyCheck__" : true,
+        "networkTimeout" : {
+            "request" : 30000,
+            "uploadFile" : 300000,
+            "downloadFile" : 60000
+        }
     },
     "mp-alipay" : {
         "usingComponents" : true

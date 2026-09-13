@@ -218,7 +218,7 @@ server {
 
 如需切换 PostgreSQL，修改 `.env`：
 
-```env
+```bash
 DATABASE_URL=postgresql+asyncpg://user:pass@postgres-host:5432/tennis_diary
 ```
 

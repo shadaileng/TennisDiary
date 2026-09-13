@@ -13,8 +13,8 @@
         ¥{{ value?.toFixed(2) || '0.00' }}
       </template>
 
-      <template #cell-created_at="{ value }">
-        {{ formatTs(value) }}
+      <template #cell-business_time="{ value }">
+        {{ value ? formatTs(value) : '--' }}
       </template>
 
       <template #actions="{ row }">
@@ -81,6 +81,10 @@
               <span class="text-sm font-medium text-gray-500">创建时间</span>
               <p class="mt-1 text-sm text-gray-900">{{ formatTs(selectedGear.created_at) }}</p>
             </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">业务时间</span>
+              <p class="mt-1 text-sm text-gray-900">{{ selectedGear.business_time ? formatTs(selectedGear.business_time) : '--' }}</p>
+            </div>
           </div>
 
           <div v-if="selectedGear.feeling" class="mb-4">
@@ -90,7 +94,7 @@
 
           <div v-if="selectedGear.photo">
             <span class="text-sm font-medium text-gray-500">图片</span>
-            <img :src="selectedGear.photo" class="mt-1 w-40 h-40 object-cover rounded border border-gray-200" />
+            <img :src="fileUrl(selectedGear.photo)" class="mt-1 w-40 h-40 object-cover rounded border border-gray-200" />
           </div>
         </div>
 
@@ -114,14 +118,15 @@ import { getGears, deleteGear, type Gear } from '@/api/gears'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatTs } from '@/utils/date'
+import { fileUrl } from '@/utils/fileUrl'
 
 const columns = [
-  { key: 'id', title: 'ID' },
-  { key: 'user', title: '用户' },
-  { key: 'name', title: '名称' },
-  { key: 'category', title: '种类' },
-  { key: 'price', title: '价格' },
-  { key: 'created_at', title: '创建时间' }
+  { key: 'id', title: 'ID', width: 60 },
+  { key: 'user', title: '用户', width: 120 },
+  { key: 'name', title: '名称', width: 140 },
+  { key: 'category', title: '种类', width: 100 },
+  { key: 'price', title: '价格', width: 100 },
+  { key: 'business_time', title: '业务时间', width: 160 }
 ]
 
 const gears = ref<Gear[]>([])

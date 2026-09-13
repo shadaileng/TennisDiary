@@ -15,7 +15,7 @@ class EventLog(Base):
     message = Column(Text, nullable=False)
     stack = Column(Text, default="")
     page = Column(String(256), default="")
-    extra = Column(Text, default="")  # JSON 扩展字段，业务 payload
+    params = Column(Text, default="")  # 业务参数 JSON
     device_info = Column(Text, default="")  # 设备信息 JSON
     client_time = Column(Integer, nullable=True, index=True)  # 前端发送时的毫秒时间戳
     created_at = Column(DateTime, server_default=func.now(), index=True)

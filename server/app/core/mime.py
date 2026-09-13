@@ -65,13 +65,21 @@ def find_ffprobe() -> str | None:
 
         return imageio_ffmpeg.get_ffprobe_exe()
     except (ImportError, AttributeError, RuntimeError, OSError) as exc:
-        log.debug("imageio_ffmpeg 探测失败: %s", exc)
+        log.debug("imageio_ffmpeg 探测失败: {}", exc)
         return None
 
 
 def _ext_mime(path: str) -> str | None:
     ext = os.path.splitext(path)[1].lower()
     return EXTENSION_MIME.get(ext)
+
+
+def mime_type_from_ext(path: str) -> str:
+    """仅按扩展名推断 MIME（无磁盘 I/O），未知返回空字符串
+
+    用于批量登记等禁止读盘的热路径（131）：确定性映射，不依赖运行时环境。
+    """
+    return _ext_mime(path) or ""
 
 
 def detect_image_mime(path: str) -> str:
@@ -84,7 +92,7 @@ def detect_image_mime(path: str) -> str:
             if fmt and fmt in _PIL_FORMAT_MIME:
                 return _PIL_FORMAT_MIME[fmt]
     except Exception as exc:  # noqa: BLE001  # PIL 可能抛出多种异常，统一回退扩展名
-        log.debug("PIL 读取图片格式失败，回退扩展名: path=%s error=%s", path, exc)
+        log.debug("PIL 读取图片格式失败，回退扩展名: path={} error={}", path, exc)
 
     return _ext_mime(path) or "application/octet-stream"
 
@@ -118,7 +126,7 @@ def detect_media_mime(path: str) -> str:
                 f" stderr={proc.stderr.decode('utf-8', 'replace')[-200:]}"
             )
         except (subprocess.SubprocessError, OSError) as exc:
-            log.warning("ffprobe 探测失败，回退扩展名: path=%s error=%s", path, exc)
+            log.warning("ffprobe 探测失败，回退扩展名: path={} error={}", path, exc)
 
     return _ext_mime(path) or "application/octet-stream"
 
@@ -134,7 +142,7 @@ def _parse_ffprobe(stdout: str, path: str) -> str:
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError as exc:
-        log.debug("ffprobe 输出解析失败: %s", exc)
+        log.debug("ffprobe 输出解析失败: {}", exc)
         return _ext_mime(path) or "application/octet-stream"
 
     streams = data.get("streams", [])

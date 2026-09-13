@@ -45,7 +45,8 @@
     {
       "path": "pages/coach/coach",
       "style": {
-        "navigationBarTitleText": "电子教练"
+        "navigationBarTitleText": "电子教练",
+        "enablePullDownRefresh": true
       }
     },
     {

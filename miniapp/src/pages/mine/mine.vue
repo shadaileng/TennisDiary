@@ -116,12 +116,14 @@ import { onShow } from "@dcloudio/uni-app";
 
 import Popup from "@/components/Popup.vue";
 import { getStats } from "@/services/data";
+import { syncPendingLocalData, syncOfflineData } from "@/services/sync";
 import { THEMES } from "@/stores/settings";
 import { useAuthStore, useSettingsStore } from "@/stores";
 import { useThemeStyle } from "@/composables/useTheme";
 import type { Stats } from "@/types";
 import { fmtDuration, maskMiddle, resolveUploadUrl } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 const authStore = useAuthStore();
 const settingsStore = useSettingsStore();
@@ -165,13 +167,13 @@ onShow(() => {
 /** 拉取统计数据，失败静默降级为 0，不阻塞页面 */
 async function loadStats() {
   const traceId = createTraceId();
-  logInfo("加载统计总览", { trace_id: traceId }, undefined, "mine_stats_load", traceId);
+  logInfo("加载统计总览", { guest: authStore.isGuest }, undefined, EV.MINE_STATS_LOAD, traceId);
   try {
     stats.value = await getStats();
-    logInfo("统计总览加载成功", { trace_id: traceId, total_sessions: stats.value?.total_sessions, total_duration: stats.value?.total_duration, total_analyses: stats.value?.total_analyses }, undefined, "mine_stats_loaded", traceId);
+    logInfo("统计总览加载成功", { total_sessions: stats.value?.total_sessions, total_duration: stats.value?.total_duration, total_analyses: stats.value?.total_analyses }, undefined, EV.MINE_STATS_LOADED, traceId);
   } catch (e) {
     stats.value = null;
-    logError("统计总览加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "mine_stats_load_failed", undefined, traceId);
+    logError("统计总览加载失败", { error: (e as Error).message }, undefined, EV.MINE_STATS_LOAD_FAILED, undefined, traceId);
   }
 }
 
@@ -200,6 +202,15 @@ async function doLogin() {
     await authStore.login();
     uni.hideLoading();
     uni.showToast({ title: "登录成功", icon: "success" });
+    // 静默同步游客态本地数据到云端（失败不影响登录态）
+    syncPendingLocalData().catch((err) => {
+      logError("游客本地数据同步失败", { error: (err as Error).message }, undefined, EV.MINE_SYNC_FAILED, undefined, createTraceId());
+    }).finally(() => {
+      // 再补传登录态期间的离线新建（Step 141）
+      syncOfflineData().catch((err) => {
+        logError("离线数据同步失败", { error: (err as Error).message }, undefined, EV.OFFLINE_SYNC_FAILED, undefined, createTraceId());
+      });
+    });
   } catch (e) {
     uni.hideLoading();
     const msg = e instanceof Error ? e.message : "登录失败";

@@ -15,4 +15,7 @@ page {
   --color-border: #E7E9DF;
   --color-hero-a: #242B1F;
   --color-hero-b: #3A4433;
+  /* 根背景设为主题米色：iOS 导航栏半透明，页面切换滑动瞬间若 page 根仍为默认白底，
+     半透明导航栏会透出白色（顶部白条）。设米色后切换过程透出米色，消除白闪。 */
+  background-color: var(--color-page-bg, #F2F2EF);
 }

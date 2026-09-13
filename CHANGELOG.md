@@ -4,6 +4,157 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.86.2] - 2026-09-13
+
+### Fixed
+
+- CI 并行测试竞态条件（146）：`pytest-xdist` 多 worker 同时执行 `_init_test_database` 对同一 SQLite 文件 `CREATE TABLE` 导致 `table ai_providers already exists` 错误（412/741 测试失败）；修复为按 `PYTEST_XDIST_WORKER` 环境变量为每个 worker 创建独立 DB 文件，彻底消除竞态。
+- CI 工作流分阶段执行：拆分为 fast 测试（并行，快速失败）+ integration 测试（`--dist loadfile` 按文件分组并行），基础测试先行，集成测试互不干扰。
+- CI 环境准备：复制 `.env.test.example` 为 `.env.test`（JWT_SECRET 隔离），ffmpeg 缺失时跳过 MIME 探测用例。
+
+## [1.86.1] - 2026-09-13
+
+### Fixed
+
+- Admin 事件日志查询页码未重置：点击"查询"按钮时若当前页非第 1 页（如 page=2），仍沿用旧页码发送请求，导致查到空结果；修复为查询前始终重置到 page=1。
+
+## [1.86.0] - 2026-09-13
+
+### Added
+
+- AI 评分 JSON 解析容错与重试（145）：`extract_json` 增加 `json-repair` 修复层，可自动修复 LLM 返回的常见 JSON 格式问题（未转义引号、trailing comma、缺失逗号等）；`analyze_swing` 首次解析失败后自动重试 1 次（LLM 输出具有随机性）；修复仍失败时记录原始 AI 响应文本前 500 字符便于事后诊断；新增 9 个 `extract_json` 单元测试。
+
+## [1.85.1] - 2026-09-11
+
+### Fixed
+
+- 电子教练界面被整文件改写、视觉结构偏离原设计（141 回归）：恢复 `coach.vue` / `report.vue` 原始 UI（hero 卡 / `Empty` 空态 / 评分圆徽 / 六维进度条 / NTRP 说明 / 删除按钮等），仅保留「缓存优先渲染」与「离线媒体占位」的数据来源改造，不再改动既有样式与布局。
+- 电子教练列表误弹「本地空间不足，请先登录同步」（141 回归）：`storageBase.persist` 新增 `silent` 选项，`cloudCache` 列表/详情缓存写入改为静默（超容量/异常只丢弃不弹 toast）；该提示仅保留给游客/登录态主动新建的离线待同步数据，登录态只读浏览不再误弹。
+- 分析列表缓存体积过大易超限：列表缓存仅保留渲染所需轻量字段（剥离 `report`/`pose`/`highlights`/`video_url`）并丢弃 dataURL 封面（离线统一显示占位图），详情缓存保留文字报告仅丢弃 dataURL 封面，确保离线快照稳定写入。
+
+## [1.85.0] - 2026-09-11
+
+### Added
+
+- 登录态离线缓存与自动同步（141）：日记/装备/体重列表与详情渲染源统一收敛为本地缓存合并视图（`merge(账号云端快照缓存, 账号离线待同步仓库)`），页面先 hydrate 缓存立即渲染、仅网络可用且已登录才拉取远端刷新缓存；断网可浏览缓存并新建记录（落按 userId 隔离的 `td_offline_{userId}_*`），恢复后按 `business_time` 升序自动静默同步，冲突按时间戳后写胜；分析记录可离线浏览列表与文字报告、视频/封面等媒体离线统一占位不破图；含离线横幅、待同步标记、加载态（loading）三态与媒体 `resolveMediaSrc` 占位；新增 `storageBase`/`offlineRepo`/`cloudCache`/`utils/media`/`utils/network`，游客态现有本地降级机制（129）零改动。
+
+## [1.84.0] - 2026-09-09
+
+### Added
+
+- 视频分片上传与断点续传（140）：大视频（≥20MB）按 5MB 切片串行上传，单片失败只重传该片，中断后仅补传缺失/失败分片。后端新增存储原语 `file_store`（`data.bin` 定位写 `os.pwrite` + `manifest.json` 权威登记 + 原子写 + 24h 过期清理）与门面 `file_service`（`open_chunk_session` / `register_chunk` / `list_chunks` / `chunk_status` / `complete_chunk_upload`，片级 `length` 强制 + `crc32` 可选校验、写盘成功才入账、complete 免合并直接 `register`），新增端点 `POST /upload/video/chunk`、`GET /upload/video/chunks`、`POST /upload/video/complete`，`/upload/check` video 未命中时下发分片策略与三集合进度，Admin `/cleanup` 联动清理过期会话。
+- 小程序端分片链路（140）：新增 `utils/crc32.ts`（表驱动 CRC32）与 `utils/chunkUpload.ts`（切片读写、串行上传、单片重试、按服务端 `missing`/`failed` 断点续传、409 局部重传一次后降级整体上传），`upload.ts` 增 `ChunkPlan` 下发解析，`analyze.vue` 三分支接入（秒传 / 分片 / 整体）并展示「已传 n/m 片」进度与 `video_chunk_*` 埋点。
+
+## [1.83.1] - 2026-09-09
+
+### Added
+
+- 分析事件与存储常量收口（139）：`ANALYSIS_EVENTS.started`（`utils/index.ts` 导出，配合 `uni.$emit` / `uni.$on` 跨页面通信）与 `STORAGE_KEYS.pendingAnalysisAt`（`constants/storage.ts`），避免两处硬编码导致事件名/键名漂移。
+
+### Fixed
+
+- 上传阶段返回列表后新记录需手动下拉才显示（139）：点「开始分析」后先进入 upload 阶段上传视频，分析记录要等 `startAnalysis()` 返回（`analysisId` 产生）才创建，此时若用户已返回列表则 `onShow` 刷新查不到、且后续不会自动补刷。现点开始时写入「启动中」标记，`start` 成功后清除并 `uni.$emit` 通知列表立即刷新；列表 `onShow` 时若标记仍在则 3 秒后补刷一次兜底（覆盖页面销毁后 JS 未继续执行、`emit` 未送达的场景）；`resetProgressState()` 统一清除标记，覆盖成功/失败/取消所有收尾路径。
+- 抽帧登记触发 UNIQUE constraint 冲突导致整条分析失败（139）：`_process_video` 的 `FileDraft` 原先未传 md5/size，`register_batch` 内部 `md5s` 为空时跳过 `existing_map` 查询，随后实时计算 md5 直接 INSERT，撞上同 `user_id` 已存在的 `(user_id, md5)` 唯一索引 `uq_files_user_md5_active` 抛 `IntegrityError`。现构造 draft 时预计算 `md5`（`file_store.md5_of`）与 `size`（`os.path.getsize`），命中已存在记录时走复用分支。
+- 报告页把后端 SQL 异常原文显示给终端用户（139）：失败时 `pipeline_status.error` 原文（如 `(sqlite3.IntegrityError) UNIQUE constraint failed: files.user_id, files.md5`）被直接作为摘要展示，既难懂又泄漏 schema / md5 等内部信息。现新增 FormatUserError 风格脱敏：技术性异常（`sqlite3.*` / `UNIQUE constraint` / `IntegrityError` / `sqlalchemy` / SQL 关键字 / `sqlalche.me` 链接）统一降级为「分析失败，请重新上传视频（服务端处理异常，已记录到日志）」，业务类错误（如「片段起点/终点超出视频范围」）原样透传。
+- 失败态从报告体内的小 banner 提升为独立展示（139）：与 `processing-block` 互斥的独立 `failed-block`（图标 + 标题 + 原因 + 删除按钮），移除报告体内不可达的冗余 banner。
+- 从列表重新进入失败记录看不到失败原因（139）：后端置 failed 时只写 `pipeline_status.error`，而 `Analysis` 响应**不含** `pipeline_status` 字段，导致重新进入时只能显示兜底文案。现三处置 failed 同步写 `summary`（截断至 120 字符：`run_pipeline` except 分支写异常原因、`_force_fail` 独立连接兜底、`_finalize` 空 `video_url` 写「播放短片缺失，分析未完成」），前端统一从 `summary` 读取并脱敏，覆盖「停留报告页失败」与「从列表重新进入」两个场景。
+- 订阅超时后页面卡死（139，Step 9 引入的回归）：给 `PollingSubscriber` 加 5 分钟超时自停后，`analyze.vue` 因未传 `onTimeout` 导致 `await new Promise(...)` 永不 settle，模态永久卡在「AI 分析进行中」，比修复前更糟。现补 `onTimeout`：停止订阅 + 记录 `analysis_subscribe_timeout` 埋点 + `reject`，由既有 `catch/finally` 统一 toast 并 `resetProgressState()` 关闭模态。
+
+## [1.83.0] - 2026-09-08
+
+### Added
+
+- 孤儿 processing 记录超时清理（139）：新增 `app/services/analysis_cleanup.py`，超过阈值（默认 600s）仍为 `processing` 的记录强制置 `failed` 并写入 `pipeline_status.error`「分析超时，已自动置为失败」；`created_at > 0` 条件排除历史脏数据避免误伤；接入应用启动（`force=True`）与 `list_analyses` 惰性触发（5 分钟节流）。作为状态兜底之外的最后一道防线，终结卡死记录导致的小程序端无限轮询。
+- 可降级项打标（139）：新增 `PipelineEngine._mark_degraded()`，骨架文件登记等可降级项失败时写入 `pipeline_status.degraded`，保留降级完成能力但必须可观测。
+
+### Fixed
+
+- 管线异常中断后分析记录永久停留在 `processing`（139）：`file_service.register_batch` 的 `db.flush()` 失败未 rollback，导致调用方会话残留 pending-rollback 坏状态，后续所有 DB 操作（含 `status="failed"`）连带失败。现补 `try/rollback`。
+- 管线状态兜底（139）：新增 `_force_fail()` 用**独立连接**置 `failed`；`run_pipeline` except 分支先 `rollback()` 再写 `failed`，仍失败则自动启用独立连接兜底，确保异常中断时状态必定落地。
+- 管线步骤异常由「静默继续」改为 fail-fast（139）：抽帧/播放短片登记由「非致命」改为致命并直接抛出，新增 0 帧硬校验，杜绝带着空输入跑 AI/pose 产出「已完成」的垃圾报告；`_finalize` 遇 `video_url` 为空由仅 warn 保留 processing 孤儿改为置 `failed` 并写入错误原因。
+- 日志 `%s` 占位符失效导致真实异常被吞（139）：loguru 使用 `str.format()` 语义，`%s` 参数会被静默丢弃、日志只剩裸占位符——这是故障中「看不到报错」的直接原因。全量整改 34 处为 `{}` 风格，10 处异常日志改用 `log.exception`。
+- 小程序离开分析页后 `/analyses/{id}/status` 轮询不停（139）：页面清理由 Vue 的 `onUnmounted` 改为 uni-app 的 `onUnload`（小程序页面销毁时前者不保证触发）；`PollingSubscriber` 增加 5 分钟上限与 `onTimeout` 回调，超时停止并提示用户。
+- 列表页 4s 自动轮询改为用户主动下拉刷新（139）：`pages.json` 启用 `enablePullDownRefresh`，`coach.vue` 改 `onPullDownRefresh`，消除后端卡 processing 时的无限请求。
+
+## [1.82.0] - 2026-09-08
+
+### Added
+
+- 视频上传两步秒传后端端点（137）：新增 `POST /api/upload/video`（经 `file_service` 门面 `register` 落盘 `{md5}.{ext}`，视频无微信官方检测能力 → 上传阶段直接置 `security_checked=1`，返回 `{url, file_id, mirage}`）；`POST /api/upload/check` 返回 `file_id`，新增可选 `category` 做来源隔离、`size_bytes` 一致性校验；`POST /api/analyses/start` 改为 JSON 凭 `file_id` 启动（校验归属/来源/物理存在 → 建 Analysis 占位 → `bind(analysis, field="source")` → 后台管线）；门面新增 `find_by_id`，`find_by_md5` 支持可选分类。
+- 小程序端两步取文件与上传/分析进度体验（137）：选视频后异步预计算 MD5 + size 指纹；`/upload/check` 命中零流量取 `file_id`，未命中再整体上传（`timeout` 按体积自适应 clamp(MB×3s, 120s, 300s)，`manifest` 补 `networkTimeout.uploadFile`）；上传/分析期间全屏模态居中显示进度并阻断误操作（进入前暂停并隐藏原生 `video`）；新增「取消上传」（含预检阶段取消检查点与 1.5s 兜底收尾），取消后保留视频与指纹可直接重试；列表 `processing` 态（⏳ 角标 + 「分析进行中…」+ 4s 轮询）与报告页实时进度页（完成后自动重载完整报告，失败展示管线错误）。
+
+### Removed
+
+- 移除无效视频安全检查：`video.py` 的 `check_media_sync(media_type=3)`（微信内容安全三件套不支持视频，恒返回 `errcode 40004`，是视频 `security_checked` 恒为 0 的根因）及 `content_security` 中对应的 `check_media` / `check_media_sync` 死代码。
+
+## [1.81.0] - 2026-09-07
+
+### Added
+
+- 文件管理重构（138）：后端文件操作全面收口到 `file_service` 统一门面，内部分工为 `file_store`（物理存储：MD5 命名、路径推导、写盘删盘、MIME 兜底）、`file_refs`（业务引用注册表，声明哪些表哪些字段引用受管文件，支持 column / json_list / json_dict / 外键列四类提取器）、`file_ref_service`（引用计数唯一变更实现）。路由层与 `pose_service`/`video_service`/`pipeline` 禁止自造文件名、自写盘、自改 `ref_count`、直接操作 File 模型，由 `tests/test_file_architecture.py` 架构守卫测试持续约束。受管文件名统一为 `{md5}.{后缀}`，存于 `UPLOAD_DIR/{avatars|gears|videos}/{user_id}/`（目录结构不变，小程序端无需改动）。新增 `file_bindings` 绑定表作为引用计数的唯一事实来源，`bind`/`unbind`/`rebind` 幂等，业务关联时自动 +1、删除或换图时自动 -1，归零后由 `cleanup_unbound` 在宽限期回收。扫描改为基于业务引用注册表的五态分类：`in_use` / `unreferenced` / `missing` / `orphan` / `unregistered_ref`。新增 `migrate_to_md5`（支持预演、幂等）与 Alembic 迁移 `b7d41e0c9a35`、`d4e8b2f17c09`；管理端新增「存量迁移」按钮（先预演后执行）。
+
+### Changed
+
+- 文件记录唯一性语义调整（138）：`files` 表新增部分唯一索引 `(user_id, md5) WHERE deleted_at IS NULL`，同一用户同一内容只保留一条记录；移除与之冲突的 `uq_files_original_name` 全局同名约束。`ref_count` 默认值改为 `0`，语义由「重复记录条数」变为「业务引用次数」。秒传语义由「新建记录复用路径」改为「按 MD5 命中已有记录直接返回同一路径」。
+
+### Fixed
+
+- `server/.gitignore` 的 `models/` 规则未锚定到根目录，会连带忽略 `server/app/models/` 下的 ORM 模型源文件，导致新增模型文件不被 git 跟踪。改为 `/models/` 仅忽略根级 MediaPipe 模型目录。
+- 文档构建（VitePress）：`docs/plans/38-*.md` 三处代码块误将「行号:行号:路径」当作语言标记，另有 `24-*.md`、`63-*.md` 使用 `env` 语言（不在 shiki 默认 bundle 中），导致 `pnpm run docs:build` 报 "language is not loaded" 并失败。修正后构建通过。
+
+## [1.80.0] - 2026-09-06
+
+### Added
+
+- 文件秒传预检与安全检查标记（136）：新增 `/upload/check` 端点（MD5 + size 预检，三态响应：命中+安全通过/命中+安全未通过/未命中），`files` 表新增 `security_checked` 字段（0=未检/1=通过），上传端点改为「安全检查不通过仍落盘但标记 security_checked=0」；前端新增 `uploadFileWithCheck` 两步上传（先 MD5 预检，命中零流量返回 URL，未命中正常上传），装备封面/头像表单接入预检流程。新增 Alembic 迁移、13 条端点用例、270+ 行方案文档。
+
+## [1.79.0] - 2026-09-05
+
+### Added
+
+- 游客同步顺序修复与业务时间字段（135）：新增 `business_time` 字段（Float，UTC Unix 时间戳），记录用户真实创建时间。游客同步时传入本地 `createdAt`，正常创建时为 `null`；`sync.ts` 对 pending 列表按 `createdAt` 升序排序再上传，确保服务器 `created_at` 相对顺序正确（双重保障）。三表（diaries/gears/weight_records）ORM 模型、6 个 Pydantic Schema、3 个路由文件、3 个 Admin 页面（列+弹窗）、小程序类型定义/Store/sync 全链路接入。
+
+## [1.78.1] - 2026-09-05
+
+### Fixed
+
+- 小程序体重趋势图绘制顺序修复：`weightData` 用 `.sort(ascending)` 对相同日期记录无效（稳定排序保留原降序），导致图表与列表同向（最新在左）。改为 `.reverse()` 直接转升序，游客/登录模式通用。
+
+## [1.78.0] - 2026-09-04
+
+### Added
+
+- 文件登记 MIME 类型兜底与分类源补全（131）：Step 116 只修了上传端点的 mime 探测，骨架视频/封面、裁剪播放短片、报告落库、孤儿文件注册等登记入口仍依赖调用方手传 `mime_type`，而这些调用方全都没传，导致大量骨架衍生文件落库为空（如 `1788331858328_8f1245f6_seg0_thumb.jpg` 文件类型显示 `--`）。修复：`file_service` 新增 `resolve_mime_type()` 由登记函数统一兜底——调用方有值则不覆盖，`get_or_create_file` / `register_orphan_files` 走 PIL/ffprobe 真实探测，`batch_get_or_create_files` 仅用确定性扩展名映射（零磁盘 I/O，保住 121 优化契约）；秒传分支改为 `existing.mime_type or <探测值>`，存量空值不再被复制扩散。新增 `ANALYSIS_MATCH_SOURCES`（含 `skeleton_video`/`skeleton_thumb`/`skeleton_frame`），修复骨架文件在无 `business_id` 时被误判「未绑定业务记录」；报告落库 `upload_source` 细化为 video/analysis_thumb/skeleton_video/skeleton_thumb/skeleton_frame；统一分析上传改用 `detect_media_mime` 与 video.py 对齐。存量空 mime 由 Admin「修复文件类型」按钮补齐。新增 25 条用例，全量无回归。
+
+### Fixed
+
+- 测试脆弱性治理（132/133）：全量 `pytest` 长期 10 failed，逐一排查确认均为改动前既有的脆弱测试。A 类死测试/过期断言：秒传共享删除用例插入两条同名 `original_name` 违反 `files.original_name` 唯一约束；两处用例引用 Step 125 已删除的 `register_ai_files`（改走 `batch_get_or_create_files`）；两处断言已下线的 preview 端点返回 200（另有两处断言 404 属假绿，整类删除）；裁剪用例断言「原文件已删」与 118 起保留原片语义冲突（改为断言保留）。B/C 类 fixture 作用域错配：admin `conftest` 的 module 级 `test_db`/`client` 与根 `conftest` 的 function 级 `client` 都用 `clear() + update(saved)` 操作 `app.dependency_overrides`，互相抹掉对方覆盖使请求打到错误数据库；`auth_client` 又把 admin token 写进 session 级共享 TestClient 默认头且从不清理，导致 media query token 用例 401。修复：两处 `client` fixture 改为精准增删（`set_override` 保存旧值 + teardown 还原），`auth_client` teardown 移除 `X-Auth-Token` 头，新增 autouse fixture 在每个用例前后 `test_db.rollback()` 杜绝 `PendingRollbackError` 级联，并把 roles/ai-providers 两个顺序依赖用例改为自包含。受影响子集 145 passed / 0 failed。CI 并行（ubuntu-latest, 4 workers）仍报 223 errors：root `conftest.py` 的 `test_engine` 使用 `sqlite://` + `StaticPool`，CI 并行时 SQLite 连接未正确回收导致 `create_all` 重复建表（`table ai_providers already exists`）；`test_cleanup_orphans.py` 本地 `test_engine` 与 admin conftest module-scoped `test_engine` 同名冲突 → `ScopeMismatch`。修复：`test_engine` 改用 file-based SQLite 临时文件，移除 `StaticPool`；本地 `test_engine` 重命名为 `cleanup_engine`。全量 563 passed / 0 errors。
+
+### Changed
+
+- 文档（132/133）：新增/更新 `docs/plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md`（含 CI 并行 StaticPool 修复），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、`.vitepress/config.mts` 侧边栏。
+
+## [1.77.9] - 2026-09-04
+
+### Fixed
+
+- Admin 文件管理预览图片 404（130）：Admin 静态站点（`admin.example.com`）与后端 API（`api.example.com`）跨域部署且无同源反代，而 `<img>`/`<video>`/`fetch`/`<a download>` 等浏览器原生请求不走 axios，`baseURL` 不生效——相对路径被解析到前端自身域名。`views/files/index.vue` 的 `openPreview` 直出 `/api/admin/system/files/${rel_path}` 必然 404。同此根因的还有装备详情装备图（相对路径）与文件下载（`api/files.ts` `getDownloadUrl` 返回相对路径，下载走 `fetch`/`<a>` 非 axios）。修复：新增 `admin/src/utils/fileUrl.ts` 统一解析——`fileUrl`（静态文件端点）、`avatarUrl`（头像，`avatars/`→`avatar/`）、`fileDownloadUrl`（下载端点），`http(s)://` 与 `data:` 一律原样直出，其余补 `VITE_API_BASE_URL`；接入 files/gears 两处修复项，并把 analyses/users/event-logs 三处本地重复实现收敛为公共导入（头像解析顺带补 `data:` 判定）。装备图因此兼容小程序游客态写入的 base64 dataURL（`gears.photo` 后端不校验形态，可为基础库相对路径 / `data:` / 完整 URL）。`type-check` + `build` 通过。
+
+### Changed
+
+- 文档（130）：新增 `docs/plans/130-Admin跨域静态资源URL统一解析.md`（跨域拓扑、7 处全量扫描清单、修复方案、验证标准），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
+
+## [1.77.8] - 2026-09-04
+
+### Added
+
+- 日记/装备/统计游客本地降级（129）：未登录用户可完整使用日记、装备、统计（数据总览 + 体重管理）三个模块——列表浏览、新增、编辑、删除、体重记录全部落地本地 `storage`，页面顶部显示「本地模式，登录后自动同步」横幅，取代原先只展示「🔒 去登录」引导空态。新增 `services/pendingRepo.ts`（本地待同步仓库，storage 持久化，含 `localId`/`pending` 标记）、`services/localStats.ts`（本地聚合，口径对齐后端 `/api/stats`）、`services/sync.ts`（登录成功后逐条 `POST` 静默同步，成功清理本地项、失败保留待下次登录重试）；`stores/diary.ts`、`stores/gear.ts`、`stores/weight.ts` 改为双路径（游客读写本地 / 登录走云端），列表与表单对 `Diary | LocalDiary`（装备、体重同理）透明，主键由 `getEntryId()` 统一取 `id` 或 `localId`。统计页「数据总览」6 卡改为本地实时聚合，体重三格/趋势/增删基于本地项。登出与 401 后本地 pending 保留，各 tab 页 `onShow` 按 `isGuest` 从本地仓库重载内存，避免云端数据串显（多账号隔离）。
+- 装备封面游客「选图即检」（129）：后端新增免鉴权端点 `POST /api/upload/guest-gear-check`（`uni.login` 一次性 code → `code_to_openid` → `check_image_sync`，**检查即弃**：不落盘、不建 File 记录、不写 DB，接口故障 fail-open）；游客选图由拆分出的 `compressToDataURL()` 压缩为本地 `data:` 后即时联网受检，`safe:true` 才写入 `form.photo`，违规/损坏图当场 toast 拦截；登录后同步仍走 `/api/upload/gear-image` 正式受检上传，构成双保险。新增 5 条端点用例（免鉴权通过 / 违规拦截 / code 非法 / 检查故障放行 / 扩展名非法），并断言临时文件清理。
+
+### Changed
+
+- 文档（129）：新增 `docs/plans/129-日记装备统计游客本地降级与登录同步.md`（v1.1.1，含封面安全检查路线 C 决策与勘误补强），同步 AGENTS.md 进度表、docs/README.md 文档一览与执行进度、config.mts 侧边栏。
+
 ## [1.77.7] - 2026-09-02
 
 ### Added

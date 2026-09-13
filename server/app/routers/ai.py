@@ -38,7 +38,7 @@ def _persist_report(db: Session, analysis_id: int | None, report: dict) -> None:
         db.execute(stmt)
         db.commit()
     except Exception as exc:  # noqa: BLE001 - 落库失败仅记录，不影响评分返回
-        logger.error("AI 评分结果落库失败 analysis_id=%s: %s", analysis_id, exc, exc_info=True)
+        logger.exception("AI 评分结果落库失败 analysis_id={}: {}", analysis_id, exc)
         db.rollback()
 
 
@@ -66,7 +66,7 @@ async def analyze(
 
     ai_config = get_ai_config(db)
     if not ai_config.api_key:
-        logger.warning("AI 未配置 Key，返回本地降级报告 kind=%s", req.kind)
+        logger.warning("AI 未配置 Key，返回本地降级报告 kind={}", req.kind)
         report = ai_service.build_local_report(req.kind)
         _persist_report(db, analysis_id, report)
         return ApiResponse(data=report)
@@ -78,7 +78,7 @@ async def analyze(
         _persist_report(db, analysis_id, report)
         return ApiResponse(data=report)
     except Exception as exc:  # noqa: BLE001 - 统一降级，不向上抛 5xx
-        logger.error("AI 分析失败，降级: %s", exc, exc_info=True)
+        logger.exception("AI 分析失败，降级: {}", exc)
         report = ai_service.build_local_report(req.kind)
         _persist_report(db, analysis_id, report)
         return ApiResponse(data=report)
@@ -105,6 +105,6 @@ async def caption(
         )
         return ApiResponse(data=CaptionResponse(caption=text))
     except Exception as exc:  # noqa: BLE001 - 统一降级，不向上抛 5xx
-        logger.error(f"AI 文案生成失败，降级: {exc}", exc_info=True)
+        logger.exception("AI 文案生成失败，降级: {}", exc)
         caption = ai_service.build_local_caption(req.template, context)
         return ApiResponse(data=CaptionResponse(caption=caption))

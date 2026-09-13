@@ -8,7 +8,6 @@
 import json
 import os
 import time
-import traceback
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 
@@ -75,6 +74,40 @@ def _parse_pipeline_status(raw: str | None) -> dict | None:
         return None
 
 
+def _force_fail(analysis_id: int, error: str, session_factory=None) -> None:
+    """独立连接兜底置 failed：不依赖管线可能已损坏的 self.db
+
+    139：管线自身的 db 在 flush/写入失败后会进入 pending-rollback 坏状态，
+    此时 `self.db` 上的任何写入（含 status="failed"）都会失败。本函数用
+    **全新连接**完成兜底写入，确保异常中断时状态必定落到 failed（G2）。
+
+    Args:
+        analysis_id: 分析记录 ID
+        error: 失败原因
+        session_factory: 会话工厂，默认 `SessionLocal`（生产）；测试可注入。
+    """
+    if session_factory is None:
+        from app.core.database import SessionLocal
+
+        session_factory = SessionLocal
+
+    db = session_factory()
+    try:
+        # 同步写 summary：前端报告页用 summary 展示失败原因
+        # （Analysis 响应不含 pipeline_status，只写 error 会导致重新进入时看不到原因）
+        db.execute(
+            sa_update(Analysis)
+            .where(Analysis.id == analysis_id)
+            .values(status="failed", summary=(error or "")[:120])
+        )
+        db.commit()
+        log.info("独立连接兜底置 failed 成功 analysis_id={} error={}", analysis_id, error)
+    except Exception as exc:  # noqa: BLE001 - 兜底自身绝不允许抛出
+        log.error("独立连接兜底置 failed 仍失败 analysis_id={} error={}", analysis_id, exc)
+    finally:
+        db.close()
+
+
 class PipelineEngine:
     """管线引擎：编排分析流程
 
@@ -83,11 +116,13 @@ class PipelineEngine:
     - _write_* / _update_* 方法在主线程中执行，共用 self.db
     """
 
-    def __init__(self, db: Session, analysis_id: int):
+    def __init__(self, db: Session, analysis_id: int, session_factory=None):
         self.db = db
         self.analysis_id = analysis_id
         self.max_retries = 3
         self.retry_delay_base = 2  # 指数退避基数
+        # 兜底写入用的独立会话工厂（默认 SessionLocal；测试可注入以隔离数据库）
+        self._session_factory = session_factory
 
     # ==================== DB 操作（主线程，共用 self.db） ====================
 
@@ -227,19 +262,28 @@ class PipelineEngine:
             )
             return {"status": "completed", "ai": ai_result, "pose": pose_result}
 
-        except Exception as e:  # noqa: BLE001 - 管线需要捕获所有异常
+        except Exception as e:
             total_elapsed = time.time() - pipeline_start
-            tb = traceback.format_exc()
-            log.error(
-                "管线失败 analysis_id=%s total=%.2fs error=%s: %s\n%s",
+            # 139：真实异常必须落盘（{} 风格 + 堆栈），禁止 %s 风格（参数会被静默丢弃）
+            log.exception(
+                "管线失败 analysis_id={} total={:.2f}s error={}",
                 self.analysis_id,
                 total_elapsed,
-                type(e).__name__,
-                str(e)[:200],
-                tb,
+                e,
             )
-            self._update_step_status(PipelineStep.FINALIZE, StepStatus.FAILED, error=str(e))
-            self._update_analysis_field(status="failed")
+            # 状态兜底（G2）：先修复可能已损坏的连接，再写 failed；仍失败则用独立连接兜底
+            try:
+                self.db.rollback()
+                self._update_step_status(PipelineStep.FINALIZE, StepStatus.FAILED, error=str(e))
+                # 同步写 summary（截断），供报告页展示失败原因
+                self._update_analysis_field(status="failed", summary=str(e)[:120])
+            except Exception as recover_exc:  # noqa: BLE001 - 兜底路径不二次抛出
+                log.error(
+                    "管线失败态写入失败，启用独立连接兜底 analysis_id={} error={}",
+                    self.analysis_id,
+                    recover_exc,
+                )
+                _force_fail(self.analysis_id, str(e), self._session_factory)
             return {"status": "failed", "error": str(e)}
 
     def _run_step_with_retry(self, step: PipelineStep, func, *args, **kwargs):
@@ -254,7 +298,7 @@ class PipelineEngine:
             except Exception as e:  # noqa: BLE001 - 重试需要捕获所有异常
                 last_error = e
                 log.warning(
-                    "管线步骤失败 step=%s attempt=%d/%d error=%s: %s",
+                    "管线步骤失败 step={} attempt={}/{} error={}: {}",
                     step.value,
                     attempt + 1,
                     self.max_retries,
@@ -293,35 +337,73 @@ class PipelineEngine:
 
         result = video_service.process_video(video_path, mode, hit_time, cuts)
 
+        user_id = self._get_user_id()
+        business = ("analysis", self.analysis_id) if self.analysis_id else None
+
+        # 抽帧中间产物登记为受管文件（{md5}.jpg）
+        # 预计算 md5/size：避免 register_batch 内部因 md5s 为空而跳过 existing_map
+        # 查询，随后实时算 md5 + INSERT 时撞同 user_id 已存在的 (user_id, md5)
+        # 唯一索引（id=17/18 实际现场）。
+        try:
+            frame_records = file_service.register_batch(
+                self.db,
+                user_id,
+                [
+                    file_service.FileDraft(
+                        src_path=frame_path,
+                        md5=file_service.file_store.md5_of(path=frame_path) if frame_path else "",
+                        size=os.path.getsize(frame_path)
+                        if frame_path and os.path.exists(frame_path)
+                        else 0,
+                        ext=os.path.splitext(frame_path)[1] or ".jpg",
+                        upload_source="video_frame",
+                        original_name=os.path.basename(frame_path),
+                    )
+                    for frame_path in result.get("frame_paths", [])
+                ],
+                business=business,
+            )
+            result["frame_urls"] = [record.rel_path for record in frame_records]
+        except Exception:
+            # 139：抽帧是致命环节——没有帧，AI 评分与姿态分析就失去输入。
+            # 原实现吞异常后置 frame_urls = []，导致后续步骤拿 0 帧空跑，
+            # 最终产出"已完成"的垃圾报告（§2.5 路径 A）。改为直接抛出，交由重试处理。
+            log.exception("抽帧登记失败(致命) analysis_id={}", self.analysis_id)
+            raise
+
+        # 0 帧硬校验：即便登记"成功"但结果为空，同样视为致命
+        if not result.get("frame_urls"):
+            raise ValueError("抽帧结果为空（0 帧），无法进行 AI 与姿态分析")
+
         elapsed = time.time() - t0
         n = len(result.get("frame_urls", []))
         t = result.get("trimmed", False)
         log.info(f"管线-视频处理: {elapsed:.1f}s {n}帧 trim={t}")
 
-        # 更新 video_url + 裁剪视频纳入文件管理
+        # 播放短片纳入文件管理（upload_source=video_playback）并更新 video_url
         if self.analysis_id:
             working_path = result.get("working_path")
-            rel_video_url = file_service.abs_path_to_rel(working_path) if working_path else None
-            self._update_analysis_field(video_url=rel_video_url)
-
-            # 裁剪视频纳入文件管理（upload_source=video_playback）
-            if rel_video_url and result.get("trimmed"):
+            rel_video_url = None
+            if working_path:
                 try:
-                    file_service.get_or_create_file(
+                    playback, _ = file_service.register(
                         db=self.db,
-                        user_id=self._get_user_id(),
-                        rel_path=rel_video_url,
-                        upload_source="video_playback",
+                        user_id=user_id,
+                        src_path=working_path,
+                        category="video_playback",
                         original_name=f"{os.path.basename(working_path)}_playback",
-                        business_type="analysis",
-                        business_id=self.analysis_id,
+                        ext=os.path.splitext(working_path)[1] or ".mp4",
+                        business=business,
                     )
-                except Exception as exc:  # noqa: BLE001 - 登记失败非致命
-                    log.warning(
-                        "裁剪视频登记失败(非致命): %s - %s",
-                        type(exc).__name__,
-                        str(exc)[:120],
-                    )
+                    rel_video_url = playback.rel_path
+                    # 工作路径指向登记后的受管路径，供姿态推理定位
+                    result["working_path"] = file_service.abs_of(playback.rel_path)
+                except Exception:
+                    # 139：播放短片是致命环节——不再用可能无效的路径兜底，
+                    # 否则会落库一个指向不存在文件的 video_url（假成功）。
+                    log.exception("裁剪视频登记失败(致命) analysis_id={}", self.analysis_id)
+                    raise
+            self._update_analysis_field(video_url=rel_video_url)
 
         return result
 
@@ -359,7 +441,7 @@ class PipelineEngine:
         duration = video_result.get("duration")
         frame_rate = video_result.get("frame_rate")
         working_path = video_result.get("working_path")
-        video_url = file_service.abs_path_to_rel(working_path) if working_path else None
+        video_url = file_service.rel_of(working_path) if working_path else None
 
         # full 模式强制逐帧生成骨架视频，single 模式按阈值自动判断
         full_frames = True if metadata.get("mode") == "full" else None
@@ -407,36 +489,57 @@ class PipelineEngine:
         if skeleton_thumb:
             all_files.append(skeleton_thumb)
 
+        # 登记后物理文件重命名为 {md5}.{后缀}，需把落库路径换成受管路径
+        path_map: dict[str, str] = {}
         if all_files:
             try:
-                file_service.batch_get_or_create_files(
-                    db=self.db,
-                    user_id=user_id,
-                    files=all_files,
-                    business_type="analysis",
-                    business_id=self.analysis_id,
+                records = file_service.register_batch(
+                    self.db,
+                    user_id,
+                    [
+                        file_service.FileDraft(
+                            src_path=file_service.abs_of(info["rel_path"]),
+                            md5=info.get("md5") or "",
+                            size=info.get("size") or 0,
+                            ext=os.path.splitext(info["rel_path"])[1],
+                            upload_source=info.get("upload_source", ""),
+                            original_name=os.path.basename(info["rel_path"]),
+                        )
+                        for info in all_files
+                    ],
+                    business=("analysis", self.analysis_id),
                 )
-            except Exception as exc:  # noqa: BLE001 - 批量登记失败非致命，记录日志继续
-                log.warning(
-                    "文件批量登记失败(非致命): %s - %s",
-                    type(exc).__name__,
-                    str(exc)[:120],
-                )
+                path_map = {
+                    info["rel_path"]: record.rel_path
+                    for info, record in zip(all_files, records, strict=False)
+                }
+            except Exception as exc:  # noqa: BLE001 - 骨架登记可降级，打标后继续
+                # 139：可降级项——记录日志 + 打标，允许用原始路径继续（不影响最终完成）
+                log.warning("文件批量登记失败(可降级): {} - {}", type(exc).__name__, exc)
+                self._mark_degraded("skeleton_files", f"骨架文件登记失败: {exc}")
 
         # 构建 pose JSON：skeleton_frames 为空列表（帧已清理，不落库）
+        raw_skeleton_video = pose_result.get("skeleton_video_url")
+        skeleton_video_path = path_map.get(raw_skeleton_video or "", raw_skeleton_video)
+        skeleton_thumb_path = path_map.get(
+            skeleton_thumb["rel_path"] if skeleton_thumb else "",
+            skeleton_thumb["rel_path"] if skeleton_thumb else None,
+        )
         pose_for_db = {
             "frames": pose_result.get("frames"),
             "metrics": pose_result.get("metrics"),
             "detected": pose_result.get("detected"),
             "skeleton_frames": [],
-            "skeleton_video_url": pose_result.get("skeleton_video_url"),
+            "skeleton_video_url": skeleton_video_path,
         }
+        if skeleton_thumb_path:
+            pose_for_db["skeleton_thumb"] = skeleton_thumb_path
         stmt = (
             sa_update(Analysis)
             .where(Analysis.id == self.analysis_id)
             .values(
                 pose=json.dumps(pose_for_db, ensure_ascii=False),
-                thumb=skeleton_thumb["rel_path"] if skeleton_thumb else None,
+                thumb=skeleton_thumb_path,
             )
         )
         self.db.execute(stmt)
@@ -462,10 +565,34 @@ class PipelineEngine:
             # 清理中间帧文件（抽样帧 _f*.jpg + 骨架帧 _sk*.jpg）
             self._cleanup_intermediate_frames(analysis.video_url)
         else:
-            log.warning(
-                "分析记录 video_url 为空，保留 processing 孤儿",
-                analysis_id=self.analysis_id,
+            # 139：原实现仅 warn 后保留 processing 孤儿，导致前端无限轮询（§2.5 路径 B）。
+            # 改为明确置 failed 并写入错误原因。
+            log.error("分析记录 video_url 为空，置为 failed analysis_id={}", self.analysis_id)
+            self._update_analysis_field(status="failed", summary="播放短片缺失，分析未完成")
+            self._update_step_status(
+                PipelineStep.FINALIZE,
+                StepStatus.FAILED,
+                error="播放短片缺失，分析未完成",
             )
+
+    def _mark_degraded(self, item: str, reason: str) -> None:
+        """可降级项打标：保留完成能力，但必须可观测（139 决策 10）
+
+        写入 `pipeline_status.degraded` 列表，避免"无痕降级"——
+        降级后的报告仍可用，但需在状态里留下记录以便排查。
+        """
+        try:
+            analysis = self.db.query(Analysis).filter(Analysis.id == self.analysis_id).first()
+            if not analysis:
+                return
+            pipeline_status = _parse_pipeline_status(analysis.pipeline_status)
+            if pipeline_status is None:
+                pipeline_status = _initial_pipeline_status()
+            degraded = pipeline_status.setdefault("degraded", [])
+            degraded.append({"item": item, "reason": reason})
+            self._update_pipeline_status(pipeline_status)
+        except Exception as exc:  # noqa: BLE001 - 打标失败不得影响主流程
+            log.warning("降级标记写入失败 item={} error={}", item, exc)
 
     def _cleanup_intermediate_frames(self, video_url: str) -> None:
         """删除中间帧文件（_f*.jpg 抽样帧 + _sk*.jpg 骨架帧）"""
@@ -473,25 +600,17 @@ class PipelineEngine:
 
         from app.services import file_service
 
-        video_dir = os.path.dirname(file_service.rel_path_to_abs(video_url))
-        base = os.path.splitext(os.path.basename(video_url))[0]
+        video_dir = os.path.dirname(file_service.abs_of(video_url))
         cleaned = 0
 
-        # 清理抽样帧 _f*.jpg
-        for path in glob.glob(os.path.join(video_dir, f"{base}_f*.jpg")):
-            try:
-                os.remove(path)
-                cleaned += 1
-            except OSError as exc:
-                log.warning("删除抽样帧失败: %s - %s", path, exc)
-
-        # 清理骨架帧 _sk*.jpg
-        for path in glob.glob(os.path.join(video_dir, f"{base}_sk*.jpg")):
-            try:
-                os.remove(path)
-                cleaned += 1
-            except OSError as exc:
-                log.warning("删除骨架帧失败: %s - %s", path, exc)
+        # 受管文件已按 {md5} 命名，残留的 _f* / _sk* 均为未登记的中间产物
+        for pattern in ("*_f*.jpg", "*_sk*.jpg"):
+            for path in glob.glob(os.path.join(video_dir, pattern)):
+                try:
+                    os.remove(path)
+                    cleaned += 1
+                except OSError as exc:
+                    log.warning("删除中间帧失败: {} - {}", path, exc)
 
         if cleaned:
             log.info("已清理中间帧: {} 个文件 business=analysis/{}", cleaned, self.analysis_id)

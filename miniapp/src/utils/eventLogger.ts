@@ -118,18 +118,15 @@ function flushOne(payload: EventLogPayload): void {
     level: payload.level,
     type: payload.type,
     trace_id: payload.traceId,
+    user_id: userId ? Number(userId) : null,
     action: payload.action || null,
     message: payload.message,
     stack: payload.stack || "",
     page: payload.page ?? getCurrentPage(),
-    extra: payload.extra || {},
+    params: payload.extra || {},
     device_info: payload.deviceInfo || getDeviceInfo(),
     client_time: Date.now(),
   };
-
-  if (userId) {
-    body.extra.user_id = userId;
-  }
 
   const fullUrl = `${BASE_URL}${API_PREFIX}/events`;
   uni.request({

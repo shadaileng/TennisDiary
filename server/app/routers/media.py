@@ -27,7 +27,7 @@ def serve_media(
     current_user: User = Depends(get_current_user_media),
 ):
     """服务当前用户上传的视频 / 帧 / 骨架文件；越权 403，越界/不存在 404"""
-    abs_path = file_service.resolve_safe_path(filename)
+    abs_path = file_service.resolve(filename)
     if abs_path is None:
         log.warning("媒体路径穿越被拒", user_id=current_user.id, filename=filename)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
@@ -38,7 +38,7 @@ def serve_media(
         log.warning("媒体访问越权被拒", user_id=current_user.id, filename=filename)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该文件")
 
-    if not file_service.file_exists(abs_path):
+    if not file_service.exists(filename):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
 
     ext = os.path.splitext(filename)[1].lower()

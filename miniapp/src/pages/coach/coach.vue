@@ -1,6 +1,11 @@
 <template>
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="coach-page">
+    <!-- 离线横幅：缓存命中但当前无网络 -->
+    <view v-if="analysisStore.offline && analysisStore.analyses.length > 0" class="offline-banner">
+      <text>📡 离线浏览中，数据来自本地缓存</text>
+    </view>
+
     <!-- hero 卡（深橄榄渐变 + 青柠光斑） -->
     <view class="hero-card">
       <text class="hero-badge">🎾 7×24H · 专属私教</text>
@@ -14,22 +19,31 @@
     <!-- 历史分析 -->
     <view class="history-header">
       <text class="history-title">历史分析</text>
-      <text class="history-count">{{ analyses.length }} 条</text>
+      <text class="history-count">{{ analysisStore.analyses.length }} 条</text>
     </view>
 
-    <Empty v-if="analyses.length === 0" icon="🎥" text="还没有分析记录" buttonText="去分析" @action="goAnalyze" />
+    <!-- 加载中（首次无缓存且正在请求） -->
+    <view v-if="analysisStore.loading && analysisStore.analyses.length === 0" class="coach-loading">
+      <text>加载中…</text>
+    </view>
+
+    <!-- 空态 -->
+    <view v-else-if="!analysisStore.loading && analysisStore.analyses.length === 0" class="coach-empty">
+      <Empty icon="🎥" text="还没有分析记录" buttonText="去分析" @action="goAnalyze" />
+    </view>
 
     <view v-else class="history-list">
       <view
-        v-for="a in analyses"
+        v-for="a in analysisStore.analyses"
         :key="a.id"
         class="history-item press-btn"
         @tap="goReport(a.id)"
       >
         <view class="history-thumb">
-          <image v-if="a.thumb" :src="resolveUploadUrl(a.thumb)" mode="aspectFill" class="history-thumb-img" />
+          <image v-if="a.thumb" :src="thumbSrc(a.thumb)" mode="aspectFill" class="history-thumb-img" @error="onThumbError(a.thumb)" />
           <text v-else class="history-thumb-placeholder">🎾</text>
           <text v-if="a.status === 'failed'" class="thumb-badge thumb-badge-fail">✕</text>
+          <text v-else-if="a.status === 'processing'" class="thumb-badge thumb-badge-processing">⏳</text>
           <text v-else-if="a.pose?.detected" class="thumb-badge">🦴</text>
         </view>
         <view class="history-info">
@@ -37,12 +51,19 @@
             <text class="tag-kind">{{ a.kind }}</text>
             <text class="tag-mode">{{ a.mode === "single" ? "单次挥拍" : "综合分析" }} · {{ a.date }}</text>
           </view>
-          <text class="history-summary">
+          <text v-if="a.status === 'processing'" class="history-summary history-summary--processing">
+            分析进行中…
+          </text>
+          <text v-else class="history-summary">
             {{ a.status === "failed" ? "分析失败" : (a.summary || "暂无摘要") }}
           </text>
         </view>
         <view class="history-score">
-          <template v-if="a.status === 'failed'">
+          <template v-if="a.status === 'processing'">
+            <view class="score-spinner" />
+            <text class="score-processing">分析中</text>
+          </template>
+          <template v-else-if="a.status === 'failed'">
             <text class="score-fail">失败</text>
           </template>
           <template v-else-if="(a.score || 0) > 0">
@@ -57,32 +78,67 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { onShow } from "@dcloudio/uni-app";
+import { onMounted, ref } from "vue";
+import { onPullDownRefresh, onShow, onUnload } from "@dcloudio/uni-app";
 
 import Empty from "@/components/Empty.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { getAnalyses } from "@/services/data";
-import type { Analysis } from "@/types";
-import { resolveUploadUrl } from "@/utils";
-import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { STORAGE_KEYS } from "@/constants/storage";
+import { networkOnline } from "@/utils/network";
+import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
+import { useAnalysisStore } from "@/stores";
+import { ANALYSIS_EVENTS } from "@/utils";
 
 const { themeStyle, themeBg } = useThemeStyle();
 
+const analysisStore = useAnalysisStore();
+
 const FEATURES = ["骨架追踪", "六维评分", "改进建议", "高光时刻"];
 
-const analyses = ref<Analysis[]>([]);
+/** 缩略图加载失败（URL 失效/401）后回退占位的 url 集合 */
+const failedThumbs = ref<Set<string>>(new Set());
+
+/** 缩略图：dataURL/本地路径原样；远程源在线解析、离线或加载失败回退占位图 */
+function thumbSrc(url?: string): string {
+  const u = url || "";
+  if (!u || failedThumbs.value.has(u)) return OFFLINE_MEDIA_PLACEHOLDER;
+  return resolveMediaSrc(u, networkOnline.value);
+}
+
+function onThumbError(url?: string) {
+  if (url) failedThumbs.value.add(url);
+}
+
+/** 新分析记录已创建（可能在上传阶段就返回了列表，此时列表还没有这条） */
+function handleAnalysisStarted() {
+  analysisStore.fetchList();
+}
+
+onMounted(() => {
+  uni.$on(ANALYSIS_EVENTS.started, handleAnalysisStarted);
+});
 
 onShow(async () => {
-  const traceId = createTraceId();
-  logInfo("加载历史分析", { trace_id: traceId }, undefined, "analyses_load", traceId);
+  await analysisStore.fetchList();
+  // 兜底：存在"分析启动中"标记说明上传尚未完成、记录未创建，
+  // 稍后补刷一次（正常路径由 analysis:started 事件即时刷新）
+  if (uni.getStorageSync(STORAGE_KEYS.pendingAnalysisAt)) {
+    setTimeout(() => {
+      analysisStore.fetchList();
+    }, 3000);
+  }
+});
+
+onUnload(() => {
+  uni.$off(ANALYSIS_EVENTS.started, handleAnalysisStarted);
+});
+
+/** 下拉刷新：由用户主动触发更新（替代自动轮询，避免 processing 卡住时无限请求） */
+onPullDownRefresh(async () => {
   try {
-    const data = await getAnalyses();
-    analyses.value = data.items || [];
-    logInfo("历史分析加载成功", { trace_id: traceId, count: analyses.value.length }, undefined, "analyses_loaded", traceId);
-  } catch (e) {
-    analyses.value = [];
-    logError("历史分析加载失败", { trace_id: traceId, error: (e as Error).message }, undefined, "analyses_load_failed", undefined, traceId);
+    await analysisStore.fetchList();
+  } finally {
+    uni.stopPullDownRefresh();
   }
 });
 
@@ -102,6 +158,32 @@ function goReport(id: number) {
   padding: $space-lg;
   padding-bottom: $space-3xl;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.offline-banner {
+  background: #fff7e6;
+  border: 1rpx solid #ffd591;
+  color: #ad6800;
+  padding: 12rpx 20rpx;
+  border-radius: 12rpx;
+  margin-bottom: $space-md;
+  font-size: 24rpx;
+}
+
+.coach-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: $color-olive-light;
+  font-size: 14px;
+}
+
+.coach-empty {
+  min-height: 60vh;
 }
 
 // ========== hero 卡 ==========
@@ -324,5 +406,39 @@ function goReport(id: number) {
   font-size: 11px;
   color: #E74C3C;
   font-weight: 600;
+}
+
+.score-spinner {
+  width: 18px;
+  height: 18px;
+  margin: 0 auto 2px;
+  border: 3px solid var(--color-accent-soft, $color-lime-soft);
+  border-top-color: var(--color-accent-dark, $color-lime-dark);
+  border-radius: 50%;
+  animation: score-spin 0.8s linear infinite;
+}
+
+.score-processing {
+  font-size: 11px;
+  color: var(--color-accent-dark, #A8B822);
+  font-weight: 600;
+}
+
+.thumb-badge-processing {
+  background: var(--color-accent, #C8DA2B);
+  font-size: 11px;
+}
+
+.history-summary--processing {
+  color: var(--color-accent-dark, #A8B822);
+}
+
+@keyframes score-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

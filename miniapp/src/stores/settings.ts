@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 
 import { STORAGE_KEYS } from "@/constants/storage";
+import { createTraceId, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 /** storage 键名统一从常量读取 */
 const SETTINGS_KEY = STORAGE_KEYS.settings;
@@ -120,6 +122,8 @@ export const useSettingsStore = defineStore("settings", {
       if (!isThemeKey(key)) return;
       this.theme = key;
       this.persist();
+      const traceId = createTraceId();
+      logInfo("切换球场主题", { theme: key }, undefined, EV.THEME_CHANGE, traceId);
     },
   },
 });

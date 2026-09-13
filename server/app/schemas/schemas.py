@@ -71,6 +71,7 @@ class DiaryCreate(BaseModel):
     costs: list[CostItem] = []
     gears: list[GearUse] = []
     notes: str = ""
+    business_time: float | None = None
 
 
 class DiaryUpdate(BaseModel):
@@ -92,6 +93,7 @@ class DiaryResponse(DiaryCreate):
     user_id: int
     created_at: float
     created_at_datetime: str | None = None
+    business_time: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -106,6 +108,7 @@ class GearCreate(BaseModel):
     price: float = 0
     feeling: str = ""
     photo: str = ""
+    business_time: float | None = None
 
 
 class GearUpdate(BaseModel):
@@ -123,6 +126,7 @@ class GearResponse(GearCreate):
     id: int
     user_id: int
     created_at: float
+    business_time: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -136,12 +140,14 @@ class WeightCreate(BaseModel):
     bust: float | None = None
     waist: float | None = None
     hip: float | None = None
+    business_time: float | None = None
 
 
 class WeightResponse(WeightCreate):
     id: int
     user_id: int
     created_at: float
+    business_time: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -226,6 +232,34 @@ class AnalysisInitRequest(BaseModel):
     mode: str = Field(default="single", description="single / full")
 
 
+class AnalysisStartRequest(BaseModel):
+    """分析启动请求（137 阶段一）：凭已上传视频的 file_id 启动管线
+
+    file_id 来自 `/api/upload/check`（秒传命中）或 `/api/upload/video`（实际上传），
+    端点不再直接接收文件，命中与未命中后续流程完全一致。
+    """
+
+    file_id: int = Field(description="已上传视频的文件 ID")
+    date: str = Field(description="分析日期 YYYY-MM-DD")
+    kind: str = Field(default="综合", description="击球类型")
+    mode: str = Field(default="single", description="single / full")
+    hit_time: float = Field(default=0.0, description="击球瞬间（秒），相对裁切拼接后的视频")
+    cuts: list[dict] | None = Field(
+        default=None, description="裁剪片段 [{start,end}, …]，服务端 ffmpeg 裁切拼接"
+    )
+
+
+class ChunkCompleteRequest(BaseModel):
+    """分片上传完成请求（140）：仅凭 md5 定位服务端分片会话
+
+    `total` / `chunk_size` / `original_name` / `ext` 一律以服务端 manifest 为准，
+    避免客户端与服务端会话状态不一致导致错登记。
+    """
+
+    md5: str = Field(description="整文件 MD5（小写 32 hex），分片会话 key")
+    size_bytes: int = Field(default=0, description="整文件字节数，0 表示以会话登记值为准")
+
+
 class AnalysisUpdate(BaseModel):
     """分析更新请求（118 流水线步骤5 finalize）：仅置状态"""
 
@@ -298,11 +332,12 @@ class EventLogCreate(BaseModel):
     level: str = Field(..., pattern="^(info|warn|error|fatal)$")
     type: str = "custom"
     trace_id: str | None = None
+    user_id: int | None = None
     action: str | None = None
     message: str
     stack: str = ""
     page: str = ""
-    extra: dict = {}
+    params: dict = {}
     device_info: dict = {}
     client_time: int | None = None
 
@@ -317,14 +352,14 @@ class EventLogResponse(BaseModel):
     message: str
     stack: str = ""
     page: str = ""
-    extra: dict = {}
+    params: dict = {}
     device_info: dict = {}
     client_time: int | None
     created_at: float
 
     model_config = {"from_attributes": True}
 
-    @field_validator("extra", "device_info", mode="before")
+    @field_validator("params", "device_info", mode="before")
     @classmethod
     def parse_json_field(cls, v):
         if isinstance(v, str):

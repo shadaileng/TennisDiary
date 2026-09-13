@@ -132,19 +132,45 @@ class TestAdminFileDelete:
         auth_client.delete(f"/api/admin/files/{record.id}")
         assert not os.path.isfile(abs_path)
 
-    def test_delete_keeps_disk_when_shared(self, auth_client, test_db):
-        """秒传共享路径时不删物理文件（不同用户同 MD5）"""
+    def test_delete_only_affects_own_user_file(self, auth_client, test_db):
+        """138：受管路径含 user_id 分段，删除 A 的文件不影响 B 的同内容文件"""
         uid1 = _next_uid()
         uid2 = _next_uid()
-        rel = f"shared-keep-{uid1}.jpg"
-        _write_file(rel)
-        md5 = hashlib.md5(f"shared-{uid1}".encode()).hexdigest()
-        r1 = _insert_file(test_db, user_id=uid1, rel_path=rel, md5=md5, upload_source="avatar")
-        _insert_file(test_db, user_id=uid2, rel_path=rel, md5=md5, upload_source="gear_image")
+        content = f"shared-{uid1}".encode()
+        md5 = hashlib.md5(content).hexdigest()
+
+        r1 = _insert_file(
+            test_db,
+            user_id=uid1,
+            rel_path=f"avatars/{uid1}/{md5}.jpg",
+            md5=md5,
+            original_name="a.jpg",
+            upload_source="avatar",
+        )
+        r2 = _insert_file(
+            test_db,
+            user_id=uid2,
+            rel_path=f"avatars/{uid2}/{md5}.jpg",
+            md5=md5,
+            original_name="b.jpg",
+            upload_source="avatar",
+        )
+
+        abs1 = os.path.join(os.path.abspath(settings.UPLOAD_DIR), r1.rel_path)
+        abs2 = os.path.join(os.path.abspath(settings.UPLOAD_DIR), r2.rel_path)
+        os.makedirs(os.path.dirname(abs1), exist_ok=True)
+        os.makedirs(os.path.dirname(abs2), exist_ok=True)
+        with open(abs1, "wb") as f:
+            f.write(content)
+        with open(abs2, "wb") as f:
+            f.write(content)
+        assert os.path.isfile(abs1)
+        assert os.path.isfile(abs2)
 
         auth_client.delete(f"/api/admin/files/{r1.id}")
-        abs_path = os.path.join(os.path.abspath(settings.UPLOAD_DIR), rel)
-        assert os.path.isfile(abs_path)
+
+        assert not os.path.isfile(abs1)
+        assert os.path.isfile(abs2)
 
     def test_delete_not_found(self, auth_client):
         resp = auth_client.delete("/api/admin/files/999999")
@@ -180,6 +206,26 @@ class TestAdminFileCleanup:
         resp = auth_client.post("/api/admin/files/cleanup?days=30")
         assert resp.status_code == 200
         assert resp.json()["data"]["cleaned"] == 0
+
+    def test_cleanup_also_clears_expired_chunks(self, auth_client):
+        """140：清理同时回收超过 24h 无进展的分片会话"""
+        from app.services import file_service, file_store
+
+        md5 = "3" * 32
+        file_service.open_chunk_session(
+            1, md5, total_size=12, chunk_size=4, original_name="clip.mp4"
+        )
+        file_service.register_chunk(1, md5, 0, b"0123")
+        # 把会话的最后活跃时间推到过期之前
+        manifest = file_store.read_manifest(1, md5)
+        manifest["updated_at"] = "2020-01-01T00:00:00Z"
+        file_store.write_manifest(1, md5, manifest)
+        session_dir = os.path.join(str(settings.UPLOAD_DIR), "tmp", "chunks", "1", md5)
+
+        resp = auth_client.post("/api/admin/files/cleanup?days=30")
+        assert resp.status_code == 200
+        assert resp.json()["data"]["chunks_cleaned"] >= 1
+        assert not os.path.isdir(session_dir)
 
 
 class TestAdminFileStats:
@@ -341,12 +387,13 @@ class TestAdminFileRegister:
         assert resp.status_code == 200
         assert resp.json()["data"]["registered"] == 1
 
-        # 验证 File 记录已创建
+        # 验证 File 记录已创建（138：登记后重命名为 {md5}.{后缀} 的受管路径）
         from app.models.file import File
 
-        record = test_db.query(File).filter(File.rel_path == rel).first()
+        record = test_db.query(File).filter(File.user_id == uid).first()
         assert record is not None
-        assert record.user_id == uid
+        assert record.md5 == hashlib.md5(b"register-content").hexdigest()
+        assert record.rel_path.endswith(f"{record.md5}.jpg")
 
     def test_register_multiple_files(self, auth_client, test_db):
         """批量注册多个文件成功"""
@@ -384,6 +431,54 @@ class TestAdminFileRegister:
         )
         assert resp.status_code == 200
         assert resp.json()["data"]["registered"] >= 2
+
+
+class TestMigrateToMd5Endpoint:
+    """存量迁移：dry_run 预演 + 正式执行（幂等）"""
+
+    def test_dry_run_no_change(self, auth_client):
+        assert (
+            auth_client.post("/api/admin/files/migrate-md5", params={"dry_run": True}).status_code
+            == 200
+        )
+        resp = auth_client.post("/api/admin/files/migrate-md5", params={"dry_run": True})
+        assert resp.status_code == 200
+        assert resp.json()["data"]["dry_run"] is True
+
+    def test_execute_migration(self, auth_client, test_db):
+        uid = _next_uid()
+        rel = f"videos/{uid}/legacy-uuid-0001.mp4"
+        content = b"legacy-video-content"
+        _write_file(rel, content)
+
+        from app.models.file import File
+
+        test_db.add(
+            File(
+                user_id=uid,
+                md5=hashlib.md5(content).hexdigest(),
+                original_name="legacy-uuid-0001.mp4",
+                rel_path=rel,
+                size_bytes=len(content),
+                mime_type="video/mp4",
+                upload_source="video",
+                ref_count=1,
+                created_at=time.time(),
+            )
+        )
+        test_db.commit()
+
+        resp = auth_client.post("/api/admin/files/migrate-md5", params={"dry_run": False})
+        assert resp.status_code == 200
+        assert resp.json()["data"]["renamed"] >= 1
+
+        test_db.expire_all()
+        record = (
+            test_db.query(File)
+            .filter(File.user_id == uid, File.md5 == hashlib.md5(content).hexdigest())
+            .first()
+        )
+        assert record.rel_path == f"videos/{uid}/{hashlib.md5(content).hexdigest()}.mp4"
 
 
 def _write_real_mp4(rel_path: str) -> None:

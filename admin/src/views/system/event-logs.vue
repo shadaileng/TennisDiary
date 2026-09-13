@@ -60,7 +60,7 @@
         </div>
         <div class="flex items-end gap-2">
           <button
-            @click="fetchEvents"
+            @click="currentPage = 1; fetchEvents()"
             class="px-4 py-2 bg-olive-600 text-white rounded-md hover:bg-olive-700"
           >
             查询
@@ -194,7 +194,7 @@
               <div class="mt-1 flex items-center gap-2">
                 <img
                   v-if="userCache[selectedEvent.user_id!]?.avatar_url"
-                  :src="resolveAvatarUrl(userCache[selectedEvent.user_id!].avatar_url)"
+                  :src="avatarUrl(userCache[selectedEvent.user_id!].avatar_url)"
                   class="w-6 h-6 rounded-full object-cover"
                 />
                 <span class="text-sm text-gray-900">{{ userDisplayName(selectedEvent.user_id) }}</span>
@@ -250,9 +250,9 @@
           </div>
 
           <!-- 扩展字段 -->
-          <div v-if="Object.keys(selectedEvent.extra).length > 0" class="mb-4">
+          <div v-if="Object.keys(selectedEvent.params).length > 0" class="mb-4">
             <span class="text-sm font-medium text-gray-500">扩展字段</span>
-            <pre class="mt-1 text-xs text-gray-700 bg-gray-50 rounded px-3 py-2 overflow-x-auto whitespace-pre-wrap break-words">{{ JSON.stringify(selectedEvent.extra, null, 2) }}</pre>
+            <pre class="mt-1 text-xs text-gray-700 bg-gray-50 rounded px-3 py-2 overflow-x-auto whitespace-pre-wrap break-words">{{ JSON.stringify(selectedEvent.params, null, 2) }}</pre>
           </div>
         </div>
 
@@ -283,6 +283,7 @@ import { getEventLogs, type EventLog } from '@/api/events'
 import { getUser, type User } from '@/api/users'
 import Pagination from '@/components/common/Pagination.vue'
 import { formatTs } from '@/utils/date'
+import { avatarUrl } from '@/utils/fileUrl'
 
 const events = ref<EventLog[]>([])
 const total = ref(0)
@@ -334,13 +335,6 @@ const userDisplayName = (userId: number | null): string => {
   const user = userCache.value[userId]
   if (!user) return String(userId)
   return user.nickname || String(userId)
-}
-
-const resolveAvatarUrl = (url: string): string => {
-  if (url.startsWith('http')) return url
-  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-  const path = url.replace(/^avatars\//, 'avatar/')
-  return `${baseURL}/api/upload/${path}`
 }
 
 const copyToClipboard = async (text: string) => {

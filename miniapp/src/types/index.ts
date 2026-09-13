@@ -86,6 +86,7 @@ export interface Diary {
   gears: GearUse[]
   notes: string
   created_at: number // 时间戳（秒）
+  business_time?: number // 业务时间（游客同步用）
 }
 
 /** 创建日记入参 — 后台 DiaryCreate */
@@ -99,6 +100,7 @@ export interface DiaryCreate {
   costs?: CostItem[]
   gears?: GearUse[]
   notes?: string
+  business_time?: number
 }
 
 /** 更新日记入参 — 后台 DiaryUpdate（字段可选） */
@@ -116,6 +118,7 @@ export interface Gear {
   feeling: string
   photo: string // dataURL 或文件路径
   created_at: number // 时间戳（秒）
+  business_time?: number // 业务时间（游客同步用）
 }
 
 /** 创建装备入参 — 后台 GearCreate */
@@ -126,6 +129,7 @@ export interface GearCreate {
   price?: number
   feeling?: string
   photo?: string
+  business_time?: number
 }
 
 /** 更新装备入参 — 后台 GearUpdate */
@@ -142,6 +146,7 @@ export interface WeightRecord {
   waist?: number
   hip?: number
   created_at: number // 时间戳（秒）
+  business_time?: number // 业务时间（游客同步用）
 }
 
 /** 创建体重记录入参 — 后台 WeightCreate */
@@ -151,6 +156,7 @@ export interface WeightCreate {
   bust?: number
   waist?: number
   hip?: number
+  business_time?: number
 }
 
 // ==================== 动作分析 ====================
@@ -204,6 +210,24 @@ export interface AnalysisInitRequest {
   date: string
   kind: AnalysisKind
   mode: "single" | "full"
+}
+
+/** 137 启动分析请求：凭已上传视频的 file_id（秒传命中或 /upload/video 返回） */
+export interface AnalysisStartRequest {
+  file_id: number
+  date: string
+  kind: AnalysisKind
+  mode: "single" | "full"
+  hit_time?: number
+  cuts?: { start: number; end: number }[]
+}
+
+/** 137 启动分析响应 */
+export interface AnalysisStartResult {
+  id: number
+  status: string
+  pipeline_status?: Record<string, unknown> | null
+  file_id: number
 }
 
 /** 创建分析入参 — 后台 AnalysisCreate */
@@ -366,4 +390,70 @@ export interface Stats {
   total_gears: number
   total_analyses: number
   avg_score: number
+}
+
+// ==================== 游客本地待同步（Step 129） ====================
+
+/**
+ * 本地待同步实体的公共标记字段。
+ * - localId：本地唯一标识（形如 `d_${时间戳}_${rand}`），代替数字 id（游客态无云端 id）
+ * - pending：是否待同步（游客本地创建未上传即 true；本阶段登录后本地项被同步清理，故编辑仅作用于本地项）
+ * - backendId：登录同步成功回填后台 id（schema 预留，便于将来多端合并；本阶段始终为 null）
+ * - createdAt：本地创建时间戳(秒)，用于列表排序/展示兜底
+ */
+interface PendingMeta {
+  localId: string
+  pending: true
+  backendId: number | null
+  createdAt: number
+}
+
+/** 本地待同步日记（字段对齐 Diary） */
+export interface LocalDiary extends PendingMeta {
+  date: string // YYYY-MM-DD
+  time: string
+  type: SessionType
+  duration: number
+  intensity: 1 | 2 | 3 | 4 | 5
+  mood: 1 | 2 | 3 | 4 | 5
+  costs: CostItem[]
+  gears: GearUse[]
+  notes: string
+  business_time: number
+}
+
+/** 本地待同步装备（字段对齐 Gear，photo 为本地 dataURL） */
+export interface LocalGear extends PendingMeta {
+  category: string
+  name: string
+  buy_date: string
+  price: number
+  feeling: string
+  photo: string
+  business_time: number
+}
+
+/** 本地待同步体重记录（字段对齐 WeightRecord） */
+export interface LocalWeight extends PendingMeta {
+  date: string
+  weight: number
+  bust?: number
+  waist?: number
+  hip?: number
+  business_time: number
+}
+
+/** 列表/表单可同时消费云端与本地实体的联合视图类型 */
+export type AnyDiary = Diary | LocalDiary
+export type AnyGear = Gear | LocalGear
+export type AnyWeight = WeightRecord | LocalWeight
+
+/** 取实体主键：本地项返回 localId(string)，云端项返回 id(number) */
+export function getEntryId<T extends { localId?: string; id?: number }>(x: T): number | string {
+  return x.localId != null ? x.localId : (x.id as number)
+}
+
+/** 是否为本地待同步项（游客本地数据，无云端 id） */
+export function isLocalEntry(x: { localId?: string; id?: number }): x is { localId: string } & typeof x {
+  return x.localId != null
 }

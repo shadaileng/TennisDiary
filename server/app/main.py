@@ -64,6 +64,10 @@ async def lifespan(app: FastAPI):
     try:
         init_default_roles(db)
         init_default_admin(db)
+        # 139：启动时清理孤儿 processing 记录（上次运行可能异常退出留下）
+        from app.services.analysis_cleanup import maybe_cleanup_stuck_processing
+
+        maybe_cleanup_stuck_processing(db, force=True)
     finally:
         db.close()
     yield
@@ -125,7 +129,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """未知异常处理（最外层 ServerErrorMiddleware 生成响应，绕过 CORSMiddleware，需补 CORS 头）"""
-    logger.error("未处理的异常: %s", exc, exc_info=True)
+    logger.exception("未处理的异常: {}", exc)
     return JSONResponse(
         status_code=500,
         content=ApiResponse(

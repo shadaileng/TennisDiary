@@ -1,8 +1,23 @@
 import { defineStore } from "pinia";
 
 import { createGear, deleteGear, getGears, updateGear } from "@/services/data";
-import type { Gear, GearCreate, GearUpdate } from "@/types";
+import {
+  getPendingGears,
+  upsertPendingGear,
+  updatePendingGear,
+  removePendingGear,
+  genLocalId,
+} from "@/services/pendingRepo";
+import { offlineGears } from "@/services/offlineRepo";
+import { getCloudGears, setCloudGears } from "@/services/cloudCache";
+import { syncOfflineData } from "@/services/sync";
+import type { ApiError } from "@/services/request";
+import { useAuthStore } from "@/stores/auth";
+import { networkOnline } from "@/utils/network";
+import type { AnyGear, Gear, GearCreate, GearUpdate, LocalGear } from "@/types";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
+import { todayStr } from "@/utils";
 
 function getCurrentPage(): string {
   try {
@@ -13,91 +28,248 @@ function getCurrentPage(): string {
   }
 }
 
+/** 类型守卫：云端装备（有数字 id） */
+function isCloudGear(x: AnyGear): x is Gear {
+  return typeof (x as Gear).id === "number";
+}
+
+function isGuestNow(): boolean {
+  return useAuthStore().isGuest;
+}
+
+function currentUserId(): number | null {
+  return useAuthStore().user?.id ?? null;
+}
+
+/** 构造游客/离线本地装备实体（photo 为本地 dataURL） */
+function buildLocalGear(body: GearCreate, now: number): LocalGear {
+  return {
+    localId: genLocalId("g"),
+    pending: true,
+    backendId: null,
+    category: body.category || "",
+    name: body.name || "",
+    buy_date: body.buy_date || todayStr(),
+    price: body.price || 0,
+    feeling: body.feeling || "",
+    photo: body.photo || "",
+    createdAt: now,
+    business_time: now,
+  };
+}
+
 interface GearState {
-  gears: Gear[]
+  gears: AnyGear[]
   loading: boolean
+  offline: boolean
+  fromCache: boolean
 }
 
 /**
- * 装备数据 store
+ * 装备数据 store（Step 141 缓存合并视图）
  *
- * 管理装备列表，action 对接 /api/gears 接口。
+ * 同 diary store：渲染源 = merge(cloudCache, offlineRepo)；游客态零改动。
+ * 日志收敛：不再打印 photo/dataURL 大字段。
  */
 export const useGearStore = defineStore("gear", {
   state: (): GearState => ({
     gears: [],
     loading: false,
+    offline: false,
+    fromCache: false,
   }),
 
   getters: {
     /** 按种类分组的装备 */
-    groupedByCategory: (state): Record<string, Gear[]> => {
-      const map: Record<string, Gear[]> = {};
+    groupedByCategory: (state): Record<string, AnyGear[]> => {
+      const map: Record<string, AnyGear[]> = {};
       for (const g of state.gears) {
         const key = g.category || "未分类";
         (map[key] ??= []).push(g);
       }
       return map;
     },
+    isOffline: (state): boolean => state.offline,
   },
 
   actions: {
-    setGears(list: Gear[]) {
+    hydrate() {
+      if (isGuestNow()) {
+        this.gears = getPendingGears();
+        this.offline = false;
+        this.fromCache = false;
+        return;
+      }
+      const uid = currentUserId();
+      if (uid == null) {
+        this.gears = [];
+        return;
+      }
+      this.gears = [...getCloudGears(uid), ...offlineGears.get(uid)];
+      this.fromCache = true;
+    },
+
+    setGears(list: AnyGear[]) {
       this.gears = list;
     },
 
-    /** 拉取装备列表（GET /api/gears） */
+    /** 取单条本地待同步装备（游客 / 登录态离线项编辑回填） */
+    getLocalGear(localId: string): LocalGear | undefined {
+      if (isGuestNow()) {
+        return getPendingGears().find((g) => g.localId === localId);
+      }
+      const uid = currentUserId();
+      if (uid != null) {
+        const off = offlineGears.get(uid).find((g) => g.localId === localId);
+        if (off) return off;
+      }
+      return getPendingGears().find((g) => g.localId === localId);
+    },
+
+    /** 拉取装备列表：登录态仅网络可用时 GET 刷新缓存；失败保持缓存视图 */
     async fetchList() {
+      if (isGuestNow()) {
+        this.gears = getPendingGears();
+        return;
+      }
+      const uid = currentUserId();
+      if (uid == null) return;
+      this.hydrate();
+      if (!networkOnline.value) {
+        this.offline = true;
+        this.fromCache = true;
+        return;
+      }
       this.loading = true;
       try {
-        this.gears = await getGears();
+        const list = await getGears();
+        setCloudGears(uid, list);
+        await syncOfflineData();
+        this.hydrate();
+        this.offline = false;
+        this.fromCache = false;
       } catch (e) {
-        logError("装备列表加载失败", { error: (e as Error).message }, undefined, "gear_list_load_failed", undefined, createTraceId());
+        const err = e as ApiError;
+        if (err && err.status === -1) {
+          this.offline = true;
+          this.fromCache = true;
+        } else {
+          this.offline = false;
+          throw e;
+        }
       } finally {
         this.loading = false;
       }
     },
 
-    /** 添加装备（POST /api/gears），成功后插入列表头部 */
-    async create(body: GearCreate): Promise<Gear> {
+    /** 离线新建：写入 offlineRepo 并刷新合并视图 */
+    createOffline(body: GearCreate): LocalGear {
+      const uid = currentUserId()!;
+      const now = Math.floor(Date.now() / 1000);
+      const item = buildLocalGear(body, now);
+      offlineGears.upsert(uid, item);
+      this.hydrate();
+      logInfo("离线新建装备（待同步）", { local_id: item.localId, name: body.name }, undefined, EV.GEAR_OFFLINE_CREATE_PENDING, createTraceId());
+      return item;
+    },
+
+    /** 添加装备：在线成功 → 写缓存；离线/网络失败 → 落 offlineRepo */
+    async create(body: GearCreate): Promise<AnyGear> {
+      if (isGuestNow()) {
+        const now = Math.floor(Date.now() / 1000);
+        const item = buildLocalGear(body, now);
+        const saved = upsertPendingGear(item);
+        if (!saved) throw new Error("本地保存失败，请尝试登录后同步到云端");
+        this.gears = getPendingGears();
+        return item;
+      }
+      const uid = currentUserId();
+      if (uid == null) throw new Error("未登录");
+      if (!networkOnline.value) {
+        return this.createOffline(body);
+      }
       const traceId = createTraceId();
       try {
-        logInfo("添加装备", { trace_id: traceId, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling, photo: body.photo }, undefined, "gear_create", traceId);
+        logInfo("添加装备", { name: body.name }, undefined, EV.GEAR_CREATE, traceId);
         const g = await createGear(body);
-        this.gears = [g, ...this.gears];
-        logInfo("装备添加成功", { trace_id: traceId, gear_id: g.id, category: g.category, name: g.name }, undefined, "gear_created", traceId);
+        setCloudGears(uid, [g, ...getCloudGears(uid)]);
+        this.hydrate();
+        logInfo("装备添加成功", { gear_id: g.id }, undefined, EV.GEAR_CREATED, traceId);
         return g;
       } catch (e) {
-        logError("装备添加失败", { trace_id: traceId, error: (e as Error).message, category: body.category, name: body.name }, undefined, "gear_create_failed", undefined, traceId);
+        const err = e as ApiError;
+        if (err && err.status === -1) {
+          return this.createOffline(body);
+        }
+        logError("装备添加失败", { error: err?.message, name: body.name }, undefined, EV.GEAR_CREATE_FAILED, undefined, traceId);
         throw e;
       }
     },
 
-    /** 编辑装备（PUT /api/gears/{id}），成功后替换列表项 */
-    async update(id: number, body: GearUpdate): Promise<Gear> {
+    /** 编辑：本地项纯本地改；云端项在线成功才改缓存视图 */
+    async update(id: number | string, body: GearUpdate): Promise<AnyGear> {
+      if (isGuestNow()) {
+        const saved = updatePendingGear(String(id), body as Partial<LocalGear>);
+        if (!saved) throw new Error("本地保存失败，请尝试登录后同步到云端");
+        this.gears = getPendingGears();
+        return this.gears.find((x) => (x as LocalGear).localId === String(id))!;
+      }
+      const uid = currentUserId();
+      if (uid == null) throw new Error("未登录");
+      if (typeof id === "string") {
+        const saved = offlineGears.update(uid, id, body as Partial<LocalGear>);
+        if (!saved) throw new Error("本地保存失败，请尝试登录后同步到云端");
+        this.hydrate();
+        return this.gears.find((x) => (x as LocalGear).localId === String(id))!;
+      }
       const traceId = createTraceId();
       try {
-        logInfo("编辑装备", { trace_id: traceId, gear_id: id, category: body.category, name: body.name, buy_date: body.buy_date, price: body.price, feeling: body.feeling }, undefined, "gear_update", traceId);
+        logInfo("编辑装备", { gear_id: id }, undefined, EV.GEAR_UPDATE, traceId);
         const g = await updateGear(id, body);
-        this.gears = this.gears.map((x) => (x.id === id ? g : x));
-        logInfo("装备更新成功", { trace_id: traceId, gear_id: id, category: g.category, name: g.name }, undefined, "gear_updated", traceId);
+        setCloudGears(uid, getCloudGears(uid).map((x) => (x.id === id ? g : x)));
+        this.hydrate();
+        logInfo("装备更新成功", { gear_id: id }, undefined, EV.GEAR_UPDATED, traceId);
         return g;
       } catch (e) {
-        logError("装备更新失败", { trace_id: traceId, gear_id: id, error: (e as Error).message, category: body.category, name: body.name }, undefined, "gear_update_failed", undefined, traceId);
+        const err = e as ApiError;
+        if (err && err.status === -1) {
+          uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
+          throw e;
+        }
+        logError("装备更新失败", { gear_id: id, error: err?.message }, undefined, EV.GEAR_UPDATE_FAILED, undefined, traceId);
         throw e;
       }
     },
 
-    /** 删除装备（DELETE /api/gears/{id}），成功后从列表移除 */
-    async remove(id: number) {
+    /** 删除：本地项纯本地删；云端项在线成功才删缓存视图 */
+    async remove(id: number | string) {
+      if (isGuestNow()) {
+        const removed = removePendingGear(String(id));
+        if (!removed) throw new Error("本地删除失败，请重试");
+        this.gears = getPendingGears();
+        return;
+      }
+      const uid = currentUserId();
+      if (uid == null) throw new Error("未登录");
+      if (typeof id === "string") {
+        offlineGears.remove(uid, id);
+        this.hydrate();
+        return;
+      }
       const traceId = createTraceId();
       try {
-        logInfo("删除装备", { trace_id: traceId, gear_id: id }, undefined, "gear_delete", traceId);
+        logInfo("删除装备", { gear_id: id }, undefined, EV.GEAR_DELETE, traceId);
         await deleteGear(id);
-        this.gears = this.gears.filter((x) => x.id !== id);
-        logInfo("装备删除成功", { trace_id: traceId, gear_id: id }, undefined, "gear_deleted", traceId);
+        setCloudGears(uid, getCloudGears(uid).filter((x) => x.id !== id));
+        this.hydrate();
+        logInfo("装备删除成功", { gear_id: id }, undefined, EV.GEAR_DELETED, traceId);
       } catch (e) {
-        logError("装备删除失败", { trace_id: traceId, gear_id: id, error: (e as Error).message }, undefined, "gear_delete_failed", undefined, traceId);
+        const err = e as ApiError;
+        if (err && err.status === -1) {
+          uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
+          throw e;
+        }
+        logError("装备删除失败", { gear_id: id, error: err?.message }, undefined, EV.GEAR_DELETE_FAILED, undefined, traceId);
         throw e;
       }
     },

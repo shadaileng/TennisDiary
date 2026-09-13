@@ -10,7 +10,7 @@ export interface EventLog {
   message: string
   stack: string
   page: string
-  extra: Record<string, any>
+  params: Record<string, any>
   device_info: Record<string, any>
   client_time: number | null
   created_at: number

@@ -75,10 +75,13 @@ import {
 import type { ShareTemplate } from "@/utils/shareCanvas";
 import { INTENSITY, MOOD, monthKey, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
+import { useAuthStore } from "@/stores";
 import { isRuntimePermissionDenied } from "@/utils/privacy";
 
 const instance = getCurrentInstance();
 const { themeStyle, themeBg } = useThemeStyle();
+const authStore = useAuthStore();
 const W = 1080;
 const dpr = uni.getWindowInfo().pixelRatio || 2;
 
@@ -104,11 +107,9 @@ onShow(async () => {
   const traceId = createTraceId();
   const t0 = Date.now();
 
-  logInfo("分享数据加载开始", { trace_id: traceId }, undefined, "share_data_load_start", traceId);
-
   // 并行加载两个端点
-  logInfo("加载日记列表开始", { trace_id: traceId }, undefined, "share_load_diaries_start", traceId);
-  logInfo("加载分析报告开始", { trace_id: traceId }, undefined, "share_load_analyses_start", traceId);
+  logInfo("加载日记列表开始", { guest: !authStore.token }, undefined, EV.SHARE_LOAD_DIARIES_START, traceId);
+  logInfo("加载分析报告开始", { guest: !authStore.token }, undefined, EV.SHARE_LOAD_ANALYSES_START, traceId);
 
   const tDiaries = Date.now();
   const tAnalyses = Date.now();
@@ -118,13 +119,13 @@ onShow(async () => {
 
     // 日记列表结果
     logInfo("加载日记列表成功", {
-      trace_id: traceId, duration_ms: Date.now() - tDiaries, count: ds?.length,
-    }, undefined, "share_load_diaries_success", traceId);
+      duration_ms: Date.now() - tDiaries, count: ds?.length,
+    }, undefined, EV.SHARE_LOAD_DIARIES_SUCCESS, traceId);
 
     // 分析报告结果
     logInfo("加载分析报告成功", {
-      trace_id: traceId, duration_ms: Date.now() - tAnalyses, count: as?.items?.length,
-    }, undefined, "share_load_analyses_success", traceId);
+      duration_ms: Date.now() - tAnalyses, count: as?.items?.length,
+    }, undefined, EV.SHARE_LOAD_ANALYSES_SUCCESS, traceId);
 
     diaries.value = ds;
     analysis.value = as.items?.[0];
@@ -132,14 +133,10 @@ onShow(async () => {
     caption.value = genCaption(pipe);
     await nextTick();
     draw();
-
-    logInfo("分享数据加载完成", {
-      trace_id: traceId, total_duration_ms: Date.now() - t0,
-    }, undefined, "share_data_load_success", traceId);
   } catch (e) {
     logError("分享数据加载失败", {
-      trace_id: traceId, error: (e as Error).message, total_duration_ms: Date.now() - t0,
-    }, undefined, "share_data_load_failed", undefined, traceId);
+      error: (e as Error).message, total_duration_ms: Date.now() - t0,
+    }, undefined, EV.SHARE_DATA_LOAD_FAILED, undefined, traceId);
     uni.showToast({ title: "数据加载失败", icon: "none" });
   }
 });
@@ -174,7 +171,7 @@ function draw() {
       try {
         qrImage = await loadQrImage(node);
       } catch (e) {
-        logError("分享图二维码加载失败，降级输出", { error: (e as Error).message }, undefined, "share_qr_load_failed", undefined, createTraceId());
+        logError("分享图二维码加载失败，降级输出", { error: (e as Error).message }, undefined, EV.SHARE_QR_LOAD_FAILED, undefined, createTraceId());
       }
 
       const h = measureShareCardHeight(tpl.value, data, MOOD as never, INTENSITY as never, qrImage);
@@ -205,19 +202,18 @@ function draw() {
               } else {
                 fileName = `网球技术评分-${dateStr}.png`
               }
-              // @ts-ignore wx is WeChat mini-program global
               const savePath = `${wx.env.USER_DATA_PATH}/${fileName}`
               const data = fs.readFileSync(r.tempFilePath)
               fs.writeFileSync(savePath, data)
               cardSavePath.value = savePath
             } catch (e) {
-              logError("持久路径写入失败", { error: String(e) }, undefined, "share_persist_save_failed", undefined, createTraceId());
+              logError("持久路径写入失败", { error: String(e) }, undefined, EV.SHARE_PERSIST_SAVE_FAILED, undefined, createTraceId());
               // 降级使用 tempFilePath
             }
             // #endif
         },
         fail: (err: any) => {
-          logError("canvasToTempFilePath 失败", { error: String(err) }, undefined, "share_canvas_failed", undefined, createTraceId());
+          logError("canvasToTempFilePath 失败", { error: String(err) }, undefined, EV.SHARE_CANVAS_FAILED, undefined, createTraceId());
           cardURL.value = "";
         },
       };
@@ -270,12 +266,12 @@ async function regenerate() {
   try {
     const res = await generateCaption(tpl.value, style.value, originalText);
     caption.value = res.caption || originalText;
-    logInfo("润色分享文案", { trace_id: traceId, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai", traceId);
+    logInfo("润色分享文案", { template: tpl.value, style: style.value, text: originalText }, undefined, EV.SHARE_CAPTION_AI, traceId);
     uni.showToast({ title: "已润色文案", icon: "none" });
   } catch (e) {
     const pipe = buildContext(tpl.value, { diaries: diaries.value, analysis: analysis.value }, MOOD as never, INTENSITY as never);
     caption.value = genCaption(pipe);
-    logError("文案润色失败，降级本地模板", { trace_id: traceId, error: (e as Error).message, template: tpl.value, style: style.value, text: originalText }, undefined, "share_caption_ai_failed", undefined, traceId);
+    logError("文案润色失败，降级本地模板", { error: (e as Error).message, template: tpl.value, style: style.value, text: originalText }, undefined, EV.SHARE_CAPTION_AI_FAILED, undefined, traceId);
     uni.showToast({ title: "润色失败，已用模板文案", icon: "none" });
   } finally {
     regenerating.value = false;
@@ -284,7 +280,7 @@ async function regenerate() {
 
 function copyCaption() {
   const traceId = createTraceId();
-  logInfo("复制分享文案", { trace_id: traceId }, undefined, "caption_copied", traceId);
+  logInfo("复制分享文案", { }, undefined, EV.CAPTION_COPIED, traceId);
   uni.setClipboardData({
     data: caption.value,
     success: () => uni.showToast({ title: "文案已复制", icon: "success" }),
@@ -294,7 +290,7 @@ function copyCaption() {
 function saveImage() {
   if (saving.value || !cardURL.value) return;
   const traceId = createTraceId();
-  logInfo("保存分享图片", { trace_id: traceId, template: tpl.value }, undefined, "share_image_save", traceId);
+  logInfo("保存分享图片", { template: tpl.value }, undefined, EV.SHARE_IMAGE_SAVE, traceId);
   saving.value = true;
 
   let saveTimedOut = false
@@ -311,7 +307,7 @@ function saveImage() {
     success: () => {
       if (saveTimedOut) return
       clearImageSaveTimeout()
-      logInfo("分享图片保存成功", { trace_id: traceId, template: tpl.value }, undefined, "share_image_saved", traceId);
+      logInfo("分享图片保存成功", { template: tpl.value }, undefined, EV.SHARE_IMAGE_SAVED, traceId);
       uni.showToast({ title: "已保存到相册", icon: "success" })
       saving.value = false
     },
@@ -319,7 +315,7 @@ function saveImage() {
       if (saveTimedOut) return
       clearImageSaveTimeout()
       if (isRuntimePermissionDenied(err)) {
-        logError("保存图片权限被拒绝", { trace_id: traceId, error: err.errMsg, template: tpl.value }, undefined, "share_image_denied", undefined, traceId);
+        logError("保存图片权限被拒绝", { error: err.errMsg, template: tpl.value }, undefined, EV.SHARE_IMAGE_DENIED, undefined, traceId);
         uni.showModal({
           title: "提示",
           content: "需要授权使用相册功能，请在设置中开启",
@@ -329,7 +325,7 @@ function saveImage() {
           },
         });
       } else {
-        logError("保存图片失败", { trace_id: traceId, error: err.errMsg, template: tpl.value }, undefined, "share_image_failed", undefined, traceId);
+        logError("保存图片失败", { error: err.errMsg, template: tpl.value }, undefined, EV.SHARE_IMAGE_FAILED, undefined, traceId);
         uni.showToast({ title: "保存失败，请重试", icon: "none" });
       }
       saving.value = false

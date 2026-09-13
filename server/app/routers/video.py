@@ -3,7 +3,6 @@
 import json
 import os
 import time
-import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -13,15 +12,12 @@ from sqlalchemy.orm import Session
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logging import get_logger
-from app.core.mime import detect_media_mime
 from app.decorators.audit import audit
 from app.models.analysis import Analysis
 from app.models.analysis_video_info import AnalysisVideoInfo
-from app.models.file import File as FileModel
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import file_service, video_service
-from app.services.content_security import check_media_sync
 from app.services.video_service import (
     FfmpegUnavailableError,
     InvalidCutError,
@@ -32,14 +28,10 @@ log = get_logger("user")
 
 router = APIRouter(prefix="/api/video", tags=["video"])
 
-# 允许的视频扩展名
-_ALLOWED_VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm"}
-
 
 def _is_video_file(filename: str, content_type: str | None) -> bool:
-    """按扩展名与 content-type 判断是否视频"""
-    ext = os.path.splitext(filename or "")[1].lower()
-    return ext in _ALLOWED_VIDEO_EXT or (content_type or "").startswith("video/")
+    """按扩展名与 content-type 判断是否视频（白名单以门面 file_service 为单一真源）"""
+    return file_service.is_video(filename, content_type or "")
 
 
 @router.post("/upload", response_model=ApiResponse[dict])
@@ -69,59 +61,39 @@ def upload_video(
     ext = os.path.splitext(file.filename or "")[1].lower() or ".mp4"
     original_name = file.filename or ""
 
-    # 构建目标路径
-    abs_dir = file_service.build_upload_dir("videos", current_user.id)
-    filename = f"{uuid.uuid4().hex}{ext}"
-    rel_video = file_service.make_rel_path("videos", current_user.id, filename)
-    abs_path = os.path.join(abs_dir, filename)
-
-    # 读取文件内容
+    # 读取文件内容（文件名/落盘/登记全部由 file_service 门面按 MD5 统一处理）
     content = file.file.read()
 
-    # 写入物理文件
     try:
-        with open(abs_path, "wb") as out:
-            out.write(content)
-            out.flush()
-            os.fsync(out.fileno())
+        file_record, is_mirage = file_service.register(
+            db=db,
+            user_id=current_user.id,
+            content=content,
+            category="video",
+            original_name=original_name,
+            ext=ext,
+        )
+        db.commit()
     except Exception as exc:
-        log.error("视频文件写入失败: path=%s error=%s", abs_path, exc)
+        log.error("视频文件写入失败: user_id={} error={}", current_user.id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="文件写入失败，请稍后重试",
         ) from exc
 
-    # 创建 File 记录（秒传检测，MD5 由 get_or_create_file 从磁盘计算）
-    file_record, is_mirage = file_service.get_or_create_file(
-        db=db,
-        user_id=current_user.id,
-        rel_path=rel_video,
-        abs_path=abs_path,
-        upload_source="video",
-        original_name=original_name,
-        mime_type=file.content_type or "",
-    )
-    db.commit()
+    abs_path = file_service.abs_of(file_record.rel_path)
+    rel_video = file_record.rel_path
 
-    # 秒传：删除刚写入的重复文件，使用已有文件路径
-    if is_mirage:
-        file_service.safe_unlink(abs_path)
-        abs_path = file_service.rel_path_to_abs(file_record.rel_path)
-
-    actual_size = file_service.get_file_size(abs_path)
+    actual_size = file_service.size_of(rel_video)
     if actual_size == 0:
-        file_service.safe_unlink(abs_path)
-        db.delete(file_record)
+        file_service.soft_delete(db, file_record.id)
         db.commit()
+        file_service.unlink(rel_video)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="上传文件为空，请重新选择视频"
         )
 
-    # 文件落盘后用 ffprobe 探测真实 MIME 类型，覆盖客户端可能缺失/错误的 Content-Type
-    file_record.mime_type = detect_media_mime(abs_path)
-    db.commit()
-
-    log.info("视频上传完成: path=%s size=%s mirage=%s", rel_video, actual_size, is_mirage)
+    log.info("视频上传完成: path={} size={} mirage={}", rel_video, actual_size, is_mirage)
 
     # 解析裁剪参数
     parsed_cuts: list[dict] | None = None
@@ -133,26 +105,30 @@ def upload_video(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="裁剪片段参数格式错误"
             ) from exc
 
+    def _discard_upload() -> None:
+        """上传后处理失败：回收刚登记的文件（秒传复用的共享文件不删）"""
+        if is_mirage:
+            return
+        file_service.soft_delete(db, file_record.id)
+        db.commit()
+        file_service.unlink(rel_video)
+
     try:
         result = video_service.process_video(abs_path, mode, hit_time, cuts=parsed_cuts)
     except VideoTooLongError as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        _discard_upload()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except InvalidCutError as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        _discard_upload()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except FfmpegUnavailableError as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        _discard_upload()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="服务器未配置 ffmpeg，无法抽帧",
         ) from exc
     except Exception as exc:
-        if not is_mirage:
-            file_service.safe_unlink(abs_path)
+        _discard_upload()
         log.error(f"视频处理失败: msg={exc!s} exc_type={type(exc).__name__} path={abs_path}")
         detail = str(exc) if isinstance(exc, ValueError) else "视频处理失败，请检查文件格式"
         raise HTTPException(
@@ -163,10 +139,35 @@ def upload_video(
     result["kind"] = kind
     result["mirage"] = is_mirage
 
-    # 裁切后 working != abs_path，video_url 应指向实际存在的文件
+    # 裁切后 working != abs_path；登记为受管文件后 video_url 指向受管路径
     working_path = result.get("working_path") or abs_path
-    rel_video_result = file_service.abs_path_to_rel(working_path)
+    playback_record, _ = file_service.register(
+        db=db,
+        user_id=current_user.id,
+        src_path=working_path,
+        category="video_playback",
+        original_name=f"{os.path.basename(working_path)}_playback",
+        ext=os.path.splitext(working_path)[1] or ".mp4",
+    )
+    rel_video_result = playback_record.rel_path
     result["video_url"] = rel_video_result
+
+    # 抽帧中间产物登记为受管文件（{md5}.jpg）
+    frame_records = file_service.register_batch(
+        db,
+        current_user.id,
+        [
+            file_service.FileDraft(
+                src_path=frame_path,
+                ext=os.path.splitext(frame_path)[1] or ".jpg",
+                upload_source="video_frame",
+                original_name=os.path.basename(frame_path),
+            )
+            for frame_path in result.get("frame_paths", [])
+        ],
+    )
+    db.commit()
+    result["frame_urls"] = [record.rel_path for record in frame_records]
 
     log.info(
         f"视频处理完成: duration={result.get('duration', 0):.2f}s "
@@ -184,41 +185,11 @@ def upload_video(
         )
         if existing is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="分析记录不存在")
-        # working 短片建 File 记录（始终建立，便于文件管理按业务精确追踪播放短片）
-        working_md5 = file_service.compute_md5_from_path(working_path)
-        playback_record = file_service.get_or_create_file(
-            db=db,
-            user_id=current_user.id,
-            md5=working_md5 or "",
-            rel_path=rel_video_result,
-            upload_source="video_playback",
-            original_name=f"{os.path.basename(working_path)}_playback",
-            size_bytes=file_service.get_file_size(working_path),
-            mime_type=file_record.mime_type,
-            business_type="analysis",
-            business_id=analysis_id,
-        )
-        db.flush()
-        playback_record = playback_record[0]
-        # 为抽帧图片创建 File 记录
-        frame_urls = result.get("frame_urls", [])
-        for frame_url in frame_urls:
-            frame_abs = file_service.rel_path_to_abs(frame_url)
-            frame_md5 = file_service.compute_md5_from_path(frame_abs)
-            if frame_md5:
-                file_service.get_or_create_file(
-                    db=db,
-                    user_id=current_user.id,
-                    md5=frame_md5,
-                    rel_path=frame_url,
-                    upload_source="video_frame",
-                    original_name=f"{filename}_{os.path.basename(frame_url)}",
-                    size_bytes=file_service.get_file_size(frame_abs),
-                    mime_type="image/jpeg",
-                    business_type="analysis",
-                    business_id=analysis_id,
-                )
-        db.commit()
+
+        # 原片 / 播放短片 / 抽帧统一绑定到该分析记录（ref_count 自动 +1）
+        for record in [file_record, playback_record, *frame_records]:
+            file_service.bind(db, current_user.id, record.rel_path, "analysis", analysis_id)
+
         # 登记 analysis_video_info
         cut_info = {
             "segments": result.get("segments"),
@@ -226,48 +197,25 @@ def upload_video(
             "mode": mode,
             "kind": kind,
         }
-        derivatives = []
-        if playback_record:
-            derivatives.append(
-                {
-                    "kind": "playback",
-                    "rel_path": rel_video_result,
-                    "file_id": playback_record.id,
-                    "mime_type": playback_record.mime_type,
-                    "size_bytes": playback_record.size_bytes,
-                }
-            )
-        for frame_url in frame_urls:
-            frame_abs = file_service.rel_path_to_abs(frame_url)
-            frame_md5 = file_service.compute_md5_from_path(frame_abs)
-            if frame_md5:
-                derivatives.append(
-                    {
-                        "kind": "frame",
-                        "rel_path": frame_url,
-                        "file_id": 0,  # placeholder，待后续查表
-                        "mime_type": "image/jpeg",
-                        "size_bytes": file_service.get_file_size(frame_abs),
-                    }
-                )
-        # 查找 frame file IDs
-        frame_file_ids = {}
-        for frame_url in frame_urls:
-            rec = (
-                db.query(FileModel)
-                .filter(
-                    FileModel.user_id == current_user.id,
-                    FileModel.rel_path == frame_url,
-                    FileModel.business_type == "analysis",
-                    FileModel.business_id == analysis_id,
-                )
-                .first()
-            )
-            if rec:
-                frame_file_ids[frame_url] = rec.id
-        for d in derivatives:
-            if d["kind"] == "frame" and d["rel_path"] in frame_file_ids:
-                d["file_id"] = frame_file_ids[d["rel_path"]]
+        derivatives = [
+            {
+                "kind": "playback",
+                "rel_path": playback_record.rel_path,
+                "file_id": playback_record.id,
+                "mime_type": playback_record.mime_type,
+                "size_bytes": playback_record.size_bytes,
+            }
+        ]
+        derivatives.extend(
+            {
+                "kind": "frame",
+                "rel_path": record.rel_path,
+                "file_id": record.id,
+                "mime_type": record.mime_type or "image/jpeg",
+                "size_bytes": record.size_bytes,
+            }
+            for record in frame_records
+        )
 
         analysis_video_info = AnalysisVideoInfo(
             user_id=current_user.id,
@@ -285,24 +233,9 @@ def upload_video(
         )
         db.commit()
 
-    # 异步内容安全检查（不阻断上传流程）
-    try:
-        media_result = check_media_sync(abs_path, str(current_user.id), media_type=3)
-        if media_result.get("errcode"):
-            log.warning(
-                "视频内容安全检查 API 返回错误",
-                user_id=current_user.id,
-                errcode=media_result["errcode"],
-            )
-        else:
-            log.info(
-                "视频内容安全检查已提交",
-                user_id=current_user.id,
-                trace_id=media_result.get("trace_id", ""),
-            )
-    except Exception as exc:
-        log.error("视频安全检查异常: %s", exc, exc_info=True)
-
+    # 137 §2.2：微信三件套（imgSecCheck / msgSecCheck / mediaCheckAsync）均不支持视频，
+    # 原 check_media_sync(media_type=3) 恒返回 errcode 40004 被日志吞掉，已移除。
+    # 视频视为放行：security_checked 在 /api/upload/video 上传阶段标记。
     log.info(
         "视频抽帧完成",
         user_id=current_user.id,

@@ -171,12 +171,14 @@ import { onLoad } from "@dcloudio/uni-app";
 import EmojiScale from "@/components/EmojiScale.vue";
 import Seg from "@/components/Seg.vue";
 import { useThemeStyle } from "@/composables/useTheme";
-import { useCostTagsStore, useDiaryStore, useGearStore } from "@/stores";
+import { useAuthStore, useCostTagsStore, useDiaryStore, useGearStore } from "@/stores";
 import { useSettingsStore } from "@/stores";
 import { getDiary } from "@/services/data";
+import type { ApiError } from "@/services/request";
 import { INTENSITY, MOOD, SESSION_TYPES, fmtMoney, nowTimeStr, safeNavigateBack, sumCosts, todayStr } from "@/utils";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
-import type { SessionType } from "@/types";
+import { EV } from "@/utils/eventConstants";
+import type { AnyDiary, SessionType } from "@/types";
 
 const diaryStore = useDiaryStore();
 const gearStore = useGearStore();
@@ -218,7 +220,7 @@ const form = reactive<DiaryFormState>({
   notes: "",
 });
 
-let editingId = ref<number | null>(null);
+let editingId = ref<number | string | null>(null);
 const isEditing = computed(() => editingId.value != null);
 const saving = ref(false);
 
@@ -239,12 +241,21 @@ onLoad(async (query) => {
 
   const id = query?.id;
   if (!id) return;
-  editingId.value = Number(id);
+  editingId.value = id;
   uni.setNavigationBarTitle({ title: "编辑日记" });
   const traceId = createTraceId();
-  logInfo("加载日记详情", { trace_id: traceId, diary_id: editingId.value }, undefined, "diary_detail_load", traceId);
+  logInfo("加载日记详情", { diary_id: id }, undefined, EV.DIARY_DETAIL_LOAD, traceId);
   try {
-    const d = await getDiary(editingId.value);
+    let d: AnyDiary;
+    // 本地待同步条目（localId）或游客态：从本地仓库加载（可离线编辑）
+    const isLocal = typeof id === "string" && (id.startsWith("d_") || isNaN(Number(id)));
+    if (useAuthStore().isGuest || isLocal) {
+      const local = diaryStore.getLocalDiary(String(id));
+      if (!local) throw new Error("本地日记不存在");
+      d = local;
+    } else {
+      d = await getDiary(Number(id));
+    }
     form.date = d.date;
     form.time = d.time || "";
     form.type = d.type;
@@ -255,8 +266,13 @@ onLoad(async (query) => {
     form.gears = d.gears.map((g) => ({ name: g.name, feeling: g.feeling }));
     form.notes = d.notes || "";
   } catch (e) {
-    logError("日记详情加载失败", { trace_id: traceId, diary_id: editingId.value, error: (e as Error).message }, undefined, "diary_detail_load_failed", undefined, traceId);
-    uni.showToast({ title: "日记加载失败", icon: "none" });
+    const err = e as ApiError;
+    logError("日记详情加载失败", { diary_id: editingId.value, error: (err as Error).message }, undefined, EV.DIARY_DETAIL_LOAD_FAILED, undefined, traceId);
+    if (err && err.status === -1) {
+      uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
+    } else {
+      uni.showToast({ title: "日记加载失败", icon: "none" });
+    }
   }
 });
 

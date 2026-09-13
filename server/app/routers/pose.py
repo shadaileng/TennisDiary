@@ -14,7 +14,6 @@ from app.core.logging import get_logger
 from app.decorators.audit import audit
 from app.models.analysis import Analysis
 from app.models.analysis_video_info import AnalysisVideoInfo
-from app.models.file import File
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.services import file_service, pose_service
@@ -92,12 +91,12 @@ def analyze(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
-        log.error("姿态推理失败: %s", exc, exc_info=True)
+        log.exception("姿态推理失败: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except Exception as exc:
-        log.error("姿态推理异常: %s", exc, exc_info=True)
+        log.exception("姿态推理异常: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="姿态推理服务异常，请稍后重试",
@@ -137,35 +136,48 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
     if skeleton_thumb:
         skeleton_paths.append(skeleton_thumb)
 
-    # 批量登记骨架文件（统一使用 get_or_create_file，每文件 savepoint 隔离）
-    # 注意：骨架帧（_sk*.jpg）不登记，分析完成后清理
-    if skeleton_paths:
-        for rel_path in skeleton_paths:
-            abs_path = file_service.rel_path_to_abs(rel_path)
-            if not os.path.exists(abs_path):
-                log.warning("骨架文件不存在，跳过登记", rel_path=rel_path)
-                continue
-            try:
-                with db.begin_nested():
-                    if rel_path.endswith("_skeleton.mp4"):
-                        source = "skeleton_video"
-                    elif rel_path.endswith("_thumb.jpg"):
-                        source = "skeleton_thumb"
-                    else:
-                        source = "skeleton_frame"
-                    file_service.get_or_create_file(
-                        db=db,
-                        user_id=user_id,
-                        rel_path=rel_path,
-                        abs_path=abs_path,
-                        upload_source=source,
-                        original_name=os.path.basename(rel_path),
-                        business_type="analysis",
-                        business_id=analysis_id,
-                    )
-            except Exception as e:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
-                log.warning("骨架文件登记失败", rel_path=rel_path, error=type(e).__name__)
-        db.flush()
+    # 骨架衍生文件登记为受管文件（{md5}.{后缀}）；骨架帧 _sk*.jpg 不登记，分析完成后清理
+    path_map: dict[str, str] = {}
+    records: list = []
+    drafts = []
+    for rel_path in skeleton_paths:
+        if not file_service.exists(rel_path):
+            log.warning("骨架文件不存在，跳过登记", rel_path=rel_path)
+            continue
+        if rel_path.endswith("_skeleton.mp4"):
+            source = "skeleton_video"
+        elif rel_path.endswith("_thumb.jpg"):
+            source = "skeleton_thumb"
+        else:
+            source = "skeleton_frame"
+        drafts.append(
+            file_service.FileDraft(
+                src_path=file_service.abs_of(rel_path),
+                ext=os.path.splitext(rel_path)[1],
+                upload_source=source,
+                original_name=os.path.basename(rel_path),
+            )
+        )
+    if drafts:
+        try:
+            records = file_service.register_batch(
+                db,
+                user_id,
+                drafts,
+                business=("analysis", analysis_id),
+            )
+        except Exception as exc:  # noqa: BLE001 - 骨架文件登记失败不应阻断流程
+            log.warning("骨架文件登记失败: {} - {}", type(exc).__name__, str(exc)[:120])
+            records = []
+        for draft, record in zip(drafts, records, strict=False):
+            path_map[draft.original_name] = record.rel_path
+
+    # 登记后路径改为受管路径
+    skeleton_video_url = path_map.get(
+        os.path.basename(skeleton_video_url or ""), skeleton_video_url
+    )
+    skeleton_thumb = path_map.get(os.path.basename(skeleton_thumb or ""), skeleton_thumb)
+    db.flush()
 
     # 列定向更新：pose 中 skeleton_frames 为空列表（帧已清理），thumb 指向独立缩略图
     pose_for_db = {
@@ -175,6 +187,8 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
         "skeleton_frames": [],
         "skeleton_video_url": skeleton_video_url,
     }
+    if skeleton_thumb:
+        pose_for_db["skeleton_thumb"] = skeleton_thumb
     stmt = (
         sa_update(Analysis)
         .where(Analysis.id == analysis_id)
@@ -190,27 +204,16 @@ def _persist_pose(db: Session, user_id: int, analysis_id: int, result: dict) -> 
     if info is not None:
         derivatives = json.loads(info.derivatives) if info.derivatives else []
         seen = {(d.get("kind"), d.get("rel_path")) for d in derivatives}
-        for rel in skeleton_paths:
-            if ("skeleton", rel) in seen:
+        for record in records:
+            if ("skeleton", record.rel_path) in seen:
                 continue
-            rec = (
-                db.query(File)
-                .filter(
-                    file_service.File.user_id == user_id,
-                    file_service.File.rel_path == rel,
-                    file_service.File.business_type == "analysis",
-                    file_service.File.business_id == analysis_id,
-                )
-                .first()
-            )
-            abs_path = file_service.rel_path_to_abs(rel)
             derivatives.append(
                 {
                     "kind": "skeleton",
-                    "rel_path": rel,
-                    "file_id": rec.id if rec else 0,
-                    "mime_type": rec.mime_type if rec else "",
-                    "size_bytes": file_service.get_file_size(abs_path),
+                    "rel_path": record.rel_path,
+                    "file_id": record.id,
+                    "mime_type": record.mime_type,
+                    "size_bytes": record.size_bytes,
                 }
             )
         info.derivatives = json.dumps(derivatives, ensure_ascii=False)
@@ -235,8 +238,8 @@ def analyze_video(req: PoseVideoRequest, current_user: User = Depends(get_curren
         )
 
     # 使用 file_service 解析视频路径
-    video_path = file_service.resolve_safe_path(req.video_url)
-    if video_path is None or not file_service.file_exists(video_path):
+    video_path = file_service.resolve(req.video_url)
+    if video_path is None or not file_service.exists(req.video_url):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="video_url 无效或文件不存在",
@@ -251,12 +254,12 @@ def analyze_video(req: PoseVideoRequest, current_user: User = Depends(get_curren
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PoseUnavailableError as exc:
-        log.error("姿态推理失败: %s", exc, exc_info=True)
+        log.exception("姿态推理失败: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
     except Exception as exc:
-        log.error("姿态推理异常: %s", exc, exc_info=True)
+        log.exception("姿态推理异常: {}", exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="姿态推理服务异常，请稍后重试",

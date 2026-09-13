@@ -218,52 +218,5 @@ class TestDownloadFile:
         assert "test-file.mp4" in cd
 
 
-class TestPreviewFile:
-    """GET /api/admin/files/{id}/preview"""
-
-    def test_preview_info(self, auth_client, test_db):
-        uid = _next_uid()
-        content = b"preview-content"
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            original_name="photo.jpg",
-            mime_type="image/jpeg",
-            size_bytes=len(content),
-        )
-        _write_file(rec.rel_path, content)
-
-        resp = auth_client.get(f"/api/admin/files/{rec.id}/preview")
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["id"] == rec.id
-        assert data["mime_type"] == "image/jpeg"
-        assert data["original_name"] == "photo.jpg"
-        assert data["size_bytes"] == len(content)
-        assert "preview_url" in data
-
-    def test_preview_not_found(self, auth_client, test_db):
-        resp = auth_client.get("/api/admin/files/999999/preview")
-        assert resp.status_code == 404
-
-    def test_preview_mime_type_fallback(self, auth_client, test_db):
-        """mime_type 为空时，从文件扩展名推断"""
-        uid = _next_uid()
-        rec = _insert_file(
-            test_db,
-            user_id=uid,
-            original_name="photo.jpg",
-            mime_type="",
-        )
-        _write_file(rec.rel_path, b"fake-image")
-
-        resp = auth_client.get(f"/api/admin/files/{rec.id}/preview")
-        assert resp.status_code == 200
-        data = resp.json()["data"]
-        assert data["mime_type"] == "image/jpeg"
-
-    def test_preview_file_not_on_disk(self, auth_client, test_db):
-        uid = _next_uid()
-        rec = _insert_file(test_db, user_id=uid, rel_path=f"no-disk-{uid}.bin")
-        resp = auth_client.get(f"/api/admin/files/{rec.id}/preview")
-        assert resp.status_code == 404
+# 注：GET /api/admin/files/{id}/preview 端点已于 Step 125 下线（前端未调用），
+# 原 TestPreviewFile 用例（含两个"假绿"的 404 断言）已整体删除。

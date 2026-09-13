@@ -2,17 +2,35 @@
   <page-meta :page-style="themeStyle" :background-color="themeBg" />
   <view class="report-page">
     <view v-if="!analysis" class="report-loading">
-      <text>加载中…</text>
+      <!-- 离线提示：详情不缓存，需联网查看 -->
+      <view v-if="offline" class="offline-banner">
+        <text>📡 当前离线，报告详情需联网后查看</text>
+      </view>
+      <text v-else>加载中…</text>
+    </view>
+
+    <view v-else-if="isProcessing" class="processing-block">
+      <view class="proc-spinner" />
+      <text class="proc-title">AI 分析进行中</text>
+      <text class="proc-pct">{{ pipelinePercent }}%</text>
+      <view class="proc-track">
+        <view class="proc-bar" :style="{ width: pipelinePercent + '%' }" />
+      </view>
+      <text class="proc-step">{{ pipelineStepText }}</text>
+      <text class="proc-tip">分析约需 30~60 秒，可先返回列表，稍后回来查看报告</text>
+    </view>
+
+    <!-- 失败状态（与 isProcessing 互斥，单独展示） -->
+    <view v-else-if="analysis.status === 'failed'" class="failed-block">
+      <view class="failed-banner">
+        <text class="failed-icon">⚠️</text>
+        <text class="failed-text">分析失败</text>
+        <text class="failed-reason">{{ failedReasonText }}</text>
+      </view>
+      <view class="delete-btn press-btn" @tap="confirmRemove">删除这条记录</view>
     </view>
 
     <view v-else class="report-body">
-      <!-- 失败状态提示 -->
-      <view v-if="analysis.status === 'failed'" class="failed-banner">
-        <text class="failed-icon">⚠️</text>
-        <text class="failed-text">分析失败</text>
-        <text class="failed-hint">请重新上传视频进行分析</text>
-      </view>
-
       <!-- 封面 + 评分圆徽 -->
       <view class="cover-wrap">
         <image v-if="coverSrc" :src="coverSrc" mode="aspectFill" class="cover-img" />
@@ -131,32 +149,137 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { onLoad } from "@dcloudio/uni-app";
+import { onLoad, onUnload } from "@dcloudio/uni-app";
 
 import RadarChart from "@/components/RadarChart.vue";
 import { useThemeStyle } from "@/composables/useTheme";
 import { useSettingsStore } from "@/stores";
 import { deleteAnalysis, getAnalysis } from "@/services/data";
+import { useAnalysisStore } from "@/stores";
+import { networkOnline } from "@/utils/network";
+import { resolveMediaSrc, OFFLINE_MEDIA_PLACEHOLDER } from "@/utils/media";
+import { createStatusSubscriber, stepLabel, type AnalysisStatus } from "@/services/analysisStatus";
 import type { Analysis } from "@/types";
 import { resolveUploadUrl, safeNavigateBack } from "@/utils";
+import type { ApiError } from "@/services/request";
 import { createTraceId, logError, logInfo } from "@/utils/eventLogger";
+import { EV } from "@/utils/eventConstants";
 
 const analysis = ref<Analysis | null>(null);
 const { themeStyle, themeBg } = useThemeStyle();
 const settingsStore = useSettingsStore();
+const analysisStore = useAnalysisStore();
+const offline = ref(false);
+/** 当前报告加载链路的 traceId（供 reloadAnalysis 复用） */
+let reportTraceId = "";
+/** 媒体加载失败（URL 失效/401）回退占位的 url 集合 */
+const failedImages = ref<Set<string>>(new Set());
 const report = computed(() => analysis.value?.report);
 const pose = computed(() => analysis.value?.pose);
 
-/** 封面：优先骨架标注帧（相对 media URL），兼容旧 base64 封面 */
-const coverSrc = computed(() => resolveUploadUrl(analysis.value?.thumb || ""));
+/** 媒体源：dataURL/本地路径原样；远程源在线解析、离线或加载失败回退占位图 */
+function imgSrc(url: string): string {
+  if (!url || failedImages.value.has(url)) return OFFLINE_MEDIA_PLACEHOLDER;
+  return resolveMediaSrc(url, networkOnline.value);
+}
+function onImgError(url: string) {
+  failedImages.value.add(url);
+}
+
+// ============ 进行中：订阅管线进度（避免退出再进入时看到空报告误以为失败） ============
+const isProcessing = computed(() => analysis.value?.status === "processing");
+const pipelinePercent = ref(0);
+const pipelineStepText = ref("准备中…");
+let statusSubscriber: { start: () => void; stop: () => void } | null = null;
+
+/** 把后端 pipeline_status.error 转为用户可见文案：
+ * - 已知业务错误（"片段起点/终点超出视频范围" 等）原样透传
+ * - SQL 异常 / IntegrityError / UNIQUE 等技术性错误统一降级，避免泄漏
+ *   schema / md5 / 内部参数等敏感信息给终端用户
+ */
+const _TECHNICAL_PATTERNS = [
+  /(sqlite3\.[A-Za-z.]+)/i,
+  /UNIQUE constraint|IntegrityError|sqlalchemy/i,
+  /\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bSELECT\b/i,
+  /sqlalche\.me\/e\//i,
+];
+function formatUserError(raw: string | undefined | null): string {
+  const text = (raw || "").trim();
+  if (!text) return "分析失败，请重新上传视频";
+  if (_TECHNICAL_PATTERNS.some((p) => p.test(text))) {
+    return "分析失败，请重新上传视频（服务端处理异常，已记录到日志）";
+  }
+  return text;
+}
+
+/** 失败原因展示：后端置 failed 时会同步写入 summary（截断后的原因），
+ * 前端统一从 summary 读取并脱敏，覆盖"停留报告页失败"与"从列表重新进入"两个场景。
+ */
+const failedReasonText = computed(() => formatUserError(analysis.value?.summary));
+
+function stopStatusSubscriber() {
+  if (statusSubscriber) {
+    statusSubscriber.stop();
+    statusSubscriber = null;
+  }
+}
+
+/** 订阅状态：完成后重新拉取完整报告，失败则展示失败提示 */
+function subscribeStatus(id: number) {
+  stopStatusSubscriber();
+  statusSubscriber = createStatusSubscriber(id, (status: AnalysisStatus) => {
+    if (status.pipeline_status) {
+      pipelinePercent.value = Math.min(Math.max(Math.round(status.pipeline_status.progress || 0), 0), 100);
+      pipelineStepText.value = stepLabel(status.pipeline_status.step);
+    }
+
+    if (status.status === "completed") {
+      stopStatusSubscriber();
+      reloadAnalysis(id);
+      return;
+    }
+
+    if (status.status === "failed") {
+      stopStatusSubscriber();
+      if (analysis.value) {
+        // 用 pipeline_status.error 作为用户可见的失败原因，
+        // 避免直接把 SQL 异常原文显示在界面上（易泄漏 schema / md5 等内部信息）
+        const errorMsg = formatUserError(status.pipeline_status?.error);
+        analysis.value = {
+          ...analysis.value,
+          status: "failed",
+          summary: errorMsg,
+        };
+      }
+    }
+  }, {
+    // 139：超时必须提示用户，否则会出现"已停止请求但页面仍显示进行中"
+    onTimeout: () => {
+      pipelineStepText.value = "分析超时，请返回列表下拉刷新";
+      uni.showToast({ title: "分析超时，请稍后重试", icon: "none" });
+    },
+  });
+  statusSubscriber.start();
+}
+
+async function reloadAnalysis(id: number) {
+  try {
+    analysis.value = await getAnalysis(id);
+  } catch (e) {
+    logError("分析报告刷新失败", { analysis_id: id, error: (e as Error).message }, undefined, EV.REPORT_RELOAD_FAILED, undefined, reportTraceId);
+  }
+}
+
+onUnload(() => stopStatusSubscriber());
+
+/** 封面：优先骨架标注帧（相对 media URL），兼容旧 base64 封面；离线/失败回退占位 */
+const coverSrc = computed(() => imgSrc(analysis.value?.thumb || ""));
 
 const activeVideo = ref<"original" | "skeleton">("original");
 
-const originalVideoSrc = computed(() => resolveUploadUrl(analysis.value?.video_url || ""));
-const skeletonVideoSrc = computed(() => resolveUploadUrl(pose.value?.skeleton_video_url || ""));
-const skeletonFrameSrcs = computed(() =>
-  (pose.value?.skeleton_frames || []).map(resolveUploadUrl),
-);
+const originalVideoSrc = computed(() => (networkOnline.value ? resolveUploadUrl(analysis.value?.video_url || "") : ""));
+const skeletonVideoSrc = computed(() => (networkOnline.value ? resolveUploadUrl(pose.value?.skeleton_video_url || "") : ""));
+const skeletonFrameSrcs = computed(() => (pose.value?.skeleton_frames || []).map(imgSrc));
 
 /** 当前播放的视频地址：骨架模式时优先骨架动画，否则回退原视频 */
 const activeVideoSrc = computed(() => {
@@ -178,13 +301,27 @@ onLoad(async (query) => {
     return;
   }
   const traceId = createTraceId();
-  logInfo("加载分析报告", { trace_id: traceId, analysis_id: id }, undefined, "report_load", traceId);
+  reportTraceId = traceId;
+  // 详情不缓存：离线直接提示，联网才拉取（电子教练无离线创建场景，且报告内容大、媒体离线也看不了）
+  if (!networkOnline.value) {
+    offline.value = true;
+    logInfo("分析报告离线拦截", { analysis_id: id }, undefined, EV.REPORT_OFFLINE, traceId);
+    return;
+  }
+  logInfo("加载分析报告", { analysis_id: id }, undefined, EV.REPORT_LOAD, traceId);
   try {
     analysis.value = await getAnalysis(id);
-    logInfo("分析报告加载成功", { trace_id: traceId, analysis_id: id }, undefined, "report_loaded", traceId);
+    logInfo("分析报告加载成功", { analysis_id: id }, undefined, EV.REPORT_LOADED, traceId);
+    // 进行中：订阅管线进度，完成后自动刷新为完整报告
+    if (analysis.value?.status === "processing") {
+      logInfo("分析进行中，订阅进度", { analysis_id: id }, undefined, EV.REPORT_SUBSCRIBE_START, traceId);
+      subscribeStatus(id);
+    }
   } catch (e) {
-    logError("分析报告加载失败", { trace_id: traceId, analysis_id: id, error: (e as Error).message }, undefined, "report_load_failed", undefined, traceId);
-    uni.showToast({ title: "报告加载失败", icon: "none" });
+    const err = e as ApiError;
+    offline.value = !!(err && err.status === -1);
+    logError("分析报告加载失败", { analysis_id: id, error: (e as Error).message }, undefined, EV.REPORT_LOAD_FAILED, undefined, traceId);
+    if (!offline.value) uni.showToast({ title: "报告加载失败", icon: "none" });
   }
 });
 
@@ -193,7 +330,7 @@ onLoad(async (query) => {
 function confirmRemove() {
   if (!analysis.value) return;
   const traceId = createTraceId();
-  logInfo("删除分析报告", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_delete", traceId);
+  logInfo("删除分析报告", { analysis_id: analysis.value.id }, undefined, EV.ANALYSIS_DELETE, traceId);
   uni.showModal({
     title: "删除分析",
     content: "确定删除这条分析记录？",
@@ -202,12 +339,13 @@ function confirmRemove() {
       if (!res.confirm || !analysis.value) return;
       try {
         await deleteAnalysis(analysis.value.id);
-        logInfo("分析报告删除成功", { trace_id: traceId, analysis_id: analysis.value.id }, undefined, "analysis_deleted", traceId);
+        analysisStore.removeAnalysis(analysis.value.id);
+        logInfo("分析报告删除成功", { analysis_id: analysis.value.id }, undefined, EV.ANALYSIS_DELETED, traceId);
         uni.showToast({ title: "已删除", icon: "success" });
         setTimeout(() => safeNavigateBack("/pages/coach/coach"), 600);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "删除失败";
-        logError("分析报告删除失败", { trace_id: traceId, analysis_id: analysis.value.id, error: msg }, undefined, "analysis_delete_failed", undefined, traceId);
+        logError("分析报告删除失败", { analysis_id: analysis.value.id, error: msg }, undefined, EV.ANALYSIS_DELETE_FAILED, undefined, traceId);
         uni.showToast({ title: msg, icon: "none" });
       }
     },
@@ -221,6 +359,16 @@ function confirmRemove() {
   background-color: var(--color-page-bg, #F2F2EF);
 }
 
+.offline-banner {
+  background: #fff7e6;
+  border: 1rpx solid #ffd591;
+  color: #ad6800;
+  padding: 12rpx 20rpx;
+  border-radius: 12rpx;
+  margin: $space-lg $space-lg 0;
+  font-size: 24rpx;
+}
+
 .report-loading {
   display: flex;
   align-items: center;
@@ -228,6 +376,83 @@ function confirmRemove() {
   min-height: 60vh;
   font-size: 13px;
   color: $color-olive-light;
+}
+
+// ========== 进行中进度 ==========
+.processing-block {
+  min-height: 60vh;
+  margin: $space-lg;
+  padding: $space-xl $space-lg;
+  background-color: var(--color-card, #FFFFFF);
+  border-radius: $radius-card;
+  box-shadow: $shadow-card-md;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $space-sm;
+}
+
+.proc-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--color-accent-soft, $color-lime-soft);
+  border-top-color: var(--color-accent-dark, $color-lime-dark);
+  border-radius: 50%;
+  animation: proc-spin 0.8s linear infinite;
+}
+
+.proc-title {
+  font-size: $font-size-base;
+  font-weight: 600;
+  color: $color-ink;
+}
+
+.proc-pct {
+  font-size: 30px;
+  font-weight: 700;
+  color: $color-ink;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.proc-track {
+  width: 100%;
+  max-width: 220px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: var(--color-page-bg, #F2F2EF);
+  overflow: hidden;
+}
+
+.proc-bar {
+  height: 100%;
+  border-radius: 9999px;
+  background-color: var(--color-accent, #C8DA2B);
+  transition: width 0.3s ease;
+}
+
+.proc-step {
+  display: block;
+  font-size: $font-size-sm;
+  color: $color-olive;
+}
+
+.proc-tip {
+  display: block;
+  margin-top: $space-sm;
+  font-size: 12px;
+  color: $color-olive-light;
+  text-align: center;
+}
+
+@keyframes proc-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .report-body {
@@ -238,7 +463,21 @@ function confirmRemove() {
   gap: $space-md;
 }
 
-// ========== 失败状态 ==========
+// ========== 失败状态（独立展示，与进行中/报告体互斥）==========
+.failed-block {
+  min-height: 60vh;
+  margin: $space-lg;
+  padding: $space-xl $space-lg;
+  background-color: var(--color-card, #FFFFFF);
+  border-radius: $radius-card;
+  box-shadow: $shadow-card-md;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $space-md;
+}
+
 .failed-banner {
   display: flex;
   flex-direction: column;
@@ -248,6 +487,7 @@ function confirmRemove() {
   border: 1px solid #FECACA;
   border-radius: $radius-card;
   gap: 6px;
+  width: 100%;
 }
 
 .failed-icon {
@@ -260,9 +500,11 @@ function confirmRemove() {
   color: #DC2626;
 }
 
-.failed-hint {
+.failed-reason {
   font-size: 13px;
   color: #991B1B;
+  text-align: center;
+  line-height: 1.5;
 }
 
 // ========== 封面 ==========

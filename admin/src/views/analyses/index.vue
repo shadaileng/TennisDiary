@@ -271,6 +271,7 @@ import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Modal from '@/components/common/Modal.vue'
 import { formatTs } from '@/utils/date'
+import { fileUrl } from '@/utils/fileUrl'
 
 const columns = [
   { key: 'id', title: 'ID', width: 60 },
@@ -332,15 +333,6 @@ const report = computed<AnalysisReport | null>(() => {
 })
 
 const pose = computed(() => detail.value?.pose ?? null)
-
-// 图片路径兼容：相对路径走静态文件服务；http(s):// 绝对 URL 原样返回
-const fileUrl = (p?: string | null): string => {
-  if (!p) return ''
-  if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:')) return p
-  const baseURL = import.meta.env.VITE_API_BASE_URL || ''
-  return `${baseURL}/api/admin/system/files/${p}`
-}
-
 
 
 const modeLabel = (mode: string) => (mode === 'single' ? '单次挥拍' : mode === 'full' ? '综合分析' : mode || '--')

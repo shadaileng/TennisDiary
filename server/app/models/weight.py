@@ -14,4 +14,5 @@ class WeightRecord(Base):
     waist = Column(Float, nullable=True)
     hip = Column(Float, nullable=True)
     created_at = Column(Float, default=0)
+    business_time = Column(Float, nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

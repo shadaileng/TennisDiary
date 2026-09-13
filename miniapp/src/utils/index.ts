@@ -8,9 +8,17 @@
 
 import { API_PREFIX, BASE_URL } from "@/config";
 import { STORAGE_KEYS } from "@/constants/storage";
-import { uploadFile } from "@/utils/upload";
+import { uploadFileWithCheck, uploadRaw, type UploadUrlHooks } from "@/utils/upload";
 
 import type { CostItem } from "@/types";
+
+// ==================== 全局事件名 ====================
+
+/** 跨页面全局事件名（配合 uni.$emit / uni.$on 使用） */
+export const ANALYSIS_EVENTS = {
+  /** 新分析记录已创建（分析启动成功），通知列表页刷新 */
+  started: "analysis:started",
+} as const;
 
 // ==================== 枚举常量 ====================
 
@@ -141,19 +149,11 @@ export function resolveUploadUrl(url: string): string {
 
 /**
  * 上传装备封面图片到服务器，返回相对路径。
- * 内部使用 uploadFile 统一上传工具，事件钩子由调用方按需注入。
+ * 内部使用 uploadFileWithCheck 统一上传工具，先预检 MD5 再按需上传。
+ * hooks 全量透传（含秒传命中 onMirage），命中/上传/失败各触发一次。
  */
-export function uploadGearImage(
-  filePath: string,
-  hooks?: { onSuccess?: (url: string, durationMs: number) => void; onFailed?: (error: Error, durationMs: number) => void; onMirage?: (url: string, durationMs: number) => void },
-): Promise<string> {
-  return uploadFile({
-    path: "/upload/gear-image",
-    filePath,
-    onSuccess: (data, durationMs) => hooks?.onSuccess?.(data.url as string, durationMs),
-    onFailed: (error, durationMs) => hooks?.onFailed?.(error, durationMs),
-    onMirage: (data, durationMs) => hooks?.onMirage?.(data.url as string, durationMs),
-  }).then((r) => r.url);
+export function uploadGearImage(filePath: string, hooks?: UploadUrlHooks): Promise<string> {
+  return uploadFileWithCheck(filePath, "gear-image", hooks);
 }
 
 /**
@@ -193,6 +193,87 @@ export function choosePhoto(maxW = 900, quality = 0.8): Promise<string> {
         });
       },
       fail: () => resolve(""),
+    });
+  });
+}
+
+/** 游客态封面安全检查结果 */
+export type GuestCheckResult =
+  | { ok: true; safe: boolean }
+  | { ok: false; code: number; message: string };
+
+/**
+ * 游客态封面内容安全即检（仅检即弃，不落盘）。
+ * 调用匿名端点 /api/upload/guest-gear-check，返回检查详情。
+ * - ok=true, safe=true → 图片安全，可保存
+ * - ok=true, safe=false → 图片违规（后端明确拒绝）
+ * - ok=false → 技术故障（网络/服务器错误），需提示用户重试
+ */
+export function guestCheckGearImage(filePath: string, code: string): Promise<GuestCheckResult> {
+  return uploadRaw<{ safe?: boolean }>({
+    path: "/upload/guest-gear-check",
+    filePath,
+    formData: { code },
+  })
+    .then((d): GuestCheckResult => ({ ok: true, safe: d.safe === true }))
+    .catch((err): GuestCheckResult => {
+      const e = err as Error & { status?: number; detail?: string };
+      return {
+        ok: false,
+        code: e.status || 0,
+        message: e.detail || e.message || "安全检查失败",
+      };
+    });
+}
+
+/**
+ * 将本地图片文件读为 dataURL（base64）。
+ * 用于游客态装备封面本地保存：选图后先压成 dataURL 存本地仓库，
+ * 登录同步时再转临时文件走正式受检上传。
+ */
+export function compressToDataURL(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      const fs = uni.getFileSystemManager();
+      fs.readFile({
+        filePath,
+        encoding: "base64",
+        success: (r) => resolve(`data:image/jpeg;base64,${r.data as string}`),
+        fail: (err) => reject(new Error(err.errMsg || "图片读取失败")),
+      });
+    } catch (e) {
+      reject(e as Error);
+    }
+  });
+}
+
+/**
+ * 压缩图片并转为 dataURL（用于游客态本地存储）
+ *
+ * 流程：uni.compressImage 压缩 → uni.getFileSystemManager 读取为 base64
+ * 压缩参数：最大宽度 800px，质量 70%，平衡清晰度与存储大小
+ */
+export function compressImageToDataURL(
+  filePath: string,
+  options?: { width?: number; quality?: number },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const { width = 800, quality = 70 } = options || {};
+
+    uni.compressImage({
+      src: filePath,
+      quality,
+      compressedWidth: width,
+      success: (res) => {
+        const fs = uni.getFileSystemManager();
+        fs.readFile({
+          filePath: res.tempFilePath || filePath,
+          encoding: "base64",
+          success: (r) => resolve(`data:image/jpeg;base64,${r.data as string}`),
+          fail: (err) => reject(new Error(err.errMsg || "图片读取失败")),
+        });
+      },
+      fail: (err) => reject(new Error(err.errMsg || "图片压缩失败")),
     });
   });
 }

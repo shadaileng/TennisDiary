@@ -145,6 +145,21 @@ docs/
 │   ├── 126-小程序昵称输入隐私授权修复.md
 │   ├── 127-小程序端代码卫生与健壮性优化.md
 │   ├── 128-日记花费明细学习标签.md
+│   ├── 129-日记装备统计游客本地降级与登录同步.md
+    │   ├── 130-Admin跨域静态资源URL统一解析.md
+    │   ├── 131-文件登记MIME类型兜底与分类源补全.md
+    │   ├── 132-测试脆弱性治理-死测试清理与fixture作用域修复.md
+    │   ├── 135-游客同步顺序修复与业务时间字段.md
+    │   ├── 136-文件秒传预检与安全检查标记.md
+    │   ├── 137-视频上传两步秒传.md
+    │   ├── 138-文件管理重构.md
+│   ├── 139-管线异常状态兜底与日志规范修正.md
+│   ├── 140-视频分片上传与断点续传.md
+│   ├── 141-登录态离线缓存与自动同步.md
+│   ├── 142-埋点补盲与扩展字段重构.md
+│   ├── 143-分析流程前端埋点上下文丰富化.md
+│   ├── 144-小程序埋点结构性治理.md
+│   ├── 145-AI评分JSON解析容错与重试.md
 │   └── reference/                   # 参考代码（不纳入版本管理）
 │   └── tennis-diary/            # Tennis Diary Web 版源码
 ├── architecture/                # 架构类（持续维护）
@@ -275,6 +290,21 @@ docs/
 | 126：小程序昵称输入隐私授权修复 | v3.0.0 | 方案 | `plans/126-小程序昵称输入隐私授权修复.md` | 昵称输入隐私授权（主动引导 + 双态切换）+ 渲染层错误埋点 + 登录并发守卫 | 🏁 已完成 |
 | 127：小程序端代码卫生与健壮性优化 | v1.0.0 | 方案 | `plans/127-小程序端代码卫生与健壮性优化.md` | eventLogger 丢日志修复 + console 噪音清理 + 上传/请求封装统一 + 死代码清理 | 🏁 已完成 |
 | 128：日记花费明细学习标签 | v1.0.1 | 方案 | `plans/128-日记花费明细学习标签.md` | 日记表单花费明细高频费用快捷标签：本地 store 存储 + 使用频次学习，动态展示 top6 | 🏁 已完成 |
+| 129：日记装备统计游客本地降级与登录同步 | v1.1.1 | 方案 | `plans/129-日记装备统计游客本地降级与登录同步.md` | 日记/装备/统计页游客本地降级（本地 storage + 登录后自动静默同步后台）；封面游客选图即检（后端匿名仅检端点） | 📋 待执行 |
+| 130：Admin 跨域静态资源 URL 统一解析 | v1.0.0 | 方案 | `plans/130-Admin跨域静态资源URL统一解析.md` | 修复 Admin 原生请求（预览/装备图/下载）相对路径打到前端域名 404；抽取 `utils/fileUrl.ts` 统一解析并兼容 base64 dataURL | 🏁 已完成 |
+| 131：文件登记 MIME 类型兜底与分类源补全 | v1.1.0 | 方案 | `plans/131-文件登记MIME类型兜底与分类源补全.md` | 登记函数统一补齐 `mime_type`（骨架/封面/短片/孤儿不再为空）+ 骨架类 `upload_source` 分类源补全 | 🏁 已完成 |
+| 132：测试脆弱性治理（死测试清理 + fixture 作用域修复 + CI 并行 StaticPool 冲突修复） | v1.1.0 | 方案 | `plans/132-测试脆弱性治理-死测试清理与fixture作用域修复.md` | 清理 6 个死测试/过期断言 + 修复 `dependency_overrides` 与共享 TestClient 污染 + `test_engine` 改 file-based SQLite 消除 CI 并行冲突，全量 563 passed / 0 errors | 🏁 已完成 |
+| 135：游客同步顺序修复与业务时间字段 | v1.0.0 | 方案 | `plans/135-游客同步顺序修复与业务时间字段.md` | 新增 `business_time` 字段记录真实创建时间 + 同步排序修复（升序上传） | 🏁 已完成 |
+| 136：文件秒传预检与安全检查标记 | v1.4.0 | 方案 | `plans/136-文件秒传预检与安全检查标记.md` | `/upload/check` 端点（JSON Body 三态响应）+ `security_checked` 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一 | 🏁 已完成 |
+| 137：视频上传两步秒传 | v1.2.0 | 方案 | `plans/137-视频上传两步秒传.md` | 新增 `/upload/video`（走门面 register，返回 `file_id`）+ `/upload/check` 补 `file_id`/`category` 隔离/size 校验 + `/analyses/start` 改凭 `file_id` 启动 + 清理无效视频安全检查 + 上传/分析进度体验（模态遮罩、取消重试、列表 processing 态、报告页实时进度）+ 分片断点续传（阶段二） | 🚧 进行中 |
+| 138：文件管理重构（统一门面 + MD5 命名 + 引用计数 + 扫描挂钩） | v1.0.0 | 方案 | `plans/138-文件管理重构.md` | 全部文件操作收口到 `file_service` 门面（file_store/file_refs/file_ref_service）+ `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移 | 🏁 已完成 |
+| 139：管线异常状态兜底与日志规范修正 | v1.6.0 | 方案 | `plans/139-管线异常状态兜底与日志规范修正.md` | 修复管线异常中断后 `status` 永久 `processing` 故障：`register_batch` flush 补 rollback 防连接污染 + 管线 except 先 rollback 再写 failed 并叠加独立连接兜底 + 孤儿 processing 超时清理 + **步骤异常 fail-fast（抽帧/播放短片登记改致命、`_finalize` 空 video_url 置 failed、可降级项打标）** + **小程序端：列表 4s 轮询改用户主动下拉刷新（已实施）+ 订阅泄漏修复（页面清理 `onUnmounted`→`onUnload`、轮询超时自停）**；确立 loguru `{}` 日志规范，全量清除失效的 `%s` 日志并修正 `AGENTS.md` 条款 | 🏁 已完成 |
+| 140：视频分片上传与断点续传（137 阶段二） | v2.2.0 | 方案 | `plans/140-视频分片上传与断点续传.md` | 大视频 5MB 切片串行上传 + 单片失败只重传该片 + 中断后仅传缺失/失败分片（断点续传）；服务端以**单文件 `data.bin` 定位写（`os.pwrite`）+ `manifest.json` 权威登记**（写成功才入账、失败段也入账，片级 `length`+`crc32` 校验，manifest 原子写），complete 免合并直接校验登记（`/upload/video/chunk`、`/chunks`、`/complete`），最终统一交付 `file_id`；§十 FAQ 沉淀会话定义 / `data.bin` 大小形态 / 续传起点 / 进度感知四问 | 🚧 进行中 |
+| 141：登录态离线缓存与自动同步 | v1.0.0 | 方案 | `plans/141-登录态离线缓存与自动同步.md` | 登录态日记/装备/体重/分析记录的本地缓存合并视图渲染、离线新建与自动静默同步（游客降级机制 Step 129 零改动） | 📋 待执行 |
+| 142：小程序埋点补盲与扩展字段重构 | v1.0.0 | 方案 | `plans/142-埋点补盲与扩展字段重构.md` | 小程序埋点补盲（setTheme/analysis 列表）、share 冗余精简、扩展字段 params 重构与调用方冗余清理 | 📋 待执行 |
+| 143：分析流程前端埋点上下文丰富化 | v1.0.0 | 方案 | `plans/143-分析流程前端埋点上下文丰富化.md` | analyze.vue 事件链路重构：参数/结果分离、冗余清理、客户端上下文丰富化 | 🚧 进行中 |
+| 144：小程序埋点结构性治理 | v1.0.1 | 方案 | `plans/144-小程序埋点结构性治理.md` | action 名称冲突消解、traceId 补全、空 params 丰富、跨文件 EV 常量 | 🏁 已完成 |
+| 145：AI 评分 JSON 解析容错与重试 | v1.0.0 | 方案 | `plans/145-AI评分JSON解析容错与重试.md` | `json-repair` 修复 LLM 返回的非法 JSON + `analyze_swing` 单次重试 + 失败原始文本日志 | 🏁 已完成 |
 
 ## 文档类型说明
 
@@ -414,6 +444,21 @@ docs/
 | 126-小程序昵称输入隐私授权修复 | 小程序前端 | 🏁 已完成 | 2026-09-02 | 昵称输入隐私授权 + 渲染层错误埋点 + 登录并发守卫 |
 | 127-小程序端代码卫生与健壮性优化 | 小程序前端 | 🏁 已完成 | 2026-09-02 | eventLogger P0 丢日志修复 + console 清理 + 上传/请求封装统一 + 死代码清理；miniapp type-check + build:mp-weixin 通过 |
 | 128-日记花费明细学习标签 | 小程序前端 | 🏁 已完成 | 2026-09-02 | costTags store + 默认种子 + form.vue 标签区/交互/recordUsed；miniapp type-check + build:mp-weixin 通过 |
+| 129-日记装备统计游客本地降级与登录同步 | 小程序前端 + 后端检查端点 | 📋 待执行 | 2026-09-04 | - |
+| 130-Admin跨域静态资源URL统一解析 | 后台管理端优化 | 🏁 已完成 | 2026-09-04 | 公共 `utils/fileUrl.ts`（fileUrl/avatarUrl/fileDownloadUrl）+ 6 处接入；admin type-check + build 通过 |
+| 131-文件登记MIME类型兜底与分类源补全 | 后台/文件管理 | 🏁 已完成 | 2026-09-04 | `resolve_mime_type` 登记兜底（批量路径零 I/O）+ `ANALYSIS_MATCH_SOURCES` 分类源补全 + 报告落库 source 细化；25 用例通过，全量无回归 |
+| 132-测试脆弱性治理 | 测试与工程优化 | 🏁 已完成 | 2026-09-05 | 死测试清理 + fixture 精准增删 + 鉴权头清理 + 会话自动回滚 + CI 并行 StaticPool 冲突修复（`test_engine` 改 file-based SQLite）；全量 563 passed / 0 errors |
+| 135-游客同步顺序修复与业务时间字段 | 小程序前端 + 后端 + Admin | 🏁 已完成 | 2026-09-05 | 新增 business_time 字段 + 同步排序修复 |
+| 136-文件秒传预检与安全检查标记 | 后端 + 小程序前端 | 🏁 已完成 | 2026-09-06 | `/upload/check` 端点 + security_checked 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一；type-check + build 通过 |
+| 137-视频上传两步秒传 | 后端 + 小程序前端 | 🚧 进行中 | 2026-09-08 | 两步秒传端点（`/upload/video` + `/upload/check` 补 `file_id` + `/analyses/start` 改凭 `file_id`）+ 上传取消/重试 + 上传分析模态进度 + 列表/报告页 processing 态轮询；后端全量 652 通过，miniapp type-check + build 通过，进度体验待真机验证 |
+| 138-文件管理重构 | 后端 + Admin 前端 | 🏁 已完成 | 2026-09-07 | 统一门面 `file_service` + `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移；后端 617 passed / 0 failed，admin build 通过 |
+| 139-管线异常状态兜底与日志规范修正 | 后端 + 小程序前端 | 🏁 已完成 | 2026-09-08 | Step 1-9 全部完成：`register_batch` flush 补 rollback、管线 except 先 rollback 再写 failed + `_force_fail` 独立连接兜底、步骤 fail-fast（抽帧/播放短片致命化 + 0 帧校验 + `_finalize` 空 video_url 置 failed + `_mark_degraded`）、34 处日志 `%s`→`{}` 与 10 处改 `log.exception` 并修正 `AGENTS.md` 规范、孤儿 processing 超时清理（接入启动与列表惰性触发）、列表改下拉刷新、前端 `onUnmounted`→`onUnload` 与轮询 5 分钟上限；后端 fast 177 passed、ruff 干净，小程序 type-check + build 通过，待真机验证 |
+| 140-视频分片上传与断点续传 | 后端 + 小程序前端 | 🚧 进行中 | 2026-09-09 | Step 1-7 已实施：存储层 `pwrite_chunk` + manifest 原子读写 + 门面 `open_chunk_session`/`register_chunk`/`list_chunks`/`chunk_status`/`complete_chunk_upload`（免合并）+ 三个端点 + `/check` 下发 + Admin `/cleanup` 联动 + 小程序 `crc32.ts`/`chunkUpload.ts`/`analyze.vue` 接入；后端新增 55 用例通过、fast 216 passed、ruff 干净，miniapp type-check + build 通过，待真机验证；v2.2.0 增 §4.2 会话/`data.bin` 机制澄清 + §4.6 进度感知双层次 + §十 FAQ |
+| 141-登录态离线缓存与自动同步 | 小程序前端 | 📋 待执行 | 2026-09-11 | - |
+| 142-小程序埋点补盲与扩展字段重构 | 小程序埋点重构 | 📋 待执行 | 2026-09-11 | - |
+| 143-分析流程前端埋点上下文丰富化 | 小程序埋点重构 | 🚧 进行中 | 2026-09-12 | analyze.vue 事件链路重构：参数/结果分离、冗余清理、客户端上下文丰富化；type-check + build 通过 |
+| 144-小程序埋点结构性治理 | 小程序埋点重构 | 🏁 已完成 | 2026-09-13 | type-check + build 通过；15 文件 EV 常量替换 + 4 处 action 冲突消解 + 8 事件 traceId 补全 + 12 事件 params 丰富 |
+| 145-AI评分JSON解析容错与重试 | 后端 | 🏁 已完成 | 2026-09-13 | `json-repair` 修复 LLM 非法 JSON + `analyze_swing` 单次重试 + 失败原始文本日志；9 测试通过，ruff 干净 |
 
 ## 约定
 

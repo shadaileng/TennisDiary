@@ -10,7 +10,8 @@
 2. **绝不后台自启服务**（`nohup`/`&`/`subprocess.Popen` 等）。服务由人类启动。
 3. **提交前必须跑验证**。后端 `ruff check` + `ruff format` + `pytest`；前端 `type-check` + `build`。任一失败/有变更 → **先修复，禁止提交**。
 4. **改共享响应模型前，先 `grep` 全量构造点**，确认新增/必填字段在每处都已传入；优先用工厂函数或 `model_validate`。
-5. **异常日志**禁止直接插值异常对象 `f"...{exc}"`（异常 `str()` 含 `{}` 会导致 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误）。应写 `log.error(f"处理失败: {type(exc).__name__}")` 或 `log.error("处理失败: %s", exc)`。
+5. **日志一律用 `{}` 风格，严禁 printf 的 `%s`**。loguru 用 `str.format()` 语义，`log.error("失败: %s", exc)` 的参数会被**静默丢弃**，日志只剩裸 `%s`、真实异常被吞（139 故障根因）。应写 `log.error("失败: {}", exc)`；需堆栈用 `log.exception("失败: {}", exc)`。禁止 `f"...{exc}"` 再额外传参（异常 `str()` 含 `{}` 会触发二次 `.format()` 的 `KeyError`）；仅插值异常类型 `f"...{type(exc).__name__}"` 且不传参时安全。
+6. **版本号以根 `package.json` 的 `version` 为单一真源，与 `CHANGELOG.md` 顶部版本号严格一致**。`feat`/`fix`/`feat!` 等提交**必须同步 bump 根 `package.json`**（`feat` MINOR、`fix` PATCH、破坏性 MAJOR），并同时新增 `CHANGELOG.md` 对应版本条目；禁止只改 CHANGELOG 不动 package.json，也禁止只动 package.json 不记录 CHANGELOG（此前 CHANGELOG 已到 1.84.0 而根 package.json 仍停在 1.68.0 的脱节即由此违规造成，已于 1.84.0 追平）。提交前用 `grep '"version"' package.json` 与 `grep -m1 '^## \[' CHANGELOG.md` 核对一致。
 
 > 任何一条被违反，都是事故。宁可停下询问人类，也不要绕过。
 
@@ -139,6 +140,8 @@ cd admin && pnpm build                 # 构建管理端
 
 禁止 `git add .`，禁止无意义消息（`wip`、`tmp`）。提交前验证见 [4.3 提交前验证](#43-提交前验证)。
 
+> **版本 bump 见「核心约束 6」**：`feat`/`fix` 提交须同步 bump 根 `package.json` 并新增 `CHANGELOG.md` 条目，二者版本号严格一致（单一真源）。注意 `miniapp/package.json`（0.7.0）与 `admin/package.json`（0.2.0）是各子包独立版本，**不受根版本管控**；AI 不参与其 bump。
+
 ---
 
 ## 六、编码规范
@@ -157,7 +160,7 @@ cd admin && pnpm build                 # 构建管理端
 
 1. **改动字段前先全量检索构造点**：`grep "<ModelName>"` 找出所有 `ModelName(...)` 手写构造与 `model_validate` 调用点，逐一核对新增/必填字段是否都已传入。
 2. **优先用工厂函数或 `model_validate`**，而非在各路由重复手写字段构造。新增必填字段时，工厂函数只需改一处，避免散落各处的 `ModelName(id=..., ...)` 漏改导致 `ValidationError` → 500。参考 `app/routers/admin/admins.py` 的 `_admin_to_response`。
-3. **异常日志禁止对异常对象用 f-string 拼接**：`logger.error(f"未处理的异常: {exc}")` 会因异常 `str()` 含 `{}` 触发 loguru 二次 `.format()` 的 `KeyError`，掩盖真实错误。应写 `log.error(f"未处理的异常: {type(exc).__name__}")` 或 `log.error("未处理的异常: %s", exc)`。
+3. **异常日志用 `{}` 占位符，禁止 `%s` 与 f-string 拼接**：loguru 是 `str.format()` 语义，`log.error("未处理的异常: %s", exc)` 参数会被静默丢弃（日志只剩裸 `%s`）；`logger.error(f"未处理的异常: {exc}")` 则可能因异常 `str()` 含 `{}` 触发二次 `.format()` 的 `KeyError`。统一写 `logger.exception("未处理的异常: {}", exc)`（自动带堆栈）。
 4. 修改后必须运行该模型的全部相关测试（`pytest tests/routers/admin/test_auth.py` 等），确认无 `ValidationError` 后再提交。
 
 ### 6.2 前端
@@ -274,6 +277,17 @@ cd admin && pnpm build                 # 构建管理端
 | 127 | 小程序端代码卫生与健壮性优化（eventLogger `logWarn` 阈值丢日志 P0 修复 + console 噪音清理 + analyze 裸上传统一 `uploadRaw` + analysisStatus SSE 死代码/token 收口 + getMe/checkins 死导出清理 + resolveUploadUrl 分支合并 + share 定时器 onUnload 清理） | ✅ |
 | 108 | 日记装备关联选择与手写（从已有装备选择 + 手动输入；修复装备选择区 flex 布局挤压：`.form-gear-row` 加 `flex-wrap` + 选择器 `flex:0 0 100%` 独立换行 + 选中/手输名称回显 `✓`） | ✅ |
 | 128 | 日记花费明细学习标签（costTags store 本地持久化名目频次 + `td_cost_tags` 键 + 默认种子六项 + 保存后 recordUsed 累计/首次入池 + form.vue top6 胶囊标签区与点击新增/聚焦金额交互） | ✅ |
+| 130 | Admin 跨域静态资源 URL 统一解析（原生 img/video/下载相对路径打到前端域名 404；公共 `utils/fileUrl.ts` 兼容 base64 dataURL，6 处接入） | ✅ |
+| 129 | 日记装备统计游客本地降级与登录同步（未登录本地完整使用日记/装备/统计+体重，pendingRepo 本地仓库 + 本地聚合 + 登录后 syncPendingLocalData 静默同步；封面游客选图即检——后端匿名 `/api/upload/guest-gear-check` imgSecCheck 仅检即弃不落盘 + 同步正式上传兜底受检） | ✅ |
+| 131 | 文件登记 MIME 类型兜底与分类源补全（登记函数 `resolve_mime_type` 统一兜底：骨架视频/封面、裁剪短片、报告落库、孤儿注册不再落空；批量路径仅扩展名映射零 I/O；`ANALYSIS_MATCH_SOURCES` 补全 skeleton_video/thumb/frame；报告落库 `upload_source` 细化；统一分析上传对齐 ffprobe 探测） | ✅ |
+| 132 | 测试脆弱性治理（死测试清理：秒传同名 original_name、已删除 `register_ai_files`、已下线 preview 端点、裁剪"原文件已删"过期断言；fixture 作用域修复：`dependency_overrides` 精准增删、共享 TestClient 鉴权头清理、module 级会话自动回滚、顺序依赖用例自包含；CI 并行 StaticPool 内存库冲突修复：`test_engine` 改 file-based SQLite、`test_cleanup_orphans` fixture 重命名消除 ScopeMismatch） | ✅ |
+| 133 | 游客装备封面安全检查 fail-open 修复（后端技术故障返回 `{code:50001, success:false}` 而非 `{safe:true}`；前端移除 `.catch(() => true)`，异常向上传播；调用方捕获异常并 toast「安全检查失败，请重试」） | ✅ |
+| 134 | 游客装备封面保存失败问题修复（新增 `compressImageToDataURL()` 先压缩再转 dataURL；gearStore.create/update/remove 检查写入结果，失败时抛错；错误提示区分本地保存失败/删除失败） | ✅ |
+| 135 | 游客同步顺序修复与业务时间字段（新增 `business_time` 字段记录真实创建时间 + sync.ts 升序排序双重保障） | ✅ |
+| 136 | 文件秒传预检与安全检查标记（`/upload/check` 端点 MD5 预检三态响应 + `security_checked` 字段 + 前端两步上传 + 安全检查失败保留文件 + 错误信息统一） | ✅ |
+| 137 | 视频上传两步秒传（门面 `find_by_id` + `find_by_md5(category=)`、新增 `/upload/video`、`/analyses/start` 改凭 `file_id` 的 JSON 入参、移除 `check_media_sync` 死代码；小程序端预计算指纹 + 加固四项 + 埋点 + 上传/分析模态进度 + 取消上传可重试 + 列表/报告页 processing 态轮询） | 🚧 阶段一 |
+| 138 | 文件管理重构（统一门面 `file_service` + `{md5}.{后缀}` 命名 + `(user_id,md5)` 部分唯一索引 + `file_bindings` 绑定表驱动引用计数 + 业务引用注册表扫描五态 + 管理端一键存量迁移） | ✅ |
+| 139 | 管线异常状态兜底与日志规范修正（`register_batch` flush 补 rollback；管线 except 先 rollback 再写 failed + `_force_fail` 独立连接兜底；步骤 fail-fast：抽帧/播放短片登记致命化 + 0 帧校验 + `_finalize` 空 `video_url` 置 failed + `_mark_degraded` 降级打标；34 处日志 `%s`→`{}` 与 10 处 `log.exception` 并修正本文件日志规范；孤儿 `processing` 超时清理；小程序列表改下拉刷新 + `onUnmounted`→`onUnload` + 轮询 5 分钟上限） | ✅ |
 
 > 说明：三个 Server 部署方案的脚本/指南/CI/env 模板均已完成。当前唯一启用的部署 CI 为 `deploy-server-modelscope.yml`（魔搭）；HF（需 PRO 订阅）与 OCI（待建 VM）的 workflow 位于 `.github/workflows-disabled/`。详细见 `docs/plans/63/64/65-*`。
 
