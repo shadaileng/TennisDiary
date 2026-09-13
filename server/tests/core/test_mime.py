@@ -5,6 +5,7 @@
 """
 
 import os
+import shutil
 
 import pytest
 
@@ -17,6 +18,8 @@ from app.core.mime import (
 )
 
 pytestmark = pytest.mark.fast
+
+_has_ffmpeg = shutil.which("ffmpeg") is not None
 
 
 def _make_tmp_mp4(tmp_path: str, with_video: bool = True) -> str:
@@ -77,12 +80,14 @@ def test_extension_mime_known_types():
     assert EXTENSION_MIME[".pdf"] == "application/pdf"
 
 
+@pytest.mark.skipif(not _has_ffmpeg, reason="ffmpeg not installed")
 def test_detect_media_mime_mp4(tmp_path):
     """ffprobe 能识别真实 mp4 为 video/mp4"""
     path = _make_tmp_mp4(str(tmp_path), with_video=True)
     assert detect_media_mime(path) == "video/mp4"
 
 
+@pytest.mark.skipif(not _has_ffmpeg, reason="ffmpeg not installed")
 def test_detect_media_mime_audio_only(tmp_path):
     """纯音频 mp4 应识别为 audio/mp4"""
     path = _make_tmp_mp4(str(tmp_path), with_video=False)
@@ -116,6 +121,7 @@ def test_detect_image_mime_fake_extension(tmp_path):
     assert detect_image_mime(path) == "image/png"
 
 
+@pytest.mark.skipif(not _has_ffmpeg, reason="ffmpeg not installed")
 def test_detect_mime_type_dispatches_by_source(tmp_path):
     """来源决定走图片/音视频探测"""
     video = _make_tmp_mp4(str(tmp_path), with_video=True)
