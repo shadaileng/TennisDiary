@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.86.2] - 2026-09-13
+
+### Fixed
+
+- CI 并行测试竞态条件（146）：`pytest-xdist` 多 worker 同时执行 `_init_test_database` 对同一 SQLite 文件 `CREATE TABLE` 导致 `table ai_providers already exists` 错误（412/741 测试失败）；修复为按 `PYTEST_XDIST_WORKER` 环境变量为每个 worker 创建独立 DB 文件，彻底消除竞态。
+- CI 工作流分阶段执行：拆分为 fast 测试（并行，快速失败）+ integration 测试（`--dist loadfile` 按文件分组并行），基础测试先行，集成测试互不干扰。
+
 ## [1.86.1] - 2026-09-13
 
 ### Fixed

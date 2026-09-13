@@ -36,5 +36,8 @@ jobs:
           uv run ruff check .
           uv run ruff format --check .
 
-      - name: Run full tests (parallel)
-        run: uv run pytest -v -n auto
+      - name: Run fast tests (parallel)
+        run: uv run pytest -v -n auto -m fast
+
+      - name: Run integration tests (parallel by file)
+        run: uv run pytest -v -n auto -m "not fast" --dist loadfile

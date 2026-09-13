@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -17,9 +19,37 @@ def _init_test_database():
     pytest-env 注入 APP_ENV=test 后，config.py 加载 .env.test，
     DATABASE_URL 指向 ./data_test/tennis_diary_test.db。应用 lifespan 会用
     SessionLocal 对该库执行 init_default_roles，若表不存在会报 "no such table"。
-    此 fixture 在首个测试前建表，保证 lifespan 可正常执行，且数据落在 data_test/。
+
+    xdist 并行时，每个 worker 用独立 DB（文件名拼 worker ID），
+    避免多进程同时 CREATE TABLE 的竞态条件（table ai_providers already exists）。
     """
+    import app.core.database as db_module
     import app.models  # noqa: F401  # 确保所有模型注册到 Base.metadata
+    from app.core.config import settings
+
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER")
+
+    if worker_id:
+        # 每个 worker 用独立 DB：tennis_diary_test_{worker_id}.db
+        base_path = settings.DATABASE_URL.replace("sqlite:///", "")
+        name, ext = os.path.splitext(base_path)
+        worker_url = f"sqlite:///{name}_{worker_id}{ext}"
+
+        worker_engine = create_engine(
+            worker_url,
+            connect_args={
+                "check_same_thread": False,
+                "timeout": 30.0,
+                "isolation_level": None,
+            },
+            echo=settings.DEBUG,
+        )
+        # 替换全局 engine / SessionLocal，使 app lifespan 使用 worker 专属 DB
+        db_module.engine = worker_engine
+        db_module.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=worker_engine)
+        Base.metadata.create_all(bind=worker_engine)
+        return worker_engine
+
     from app.core.database import engine
 
     Base.metadata.create_all(bind=engine)
