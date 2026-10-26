@@ -191,7 +191,7 @@ export const useGearStore = defineStore("gear", {
       const traceId = createTraceId();
       try {
         logInfo("添加装备", { name: body.name }, undefined, EV.GEAR_CREATE, traceId);
-        const g = await createGear(body);
+        const g = await createGear({ ...body, business_time: body.business_time ?? Math.floor(Date.now() / 1000) });
         setCloudGears(uid, [g, ...getCloudGears(uid)]);
         this.hydrate();
         logInfo("装备添加成功", { gear_id: g.id }, undefined, EV.GEAR_CREATED, traceId);

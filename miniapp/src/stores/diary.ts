@@ -206,7 +206,7 @@ export const useDiaryStore = defineStore("diary", {
       const traceId = createTraceId();
       try {
         logInfo("创建日记", { type: body.type, date: body.date }, undefined, EV.DIARY_CREATE, traceId);
-        const d = await createDiary(body);
+        const d = await createDiary({ ...body, business_time: body.business_time ?? Math.floor(Date.now() / 1000) });
         setCloudDiaries(uid, [d, ...getCloudDiaries(uid)]);
         this.hydrate();
         logInfo("日记创建成功", { diary_id: d.id }, undefined, EV.DIARY_CREATED, traceId);

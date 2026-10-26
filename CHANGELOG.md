@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.92.1] - 2026-10-26
+
+### Fixed
+
+- 小程序在线直接新建日记/装备/体重时 `business_time` 缺省导致 Admin 端业务时间列为空：三个 store 的在线 `create` 分支统一补齐 `business_time ?? now()`；游客/离线路径此前已赋值，不受影响。
+
 ## [1.92.0] - 2026-10-26
 
 ### Added

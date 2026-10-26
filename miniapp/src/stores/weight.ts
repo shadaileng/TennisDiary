@@ -166,7 +166,7 @@ export const useWeightStore = defineStore("weight", {
       const traceId = createTraceId();
       try {
         logInfo("记录体重", { date: body.date, weight: body.weight }, undefined, EV.WEIGHT_CREATE, traceId);
-        const w = await createWeight(body);
+        const w = await createWeight({ ...body, business_time: body.business_time ?? Math.floor(Date.now() / 1000) });
         setCloudWeights(uid, [w, ...getCloudWeights(uid)]);
         this.hydrate();
         logInfo("体重记录成功", { weight_id: w.id }, undefined, EV.WEIGHT_CREATED, traceId);
