@@ -3,28 +3,46 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
 
-# 确保 SQLite 数据目录存在
-db_path = settings.DATABASE_URL.replace("sqlite:///", "")
-db_dir = os.path.dirname(os.path.abspath(db_path))
-if db_dir:
-    os.makedirs(db_dir, exist_ok=True)
+# ==================== 引擎工厂（148 阶段二 Step 1） ====================
 
-# SQLite 需要 check_same_thread=False 以支持多线程
-connect_args = {}
-if "sqlite" in settings.DATABASE_URL:
-    connect_args["check_same_thread"] = False
-    connect_args["timeout"] = 30.0
-    connect_args["isolation_level"] = None  # 手动管理事务，避免 implicit transaction 冲突
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    echo=settings.DEBUG,
-)
+def make_engine(url: str) -> Engine:
+    """按 DSN 方言构造引擎：SQLite 用手动事务连接参数；PG 启用连接池参数。
+
+    - SQLite：`check_same_thread=False` + `timeout=30` + `isolation_level=None`
+      （手动管理事务，避免 implicit transaction 冲突）
+    - PostgreSQL：`pool_size` / `max_overflow` / `pool_recycle` / `pool_pre_ping`
+      （Supabase pgbouncer 并发上限约束；`pool_pre_ping` 断线自愈）
+    """
+    connect_args: dict = {}
+    pool_args: dict = {}
+    if "sqlite" in url:
+        # 确保数据目录存在
+        path_part = url.replace("sqlite:///", "")
+        if path_part and not path_part.startswith(":memory:"):
+            db_dir = os.path.dirname(os.path.abspath(path_part))
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
+        connect_args["check_same_thread"] = False
+        connect_args["timeout"] = 30.0
+        connect_args["isolation_level"] = None  # 手动管理事务
+    else:
+        pool_args = {
+            "pool_size": settings.DB_POOL_SIZE,
+            "max_overflow": settings.DB_MAX_OVERFLOW,
+            "pool_recycle": settings.DB_POOL_RECYCLE,
+            "pool_pre_ping": settings.DB_POOL_PRE_PING,
+        }
+    return create_engine(url, connect_args=connect_args, echo=settings.DEBUG, **pool_args)
+
+
+# 148 阶段二：统一用 DB_DATABASE_URL（本地开发不填时回退到 SQLite 默认）
+engine = make_engine(settings.DB_DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()

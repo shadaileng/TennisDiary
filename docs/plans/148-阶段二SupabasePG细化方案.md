@@ -377,5 +377,6 @@ pg-integration:
 
 | Step | 内容 | 状态 | 日期 | 备注 |
 |------|------|:----:|:----:|------|
+| 1 | `make_engine` 工厂 + `Settings.DB_*` 配置 + `db_health` 端点 | ✅ 已完成 | 2026-10-26 | `DB_DATABASE_URL` 双舍入逻辑 + 连接池参数 + 健康端点；门禁 355 passed |
 | 2 | `file.py` 部分唯一索引双 where 参数 + psycopg 依赖 | ✅ 已完成 | 2026-10-26 | 单条 Index `sqlite_where`+`postgresql_where` 双方言渲染验证通过（双索引分名/`dialect_impls` 实测否决）；`uv add psycopg[binary]`；fast 355 passed |
-| - | Step 1（`make_engine` 工厂 + `Settings.DB_*` + `db_health`）与 Step 3（PG 基线 + CI）待 Supabase 实例后继续 | 📋 | - | 前置 2（Supabase 项目）已确认就绪 |
+| - | Step 3（PG 基线 + CI）待 Supabase 实例后继续 | 📋 | - | 前置 3（Supabase 项目）已确认就绪 |

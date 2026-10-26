@@ -120,6 +120,50 @@ def system_health(
     )
 
 
+@router.get("/db-health", response_model=ApiResponse[dict])
+def database_health(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """数据库连接健康检查（148 阶段二 Step 1）
+
+    - 连通性：`SELECT 1`
+    - 池占用：`pool.status()`（SQLite 无池信息返回 None）
+    - 方言与池参数：当前引擎 DSN 前缀 + 配置的池参数
+    """
+    from app.core.database import engine
+
+    try:
+        db.execute(text("SELECT 1"))
+        reachable = "ok"
+    except SQLAlchemyError as e:
+        reachable = f"error: {e!s}"
+
+    pool_info: dict | None = None
+    try:
+        # QueuePool 返回字符串（如 "Pool limit: 5, overflow: 10"）；NullPool 无 status
+        pool_status = engine.pool.status()
+        pool_info = {"status": str(pool_status)}
+    except AttributeError:
+        pool_info = {"status": "unknown"}
+
+    return ApiResponse(
+        data={
+            "reachable": reachable,
+            "dialect": engine.dialect.name,
+            # 仅暴露 scheme + 主机，不泄漏凭据
+            "url": f"{engine.url.drivername}://{engine.url.host or ''}:{engine.url.port or ''}",
+            "pool": pool_info,
+            "pool_config": {
+                "pool_size": settings.DB_POOL_SIZE,
+                "max_overflow": settings.DB_MAX_OVERFLOW,
+                "pool_recycle": settings.DB_POOL_RECYCLE,
+                "pool_pre_ping": settings.DB_POOL_PRE_PING,
+            },
+        }
+    )
+
+
 @router.get("/stats", response_model=ApiResponse[dict])
 def system_stats(
     admin: Admin = Depends(get_current_admin),

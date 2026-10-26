@@ -1,6 +1,6 @@
 """Alembic 迁移环境。
 
-复用应用的配置（app.core.config.settings.DATABASE_URL）与元数据
+复用应用的配置（app.core.config.settings.DB_DATABASE_URL）与元数据
 （app.core.database.Base.metadata），保证迁移与实际运行环境一致。
 """
 
@@ -23,8 +23,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 让 Alembic 使用应用同一套数据库 URL（读 .env 的 DATABASE_URL）
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# 让 Alembic 使用应用同一套数据库 URL（148 阶段二：DB_DATABASE_URL，
+# 本地开发不填时回退到 SQLite 默认；旧 DATABASE_URL 别名由 Settings 兼容）
+config.set_main_option("sqlalchemy.url", settings.DB_DATABASE_URL)
 
 target_metadata = Base.metadata
 

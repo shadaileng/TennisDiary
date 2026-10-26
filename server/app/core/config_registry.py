@@ -200,7 +200,14 @@ CONFIG_ITEMS: list[ConfigItemDef] = [
     ),
     # ===== 数据与存储 =====
     _it("data.dir", "data", "数据目录", "数据库与上传文件的根目录", VALUE_TYPE_STR, "DATA_DIR"),
-    _it("data.database_url", "data", "数据库地址", "SQLite 连接串", VALUE_TYPE_STR, "DATABASE_URL"),
+    _it(
+        "data.database_url",
+        "data",
+        "数据库地址",
+        "业务库连接串（SQLite 或 PostgreSQL，148 阶段二）",
+        VALUE_TYPE_STR,
+        "DB_DATABASE_URL",
+    ),
     _it(
         "data.upload_dir", "data", "上传目录", "用户上传文件存储目录", VALUE_TYPE_STR, "UPLOAD_DIR"
     ),

@@ -29,8 +29,21 @@ class Settings:
     # 数据目录（数据库 + 上传文件统一在此）
     DATA_DIR: str = os.getenv("DATA_DIR", "./data")
 
-    # 数据库
-    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/tennis_diary.db")
+    # 数据库（148 阶段二：DB_DATABASE_URL 为业务库主配置，DATABASE_URL 保留为向后兼容别名）
+    DB_DATABASE_URL: str = os.getenv(
+        "DB_DATABASE_URL",
+        os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/tennis_diary.db"),
+    )
+    # 审计库 / 备份元数据库（默认本地 SQLite，保持 147/72 隔离价值；生产可各自切 PG）
+    AUDIT_DB_URL: str = os.getenv("AUDIT_DB_URL", f"sqlite:///{DATA_DIR}/audit.db")
+    BACKUP_META_DB_URL: str = os.getenv(
+        "BACKUP_META_DB_URL", f"sqlite:///{DATA_DIR}/backup_meta.db"
+    )
+    # 连接池参数（PG 生效，SQLite 忽略；Supabase pgbouncer 并发上限约束）
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "3600"))
+    DB_POOL_PRE_PING: bool = os.getenv("DB_POOL_PRE_PING", "true").lower() == "true"
 
     # JWT
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change-me-in-production-please")
