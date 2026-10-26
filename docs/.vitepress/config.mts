@@ -204,6 +204,7 @@ export default defineConfig({
             { text: '94：姿态推理线上 503 异常排查与修复', link: '/plans/94-姿态推理线上503异常排查与修复' },
             { text: '146：后台三件套改造评估（HF + Supabase + KODO）', link: '/plans/146-后台三件套改造评估' },
             { text: '147：阶段一 KODO 对象存储细化方案', link: '/plans/147-阶段一KODO对象存储细化方案' },
+            { text: '148：阶段二 Supabase PG 细化方案', link: '/plans/148-阶段二SupabasePG细化方案' },
           ],
         },
         {
