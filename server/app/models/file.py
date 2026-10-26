@@ -1,6 +1,8 @@
 """文件管理数据模型（MD5 命名 + 同用户单记录 + 引用计数）"""
 
-from sqlalchemy import Column, Float, Index, Integer, String, text
+import datetime
+
+from sqlalchemy import Column, DateTime, Index, Integer, String, func, text
 
 from app.core.database import Base
 
@@ -38,8 +40,10 @@ class File(Base):
     business_id = Column(Integer, nullable=True, index=True)  # 业务记录 ID
     ref_count = Column(Integer, default=0)  # 业务引用次数（0=未绑定，可由清理任务回收）
     security_checked = Column(Integer, default=0)  # 安全检查标记：0=未检查，1=已通过
-    created_at = Column(Float, default=0)  # 登记时间戳
-    deleted_at = Column(Float, nullable=True, index=True)  # 软删除时间（None=未删除）
+    created_at = Column(
+        DateTime, default=datetime.datetime.now(datetime.timezone.utc), server_default=func.now()
+    )
+    deleted_at = Column(DateTime, nullable=True, index=True)  # 软删除时间（None=未删除）
 
     # 147 阶段一：本体位置 + 同步状态（缺一不可：前者说「在哪」，后者说「同步到没有」）
     # server_default 保证裸 SQL INSERT（迁移冒烟等）不因 NOT NULL 报错

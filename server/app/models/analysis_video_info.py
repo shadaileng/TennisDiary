@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, Text, UniqueConstraint
+import datetime
+
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
 
 from app.core.database import Base
 
@@ -19,6 +28,8 @@ class AnalysisVideoInfo(Base):
     playback_file_id = Column(Integer, ForeignKey("files.id", ondelete="SET NULL"), nullable=True)
     cut_info = Column(Text, nullable=True)  # JSON: {segments, hit_time, mode, kind}
     derivatives = Column(Text, nullable=True)  # JSON: [{kind, rel_path, file_id, ...}]
-    created_at = Column(Float, nullable=True)
+    created_at = Column(
+        DateTime, default=datetime.datetime.now(datetime.timezone.utc), nullable=True
+    )
 
     __table_args__ = (UniqueConstraint("analysis_id", name="uq_analysis_video_info_analysis_id"),)
