@@ -52,6 +52,9 @@ class File(Base):
 
     # 138：同用户同 MD5 只允许一条有效记录（软删行被排除，可再次上传重建）
     # 原 uq_files_original_name 全局同名约束已移除：MD5 命名后跨用户必然同名
+    # 148 阶段二：sqlite_where 与 postgresql_where 双注册 —— 单条 Index 在双方言下
+    # 都渲染带 WHERE 的部分唯一索引（实测：sqlite_where 在 PG 上被忽略、
+    # postgresql_where 在 SQLite 上被忽略，但各自在本方言生效，同索引名双方言安全）
     __table_args__ = (
         Index(
             "uq_files_user_md5_active",
@@ -59,6 +62,7 @@ class File(Base):
             "md5",
             unique=True,
             sqlite_where=text("deleted_at IS NULL"),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
         # 147：补偿扫描按 storage_status 过滤（PENDING/FAILED），普通索引双方言安全
         Index("ix_files_storage_status", "storage_status"),

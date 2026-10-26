@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 148 |
-> | 文档版本 | v1.0.0 |
+> | 文档版本 | v1.1.0 |
 > | 文档状态 | 📋 待执行 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段二细化方案：Supabase PostgreSQL 数据库迁移（双引擎架构 + Alembic 基线 + 数据迁移 + 备份改造 + CI PG 双测 + 回滚），上游路线见 [146 总纲](./146-后台三件套改造评估.md) |
@@ -12,7 +12,8 @@
 >
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
-> | 2026-10-26 | v1.0.0 | 初版（范围/架构/模型改造/基线方案/方言审计/连接池/数据迁移/备份改造/测试与 CI/TDD 步骤/验收/回滚） |
+> | 2026-10-26 | v1.1.0 | **Step 2 生死点实测定稿**：`file.py` 部分唯一索引单条双 where 参数（`sqlite_where`+`postgresql_where`）双方言渲染验证通过；双索引分名 / `dialect_impls` 两方案实测否决；fast 门禁 355 passed |
+| 2026-10-26 | v1.0.0 | 初版（范围/架构/模型改造/基线方案/方言审计/连接池/数据迁移/备份改造/测试与 CI/TDD 步骤/验收/回滚） |
 >
 > **关联文档**：
 > - [146：后台三件套改造评估与实施路线](./146-后台三件套改造评估.md)（**总纲**：阶段二的立项依据、决策记录、工作量与三阶段路线）
@@ -99,9 +100,18 @@
 
 ## 四、模型方言改造
 
-### 4.1 `app/models/file.py`（生死点）
+### 4.1 `app/models/file.py`（生死点，✅ 实测定稿）
 
-**现状**（`app/models/file.py:55-65`）：
+**现状**（`app/models/file.py`）：
+
+```python
+Index("uq_files_user_md5_active", "user_id", "md5",
+      unique=True, sqlite_where=text("deleted_at IS NULL"))
+```
+
+**问题**：`sqlite_where` 在 PG 方言下被**完全忽略**，`create_all` 渲染出无 WHERE 的全量唯一索引 → 软删行参与约束 → 数据导入唯一冲突（[146 §3.2 #3](./146-后台三件套改造评估.md)）。
+
+**改造（单条 Index 双 where 参数，实测通过）**：
 
 ```python
 Index(
@@ -110,23 +120,16 @@ Index(
     "md5",
     unique=True,
     sqlite_where=text("deleted_at IS NULL"),
+    postgresql_where=text("deleted_at IS NULL"),
 )
 ```
 
-**改造**：
-
-```python
-__table_args__ = (
-    Index("uq_files_user_md5_active", "user_id", "md5", unique=True,
-          sqlite_where=text("deleted_at IS NULL")),
-    Index("uq_files_user_md5_active", "user_id", "md5", unique=True,
-          postgresql_where=text("deleted_at IS NULL"),
-          postgresql_include=None),  # 显式声明，避免重复命名
-    Index("ix_files_storage_status", "storage_status"),
-)
-```
-
-> ⚠️ 同名 Index 双注册：SQLAlchemy 2.0 允许按方言取用；`postgresql_where` 必须加，**漏加则历史 `deleted_at` 软删行造成唯一冲突，数据导入直接失败**（[146 §3.2 #3](./146-后台三件套改造评估.md)）。若反射/建表冲突，改用 `postgresql_name` 区分（`uq_files_user_md5_active_pg`），基线 SQL 内建对应索引。
+> **实测结论（Step 2 演练，2026-10-26）**：
+> - ✅ 单条 `Index` 同时传 `sqlite_where` + `postgresql_where`：SQLite 侧渲染 `... WHERE deleted_at IS NULL`，PG 侧同 → **双方言正确，同索引名，无需分名**
+> - ❌ 双条 Index（`_pg` 后缀分名）：`create_all` 在**双方言都创建两个索引**（对方言的 where 参数仅被忽略，索引本身照常创建）→ PG 上多出无 WHERE 的全量唯一索引，**错误**
+> - ❌ `dialect_impls` kwargs 语法：`Index(..., dialect_impls={...})` 触发 `SAWarning: Can't validate argument`，**无效**
+>
+> 门禁：`pytest -m fast` 355 passed（SQLite 侧零行为变化，`uq_files_user_md5_active` 仍按 `sqlite_where` 创建）。
 
 ### 4.2 `onupdate=func.now()` → PG 触发器
 
@@ -312,7 +315,7 @@ pg-integration:
 | Step | 内容 | 类型 | 验证 |
 |:----:|------|:----:|------|
 | 1 | `make_engine` 工厂 + `Settings.DB_*` 配置 + `db_health()` 端点 | 🟢 GREEN | `ruff` + `pytest -m fast`；单测 `make_engine("sqlite://")` / `make_engine("postgresql://...")` 返回正确 `connect_args` / 池参数 |
-| 2 | `file.py` 双注册 `postgresql_where` + 模型 `DateTime` 精度核对 | 🟢 GREEN | `Base.metadata.create_all` 在 PG 测试库干净；`file` 部分唯一索引入 SQL 校验（`pg_index` 查 `indpred`） |
+| 2 | `file.py` 双 where 参数（`sqlite_where`+`postgresql_where` 单条 Index）+ psycopg 依赖 + `DateTime` 精度核对 | ✅ 已完成 | 2026-10-26 | 单条 Index 双方言渲染验证通过（`CreateIndex` 编译：两方言均 `... WHERE deleted_at IS NULL`）；双索引分名 / `dialect_impls` 两方案实测否决；`uv add psycopg[binary]`；fast 355 passed |
 | 3 | Alembic `pg_baseline_148` 基线 + `env.py` 方言分流 + 分支演练 | 🔴 RED→🟢 | 干净 PG `alembic upgrade pg_baseline_148` 成功；`--sql` 离线模式可导出 |
 | 4 | CI `pg-integration` job（PG 服务容器）首跑 | 🔴 RED | 暴露方言差异（预期失败若干） |
 | 5 | 方言差异逐个修复（JSON / ORDER BY / 部分索引冲突路径 / SSE 轮询） | 🟢 | `pg-integration` 转绿；SQLite 门禁全绿 |
@@ -374,4 +377,5 @@ pg-integration:
 
 | Step | 内容 | 状态 | 日期 | 备注 |
 |------|------|:----:|:----:|------|
-| - | 待人类确认前置条件 + 开工 | 📋 | - | 见文档头「前置条件」 |
+| 2 | `file.py` 部分唯一索引双 where 参数 + psycopg 依赖 | ✅ 已完成 | 2026-10-26 | 单条 Index `sqlite_where`+`postgresql_where` 双方言渲染验证通过（双索引分名/`dialect_impls` 实测否决）；`uv add psycopg[binary]`；fast 355 passed |
+| - | Step 1（`make_engine` 工厂 + `Settings.DB_*` + `db_health`）与 Step 3（PG 基线 + CI）待 Supabase 实例后继续 | 📋 | - | 前置 2（Supabase 项目）已确认就绪 |
