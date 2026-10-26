@@ -72,6 +72,12 @@ async def lifespan(app: FastAPI):
         maybe_cleanup_stuck_processing(db, force=True)
     finally:
         db.close()
+
+    # 147 §5.3 触发点 1：启动时扫一次超时 PENDING/FAILED 记录（一次性线程池任务，
+    # 非常驻线程，守 AGENTS 4.2；backend=local 时内部静默 no-op）
+    from app.services.storage_sync_service import schedule_startup_compensation
+
+    schedule_startup_compensation()
     yield
 
 

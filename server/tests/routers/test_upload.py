@@ -2,10 +2,13 @@
 
 import io
 import os
+import time
 from unittest.mock import patch
 
+import pytest
+
 from app.core.config import settings
-from app.models.file import File
+from app.models.file import STORAGE_STATUS_FAILED, STORAGE_STATUS_SYNCED, File
 from app.services import file_service
 from app.services.content_security import ContentSecurityError
 
@@ -338,3 +341,63 @@ class TestUploadCheckChunk:
         resp = self._check(auth_client, "2" * 32, 1024)
         assert resp.json()["data"]["hit"] is False
         assert "chunk" not in resp.json()["data"]
+
+
+class TestUploadCompensationTrigger:
+    """147 §5.3 触发点 2：上传成功后顺带重传**同用户**超时 FAILED 记录"""
+
+    @pytest.fixture(autouse=True)
+    def _storage_env(self, test_db, monkeypatch):
+        """启用 memory 对象存储 + 清 storage.* 覆盖行（仅本类生效，用后复原）"""
+        from app.models.system_config import SystemConfig
+        from app.services import storage
+
+        def _clean():
+            test_db.query(SystemConfig).filter(SystemConfig.key.like("storage.%")).delete()
+            test_db.commit()
+            storage.clear_backend_cache()
+
+        _clean()
+        monkeypatch.setattr(settings, "STORAGE_BACKEND", "memory")
+        yield
+        _clean()
+
+    def _stale_failed(self, test_db, user_id: int) -> File:
+        import hashlib
+
+        rel_path = f"comp-upload/{user_id}/stale-{int(time.time() * 1000)}.jpg"
+        abs_path = os.path.join(os.path.abspath(settings.UPLOAD_DIR), rel_path)
+        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        with open(abs_path, "wb") as f:
+            f.write(b"stale-bytes")
+        record = File(
+            user_id=user_id,
+            md5=hashlib.md5(rel_path.encode()).hexdigest(),
+            original_name="stale.jpg",
+            rel_path=rel_path,
+            size_bytes=11,
+            mime_type="image/jpeg",
+            upload_source="gear_image",
+            ref_count=0,
+            created_at=time.time() - 120,  # 超过 60s 补偿窗口
+            storage="memory",
+            storage_status=STORAGE_STATUS_FAILED,
+        )
+        test_db.add(record)
+        test_db.commit()
+        test_db.refresh(record)
+        return record
+
+    @patch("app.routers.upload.check_image_sync", return_value=True)
+    def test_avatar_upload_compensates_stale_failed(self, _mock_check, auth_client, test_db):
+        """上传头像成功 → 同用户超时 FAILED 被顺带重传为 SYNCED"""
+        stale = self._stale_failed(test_db, user_id=1)
+
+        resp = auth_client.post(
+            "/api/upload/avatar",
+            files={"file": ("avatar.png", io.BytesIO(b"\x89PNG\r\n\x1a\n"), "image/png")},
+        )
+        assert resp.status_code == 200
+
+        test_db.refresh(stale)
+        assert stale.storage_status == STORAGE_STATUS_SYNCED

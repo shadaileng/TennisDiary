@@ -4,6 +4,17 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.92.0] - 2026-10-26
+
+### Added
+
+- 补偿任务三触发点与存量迁移 CLI（147 Step 10）：
+  - `storage_sync_service.find_stale`/`compensate`：§5.3 扫描条件（`storage_status IN (0,2) AND created_at < now-60s`、单批 50），`backend=local` 静默 no-op，与同步中心抢跑时返回 `conflict` 跳过，单条失败不中断整批。
+  - 触发点 1（启动）：`run_startup_compensation` + `schedule_startup_compensation`，`main.py` lifespan 以 `asyncio.to_thread` 跑**一次性**任务（不阻塞启动、非 常驻线程，守 AGENTS 4.2），异常只记日志。
+  - 触发点 2（请求内顺带）：`compensate_after_upload`（同用户、单批 5、异常绝不外抛）接入 avatar / gear-image / video 三上传端点。
+  - 存量迁移 CLI `scripts/migrate-files-to-kodo.py`：`--scope/--dry-run/--force/--file-ids`，与同步中心共用 `plan`/`run_sync`，退出码 0/1。
+  - 测试：`tests/test_storage_compensation.py` 19 例 + 上传端点集成 1 例；修复 `test_concurrent_trigger_returns_409` 顺序依赖（自备 FAILED 记录，xdist 分发下暴露）。
+
 ## [1.91.0] - 2026-10-26
 
 ### Added

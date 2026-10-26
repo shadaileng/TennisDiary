@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.8.0 |
+> | 文档版本 | v1.9.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -16,6 +16,7 @@
 > | 2026-10-26 | v1.6.0 | **Step 7 完成**：响应层两态外链收口 —— `ApiResponse.model_post_init` → `storage.urls.rewrite_response_urls`（字段名注册表 + 收集→单次 `IN` 查询→改写两趟遍历，幂等）；请求级会话用 `ContextVar` 绑定（async 应用级依赖，规避同步依赖线程池 Context 拷贝坑）；§6.2 按实现校准 |
 > | 2026-10-26 | v1.7.0 | **Step 8 完成**：管理端 —— `scan` 新增 `pending_sync`、`missing` 重定义为「DB 有而对象存储无」（一次 `iter_keys` 全量列举核对）；§5.4 双删落地（`/cleanup`、`/cleanup-orphans` 同步删对象，失败不阻塞）；同步端点三件套 `sync-status`/`sync`/`sync/{id}` + `storage_sync_service`（scope/dry_run/force + `RUN_STATE` 防并发 409 + `BackgroundTasks` 跑批） |
 > | 2026-10-26 | v1.8.0 | **Step 9 完成**：Admin 同步中心前端 —— 列表响应补 `storage`/`storage_status` 两列（单一构造点 `_file_to_response`）+ `storage_status` 查询下推筛选；文件页新增 S3 同步弹层（统计卡片/进度条/范围单选/dry_run 预览/执行 + 1.5s 轮询至任务结束）、位置与同步状态列、行内同步按钮、详情两字段；`useActionLock` 防重 + `onUnmounted` 清定时器 |
+> | 2026-10-26 | v1.9.0 | **Step 10 完成**：补偿任务三触发点 + 迁移 CLI —— `find_stale`/`compensate`（grace 60s、单批 50、`backend=local` 静默 no-op、与同步中心抢跑时 conflict 跳过）、`run_startup_compensation`/`schedule_startup_compensation`（lifespan 一次性线程池任务）、`compensate_after_upload`（同用户小批量、异常不外抛）接入 avatar/gear-image/video 三上传端点、`scripts/migrate-files-to-kodo.py`（与同步中心共用 `plan`/`run_sync`）；另修 409 用例顺序依赖（xdist 下暴露） |
 > | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
@@ -167,15 +168,17 @@ ffmpeg / mediapipe 写本地临时目录
 | `SYNCED` | 读时发现对象 404 | `FAILED` | 告警 + 读侧回落代理（§6.4） |
 | `SYNCED` | 业务删除 → 物理清理 | 行删除 | **双删**：同步删对象（§5.4） |
 
-### 5.3 补偿任务
+### 5.3 补偿任务（✅ Step 10 已落地）
 
 **不引入常驻线程**（AGENTS 4.2 禁后台自启服务），复用 139 的兜底范式，三个触发点：
 
-1. **启动时**：`docker-entrypoint.sh` 或 app 启动钩子扫一次 `PENDING/FAILED` 超时记录
-2. **请求内顺带**：上传接口成功后顺带尝试重传同用户的超时 `FAILED`（低频、无感）
-3. **Admin 手动**：文件管理页「S3 同步」中心一键补偿（见 §9.1，`scope=failed` 即批量重传，`@audit` 装饰 + 进度轮询）
+1. **启动时**：app 启动钩子扫一次 `PENDING/FAILED` 超时记录 —— `main.py` lifespan → `storage_sync_service.schedule_startup_compensation()`（`asyncio.to_thread` **一次性**任务，非 常驻线程；实现 `run_startup_compensation`，异常只记日志）
+2. **请求内顺带**：上传接口成功后顺带尝试重传同用户的超时 `FAILED`（低频、无感）—— `upload.py` `_compensate_after_upload` 接入 avatar / gear-image / video 三端点，内部 `compensate_after_upload` 单批 5 条、异常绝不外抛
+3. **Admin 手动**：文件管理页「S3 同步」中心一键补偿（见 §9.1，`scope=failed` 即批量重传，`@audit` 装饰 + 进度轮询）✅ Step 8
 
 扫描条件：`storage_status IN (0,2) AND created_at < now - 60s`（给正常上传留窗口），单批上限 50 条防打爆。
+
+> **统一实现**：`storage_sync_service.find_stale`（扫描）+ `compensate`（执行）—— `backend=local` 静默 no-op；已有同步任务在跑时返回 `conflict` 跳过（不与同步中心抢跑）；单条失败计数继续，不中断整批。
 
 ### 5.4 双删
 
@@ -350,7 +353,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | `POST /sync` | `{scope, file_ids, dry_run, force}`：`dry_run` 只统计零改动；正式执行 `BackgroundTasks` 跑批立即返回 `task_id`；执行中重复触发 → **409**（进程内 `RUN_STATE`）；`@audit(action="SYNC")` |
 | `POST /sync/{id}` | 单条同步：本地缺失 → 状态 `FAILED` 且 HTTP 200（可补偿，不 500）；未知 id → 404；`@audit` |
 
-**存量迁移**：CLI 脚本 `scripts/migrate-files-to-kodo.py` 作为 `storage_sync_service` 的命令行入口（复用 138 一键迁移先例），支持 `--scope/--dry-run/--force`，与同步中心行为完全一致；本地副本去留仍由 `local_retention` 决定。
+**存量迁移（✅ Step 10 已落地）**：CLI 脚本 `scripts/migrate-files-to-kodo.py` 作为 `storage_sync_service` 的命令行入口（复用 138 一键迁移先例），支持 `--scope/--dry-run/--force/--file-ids`，与同步中心行为完全一致；本地副本去留仍由 `local_retention` 决定。
 
 ## 十、TDD 实施步骤
 
@@ -366,7 +369,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 7 | 响应层 `to_public_url` + 批量查询 + §6.3 各资源接入 | 🟢 | 两态响应用例（外链 / 回落） |
 | 8 | 管理端：scan 扩展 + 双删 + 同步端点骨架（`sync` / `sync-status` / `sync/{id}`） | ✅ 已完成 | 2026-10-26 | 22 例（scan 两态 / 双删 / 端点门禁与统计 / dry_run / 409 / 单条）；fast 333 passed |
 | 9 | **文件管理 S3 同步功能**：`storage_sync_service` + `dry_run`/`force`/防并发 + Admin 文件页同步弹层/状态列/筛选/进度轮询 | ✅ 已完成 | 2026-10-26 | 服务/端点见 Step 8；本步为前端接入 + 列表两列与筛选；fast 336 passed + admin `vue-tsc`/build 通过 |
-| 10 | 补偿任务三触发点 + 存量迁移 CLI（共用 `storage_sync_service`） | 🟢 | 补偿重传用例 |
+| 10 | 补偿任务三触发点 + 存量迁移 CLI（共用 `storage_sync_service`） | ✅ 已完成 | 2026-10-26 | `tests/test_storage_compensation.py` 19 例 + 上传端点集成 1 例；`scripts/migrate-files-to-kodo.py`；fast 355 passed |
 | 11 | 回归 + 真机 | 🏁 | §十一 |
 
 每 Step 结束跑 AGENTS 4.3 门禁：`cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast`。
@@ -435,5 +438,5 @@ if (isAbsolute(p)) return p                                            // ← �
 | 7 | 响应层外链 | ✅ 已完成 | 2026-10-26 | `storage.urls` 收口 + §6.3 全资源接入；fast 311 passed（新增 21 例） |
 | 8 | 管理端 scan/双删 + 同步端点骨架 | ✅ 已完成 | 2026-10-26 | `test_files_sync.py` 22 例；`storage_sync_service` 单一服务源；fast 333 passed |
 | 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | ✅ 已完成 | 2026-10-26 | 列表补 `storage`/`storage_status` 两列与筛选；Admin 同步弹层/状态列/筛选/进度轮询/`useActionLock`；`test_files_sync.py` 25 例，fast 336 passed + admin build ✅ |
-| 10 | 补偿三触发点 + 迁移 CLI | 📋 待执行 | - | 共用同步服务 |
+| 10 | 补偿三触发点 + 迁移 CLI | ✅ 已完成 | 2026-10-26 | `find_stale`/`compensate` + lifespan 启动一次性任务 + 三上传端点顺带补偿 + `migrate-files-to-kodo.py`；fast 355 passed、全量 873 passed |
 | 11 | 回归与真机验收 | 📋 待执行 | - | §十一 14 项 |

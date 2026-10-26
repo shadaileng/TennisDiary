@@ -334,8 +334,13 @@ class TestSyncRun:
         test_db.refresh(rec)
         assert rec.storage_status == STORAGE_STATUS_SYNCED
 
-    def test_concurrent_trigger_returns_409(self, auth_client):
-        """执行中重复触发 → 409（验收 #14；前端 useActionLock 二次防护）"""
+    def test_concurrent_trigger_returns_409(self, auth_client, test_db):
+        """执行中重复触发 → 409（验收 #14；前端 useActionLock 二次防护）
+
+        用例自包含：自带一条 FAILED 记录，避免依赖前序用例的残留数据
+        （xdist 分发下前序用例可能在其它 worker 执行）。
+        """
+        _insert_file(test_db, storage_col="memory", status=STORAGE_STATUS_FAILED)
         svc.RUN_STATE.running = True
         try:
             resp = auth_client.post("/api/admin/files/sync", json={"scope": "failed"})

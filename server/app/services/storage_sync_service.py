@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
 import time
 import uuid
@@ -314,14 +315,166 @@ def sync_one(db: Session, file_id: int, *, force: bool = False) -> dict | None:
     }
 
 
+# ==================== 补偿任务（§5.3 三触发点） ====================
+#
+# 不引入常驻线程（AGENTS 4.2 禁后台自启服务），三个触发点共用 `compensate`：
+# 1. 启动时：`schedule_startup_compensation`（lifespan）→ `run_startup_compensation`
+# 2. 请求内顺带：上传成功后 `compensate_after_upload`（同用户、小批量、不外抛）
+# 3. Admin 手动：`POST /files/sync scope=failed`（Step 8）
+
+COMPENSATE_GRACE_SECONDS = 60  # 给正常上传留窗口
+COMPENSATE_BATCH_LIMIT = 50  # 单批上限，防打爆
+UPLOAD_COMPENSATE_LIMIT = 5  # 上传后顺带的批上限（请求内，必须轻）
+
+# 启动补偿的一次性任务引用（防 GC；不是常驻任务）
+_startup_task: asyncio.Task | None = None
+
+
+def find_stale(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    grace_seconds: float = COMPENSATE_GRACE_SECONDS,
+    limit: int = COMPENSATE_BATCH_LIMIT,
+) -> list[File]:
+    """§5.3 扫描条件：`storage_status IN (0,2) AND created_at < now - 60s`（未软删）"""
+    cutoff = time.time() - grace_seconds
+    query = (
+        db.query(File)
+        .filter(
+            File.storage_status.in_([STORAGE_STATUS_PENDING, STORAGE_STATUS_FAILED]),
+            File.created_at < cutoff,
+            File.deleted_at.is_(None),
+        )
+        .order_by(File.created_at.asc())
+    )
+    if user_id is not None:
+        query = query.filter(File.user_id == user_id)
+    if limit:
+        query = query.limit(limit)
+    return query.all()
+
+
+def compensate(
+    db: Session,
+    *,
+    user_id: int | None = None,
+    grace_seconds: float = COMPENSATE_GRACE_SECONDS,
+    limit: int = COMPENSATE_BATCH_LIMIT,
+    force: bool = False,
+) -> dict:
+    """补偿重传超时 `PENDING/FAILED` 记录（同步执行，幂等、单条失败不中断整批）
+
+    Returns:
+        统一结构 `{disabled, conflict, queued, synced, failed}`：
+        - `disabled=True`：`backend=local`（回滚档位）→ 静默 no-op，不抛错
+        - `conflict=True`：已有同步任务在执行 → 本次跳过（不与同步中心抢跑）
+    """
+    cfg = load_storage_config(db)
+    if cfg.is_local:
+        return {"disabled": True, "conflict": False, "queued": 0, "synced": 0, "failed": 0}
+
+    records = find_stale(db, user_id=user_id, grace_seconds=grace_seconds, limit=limit)
+    if not records:
+        return {"disabled": False, "conflict": False, "queued": 0, "synced": 0, "failed": 0}
+
+    try:
+        task_id = _acquire("compensate", len(records))
+    except SyncConflictError:
+        log.info("补偿任务跳过：已有同步任务在执行（待补偿 {} 条）", len(records))
+        return {"disabled": False, "conflict": True, "queued": 0, "synced": 0, "failed": 0}
+
+    try:
+        synced, failed = _sync_records(db, records, force=force)
+    finally:
+        _release()
+    log.info(
+        "补偿任务完成: task_id={} queued={} synced={} failed={}",
+        task_id,
+        len(records),
+        synced,
+        failed,
+    )
+    return {
+        "disabled": False,
+        "conflict": False,
+        "queued": len(records),
+        "synced": synced,
+        "failed": failed,
+    }
+
+
+def compensate_after_upload(
+    db: Session,
+    *,
+    user_id: int,
+    grace_seconds: float = COMPENSATE_GRACE_SECONDS,
+) -> dict | None:
+    """触发点 2：上传成功后顺带重传**同用户**超时 `FAILED`（低频、无感）
+
+    任何异常只记日志绝不外抛 —— 补偿失败绝不能影响上传主流程。
+    """
+    try:
+        return compensate(
+            db, user_id=user_id, grace_seconds=grace_seconds, limit=UPLOAD_COMPENSATE_LIMIT
+        )
+    except Exception as exc:  # noqa: BLE001 - 补偿任何异常都不能外抛
+        log.warning("上传后补偿任务失败: user_id={} {}", user_id, exc)
+        return None
+
+
+def run_startup_compensation(session_factory=None) -> dict | None:
+    """触发点 1：启动时扫一次超时记录（一次性，非常驻线程；异常只记日志）
+
+    Args:
+        session_factory: 会话工厂（测试注入）；缺省用 `SessionLocal`
+    """
+    try:
+        factory = session_factory
+        if factory is None:
+            from app.core.database import SessionLocal
+
+            factory = SessionLocal
+        db = factory()
+        try:
+            return compensate(db)
+        finally:
+            db.close()
+    except Exception as exc:
+        log.exception("启动补偿任务失败: {}", exc)
+        return None
+
+
+def schedule_startup_compensation() -> bool:
+    """lifespan 内调用：把启动补偿丢到线程池**一次性**执行（不阻塞启动）
+
+    Returns:
+        是否成功入队；无事件循环（同步上下文 / 测试）时跳过返回 `False`
+    """
+    global _startup_task
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    _startup_task = loop.create_task(asyncio.to_thread(run_startup_compensation))
+    return True
+
+
 __all__ = [
+    "COMPENSATE_BATCH_LIMIT",
+    "COMPENSATE_GRACE_SECONDS",
     "RUN_STATE",
     "SCOPES",
     "SyncConflictError",
     "SyncDisabledError",
     "SyncValidationError",
+    "compensate",
+    "compensate_after_upload",
+    "find_stale",
     "plan",
+    "run_startup_compensation",
     "run_sync",
+    "schedule_startup_compensation",
     "select_records",
     "start_sync",
     "sync_one",
