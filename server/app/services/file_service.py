@@ -111,16 +111,47 @@ def repair_file_mime_types(
     }
 
 
+def _object_backend(db: Session | None):
+    """启用对象存储时返回后端实例；未启用/构造失败返回 None（对象侧 best-effort）"""
+    if db is None:
+        return None
+    cfg = storage.load_storage_config(db)
+    if cfg.is_local:
+        return None
+    try:
+        return storage.resolve_backend(cfg)
+    except storage.StorageError as exc:
+        log.warning("对象后端构造失败，跳过对象删除: {}", exc)
+        return None
+
+
+def _delete_object(backend, rel_path: str) -> bool:
+    """删除对象（幂等）；失败只记日志不阻塞（对象侧靠生命周期规则兜底，§5.4）"""
+    if backend is None:
+        return False
+    try:
+        return bool(backend.delete(rel_path))
+    except (storage.StorageError, OSError) as exc:
+        log.warning("对象删除失败，交生命周期规则兜底: {} {}", rel_path, exc)
+        return False
+
+
 def cleanup_expired(db: Session, days: int = 30) -> int:
-    """物理清理已软删超过 N 天的文件及其记录，返回清理数量"""
+    """物理清理已软删超过 N 天的文件及其记录，返回清理数量
+
+    §5.4 双删：删行 + 删本地副本 + **同步删对象**；对象删除失败只记日志，
+    不阻塞清理（对象侧靠 bucket 生命周期规则兜底）。
+    """
     cutoff = time.time() - (days * 86400)
     expired = db.query(File).filter(File.deleted_at.isnot(None), File.deleted_at < cutoff).all()
+    backend = _object_backend(db)
 
     cleaned = 0
     for record in expired:
         if file_store.unlink(record.rel_path):
             cleaned += 1
             log.info("清理已删除文件: {}", record.rel_path)
+        _delete_object(backend, record.rel_path)
         db.delete(record)
     return cleaned
 
@@ -792,11 +823,17 @@ def cleanup_intermediates(user_id: int) -> int:
     return cleaned
 
 
-def cleanup_paths(rel_paths: list[str]) -> int:
-    """物理删除若干相对路径的文件（孤儿/未登记文件），返回成功数量"""
+def cleanup_paths(rel_paths: list[str], db: Session | None = None) -> int:
+    """物理删除若干相对路径的文件（孤儿/未登记文件），返回成功数量
+
+    §5.4 双删：启用对象存储时对象一并删除（孤儿在对象侧同样可能是残留）。
+    """
+    backend = _object_backend(db)
     cleaned = 0
     for rel_path in rel_paths:
-        if unlink(rel_path):
+        removed_local = unlink(rel_path)
+        removed_object = _delete_object(backend, rel_path)
+        if removed_local or removed_object:
             cleaned += 1
     return cleaned
 
@@ -833,10 +870,11 @@ def register_orphans(
 SCAN_STATUSES = (
     "in_use",  # 已登记且被业务引用
     "unreferenced",  # 已登记但无业务引用
-    "missing",  # 已登记但物理文件缺失
+    "missing",  # 已登记但缺失（local=物理文件缺失；启用对象存储=对象存储无此文件，§9.2）
     "orphan",  # 磁盘有文件但未登记
     "unregistered_ref",  # 业务引用了未登记的路径
     "marked_deleted",  # 已软删，待物理清理
+    "pending_sync",  # 未同步到对象存储（存量未搬迁 / PENDING / FAILED，147 新增）
 )
 
 # 扫描豁免目录：check_tmp 安全检查临时、tmp 分片上传会话（140）、backups 备份
@@ -861,17 +899,66 @@ def _walk_upload_dir() -> dict[str, float]:
     return found
 
 
-def scan(db: Session, user_id: int | None = None) -> dict:
-    """扫描受管文件与磁盘，基于业务引用注册表输出五态分类
+def _registered_status_of(
+    record: File,
+    cfg,
+    object_keys: set[str] | None,
+    referenced: set[str],
+) -> tuple[str, str]:
+    """已登记记录的状态判定（`scan` 用）
 
-    五态：in_use / unreferenced / missing / orphan / unregistered_ref
+    - `backend=local`（回滚档位）：旧语义 —— missing = 本地物理文件缺失
+    - 启用对象存储（§9.2）：
+      1. 位置/状态未同步 → `pending_sync`（存量未搬迁 / PENDING / FAILED）
+      2. 声称 SYNCED 但对象存储里没有 → `missing`（「DB 有而对象存储无」）
+      3. 对象在 → 按业务引用分 in_use / unreferenced（本地副本缺失不再判 missing，
+         因为读侧走签名外链，`local_retention` 清理本地副本是合法状态，§6.6）
+    """
+    if cfg.is_local:
+        if not file_store.exists(record.rel_path):
+            return "missing", "已登记但物理文件缺失"
+        if record.rel_path in referenced:
+            return "in_use", "业务记录引用有效"
+        return "unreferenced", "无任何业务记录引用"
+
+    if record.storage != cfg.backend:
+        return "pending_sync", "存量未搬迁到对象存储"
+    if record.storage_status == STORAGE_STATUS_PENDING:
+        return "pending_sync", "未同步（PENDING），等待 put"
+    if record.storage_status == STORAGE_STATUS_FAILED:
+        return "pending_sync", "上次同步失败，待补偿"
+    if record.storage_status != STORAGE_STATUS_SYNCED:
+        return "pending_sync", "未知同步状态，待同步"
+    if object_keys is not None and record.rel_path not in object_keys:
+        return "missing", "已登记但对象存储无此文件"
+    if record.rel_path in referenced:
+        return "in_use", "业务记录引用有效"
+    return "unreferenced", "无任何业务记录引用"
+
+
+def scan(db: Session, user_id: int | None = None) -> dict:
+    """扫描受管文件与磁盘，基于业务引用注册表输出状态分类
+
+    状态：in_use / unreferenced / missing / orphan / unregistered_ref / pending_sync
     （另含 marked_deleted 供管理端展示软删记录）
+
+    启用对象存储时（§9.2）：`missing` 重定义为「DB 有而对象存储无」——通过**一次
+    `iter_keys` 全量列举**核对（Admin 手动触发，不做定时全扫）；列举失败则跳过
+    对象存在性核对（不误报 missing），仍按 DB 列判定 `pending_sync`。
 
     Returns:
         {total_files, registered_files, status_counts, items}
     """
     business_refs = file_refs.collect_business_refs(db, user_id)
     referenced = set(business_refs.keys()) | file_ref_service.bound_rel_paths(db, user_id)
+
+    cfg = storage.load_storage_config(db)
+    object_keys: set[str] | None = None
+    if not cfg.is_local:
+        try:
+            object_keys = set(storage.resolve_backend(cfg).iter_keys())
+        except storage.StorageError as exc:
+            log.warning("对象存储列举失败，跳过对象存在性核对: {}", exc)
 
     query = db.query(File).filter(File.deleted_at.is_(None))
     if user_id is not None:
@@ -892,12 +979,7 @@ def scan(db: Session, user_id: int | None = None) -> dict:
             }
             for ref in business_refs.get(record.rel_path, [])
         ]
-        if not file_store.exists(record.rel_path):
-            status, reason = "missing", "已登记但物理文件缺失"
-        elif record.rel_path in referenced:
-            status, reason = "in_use", "业务记录引用有效"
-        else:
-            status, reason = "unreferenced", "无任何业务记录引用"
+        status, reason = _registered_status_of(record, cfg, object_keys, referenced)
         status_counts[status] += 1
         items.append(
             {

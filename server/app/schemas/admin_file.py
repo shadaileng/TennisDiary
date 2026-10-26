@@ -6,13 +6,15 @@ from pydantic import BaseModel, Field
 class FileUsageStatus:
     """文件使用状态常量（纯字符串集合，不依赖枚举类，保持与 str 字段兼容）。
 
-    取值含义（138：扫描改为基于业务引用注册表的五态分类）：
+    取值含义（138：扫描改为基于业务引用注册表的五态分类 + 147 §9.2 扩展）：
     - in_use：使用中（业务记录仍引用该文件）
     - unreferenced：已登记但无任何业务引用（可清除）
-    - missing：已登记但物理文件缺失
+    - missing：已登记但缺失（`backend=local`：物理文件缺失；
+      启用对象存储后重定义为「DB 有而**对象存储**无」，§9.2）
     - orphan：磁盘孤儿（文件在磁盘但 File 表无记录）
     - unregistered_ref：业务记录引用了未登记的路径
     - marked_deleted：已软删（deleted_at 非空，等待物理清理，可清除）
+    - pending_sync：未同步到对象存储（存量未搬迁 / PENDING / FAILED，147 新增）
     """
 
     IN_USE = "in_use"
@@ -21,6 +23,7 @@ class FileUsageStatus:
     ORPHAN = "orphan"
     UNREGISTERED_REF = "unregistered_ref"
     MARKED_DELETED = "marked_deleted"
+    PENDING_SYNC = "pending_sync"
 
 
 class AdminFileResponse(BaseModel):
@@ -75,8 +78,21 @@ class ScanResultResponse(BaseModel):
     total_orphan_size: int = Field(description="待处理文件总大小（字节）")
     status_counts: dict[str, int] = Field(
         default_factory=dict,
-        description="五态计数：in_use/unreferenced/missing/orphan/unregistered_ref",
+        description="状态计数：in_use/unreferenced/missing/orphan/unregistered_ref/pending_sync",
     )
+
+
+class SyncRequest(BaseModel):
+    """S3 同步请求（147 §9.1 同步中心）"""
+
+    scope: str = Field(
+        description="同步范围：pending=待同步 / failed=失败补偿 / local=存量搬迁 / selected=选中项"
+    )
+    file_ids: list[int] = Field(
+        default_factory=list, description="scope=selected 时必填的文件 ID 列表"
+    )
+    dry_run: bool = Field(default=False, description="只统计不改动（预览影响条数/字节）")
+    force: bool = Field(default=False, description="对已 SYNCED 也重传（HEAD 核对用）")
 
 
 class RegisterFilesRequest(BaseModel):

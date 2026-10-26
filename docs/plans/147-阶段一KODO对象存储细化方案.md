@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.6.0 |
+> | 文档版本 | v1.7.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -14,6 +14,7 @@
 > |------|:----:|------|
 > | 2026-10-26 | v1.5.0 | **Step 6 完成**：路径 B/C 写接线 —— `register_batch` 逐条同步、分片 `manifest["backend"]` 快照、`complete` 先 pre-put 再落库（`ChunkSyncError`→503 保持可续传）；§七 表按实现校准 |
 > | 2026-10-26 | v1.6.0 | **Step 7 完成**：响应层两态外链收口 —— `ApiResponse.model_post_init` → `storage.urls.rewrite_response_urls`（字段名注册表 + 收集→单次 `IN` 查询→改写两趟遍历，幂等）；请求级会话用 `ContextVar` 绑定（async 应用级依赖，规避同步依赖线程池 Context 拷贝坑）；§6.2 按实现校准 |
+> | 2026-10-26 | v1.7.0 | **Step 8 完成**：管理端 —— `scan` 新增 `pending_sync`、`missing` 重定义为「DB 有而对象存储无」（一次 `iter_keys` 全量列举核对）；§5.4 双删落地（`/cleanup`、`/cleanup-orphans` 同步删对象，失败不阻塞）；同步端点三件套 `sync-status`/`sync`/`sync/{id}` + `storage_sync_service`（scope/dry_run/force + `RUN_STATE` 防并发 409 + `BackgroundTasks` 跑批） |
 > | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
@@ -334,11 +335,19 @@ if (isAbsolute(p)) return p                                            // ← �
 
 | 端点 | 改动 |
 |------|------|
-| `POST /scan` | 五态扩展：新增 `pending_sync`；`missing` 重定义为「DB 有而**对象存储无**」（S3 `list` 按前缀分页核对，全量核对放 Admin 手动触发，不做定时全扫） |
-| `POST /cleanup`、`/cleanup-orphans` | 走 §5.4 双删 |
+| `POST /scan` | 五态扩展：新增 `pending_sync`（存量未搬迁 / PENDING / FAILED）；`missing` 重定义为「DB 有而**对象存储无**」（一次 `iter_keys` 全量列举核对，Admin 手动触发，不做定时全扫；列举失败则跳过核对不误报）✅ Step 8 |
+| `POST /cleanup`、`/cleanup-orphans` | 走 §5.4 双删（对象删除失败只记日志，不阻塞清理）✅ Step 8 |
 | `GET /{id}/download` | Range 数据源换 S3（透传 Range → 206），端点与鉴权不变 |
 | 列表/统计/软删/批量删/注册/migrate-md5/repair | **零改动**（纯 DB） |
 | 备份（72） | 文件本体备份责任移交七牛侧（可选 bucket 版本控制）；方案 72 文档在本阶段完成后同步修订 |
+
+**同步端点三件套（✅ Step 8 已落地，单一服务源 `app/services/storage_sync_service.py`）**
+
+| 端点 | 行为 |
+|------|------|
+| `GET /sync-status` | 五类计数（total/synced/pending/failed/local_only，与 DB 实际一致）+ `running`/`progress`/`last_sync_at`；`backend=local` → 400 |
+| `POST /sync` | `{scope, file_ids, dry_run, force}`：`dry_run` 只统计零改动；正式执行 `BackgroundTasks` 跑批立即返回 `task_id`；执行中重复触发 → **409**（进程内 `RUN_STATE`）；`@audit(action="SYNC")` |
+| `POST /sync/{id}` | 单条同步：本地缺失 → 状态 `FAILED` 且 HTTP 200（可补偿，不 500）；未知 id → 404；`@audit` |
 
 **存量迁移**：CLI 脚本 `scripts/migrate-files-to-kodo.py` 作为 `storage_sync_service` 的命令行入口（复用 138 一键迁移先例），支持 `--scope/--dry-run/--force`，与同步中心行为完全一致；本地副本去留仍由 `local_retention` 决定。
 
@@ -354,7 +363,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 5 | 路径 A 接线：`register` 后 put + 状态流转 + 失败回退 | 🟢 | 新增上传状态用例 |
 | 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | 🟢 | 分片/管线用例 |
 | 7 | 响应层 `to_public_url` + 批量查询 + §6.3 各资源接入 | 🟢 | 两态响应用例（外链 / 回落） |
-| 8 | 管理端：scan 扩展 + 双删 + 同步端点骨架（`sync` / `sync-status` / `sync/{id}`） | 🟢 | 管理端用例 |
+| 8 | 管理端：scan 扩展 + 双删 + 同步端点骨架（`sync` / `sync-status` / `sync/{id}`） | ✅ 已完成 | 2026-10-26 | 22 例（scan 两态 / 双删 / 端点门禁与统计 / dry_run / 409 / 单条）；fast 333 passed |
 | 9 | **文件管理 S3 同步功能**：`storage_sync_service` + `dry_run`/`force`/防并发 + Admin 文件页同步弹层/状态列/筛选/进度轮询 | 🟢 | §十一 12-14 用例 |
 | 10 | 补偿任务三触发点 + 存量迁移 CLI（共用 `storage_sync_service`） | 🟢 | 补偿重传用例 |
 | 11 | 回归 + 真机 | 🏁 | §十一 |

@@ -308,7 +308,7 @@ docs/
 | 144：小程序埋点结构性治理 | v1.0.1 | 方案 | `plans/144-小程序埋点结构性治理.md` | action 名称冲突消解、traceId 补全、空 params 丰富、跨文件 EV 常量 | 🏁 已完成 |
 | 145：AI 评分 JSON 解析容错与重试 | v1.0.0 | 方案 | `plans/145-AI评分JSON解析容错与重试.md` | `json-repair` 修复 LLM 返回的非法 JSON + `analyze_swing` 单次重试 + 失败原始文本日志 | 🏁 已完成 |
 | 146：后台三件套改造评估 | v1.4.0 | 方案 | `plans/146-后台三件套改造评估.md` | HF Space Docker + Supabase PostgreSQL + KODO S3 改造评估与实施路线（**总纲**）：现状事实、三件套逐项分析（Alembic 基线/部分唯一索引/分片协议三大难点）、横向风险、14~23 人日估算；**决策定稿**（摆脱魔搭/域名项目外/分阶段/存储读写分工/测试 SQLite 生产 PG）；§3.4 多数据源设计（按记录路由，不做双写）；§六串行三阶段实施计划；**阶段一已拆出细化方案 147 并开工（🚧 Step 0 已完成）** | 🚧 进行中 |
-| 147：阶段一 KODO 对象存储细化方案 | v1.6.0 | 方案 | `plans/147-阶段一KODO对象存储细化方案.md` | 阶段一实施文档：`StorageBackend` 抽象 + `files` 两列状态机（PENDING/SYNCED/FAILED）+ 三类文件写路径（上传落库后同请求内写 S3）+ **响应层下发签名外链（前端零改动、PENDING 回落代理）** + 分片/管线衔接 + 管理端 scan/双删/补偿 + **文件管理 S3 同步中心（存量搬迁/失败补偿/状态核对 + dry_run/进度/防并发）** + TDD 11 Step + 14 项验收 + 秒级回滚；7~10 人日；**P0 前置：已备案外链域名**；**Step 0-7 已完成**（抽象层/配置/迁移/三路径写接线/分片与批量同步/响应层外链收口） | 🚧 进行中 |
+| 147：阶段一 KODO 对象存储细化方案 | v1.7.0 | 方案 | `plans/147-阶段一KODO对象存储细化方案.md` | 阶段一实施文档：`StorageBackend` 抽象 + `files` 两列状态机（PENDING/SYNCED/FAILED）+ 三类文件写路径（上传落库后同请求内写 S3）+ **响应层下发签名外链（前端零改动、PENDING 回落代理）** + 分片/管线衔接 + 管理端 scan/双删/补偿 + **文件管理 S3 同步中心（存量搬迁/失败补偿/状态核对 + dry_run/进度/防并发）** + TDD 11 Step + 14 项验收 + 秒级回滚；7~10 人日；**P0 前置：已备案外链域名**；**Step 0-8 已完成**（抽象层/配置/迁移/三路径写接线/分片与批量同步/响应层外链/管理端 scan+双删+同步端点） | 🚧 进行中 |
 
 ## 文档类型说明
 
@@ -464,7 +464,7 @@ docs/
 | 144-小程序埋点结构性治理 | 小程序埋点重构 | 🏁 已完成 | 2026-09-13 | type-check + build 通过；15 文件 EV 常量替换 + 4 处 action 冲突消解 + 8 事件 traceId 补全 + 12 事件 params 丰富 |
 | 145-AI评分JSON解析容错与重试 | 后端 | 🏁 已完成 | 2026-09-13 | `json-repair` 修复 LLM 非法 JSON + `analyze_swing` 单次重试 + 失败原始文本日志；9 测试通过，ruff 干净 |
 | 146-后台三件套改造评估 | 后端架构评估 | 📋 待执行 | 2026-10-25 | v1.0.0 评估完成；v1.1.0 录入五项决策并定稿串行三阶段计划；v1.2.0 补 §3.4 多数据源设计；v1.3.0 决策 4 修订（读取走外链）+ 拆出 147；v1.4.0 阶段一新增文件管理 S3 同步功能；阶段一 🚧 进行中（147 **Step 0 盘点已完成**）；依赖：七牛凭据 + 备案外链域名（待人类提供） |
-| 147-阶段一KODO对象存储细化方案 | 对象存储（阶段一） | 🚧 进行中 | 2026-10-26 | v1.0.0 方案初版；v1.1.0 新增 §9.1 文件管理 S3 同步中心；v1.2.0 **Step 0 响应字段盘点完成**；v1.3.0 **Step 0.5 Windows `os.pwrite` 修复**（1.86.4）；v1.4.0 **Step 1-5 完成**（StorageBackend 抽象 + 9 项配置 + 两列迁移 + 路径 A 写接线）；v1.5.0 **Step 6 路径 B/C 完成**（`register_batch` 逐条同步 + `complete` 先 pre-put 再落库，fast 290 passed）；v1.6.0 **Step 7 响应层外链收口完成**（`ApiResponse.model_post_init` → `rewrite_response_urls` 字段注册表 + 单次 `IN` 查询 + ContextVar 会话绑定，fast 311 passed）；进行中：Step 8 Admin 同步端点；前置：七牛 AK/SK + Bucket、已备案外链域名 |
+| 147-阶段一KODO对象存储细化方案 | 对象存储（阶段一） | 🚧 进行中 | 2026-10-26 | v1.0.0 方案初版；v1.1.0 新增 §9.1 文件管理 S3 同步中心；v1.2.0 **Step 0 响应字段盘点完成**；v1.3.0 **Step 0.5 Windows `os.pwrite` 修复**（1.86.4）；v1.4.0 **Step 1-5 完成**（StorageBackend 抽象 + 9 项配置 + 两列迁移 + 路径 A 写接线）；v1.5.0 **Step 6 路径 B/C 完成**（`register_batch` 逐条同步 + `complete` 先 pre-put 再落库，fast 290 passed）；v1.6.0 **Step 7 响应层外链收口完成**（`ApiResponse.model_post_init` → `rewrite_response_urls` 字段注册表 + 单次 `IN` 查询 + ContextVar 会话绑定，fast 311 passed）；v1.7.0 **Step 8 管理端完成**（scan `pending_sync`/`missing` 重定义 + §5.4 双删 + 同步端点三件套与 `storage_sync_service`，fast 333 passed）；进行中：Step 9 同步中心前端；前置：七牛 AK/SK + Bucket、已备案外链域名 |
 
 ## 约定
 

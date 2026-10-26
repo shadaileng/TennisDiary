@@ -4,6 +4,17 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.90.0] - 2026-10-26
+
+### Added
+
+- 管理端 scan 扩展与双删 + S3 同步端点骨架（147 Step 8）：
+  - `file_service.scan` 新增 `pending_sync`（存量未搬迁 / PENDING / FAILED），`missing` 在启用对象存储后重定义为「DB 有而对象存储无」（一次 `iter_keys` 全量列举核对，列举失败跳过核对不误报）；`backend=local` 保持旧语义。
+  - §5.4 双删：`cleanup_expired` 删行同时删对象（失败仅告警不阻塞）；`cleanup_paths` 支持 `db=` 传入并同步删孤儿对象。
+  - 新增 `storage_sync_service`（单一服务源）：`sync_status` 统计、`plan` 分拣（dry_run/force 幂等跳过）、`start_sync` 入队 `BackgroundTasks`、`run_sync` CLI 同步入口、`sync_one` 单条；进程内 `RUN_STATE` 防并发（执行中触发 → 409）。
+  - Admin 三端点：`GET /sync-status`、`POST /sync`、`POST /sync/{id}`（`backend=local` → 400，`@audit(action="SYNC")`）；`SyncRequest` schema。
+  - 测试：`tests/routers/admin/test_files_sync.py` 22 例（scan 两态 / 双删 / 端点门禁与统计 / dry_run 零改动 / 409 / 单条同步）。
+
 ## [1.89.0] - 2026-10-26
 
 ### Added
