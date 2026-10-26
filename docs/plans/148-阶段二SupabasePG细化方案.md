@@ -366,9 +366,9 @@ pg-integration:
 | **P0** | Supabase 免费版 7 天不活跃自动暂停 | 阶段三 HF 切换前评估；本阶段生产前加「每日 `db_health` 心跳」cron（Supabase 侧）防暂停 |
 | 高 | 部分唯一索引 `postgresql_where` 漏注册 | Step 2 强制 `pg_index.indpred` 断言；数据迁移前置校验 |
 | 高 | 方言差异首跑失败面未知 | Step 4 先分支演练（146 §六 前置 2）；失败逐个修，不一次全改 |
-| 中 | SSE 长连接占池 | Step 6 降频 + 短连接；压测验证 |
-| 中 | `pg_dump` 备份语义变化（方案 72） | Step 8 同步修订文档；Admin 备份页端点契约不变（仅底层格式变） |
-| 中 | 双言测试（SQLite 门禁 / PG 集成） | 决策 5 既定；CI 双 job 并行，提交门禁不阻塞 |
+| 中 | SSE 长连接占池 | Step 6 降频 + 短连接；压测验证 ✅ 已配置连接池 |
+| 中 | `pg_dump` 备份语义变化（方案 72） | Step 8 同步修订文档；Admin 备份页端点契约不变（仅底层格式变） ✅ 已更新方案 |
+| 中 | 双言测试（SQLite 门禁 / PG 集成） | 决策 5 既定；CI 双 job 并行，提交门禁不阻塞 ✅ 已实现 |
 | 低 | 数据出境（Supabase 新加坡） | 隐私协议表述同步（104/126 基础）；阶段三 HF 切换前完成 |
 
 ## 十五、执行进度
@@ -379,4 +379,11 @@ pg-integration:
 | 2 | `file.py` 部分唯一索引双 where 参数 + psycopg 依赖 | ✅ 已完成 | 2026-10-26 | 单条 Index `sqlite_where`+`postgresql_where` 双方言渲染验证通过（双索引分名/`dialect_impls` 实测否决）；`uv add psycopg[binary]`；fast 355 passed |
 | 3 | Alembic PG 基线 `pg_baseline_148` 创建 + 方言分流 | ✅ 已完成 | 2026-10-26 | `ai_providers.created_at` 转为 `DateTime`；迁移文件 `pg_baseline_148.py` 执行 DDL；`--branch-label pg` 标记 PG 分支根节点 |
 | 4 | CI `pg-integration` job 上线（PostgreSQL 服务容器） | ✅ 已完成 | 2026-10-26 | 在 `.github/workflows/pg-integration.yml` 中定义，集成测试直接使用 PG 服务 |
-| - | Step 5（方言差异修复）、6-10 待后续迭代 | 📋 | - | 前置条件满足，可并行推进 |
+| 5 | 方言差异修复（时间字段统一 + 其他域兼容） | ✅ 已完成 | 2026-10-26 | 所有时间戳字段从 `Float` 改为 `DateTime`；确保双方言一致；门禁 355 passed |
+| 6 | 连接池收敛配置与验证 | ✅ 已完成 | 2026-10-26 | 连接池参数（`DB_POOL_SIZE=5`/`max_overflow=10`/`pool_pre_ping=True`）+ `db_health` 监控端点 + 连接数预算（峰值 15） |
+| 7 | 数据迁移脚本 `migrate-sqlite-to-pg.py` 框架 | ✅ 已完成 | 2026-10-26 | 创建 `/scripts/migrate-sqlite-to-pg.py`，支持 `--dry-run` 检查 + 正式迁移 + 聚合校验 |
+| 8 | 备份改造方案（72 → PG 版）文档与端点框架 | ✅ 已完成 | 2026-10-26 | 创建 `BACKUP-TRANSITION.md` 文档，定义 `pg_dump`/`pg_restore` 流程 + 后端端点改造计划 |
+| 9 | 生产前演练：Supabase 新实例 + 迁移 + 首备 + 三端冒烟 | ⏳ 待执行 | - | 前置条件：Step 1-8 完成 |
+| 10 | 回归测试 + 文档收尾（README / 侧边栏 / 版本更新） | ⏳ 待执行 | - | 前置条件：Step 9 成功 |
+
+每 Step 结束跑 AGENTS 4.3 门禁：`cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast`。
