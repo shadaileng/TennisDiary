@@ -1,7 +1,7 @@
 """pg_baseline_148
 
 Revision ID: pg_baseline_148
-Revises: 3a79ce8c1f19_initial_schema.py
+Revises:
 Create Date: 2026-10-26
 
 NOTE: This migration is PostgreSQL-specific baseline derived from the latest
@@ -18,7 +18,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'pg_baseline_148'
-down_revision: Union[str, Sequence[str], None] = '3a79ce8c1f19_initial_schema.py'
+down_revision: Union[str, Sequence[str], None] = None  # New root for PG branch
 branch_labels = ('pg',)
 depends_on = ()
 

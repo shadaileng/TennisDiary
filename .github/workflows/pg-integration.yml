@@ -1,0 +1,63 @@
+name: PG Integration Tests
+
+on:
+  push:
+    branches: [dev, master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/pg-integration.yml'
+  pull_request:
+    branches: [dev, master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/pg-integration.yml'
+
+jobs:
+  pg-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: tennis_diary_pg
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --no-install-project
+
+      - name: Configure database
+        run: |
+          # Ensure the URL points to the service container
+          echo "DB_DATABASE_URL=postgres://postgres:postgres@localhost:5432/tennis_diary_pg" > .env.test
+          echo "DB_POOL_SIZE=20" >> .env.test
+          echo "DB_MAX_OVERFLOW=40" >> .env.test
+
+      - name: Apply PG baseline
+        run: uv run alembic upgrade pg_baseline_148 --branch-label pg
+
+      - name: Run fast tests (SQLite mode not expected, but sanity check)
+        run: uv run pytest -q -m fast
+
+      - name: Run critical PG-dependent integration tests
+        run: uv run pytest -q -m "not fast" --tb=short
