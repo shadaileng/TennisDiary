@@ -29,11 +29,8 @@ class Settings:
     # 数据目录（数据库 + 上传文件统一在此）
     DATA_DIR: str = os.getenv("DATA_DIR", "./data")
 
-    # 数据库（148 阶段二：DB_DATABASE_URL 为业务库主配置，DATABASE_URL 保留为向后兼容别名）
-    DB_DATABASE_URL: str = os.getenv(
-        "DB_DATABASE_URL",
-        os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/tennis_diary.db"),
-    )
+    # 数据库 URL（业务库）
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/tennis_diary.db")
     # 审计库 / 备份元数据库（默认本地 SQLite，保持 147/72 隔离价值；生产可各自切 PG）
     AUDIT_DB_URL: str = os.getenv("AUDIT_DB_URL", f"sqlite:///{DATA_DIR}/audit.db")
     BACKUP_META_DB_URL: str = os.getenv(

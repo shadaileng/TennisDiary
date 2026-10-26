@@ -82,21 +82,19 @@
 - 审计与备份元数据保持本地 SQLite（隔离价值 + 无演进），仅生产侧备份流程改 `pg_dump`
 - `rel_path` / `storage` / `storage_status` 语义不变（147 已落地）
 
-## 三、配置项（`Settings` 新增 / 修订）
+## 三、配置项
 
 **硬约束**：`config_service` 不注册本阶段配置（DB 连接属部署凭据，走 `.env`，与 `JWT_SECRET` / `WX_SECRET` 同模式）；如需 Admin 侧展示，走 `system_configs` 只读展示项（可选，不在本阶段）。
 
 | key | 类型 | 默认 | 说明 |
 |-----|------|------|------|
-| `DB_DATABASE_URL` | `str` | `sqlite:///{DATA_DIR}/tennis_diary.db` | 业务库 DSN；生产 `postgresql+psycopg://postgres:***@host:5432/tennis_diary`（Supabase 连接串） |
+| `DATABASE_URL` | `str` | `sqlite:///{DATA_DIR}/tennis_diary.db` | 业务库 DSN；生产 `postgresql+psycopg://postgres:***@host:5432/tennis_diary`（Supabase 连接串） |
 | `AUDIT_DB_URL` | `str` | `sqlite:///{DATA_DIR}/audit.db` | 审计库 DSN（默认本地 SQLite） |
 | `BACKUP_META_DB_URL` | `str` | `sqlite:///{DATA_DIR}/backup_meta.db` | 备份元数据库 DSN（默认本地 SQLite） |
 | `DB_POOL_SIZE` | `int` | `5` | 池大小（Supabase pgbouncer 并发上限约束） |
 | `DB_MAX_OVERFLOW` | `int` | `10` | 溢出上限 |
 | `DB_POOL_RECYCLE` | `int` | `3600` | 连接回收（秒）；PG 必填，SQLite 忽略 |
 | `DB_ECHO` | `bool` | `false` | SQL 日志开关（调试用） |
-
-> `DATABASE_URL` 保留为向后兼容别名（本地开发 `.env` 不填 `DB_DATABASE_URL` 时回退）；新部署一律用 `DB_DATABASE_URL`。
 
 ## 四、模型方言改造
 
@@ -377,7 +375,7 @@ pg-integration:
 
 | Step | 内容 | 状态 | 日期 | 备注 |
 |------|------|:----:|:----:|------|
-| 1 | `make_engine` 工厂 + `Settings.DB_*` 配置 + `db_health` 端点 | ✅ 已完成 | 2026-10-26 | `DB_DATABASE_URL` 双舍入逻辑 + 连接池参数 + 健康端点；门禁 355 passed |
+| 1 | `make_engine` 工厂 + `Settings.DB_*` 配置 + `db_health` 端点 | ✅ 已完成 | 2026-10-26 | `DATABASE_URL` 双舍入逻辑 + 连接池参数 + 健康端点；门禁 355 passed |
 | 2 | `file.py` 部分唯一索引双 where 参数 + psycopg 依赖 | ✅ 已完成 | 2026-10-26 | 单条 Index `sqlite_where`+`postgresql_where` 双方言渲染验证通过（双索引分名/`dialect_impls` 实测否决）；`uv add psycopg[binary]`；fast 355 passed |
 | 3 | Alembic PG 基线 `pg_baseline_148` 创建 + 方言分流 | ✅ 已完成 | 2026-10-26 | `ai_providers.created_at` 转为 `DateTime`；迁移文件 `pg_baseline_148.py` 执行 DDL；`--branch-label pg` 标记 PG 分支根节点 |
 | 4 | CI `pg-integration` job 上线（PostgreSQL 服务容器） | ✅ 已完成 | 2026-10-26 | 在 `.github/workflows/pg-integration.yml` 中定义，集成测试直接使用 PG 服务 |

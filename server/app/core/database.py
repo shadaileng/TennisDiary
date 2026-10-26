@@ -41,8 +41,8 @@ def make_engine(url: str) -> Engine:
     return create_engine(url, connect_args=connect_args, echo=settings.DEBUG, **pool_args)
 
 
-# 148 阶段二：统一用 DB_DATABASE_URL（本地开发不填时回退到 SQLite 默认）
-engine = make_engine(settings.DB_DATABASE_URL)
+# 148 阶段二：使用 DATABASE_URL（本地开发不填时回退到 SQLite 默认）
+engine = make_engine(settings.DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
