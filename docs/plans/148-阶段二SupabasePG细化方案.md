@@ -379,4 +379,6 @@ pg-integration:
 |------|------|:----:|:----:|------|
 | 1 | `make_engine` 工厂 + `Settings.DB_*` 配置 + `db_health` 端点 | ✅ 已完成 | 2026-10-26 | `DB_DATABASE_URL` 双舍入逻辑 + 连接池参数 + 健康端点；门禁 355 passed |
 | 2 | `file.py` 部分唯一索引双 where 参数 + psycopg 依赖 | ✅ 已完成 | 2026-10-26 | 单条 Index `sqlite_where`+`postgresql_where` 双方言渲染验证通过（双索引分名/`dialect_impls` 实测否决）；`uv add psycopg[binary]`；fast 355 passed |
-| - | Step 3（PG 基线 + CI）待 Supabase 实例后继续 | 📋 | - | 前置 3（Supabase 项目）已确认就绪 |
+| 3 | Alembic PG 基线 `pg_baseline_148` 创建 + 方言分流 | ✅ 已完成 | 2026-10-26 | `ai_providers.created_at` 转为 `DateTime`；迁移文件 `pg_baseline_148.py` 执行 DDL；`--branch-label pg` 标记 PG 分支根节点 |
+| 4 | CI `pg-integration` job 上线（PostgreSQL 服务容器） | ✅ 已完成 | 2026-10-26 | 在 `.github/workflows/pg-integration.yml` 中定义，集成测试直接使用 PG 服务 |
+| - | Step 5（方言差异修复）、6-10 待后续迭代 | 📋 | - | 前置条件满足，可并行推进 |
