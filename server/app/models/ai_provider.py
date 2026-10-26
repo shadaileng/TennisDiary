@@ -2,7 +2,7 @@
 
 import json
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import Column, DateTime, Integer, String, Text, func
 from sqlalchemy.types import TypeDecorator
 
 from app.core.database import Base
@@ -43,7 +43,8 @@ class AiProvider(Base):
     models = Column(JSONList, nullable=False)  # 模型列表（JSON 数组字符串，默认模型 = 首项）
     enabled = Column(Integer, default=1)  # 是否启用（停用条目不可被直选引用）
     sort_order = Column(Integer, default=0)
-    created_at = Column(Float, default=0)
+    # 双方言时间列：SQLite 需要 TEXT/DATE/TIMESTAMP，PG 需要 TIMESTAMP WITHOUT TIME ZONE
+    created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     @property
