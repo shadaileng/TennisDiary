@@ -4,6 +4,15 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.89.0] - 2026-10-26
+
+### Added
+
+- 响应层两态外链收口（147 Step 7）：`ApiResponse.model_post_init` 统一入口 → `storage.urls.rewrite_response_urls`，按字段名注册表（`avatar_url/photo/video_url/thumb/rel_path` + `highlights/pose` 容器）收集候选 → **一次 `IN` 批量查询**建映射 → 原地改写，幂等且 N+1 防护（测试断言单次响应仅 1 次 `FROM files` 查询）；`SYNCED` 下发签名外链，`local/PENDING/FAILED/dataURL` 原样走代理。
+- 请求级会话上下文：`current_session()`/`bind_request_db()` ContextVar + `main.py` **async** 应用级依赖 `_request_db_context`（同步生成器依赖在 FastAPI 线程池的拷贝 Context 中 set 不回传、reset 跨 Context 报错，故绑定必须放异步依赖）。
+- `load_storage_config` 改单次 `IN` 查询批量取 9 项覆盖值（原 9 次逐 key 查询，响应层每请求都会读）。
+- 测试：`tests/test_response_urls.py` 21 例（端点两态 / N+1 计数 / 幂等 / 无会话跳过）+ Admin `rel_path` 两态 2 例。
+
 ## [1.88.0] - 2026-10-26
 
 ### Added

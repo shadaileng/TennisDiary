@@ -1,7 +1,9 @@
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
 
@@ -27,9 +29,41 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# ==================== 请求级会话上下文（147 Step 7） ====================
+#
+# 响应层收口改写（storage.urls.rewrite_response_urls）需要在构造响应时拿到
+# 当前请求的 DB 会话；FastAPI 的响应序列化不透传 context，故用 ContextVar 绑定。
+#
+# 绑定必须放在 **async 依赖**（app.main._request_db_context）里：FastAPI 对同步
+# 生成器依赖走 `contextmanager_in_threadpool`，在**拷贝的 Context** 中执行，
+# `set` 既传不回请求上下文、`reset` 还会因 Token 跨 Context 报错（Step 7 实测）。
+# 异步依赖在同一 task 上下文进出 → set/reset 配对，同步端点经线程池执行时
+# `copy_context()` 会继承该值（只读场景，足够）。
+
+_request_db: ContextVar[Session | None] = ContextVar("request_db", default=None)
+
+
+def current_session() -> Session | None:
+    """当前请求绑定的 DB 会话；未绑定返回 None（后台/直接构造响应时安全跳过）"""
+    return _request_db.get()
+
+
+@contextmanager
+def bind_request_db(db: Session):
+    """把会话绑定到当前上下文（退出时还原，允许嵌套）"""
+    token = _request_db.set(db)
+    try:
+        yield db
+    finally:
+        _request_db.reset(token)
+
 
 def get_db():
-    """FastAPI 依赖：获取数据库会话，请求结束后自动关闭"""
+    """FastAPI 依赖：获取数据库会话，请求结束后自动关闭
+
+    会话上下文绑定由应用级异步依赖 `_request_db_context` 负责（见上），
+    本生成器在同步线程池中执行，不能在此绑定 ContextVar。
+    """
     db = SessionLocal()
     try:
         yield db

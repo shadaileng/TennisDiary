@@ -537,3 +537,48 @@ class TestAdminFileRepairMime:
         client.headers.pop("X-Auth-Token", None)
         resp = client.post("/api/admin/files/repair", json={"only_empty": True})
         assert resp.status_code in (401, 403)
+
+
+class TestAdminFileStorageUrls:
+    """147 Step 7 §6.3 #5：列表 rel_path 两态（SYNCED → 签名外链，其余回落代理）"""
+
+    @pytest.fixture(autouse=True)
+    def _restore_auth_header(self, auth_client, admin_token):
+        """模块级 client 的鉴权头可能被前序用例（test_repair_requires_admin）清掉，先复原"""
+        auth_client.headers["X-Auth-Token"] = admin_token
+
+    def test_synced_rel_path_becomes_signed_url(self, auth_client, test_db, monkeypatch):
+        from app.models.file import STORAGE_STATUS_SYNCED
+        from app.services import storage
+
+        monkeypatch.setattr(settings, "STORAGE_BACKEND", "memory")
+        storage.clear_backend_cache()
+        uid = _next_uid()
+        rel = f"admin-sync/{uid}/a.jpg"
+        _insert_file(
+            test_db,
+            user_id=uid,
+            rel_path=rel,
+            storage="memory",
+            storage_status=STORAGE_STATUS_SYNCED,
+        )
+        try:
+            resp = auth_client.get(f"/api/admin/files?user_id={uid}")
+        finally:
+            storage.clear_backend_cache()
+        assert resp.status_code == 200
+        items = [i for i in resp.json()["data"]["items"] if i["user_id"] == uid]
+        assert items, "应查到刚插入的记录"
+        assert items[0]["rel_path"].startswith("https://")
+        assert rel in items[0]["rel_path"]
+
+    def test_local_rel_path_unchanged(self, auth_client, test_db):
+        """backend=local（默认/回滚）→ rel_path 原样，预览继续走后端代理"""
+        uid = _next_uid()
+        rel = f"admin-local/{uid}/a.jpg"
+        _insert_file(test_db, user_id=uid, rel_path=rel)
+        resp = auth_client.get(f"/api/admin/files?user_id={uid}")
+        assert resp.status_code == 200
+        items = [i for i in resp.json()["data"]["items"] if i["user_id"] == uid]
+        assert items, "应查到刚插入的记录"
+        assert items[0]["rel_path"] == rel

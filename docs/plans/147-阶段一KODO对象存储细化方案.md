@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.5.0 |
+> | 文档版本 | v1.6.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -13,6 +13,7 @@
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
 > | 2026-10-26 | v1.5.0 | **Step 6 完成**：路径 B/C 写接线 —— `register_batch` 逐条同步、分片 `manifest["backend"]` 快照、`complete` 先 pre-put 再落库（`ChunkSyncError`→503 保持可续传）；§七 表按实现校准 |
+> | 2026-10-26 | v1.6.0 | **Step 7 完成**：响应层两态外链收口 —— `ApiResponse.model_post_init` → `storage.urls.rewrite_response_urls`（字段名注册表 + 收集→单次 `IN` 查询→改写两趟遍历，幂等）；请求级会话用 `ContextVar` 绑定（async 应用级依赖，规避同步依赖线程池 Context 拷贝坑）；§6.2 按实现校准 |
 > | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
@@ -189,18 +190,41 @@ ffmpeg / mediapipe 写本地临时目录
 | `SYNCED` + `storage=kodo` | **绝对签名外链** | 直连七牛 CDN，不占后端带宽 |
 | 其余（`local` / `PENDING` / `FAILED` / 无记录） | `rel_path` 原样 | 走现有后端代理，永不 404 |
 
-### 6.2 响应层收口（一处实现）
+### 6.2 响应层收口（一处实现，✅ Step 7 已按此落地）
 
-`app/schemas/` 序列化处统一 helper：
+**收口点**：`ApiResponse.model_post_init`（`app/schemas/common.py`）→ `storage.urls.rewrite_response_urls`。
+任何 `ApiResponse(...)` 构造都会经过，前端零改动、路由零侵入。
 
 ```python
-def to_public_url(db, rel_path: str) -> str:
-    """rel_path → 可访问地址：SYNCED 走签名外链，否则原样返回相对路径"""
+# app/services/storage/urls.py
+def build_public_url_map(db, rel_paths) -> dict[str, str]:
+    """rel_path → 绝对签名外链（一次 `IN` 批量查询；查不到的不入映射 → 回落代理）"""
+
+def rewrite_response_urls(db, data) -> None:
+    """响应树两趟遍历：先收集候选 rel_path → 一次批量映射 → 再原地改写"""
 ```
 
+- **字段名注册表**（不按值猜测，避免误改普通字符串）：
+  - `STRING_URL_FIELDS = {avatar_url, photo, video_url, thumb, rel_path}` — 值本身是路径
+  - `PATH_BAG_FIELDS = {highlights, pose}` — 值内部装着路径（json_list / json_dict 逐层递归）
+  - 与 `file_refs.FILE_REF_SPECS` 一一对应（§6.3 清单）
 - 签发：`boto3 presigned GET`（七牛 S3 兼容），TTL 取 `storage.presign_ttl`
-- **N+1 防护**：列表接口按 `rel_path IN (...)` 批量查一次 `files`，内存映射转换；禁止逐行 query
+- **N+1 防护**：收集→**一次 `rel_path IN (...)` 批量查询**建映射→改写，一次响应只查一次 files
+  （`TestQueryCount` 用 SQLAlchemy 事件断言 SELECT 命中 `FROM files` 恰好 1 次）
+- **幂等**：改写后的值是绝对地址 → 第二趟 `is_candidate` 判否天然 no-op（序列化重复校验安全）
 - **不刷库**：DB 永远存 `rel_path`，外链动态生成 → 存量数据零迁移
+
+**请求级会话绑定（ContextVar）**：响应序列化不透传 DI context，故 `app/core/database.py`
+定义 `current_session()` / `bind_request_db()`，由 `app/main.py` 的 **async** 应用级依赖
+`_request_db_context` 绑定（覆盖未声明 `Depends(get_db)` 的路由，如 `/api/auth/me`）。
+
+> ⚠️ **坑（Step 7 实测）**：绑定**不能**放在同步 `get_db` 里 —— FastAPI 对同步生成器依赖
+> 用 `contextmanager_in_threadpool` 在**拷贝的 Context** 中执行，`ContextVar.set` 传不回
+> 请求上下文，`reset(token)` 还会抛 `Token was created in a different Context`。
+> 必须用 `async def` 依赖（同一 task 上下文进出）；同步端点经线程池 `copy_context()`
+> 继承该值，只读场景足够。无绑定会话（后台任务/直接构造响应）时安全跳过。
+
+- **异常兜底**：改写任何异常只 `log.exception`，绝不阻断响应返回
 
 ### 6.3 资源接入清单（✅ Step 0 已盘点，2026-10-26）
 
@@ -398,7 +422,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 4 | `files` 两列 + `ix_files_storage_status` + 迁移 `c7a147f0b3d5` | ✅ 已完成 | 2026-10-26 | `tests/test_migrations_147.py` 6 例；真实链 upgrade→downgrade→upgrade 验证 |
 | 5 | 路径 A 接线：`register` 落库后 put + 状态流转 + 失败回退 | ✅ 已完成 | 2026-10-26 | `tests/test_file_storage_sync.py` 7 例；`sync_to_storage` + 快照实例缓存；fast 门禁 285 passed |
 | 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | ✅ 已完成 | 2026-10-26 | `register_batch` 逐条同步单条失败不中断；`complete` **先 pre-put 再落库**（失败抛 `ChunkSyncError`→503，分片与 DB 未动可续传）+ `manifest["backend"]` 快照；fast 门禁 290 passed |
-| 7 | 响应层外链 | 📋 待执行 | - | 前端零改动 |
+| 7 | 响应层外链 | ✅ 已完成 | 2026-10-26 | `storage.urls` 收口 + §6.3 全资源接入；fast 311 passed（新增 21 例） |
 | 8 | 管理端 scan/双删 + 同步端点骨架 | 📋 待执行 | - | - |
 | 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | 📋 待执行 | - | §9.1；§十一 12-14 |
 | 10 | 补偿三触发点 + 迁移 CLI | 📋 待执行 | - | 共用同步服务 |
