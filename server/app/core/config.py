@@ -62,6 +62,17 @@ class Settings:
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", f"{DATA_DIR}/uploads")
     MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "100"))
 
+    # 对象存储（147 阶段一：S3 兼容，七牛 Kodo；backend=local 即回滚开关）
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")
+    STORAGE_ENDPOINT: str = os.getenv("STORAGE_ENDPOINT", "")
+    STORAGE_REGION: str = os.getenv("STORAGE_REGION", "")
+    STORAGE_BUCKET: str = os.getenv("STORAGE_BUCKET", "")
+    STORAGE_ACCESS_KEY: str = os.getenv("STORAGE_ACCESS_KEY", "")
+    STORAGE_SECRET_KEY: str = os.getenv("STORAGE_SECRET_KEY", "")
+    STORAGE_PRESIGN_TTL: int = int(os.getenv("STORAGE_PRESIGN_TTL", "7200"))
+    STORAGE_PUBLIC_BASE_URL: str = os.getenv("STORAGE_PUBLIC_BASE_URL", "")
+    STORAGE_LOCAL_RETENTION: int = int(os.getenv("STORAGE_LOCAL_RETENTION", "0"))
+
     # 日志
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")
     LOG_DIR: str = os.getenv("LOG_DIR", f"{DATA_DIR}/logs")

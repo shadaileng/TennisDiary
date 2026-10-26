@@ -4,6 +4,15 @@ from sqlalchemy import Column, Float, Index, Integer, String, text
 
 from app.core.database import Base
 
+# 本体位置（storage 列取值）
+STORAGE_LOCAL = "local"  # 本地受管目录（回滚开关档位）
+STORAGE_KODO = "kodo"  # 七牛 Kodo 对象存储
+
+# 同步状态（storage_status 列取值）
+STORAGE_STATUS_PENDING = 0  # 未同步（落库即此态，等待 put）
+STORAGE_STATUS_SYNCED = 1  # 已同步
+STORAGE_STATUS_FAILED = 2  # 失败待补偿
+
 
 class File(Base):
     """文件记录表：受管文件一条记录，支持 MD5 去重和引用计数
@@ -32,6 +41,15 @@ class File(Base):
     created_at = Column(Float, default=0)  # 登记时间戳
     deleted_at = Column(Float, nullable=True, index=True)  # 软删除时间（None=未删除）
 
+    # 147 阶段一：本体位置 + 同步状态（缺一不可：前者说「在哪」，后者说「同步到没有」）
+    # server_default 保证裸 SQL INSERT（迁移冒烟等）不因 NOT NULL 报错
+    storage = Column(
+        String(32), nullable=False, default=STORAGE_LOCAL, server_default=STORAGE_LOCAL
+    )
+    storage_status = Column(
+        Integer, nullable=False, default=STORAGE_STATUS_PENDING, server_default="0"
+    )
+
     # 138：同用户同 MD5 只允许一条有效记录（软删行被排除，可再次上传重建）
     # 原 uq_files_original_name 全局同名约束已移除：MD5 命名后跨用户必然同名
     __table_args__ = (
@@ -42,6 +60,8 @@ class File(Base):
             unique=True,
             sqlite_where=text("deleted_at IS NULL"),
         ),
+        # 147：补偿扫描按 storage_status 过滤（PENDING/FAILED），普通索引双方言安全
+        Index("ix_files_storage_status", "storage_status"),
     )
 
     def __repr__(self) -> str:

@@ -23,8 +23,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.models.file import File
-from app.services import file_ref_service, file_refs, file_store
+from app.models.file import (
+    STORAGE_LOCAL,
+    STORAGE_STATUS_FAILED,
+    STORAGE_STATUS_PENDING,
+    STORAGE_STATUS_SYNCED,
+    File,
+)
+from app.services import file_ref_service, file_refs, file_store, storage
 
 log = get_logger("user")
 
@@ -180,11 +186,16 @@ def _new_file_record(
     mime_type: str,
     business: tuple[str, int] | None,
     security_checked: bool | None,
+    storage_col: str,
+    storage_status: int,
 ) -> File:
     """构造一条未落库的 File 记录（登记的唯一构造入口）
 
     引用计数一律从 0 起：绑定由 `bind` 写入 file_bindings 后再 +1，
     保证「计数」与「绑定事实」始终一致。
+
+    `storage_col` / `storage_status` 由 `_storage_fields(db)` 按配置快照给出
+    （147 §5.2：位置列写当前默认 backend，状态列 PENDING / local 直接 SYNCED）。
     """
     business_type, business_id = business if business else (None, None)
     return File(
@@ -200,6 +211,8 @@ def _new_file_record(
         ref_count=0,
         security_checked=1 if security_checked else 0,
         created_at=time.time(),
+        storage=storage_col,
+        storage_status=storage_status,
     )
 
 
@@ -213,6 +226,61 @@ def _bind_business(
     if not business:
         return
     bind(db, user_id, rel_path, business[0], business[1])
+
+
+# -------------------- 对象存储同步（147 §5.1/§5.2） --------------------
+
+
+def _storage_fields(db: Session) -> tuple[str, int]:
+    """落库时的 `(storage, storage_status)`（按配置快照）
+
+    - `local` 后端：本体即本地，落库即 `SYNCED`（无上传职责，回滚开关语义）
+    - 其它后端（kodo / 测试注入 memory）：位置列写该 backend，状态 `PENDING` 等待 put
+    """
+    cfg = storage.load_storage_config(db)
+    if cfg.is_local:
+        return STORAGE_LOCAL, STORAGE_STATUS_SYNCED
+    return cfg.backend, STORAGE_STATUS_PENDING
+
+
+def sync_to_storage(db: Session, record: File) -> bool:
+    """把记录的本地本体上传到对象存储并推进状态（幂等，§5.2 状态机）
+
+    - 未启用对象存储（`local`）→ 直接视为完成，不动记录
+    - 已 `SYNCED` 且位置即当前后端 → 跳过（天然断点续传）
+    - 本地文件缺失 / put 抛错 → 置 `FAILED` 并记日志，**不向上传播**：
+      行与本地文件保留，交补偿任务（§5.3）与 Admin 同步中心（§9.1）
+
+    Returns:
+        记录是否处于 `SYNCED`
+    """
+    cfg = storage.load_storage_config(db)
+    if cfg.is_local:
+        return True
+    if record.storage == cfg.backend and record.storage_status == STORAGE_STATUS_SYNCED:
+        return True
+
+    abs_path = file_store.resolve(record.rel_path)
+    if abs_path is None or not os.path.isfile(abs_path):
+        record.storage = cfg.backend
+        record.storage_status = STORAGE_STATUS_FAILED
+        log.error("对象存储同步失败（本地文件缺失）: {}", record.rel_path)
+        return False
+
+    try:
+        storage.resolve_backend(cfg).put(
+            record.rel_path, abs_path, content_type=record.mime_type or ""
+        )
+    except (storage.StorageError, OSError) as exc:
+        record.storage = cfg.backend
+        record.storage_status = STORAGE_STATUS_FAILED
+        log.error("对象存储同步失败: {} {}", record.rel_path, exc)
+        return False
+
+    record.storage = cfg.backend
+    record.storage_status = STORAGE_STATUS_SYNCED
+    log.info("对象存储同步完成: {} backend={}", record.rel_path, cfg.backend)
+    return True
 
 
 # -------------------- 登记 --------------------
@@ -270,6 +338,8 @@ def register(
                 file_store.abs_of(existing.rel_path), upload_source, mime_type
             )
         _bind_business(db, user_id, existing.rel_path, business)
+        # 命中已有记录：若尚未同步（PENDING/FAILED）补一次 put → SYNCED（§5.1 路径 A 第 2 步）
+        sync_to_storage(db, existing)
         log.info(
             "登记复用已有文件: md5={} rel_path={} file_id={}",
             md5[:12],
@@ -284,6 +354,7 @@ def register(
         file_store.unlink_abs(str(src_path))
 
     resolved_mime = file_store.mime_of(file_store.abs_of(rel_path), upload_source, mime_type)
+    storage_col, storage_status = _storage_fields(db)
     record = _new_file_record(
         user_id=user_id,
         md5=md5,
@@ -294,6 +365,8 @@ def register(
         mime_type=resolved_mime,
         business=business,
         security_checked=security_checked,
+        storage_col=storage_col,
+        storage_status=storage_status,
     )
     db.add(record)
     try:
@@ -303,9 +376,12 @@ def register(
         existing = find_by_md5(db, user_id, md5)
         if existing is not None:
             _bind_business(db, user_id, existing.rel_path, business)
+            sync_to_storage(db, existing)
             return existing, True
         raise
     _bind_business(db, user_id, rel_path, business)
+    # 落库后在**同一请求内**写对象存储，响应前完成 → 外链无 404 窗口（§5.1）
+    sync_to_storage(db, record)
     log.info(
         "登记新文件: md5={} rel_path={} source={} file_id={}",
         md5[:12],
@@ -372,6 +448,7 @@ def register_batch(
             file_store.move_into_place(item.src_path, file_store.abs_of(rel_path))
 
         size_bytes = item.size or file_store.size_of(rel_path)
+        storage_col, storage_status = _storage_fields(db)
         record = _new_file_record(
             user_id=user_id,
             md5=md5,
@@ -384,6 +461,8 @@ def register_batch(
             ),
             business=business,
             security_checked=None,
+            storage_col=storage_col,
+            storage_status=storage_status,
         )
         db.add(record)
         created[md5] = record

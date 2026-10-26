@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.3.0 |
+> | 文档版本 | v1.4.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -12,6 +12,7 @@
 >
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
+> | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
 > | 2026-10-26 | v1.1.0 | **新增 §9.1 文件管理 S3 同步功能**（同步中心端点 + `storage_sync_service` 共用服务 + Admin 文件页弹层/状态列/筛选）；TDD 步骤插入 Step 9、验收 +3 例、工作量 6~9 → 7~10 人日 |
@@ -390,9 +391,12 @@ if (isAbsolute(p)) return p                                            // ← �
 |------|------|:----:|:----:|------|
 | 0 | 响应字段盘点 | ✅ 已完成 | 2026-10-26 | 与 `file_refs` 注册表一致；5 类接入点 + 4 项不接入；发现见 §6.3 |
 | 0.5 | Windows `os.pwrite` 兼容修复（基线 18 failed） | ✅ 已完成 | 2026-10-26 | `_pwrite` 双路径；`pytest -m fast` 225 passed 全绿（1.86.4） |
-| 1-2 | 抽象层 + 双实现 + 假 backend 单测 | 📋 待执行 | - | TDD |
-| 3-4 | 配置项 + 两列迁移 | 📋 待执行 | - | - |
-| 5-6 | 三路径写接线 | 📋 待执行 | - | - |
+| 1 | `StorageBackend` 契约测试（put/head/open_range/delete/presign/iter_keys） | ✅ 已完成 | 2026-10-26 | `tests/services/test_storage_backend.py` 38 例 🔴 RED |
+| 2 | `base`/`memory`/`local`/`kodo`/`factory` + `boto3` 依赖 | ✅ 已完成 | 2026-10-26 | 同文件 38 例 🟢（225→263 passed）；`kodo` 客户端懒构造 |
+| 3 | `storage` 分类 + 9 项配置 + `Settings.STORAGE_*` | ✅ 已完成 | 2026-10-26 | `tests/core/test_storage_config_registry.py` 9 例；顺带修正 `ConfigItemDef.default` 的 `0`/`bool` 语义 |
+| 4 | `files` 两列 + `ix_files_storage_status` + 迁移 `c7a147f0b3d5` | ✅ 已完成 | 2026-10-26 | `tests/test_migrations_147.py` 6 例；真实链 upgrade→downgrade→upgrade 验证 |
+| 5 | 路径 A 接线：`register` 落库后 put + 状态流转 + 失败回退 | ✅ 已完成 | 2026-10-26 | `tests/test_file_storage_sync.py` 7 例；`sync_to_storage` + 快照实例缓存；fast 门禁 285 passed |
+| 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | 📋 待执行 | - | - |
 | 7 | 响应层外链 | 📋 待执行 | - | 前端零改动 |
 | 8 | 管理端 scan/双删 + 同步端点骨架 | 📋 待执行 | - | - |
 | 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | 📋 待执行 | - | §9.1；§十一 12-14 |

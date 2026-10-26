@@ -4,6 +4,19 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.87.0] - 2026-10-26
+
+### Added
+
+- 对象存储抽象层（147 Step 1-2）：`app/services/storage` 新增 `StorageBackend` 契约（`put`/`head`/`open_range`/`delete`/`presign_get`/`iter_keys`）与 `local`（现状等价）/ `kodo`（七牛 S3 兼容，boto3 懒构造）/ `memory`（测试假件）三实现 + `resolve_backend` 快照实例缓存工厂；新增依赖 `boto3`。
+- 对象存储配置（147 Step 3）：`config_registry` 新建 `storage` 分类并注册 9 项（backend/endpoint/region/bucket/access_key/secret_key/presign_ttl/public_base_url/local_retention），`Settings` 补 `STORAGE_*` env 兜底；`backend=local` 即回滚开关。
+- files 表两列迁移（147 Step 4）：`storage`（本体位置 local/kodo）+ `storage_status`（0=PENDING/1=SYNCED/2=FAILED）+ `ix_files_storage_status` 索引，迁移 `c7a147f0b3d5` 存量回填 `local`+`SYNCED`（upgrade/downgrade 双向验证）。
+- 上传写接线（147 Step 5）：`file_service.register` 落库后同一请求内写对象存储（`sync_to_storage`），成功置 `SYNCED`、失败置 `FAILED` 并保留行与本地文件交补偿；命中未同步记录时补一次 put。
+
+### Fixed
+
+- `ConfigItemDef.default` 把合法零值吃成空串：`0 or ""` 导致 `storage.local_retention=0` 等 int 默认显示为空、bool `False` 与空串混同；改为 `None→空串`、`bool→true/false`（与 `_validate_value` 归一一致）、其余 `str(value)`。
+
 ## [1.86.4] - 2026-10-26
 
 ### Fixed
