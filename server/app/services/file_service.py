@@ -243,11 +243,13 @@ def _storage_fields(db: Session) -> tuple[str, int]:
     return cfg.backend, STORAGE_STATUS_PENDING
 
 
-def sync_to_storage(db: Session, record: File) -> bool:
+def sync_to_storage(db: Session, record: File, *, force: bool = False) -> bool:
     """把记录的本地本体上传到对象存储并推进状态（幂等，§5.2 状态机）
 
     - 未启用对象存储（`local`）→ 直接视为完成，不动记录
     - 已 `SYNCED` 且位置即当前后端 → 跳过（天然断点续传）
+    - 对象已存在（预上传 / 历史上传）→ 直接入账 `SYNCED`，避免重复 PUT；
+      `force=True` 跳过该检查强制重传（同步中心 HEAD 核对用，§9.1）
     - 本地文件缺失 / put 抛错 → 置 `FAILED` 并记日志，**不向上传播**：
       行与本地文件保留，交补偿任务（§5.3）与 Admin 同步中心（§9.1）
 
@@ -257,7 +259,11 @@ def sync_to_storage(db: Session, record: File) -> bool:
     cfg = storage.load_storage_config(db)
     if cfg.is_local:
         return True
-    if record.storage == cfg.backend and record.storage_status == STORAGE_STATUS_SYNCED:
+    if (
+        record.storage == cfg.backend
+        and record.storage_status == STORAGE_STATUS_SYNCED
+        and not force
+    ):
         return True
 
     abs_path = file_store.resolve(record.rel_path)
@@ -268,9 +274,13 @@ def sync_to_storage(db: Session, record: File) -> bool:
         return False
 
     try:
-        storage.resolve_backend(cfg).put(
-            record.rel_path, abs_path, content_type=record.mime_type or ""
-        )
+        backend = storage.resolve_backend(cfg)
+        if not force and backend.head(record.rel_path) is not None:
+            record.storage = cfg.backend
+            record.storage_status = STORAGE_STATUS_SYNCED
+            log.info("对象已存在于对象存储，跳过上传: {}", record.rel_path)
+            return True
+        backend.put(record.rel_path, abs_path, content_type=record.mime_type or "")
     except (storage.StorageError, OSError) as exc:
         record.storage = cfg.backend
         record.storage_status = STORAGE_STATUS_FAILED
@@ -405,6 +415,8 @@ def register_batch(
     if not items:
         return []
 
+    storage_col, storage_status = _storage_fields(db)
+
     md5s = [item.md5 for item in items if item.md5]
     existing_map: dict[str, File] = {}
     if md5s:
@@ -448,7 +460,6 @@ def register_batch(
             file_store.move_into_place(item.src_path, file_store.abs_of(rel_path))
 
         size_bytes = item.size or file_store.size_of(rel_path)
-        storage_col, storage_status = _storage_fields(db)
         record = _new_file_record(
             user_id=user_id,
             md5=md5,
@@ -481,6 +492,18 @@ def register_batch(
         if business:
             for record in created.values():
                 _bind_business(db, user_id, record.rel_path, business)
+
+    # 147 §5.1 路径 C：批量落库后逐个写对象存储（单条失败只置 FAILED，不中断整批）
+    failed_count = 0
+    seen_ids: set[int] = set()
+    for record in results:
+        if id(record) in seen_ids:
+            continue
+        seen_ids.add(id(record))
+        if not sync_to_storage(db, record):
+            failed_count += 1
+    if failed_count:
+        log.warning("批量对象存储同步部分失败: failed={} total={}", failed_count, len(seen_ids))
 
     log.info(
         "批量登记完成: total={} reused={} new={} business={}",
@@ -1235,6 +1258,10 @@ class ChunkTooLargeError(ValueError):
     """超过 MAX_UPLOAD_SIZE_MB（→ 413）"""
 
 
+class ChunkSyncError(ValueError):
+    """对象存储同步失败（→ 503）：分片与 DB 均未动，客户端可直接重试 complete"""
+
+
 def chunk_policy() -> dict:
     """分片策略（服务端单一真源，供 `/upload/check` 下发）"""
     return {
@@ -1272,10 +1299,14 @@ def open_chunk_session(
     total: int = 0,
     original_name: str = "",
     ext: str = "",
+    db: Session | None = None,
 ) -> dict:
     """创建/复用分片会话（幂等）
 
     已有会话时校验关键参数一致后复用（保留已入账的段）；参数冲突抛 `ChunkParamError`。
+
+    `db` 传入时把当前存储后端写进 manifest（147 §七：会话开工快照，用于观测与
+    一致性核对；真正 put 用 complete 时刻的配置快照，保证凭据最新）。
     """
     if not _MD5_RE.match(md5 or ""):
         raise ChunkParamError(f"非法 md5: {md5!r}")
@@ -1309,6 +1340,7 @@ def open_chunk_session(
         "total": count,
         "ext": _resolve_ext(ext, original_name, "") or CHUNK_FALLBACK_EXT,
         "original_name": original_name,
+        "backend": storage.load_storage_config(db).backend if db is not None else "",
         "segments": {},
         "created_at": now,
         "updated_at": now,
@@ -1408,6 +1440,27 @@ def complete_chunk_upload(
     if real_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         file_store.clear_chunks(user_id, md5)
         raise ChunkTooLargeError(f"文件超过上限: {real_size}B")
+
+    # 147 §七：**先写对象存储、再落库** —— 对象存储失败时分片与 DB 均未被触碰，
+    # 不返回 file_id 且会话原样保留，客户端可直接重试 complete（可续传语义）
+    cfg = storage.load_storage_config(db)
+    if not cfg.is_local:
+        pre_ext = _resolve_ext(
+            str(manifest.get("ext") or ""), str(manifest.get("original_name") or ""), ""
+        )
+        pre_rel_path = build_rel_path(user_id, real_md5, pre_ext, "video")
+        try:
+            backend = storage.resolve_backend(cfg)
+            if backend.head(pre_rel_path) is None:
+                backend.put(
+                    pre_rel_path,
+                    data_abs,
+                    content_type=file_store.mime_of(data_abs, "video", "", probe=False),
+                )
+                log.info("分片对象预同步完成: {}", pre_rel_path)
+        except (storage.StorageError, OSError) as exc:
+            log.error("分片对象预同步失败: {} {}", pre_rel_path, exc)
+            raise ChunkSyncError("对象存储同步失败，请稍后重试（分片已保留）") from exc
 
     record, reused = register(
         db,

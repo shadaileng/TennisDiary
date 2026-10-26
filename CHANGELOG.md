@@ -4,6 +4,13 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.88.0] - 2026-10-26
+
+### Added
+
+- 分片与批量路径对象存储同步（147 Step 6）：`register_batch` 落库后逐条 put（单条失败只置 `FAILED`，不中断整批）；`open_chunk_session` 增写 `manifest["backend"]` 会话快照；`complete_chunk_upload` 改为**先写对象存储再落库** —— 同步失败抛 `ChunkSyncError`（路由映射 HTTP 503），分片与 DB 均未被触碰、不返回 file_id，保持可续传，成功后才 `clear_chunks`。
+- `sync_to_storage` 对象存在性快路径：`head` 已存在直接入账 `SYNCED`（避免重复 PUT，秒传命中天然复用），并新增 `force` 参数供同步中心强制重传核对。
+
 ## [1.87.0] - 2026-10-26
 
 ### Added

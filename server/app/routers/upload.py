@@ -368,6 +368,9 @@ def _chunk_error(exc: Exception, user_id: int, index: int | None = None) -> HTTP
     )
     if isinstance(exc, file_service.ChunkMismatchError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, file_service.ChunkSyncError):
+        # 对象存储同步失败：服务端暂不可用，分片保留可直接重试
+        return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
     if isinstance(exc, file_service.ChunkTooLargeError):
         return HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -384,6 +387,7 @@ def upload_video_chunk(
     size_bytes: int = Form(default=0),
     original_name: str = Form(default=""),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """上传一个视频分片（140）
 
@@ -396,7 +400,12 @@ def upload_video_chunk(
     try:
         if total > 0 and size_bytes > 0:
             file_service.open_chunk_session(
-                user_id, md5, total_size=size_bytes, total=total, original_name=original_name
+                user_id,
+                md5,
+                total_size=size_bytes,
+                total=total,
+                original_name=original_name,
+                db=db,
             )
         content = file.file.read()
         result = file_service.register_chunk(
@@ -449,6 +458,7 @@ def complete_video_chunk_upload(
         file_service.ChunkIncompleteError,
         file_service.ChunkMismatchError,
         file_service.ChunkTooLargeError,
+        file_service.ChunkSyncError,
     ) as exc:
         raise _chunk_error(exc, user_id) from exc
     except Exception as exc:

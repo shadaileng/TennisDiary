@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.4.0 |
+> | 文档版本 | v1.5.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -12,6 +12,7 @@
 >
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
+> | 2026-10-26 | v1.5.0 | **Step 6 完成**：路径 B/C 写接线 —— `register_batch` 逐条同步、分片 `manifest["backend"]` 快照、`complete` 先 pre-put 再落库（`ChunkSyncError`→503 保持可续传）；§七 表按实现校准 |
 > | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
@@ -257,10 +258,10 @@ if (isAbsolute(p)) return p                                            // ← �
 
 | 时机 | 改动 |
 |------|------|
-| `open` | `manifest.json` 增写 `backend` 字段，会话全程用该快照 |
+| `open` | `manifest.json` 增写 `backend` 字段（会话开工时的配置快照，用于观测与一致性核对；真正 put 用 complete 时刻的快照，保证凭据最新） |
 | `chunk` | 不变（本地 `data.bin` pwrite） |
-| `complete` | 本地校验后：落库(PENDING) → 单次 PUT → SYNCED；**失败不返回 file_id**，保持可续传语义 |
-| 清理 | `clear_chunks` 挪到 S3 同步成功之后 |
+| `complete` | 本地校验后：**单次 PUT → 落库（SYNCED）**；PUT 失败抛 `ChunkSyncError`（→503），**分片与 DB 均未被触碰、不返回 file_id**，保持可续传语义 |
+| 清理 | `clear_chunks` 在 `register`（含同步）成功之后 |
 
 ## 八、分析管线衔接（119/121）
 
@@ -396,7 +397,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 3 | `storage` 分类 + 9 项配置 + `Settings.STORAGE_*` | ✅ 已完成 | 2026-10-26 | `tests/core/test_storage_config_registry.py` 9 例；顺带修正 `ConfigItemDef.default` 的 `0`/`bool` 语义 |
 | 4 | `files` 两列 + `ix_files_storage_status` + 迁移 `c7a147f0b3d5` | ✅ 已完成 | 2026-10-26 | `tests/test_migrations_147.py` 6 例；真实链 upgrade→downgrade→upgrade 验证 |
 | 5 | 路径 A 接线：`register` 落库后 put + 状态流转 + 失败回退 | ✅ 已完成 | 2026-10-26 | `tests/test_file_storage_sync.py` 7 例；`sync_to_storage` + 快照实例缓存；fast 门禁 285 passed |
-| 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | 📋 待执行 | - | - |
+| 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | ✅ 已完成 | 2026-10-26 | `register_batch` 逐条同步单条失败不中断；`complete` **先 pre-put 再落库**（失败抛 `ChunkSyncError`→503，分片与 DB 未动可续传）+ `manifest["backend"]` 快照；fast 门禁 290 passed |
 | 7 | 响应层外链 | 📋 待执行 | - | 前端零改动 |
 | 8 | 管理端 scan/双删 + 同步端点骨架 | 📋 待执行 | - | - |
 | 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | 📋 待执行 | - | §9.1；§十一 12-14 |
