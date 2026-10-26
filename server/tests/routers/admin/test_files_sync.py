@@ -364,3 +364,32 @@ class TestSyncRun:
 
     def test_single_sync_unknown_id_404(self, auth_client):
         assert auth_client.post("/api/admin/files/sync/999999").status_code == 404
+
+
+class TestListStorageColumns:
+    """§9.1 前端状态列/筛选的后端支撑：列表带 storage/storage_status + 按同步状态过滤"""
+
+    def test_list_returns_storage_fields(self, auth_client, test_db):
+        rec = _insert_file(test_db, storage_col="memory", status=STORAGE_STATUS_PENDING)
+        resp = auth_client.get(f"/api/admin/files?user_id={rec.user_id}")
+        assert resp.status_code == 200
+        items = resp.json()["data"]["items"]
+        assert len(items) == 1
+        assert items[0]["storage"] == "memory"
+        assert items[0]["storage_status"] == STORAGE_STATUS_PENDING
+
+    def test_list_filter_by_storage_status(self, auth_client, test_db):
+        uid = _next_uid()
+        _insert_file(test_db, user_id=uid, storage_col="memory", status=STORAGE_STATUS_PENDING)
+        _insert_file(test_db, user_id=uid, storage_col="memory", status=STORAGE_STATUS_SYNCED)
+
+        resp = auth_client.get(
+            f"/api/admin/files?user_id={uid}&storage_status={STORAGE_STATUS_PENDING}"
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["total"] == 1
+        assert data["items"][0]["storage_status"] == STORAGE_STATUS_PENDING
+
+    def test_list_filter_rejects_invalid_status(self, auth_client):
+        assert auth_client.get("/api/admin/files?storage_status=9").status_code == 422

@@ -43,6 +43,12 @@ class AdminFileResponse(BaseModel):
     created_at: float = Field(description="创建时间戳")
     usage_status: str = Field(description="使用状态：in_use/unreferenced/marked_deleted/orphan")
     usage_reason: str = Field(default="", description="使用状态原因说明")
+    storage: str = Field(
+        default="local", description="本体位置（147）：local=本地受管目录 / kodo=七牛对象存储"
+    )
+    storage_status: int = Field(
+        default=0, description="同步状态（147）：0=PENDING 待同步 / 1=SYNCED 已同步 / 2=FAILED 失败"
+    )
 
 
 class AdminFileListResponse(BaseModel):

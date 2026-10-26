@@ -4,6 +4,16 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.91.0] - 2026-10-26
+
+### Added
+
+- 文件管理 S3 同步中心前端（147 Step 9）：
+  - 后端：`AdminFileResponse` 补 `storage`/`storage_status` 两字段（单一构造点 `_file_to_response`）；列表新增 `storage_status` 查询过滤（下推 `query_files`/`count_files`）。
+  - Admin `api/files.ts`：`SyncStatus`/`SyncResult`/`SingleSyncResult` 类型 + `getSyncStatus`/`startSync`/`syncFile` 三函数。
+  - Admin 文件页：「S3 同步」弹层（统计卡片 / 进度条 / 范围单选 / `dry_run` 预览 / 执行）、同步状态筛选、位置与同步状态两列、行内「同步」按钮、详情弹窗两字段；1.5s 进度轮询（任务结束自动停止，`onUnmounted` 清理）；`useActionLock` 防重复提交。
+  - 测试：`test_files_sync.py` 新增 3 例（列表两字段 / 过滤 / 非法值 422）→ 该文件 25 例，fast 336 passed；admin `vue-tsc -b && vite build` 通过。
+
 ## [1.90.0] - 2026-10-26
 
 ### Added

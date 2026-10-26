@@ -61,6 +61,8 @@ def _file_to_response(
         created_at=file_record.created_at,
         usage_status=usage_status,
         usage_reason=usage_reason,
+        storage=file_record.storage or "local",
+        storage_status=file_record.storage_status or 0,
     )
 
 
@@ -72,11 +74,19 @@ def list_files(
     upload_source: str | None = Query(None, description="按上传来源过滤"),
     business_type: str | None = Query(None, description="按业务类型过滤"),
     usage_status: str | None = Query(None, description="按使用状态过滤（实时计算）"),
+    storage_status: int | None = Query(
+        None, ge=0, le=2, description="按同步状态过滤（0=PENDING/1=SYNCED/2=FAILED，147）"
+    ),
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """文件管理列表（支持按用户/来源/业务类型/使用状态过滤）"""
-    filters = dict(user_id=user_id, upload_source=upload_source, business_type=business_type)
+    """文件管理列表（支持按用户/来源/业务类型/使用状态/同步状态过滤）"""
+    filters = dict(
+        user_id=user_id,
+        upload_source=upload_source,
+        business_type=business_type,
+        storage_status=storage_status,
+    )
 
     # usage_status 由业务引用实时计算，无法下推 SQL，需在 Python 中筛选
     if usage_status:

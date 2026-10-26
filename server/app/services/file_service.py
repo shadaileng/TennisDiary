@@ -719,6 +719,7 @@ def query_files(
     user_id: int | None = None,
     upload_source: str | None = None,
     business_type: str | None = None,
+    storage_status: int | None = None,
     offset: int = 0,
     limit: int | None = None,
 ) -> list[File]:
@@ -730,6 +731,8 @@ def query_files(
         query = query.filter(File.upload_source == upload_source)
     if business_type:
         query = query.filter(File.business_type == business_type)
+    if storage_status is not None:
+        query = query.filter(File.storage_status == storage_status)
     query = query.order_by(File.created_at.desc())
     if limit is not None:
         query = query.offset(offset).limit(limit)
@@ -742,6 +745,7 @@ def count_files(
     user_id: int | None = None,
     upload_source: str | None = None,
     business_type: str | None = None,
+    storage_status: int | None = None,
 ) -> int:
     """受管文件计数（仅未软删）"""
     query = db.query(File).filter(File.deleted_at.is_(None))
@@ -751,6 +755,8 @@ def count_files(
         query = query.filter(File.upload_source == upload_source)
     if business_type:
         query = query.filter(File.business_type == business_type)
+    if storage_status is not None:
+        query = query.filter(File.storage_status == storage_status)
     return query.count()
 
 

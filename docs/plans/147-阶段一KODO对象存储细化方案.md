@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.7.0 |
+> | 文档版本 | v1.8.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -15,6 +15,7 @@
 > | 2026-10-26 | v1.5.0 | **Step 6 完成**：路径 B/C 写接线 —— `register_batch` 逐条同步、分片 `manifest["backend"]` 快照、`complete` 先 pre-put 再落库（`ChunkSyncError`→503 保持可续传）；§七 表按实现校准 |
 > | 2026-10-26 | v1.6.0 | **Step 7 完成**：响应层两态外链收口 —— `ApiResponse.model_post_init` → `storage.urls.rewrite_response_urls`（字段名注册表 + 收集→单次 `IN` 查询→改写两趟遍历，幂等）；请求级会话用 `ContextVar` 绑定（async 应用级依赖，规避同步依赖线程池 Context 拷贝坑）；§6.2 按实现校准 |
 > | 2026-10-26 | v1.7.0 | **Step 8 完成**：管理端 —— `scan` 新增 `pending_sync`、`missing` 重定义为「DB 有而对象存储无」（一次 `iter_keys` 全量列举核对）；§5.4 双删落地（`/cleanup`、`/cleanup-orphans` 同步删对象，失败不阻塞）；同步端点三件套 `sync-status`/`sync`/`sync/{id}` + `storage_sync_service`（scope/dry_run/force + `RUN_STATE` 防并发 409 + `BackgroundTasks` 跑批） |
+> | 2026-10-26 | v1.8.0 | **Step 9 完成**：Admin 同步中心前端 —— 列表响应补 `storage`/`storage_status` 两列（单一构造点 `_file_to_response`）+ `storage_status` 查询下推筛选；文件页新增 S3 同步弹层（统计卡片/进度条/范围单选/dry_run 预览/执行 + 1.5s 轮询至任务结束）、位置与同步状态列、行内同步按钮、详情两字段；`useActionLock` 防重 + `onUnmounted` 清定时器 |
 > | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
@@ -296,7 +297,7 @@ if (isAbsolute(p)) return p                                            // ← �
 
 ## 九、管理端改造
 
-### 9.1 文件管理 S3 同步功能（本阶段新增核心能力）
+### 9.1 文件管理 S3 同步功能（本阶段新增核心能力，✅ Step 8-9 已落地）
 
 **定位**：Admin 文件管理页（`admin/src/views/files/index.vue`）新增「S3 同步」中心，覆盖三类诉求 —— **存量搬迁**（`storage=local` → `kodo`）、**失败补偿**（`FAILED` 重传）、**状态核对**（统计与单条同步）。
 
@@ -364,7 +365,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | 🟢 | 分片/管线用例 |
 | 7 | 响应层 `to_public_url` + 批量查询 + §6.3 各资源接入 | 🟢 | 两态响应用例（外链 / 回落） |
 | 8 | 管理端：scan 扩展 + 双删 + 同步端点骨架（`sync` / `sync-status` / `sync/{id}`） | ✅ 已完成 | 2026-10-26 | 22 例（scan 两态 / 双删 / 端点门禁与统计 / dry_run / 409 / 单条）；fast 333 passed |
-| 9 | **文件管理 S3 同步功能**：`storage_sync_service` + `dry_run`/`force`/防并发 + Admin 文件页同步弹层/状态列/筛选/进度轮询 | 🟢 | §十一 12-14 用例 |
+| 9 | **文件管理 S3 同步功能**：`storage_sync_service` + `dry_run`/`force`/防并发 + Admin 文件页同步弹层/状态列/筛选/进度轮询 | ✅ 已完成 | 2026-10-26 | 服务/端点见 Step 8；本步为前端接入 + 列表两列与筛选；fast 336 passed + admin `vue-tsc`/build 通过 |
 | 10 | 补偿任务三触发点 + 存量迁移 CLI（共用 `storage_sync_service`） | 🟢 | 补偿重传用例 |
 | 11 | 回归 + 真机 | 🏁 | §十一 |
 
@@ -432,7 +433,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 5 | 路径 A 接线：`register` 落库后 put + 状态流转 + 失败回退 | ✅ 已完成 | 2026-10-26 | `tests/test_file_storage_sync.py` 7 例；`sync_to_storage` + 快照实例缓存；fast 门禁 285 passed |
 | 6 | 路径 B/C：分片 manifest 绑定 + `register_batch` 后 put | ✅ 已完成 | 2026-10-26 | `register_batch` 逐条同步单条失败不中断；`complete` **先 pre-put 再落库**（失败抛 `ChunkSyncError`→503，分片与 DB 未动可续传）+ `manifest["backend"]` 快照；fast 门禁 290 passed |
 | 7 | 响应层外链 | ✅ 已完成 | 2026-10-26 | `storage.urls` 收口 + §6.3 全资源接入；fast 311 passed（新增 21 例） |
-| 8 | 管理端 scan/双删 + 同步端点骨架 | 📋 待执行 | - | - |
-| 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | 📋 待执行 | - | §9.1；§十一 12-14 |
+| 8 | 管理端 scan/双删 + 同步端点骨架 | ✅ 已完成 | 2026-10-26 | `test_files_sync.py` 22 例；`storage_sync_service` 单一服务源；fast 333 passed |
+| 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | ✅ 已完成 | 2026-10-26 | 列表补 `storage`/`storage_status` 两列与筛选；Admin 同步弹层/状态列/筛选/进度轮询/`useActionLock`；`test_files_sync.py` 25 例，fast 336 passed + admin build ✅ |
 | 10 | 补偿三触发点 + 迁移 CLI | 📋 待执行 | - | 共用同步服务 |
 | 11 | 回归与真机验收 | 📋 待执行 | - | §十一 14 项 |
