@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.86.4] - 2026-10-26
+
+### Fixed
+
+- 分片上传 Windows 平台兼容（147 Step 0.5）：`file_store.pwrite_chunk` 直接调用 `os.pwrite`（仅 POSIX 提供），Windows（win32）下抛 `AttributeError` 导致 `test_file_facade_chunks.py` 18 个用例失败、本地门禁无法全绿；抽出 `_pwrite` 辅助函数——POSIX 仍走 `os.pwrite`，Windows 回退 `os.lseek + os.write` 并循环写满（fd 每次调用独享，回退语义与 `pwrite` 等价）。
+
 ## [1.86.3] - 2026-09-13
 
 ### Fixed

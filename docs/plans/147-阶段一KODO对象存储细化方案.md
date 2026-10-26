@@ -3,7 +3,7 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.2.0 |
+> | 文档版本 | v1.3.0 |
 > | 文档状态 | 🚧 进行中 |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
@@ -12,6 +12,7 @@
 >
 > | 日期 | 版本 | 说明 |
 > |------|:----:|------|
+> | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
 > | 2026-10-26 | v1.1.0 | **新增 §9.1 文件管理 S3 同步功能**（同步中心端点 + `storage_sync_service` 共用服务 + Admin 文件页弹层/状态列/筛选）；TDD 步骤插入 Step 9、验收 +3 例、工作量 6~9 → 7~10 人日 |
 > | 2026-10-26 | v1.0.0 | 初版（范围/架构/数据模型/配置/流程状态机/读路径外链/三类文件改造/TDD 步骤/验收/回滚） |
@@ -376,7 +377,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | 级别 | 项 | 处理 |
 |:----:|---|------|
 | **P0** | **外链域名备案**：小程序 `<image>/<video>` 走 `downloadFile` 合法域名，必须已备案；七牛测试域名不可用 | 归入决策 2「域名在项目外配置」范围，**开工前确认**，备案周期 2~4 周 |
-| **高（预存）** | **本地门禁在 Windows 失败**：`file_store.pwrite_chunk` 用 `os.pwrite`（仅 POSIX），本机 win32 下 `tests/test_file_facade_chunks.py` **18 failed / 207 passed**（Step 0 基线实测，2026-10-26）；CI（Linux）不受影响 | **建议 Step 0.5 先修**：`hasattr(os, "pwrite")` 否则回退 `os.lseek + os.write`（每次调用独立 fd，位置安全）+ 保持 `fsync`；属 `fix` 提交（需 bump 根 package.json + CHANGELOG）。**待人类确认是否先修** —— 不修则 AGENTS 4.3 本地门禁无法全绿 |
+| **高（已修 ✅）** | **本地门禁在 Windows 失败**：`file_store.pwrite_chunk` 用 `os.pwrite`（仅 POSIX），本机 win32 下 `tests/test_file_facade_chunks.py` **18 failed / 207 passed**（Step 0 基线实测，2026-10-26）；CI（Linux）不受影响 | **Step 0.5 已修**：抽出 `_pwrite` —— POSIX 走 `os.pwrite`，Windows 回退 `os.lseek + os.write` 并循环写满（fd 每次调用独享，语义等价）；`pytest -m fast` 225 passed 全绿。`fix` 提交（根 package.json 1.86.4 + CHANGELOG） |
 | 高 | 七牛 S3 兼容 API 差异（presign / Range / PUT） | Step 1 用真实凭据先做一次连通性 spike，再写实现 |
 | 中 | 响应层 N+1 查询 | §6.2 强制批量 `IN` 查询，列表接口加用例 |
 | 中 | 签名 TTL（2h）与分享卡片 | 卡片为 Canvas 即时生成，无长有效期问题；长链场景改走代理 |
@@ -388,6 +389,7 @@ if (isAbsolute(p)) return p                                            // ← �
 | Step | 内容 | 状态 | 日期 | 备注 |
 |------|------|:----:|:----:|------|
 | 0 | 响应字段盘点 | ✅ 已完成 | 2026-10-26 | 与 `file_refs` 注册表一致；5 类接入点 + 4 项不接入；发现见 §6.3 |
+| 0.5 | Windows `os.pwrite` 兼容修复（基线 18 failed） | ✅ 已完成 | 2026-10-26 | `_pwrite` 双路径；`pytest -m fast` 225 passed 全绿（1.86.4） |
 | 1-2 | 抽象层 + 双实现 + 假 backend 单测 | 📋 待执行 | - | TDD |
 | 3-4 | 配置项 + 两列迁移 | 📋 待执行 | - | - |
 | 5-6 | 三路径写接线 | 📋 待执行 | - | - |
