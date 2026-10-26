@@ -73,7 +73,9 @@ def test_forehand_video_processed(pipeline):
     assert 120 <= vres["duration"] <= 125  # 实测 121.490489s，非恰为 0/非整
     assert vres["frame_rate"] > 0
     assert len(vres["frames"]) == 7  # single 模式 7 个采样帧
-    assert len(vres["frame_urls"]) == 7
+    # 118/119 起 frame_urls 由路由层登记受管文件后注入（video.py:170），
+    # 服务层契约是 frame_paths（本地抽帧产物路径）→ 用例按服务层契约断言
+    assert len(vres["frame_paths"]) == 7
     assert vres["thumbnail"].startswith("data:")
 
 
