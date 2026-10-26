@@ -3,8 +3,8 @@
 > | 项目 | 内容 |
 > |------|------|
 > | 文档编号 | 147 |
-> | 文档版本 | v1.9.0 |
-> | 文档状态 | 🚧 进行中 |
+> | 文档版本 | v1.10.0 |
+> | 文档状态 | 🚧 代码完成（Step 0-11），待真机/线上验收（P0 已备案外链域名 + 七牛凭据） |
 > | 最后更新 | 2026-10-26 |
 > | 对应功能/内容 | 阶段一细化方案：七牛 Kodo 对象存储接入（上传后同步写 S3 + 响应层下发外链 + 状态机/补偿/双删 + **文件管理 S3 同步中心** + 管理端扩展） |
 >
@@ -17,6 +17,7 @@
 > | 2026-10-26 | v1.7.0 | **Step 8 完成**：管理端 —— `scan` 新增 `pending_sync`、`missing` 重定义为「DB 有而对象存储无」（一次 `iter_keys` 全量列举核对）；§5.4 双删落地（`/cleanup`、`/cleanup-orphans` 同步删对象，失败不阻塞）；同步端点三件套 `sync-status`/`sync`/`sync/{id}` + `storage_sync_service`（scope/dry_run/force + `RUN_STATE` 防并发 409 + `BackgroundTasks` 跑批） |
 > | 2026-10-26 | v1.8.0 | **Step 9 完成**：Admin 同步中心前端 —— 列表响应补 `storage`/`storage_status` 两列（单一构造点 `_file_to_response`）+ `storage_status` 查询下推筛选；文件页新增 S3 同步弹层（统计卡片/进度条/范围单选/dry_run 预览/执行 + 1.5s 轮询至任务结束）、位置与同步状态列、行内同步按钮、详情两字段；`useActionLock` 防重 + `onUnmounted` 清定时器 |
 > | 2026-10-26 | v1.9.0 | **Step 10 完成**：补偿任务三触发点 + 迁移 CLI —— `find_stale`/`compensate`（grace 60s、单批 50、`backend=local` 静默 no-op、与同步中心抢跑时 conflict 跳过）、`run_startup_compensation`/`schedule_startup_compensation`（lifespan 一次性线程池任务）、`compensate_after_upload`（同用户小批量、异常不外抛）接入 avatar/gear-image/video 三上传端点、`scripts/migrate-files-to-kodo.py`（与同步中心共用 `plan`/`run_sync`）；另修 409 用例顺序依赖（xdist 下暴露） |
+> | 2026-10-26 | v1.10.0 | **Step 11 回归完成**：全量 `pytest -n auto` **874 passed / 0 failed**（修复预存 `test_forehand_video_processed` 过期断言）、`ruff` 干净、fast 355、admin + miniapp type-check/build、`docs:build` 全绿；§十一 验收清单逐项标注状态（11 项自动化 🤖 / 3 项待线上 ⏳）；文档状态细化为「代码完成，待真机/线上验收」 |
 > | 2026-10-26 | v1.4.0 | **Step 1-5 完成**：`StorageBackend` 抽象 + local/kodo/memory 三实现 + 工厂快照缓存（Step 1/2）、`storage` 分类 9 项配置（Step 3）、`files` 两列迁移 `c7a147f0b3d5`（Step 4）、路径 A `register` 写接线 + `sync_to_storage` 状态流转（Step 5）；fast 门禁 285 passed |
 > | 2026-10-26 | v1.3.0 | **Step 0.5 完成**：Windows `os.pwrite` 兼容修复（§十四 标记已修、§十五 新增 Step 0.5 行）；`pytest -m fast` 225 passed 全绿 |
 > | 2026-10-26 | v1.2.0 | **Step 0 完成**：§6.3 资源接入清单按 `file_refs.FILE_REF_SPECS` 盘点定稿（5 类接入点 + 4 项「不接入」+ 3 条关键发现）；§十四 记录基线风险（Windows `os.pwrite` 致 18 用例失败）；文档状态 📋 → 🚧 |
@@ -370,30 +371,32 @@ if (isAbsolute(p)) return p                                            // ← �
 | 8 | 管理端：scan 扩展 + 双删 + 同步端点骨架（`sync` / `sync-status` / `sync/{id}`） | ✅ 已完成 | 2026-10-26 | 22 例（scan 两态 / 双删 / 端点门禁与统计 / dry_run / 409 / 单条）；fast 333 passed |
 | 9 | **文件管理 S3 同步功能**：`storage_sync_service` + `dry_run`/`force`/防并发 + Admin 文件页同步弹层/状态列/筛选/进度轮询 | ✅ 已完成 | 2026-10-26 | 服务/端点见 Step 8；本步为前端接入 + 列表两列与筛选；fast 336 passed + admin `vue-tsc`/build 通过 |
 | 10 | 补偿任务三触发点 + 存量迁移 CLI（共用 `storage_sync_service`） | ✅ 已完成 | 2026-10-26 | `tests/test_storage_compensation.py` 19 例 + 上传端点集成 1 例；`scripts/migrate-files-to-kodo.py`；fast 355 passed |
-| 11 | 回归 + 真机 | 🏁 | §十一 |
+| 11 | 回归 + 真机 | ✅ 回归完成 | 2026-10-26 | 全量 874 passed；真机 3 项待 P0 域名/凭据（§十一 ⏳） |
 
 每 Step 结束跑 AGENTS 4.3 门禁：`cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast`。
 
 ## 十一、验收清单
 
-**门禁**：`ruff check/format` 干净 + `pytest -m fast` 全绿 + 全量 `pytest -n auto`；`admin type-check + build`（**Admin 有 §9.1 改动，必跑**）+ `miniapp type-check + build:mp-weixin`（小程序零改动，保险跑）。
+**门禁（✅ Step 11 已实跑，2026-10-26）**：`ruff check/format` 干净 + `pytest -m fast` **355 passed** + 全量 `pytest -n auto` **874 passed, 0 failed**（含修复预存失败 `test_forehand_video_processed`）；`admin type-check + build` ✅、`miniapp type-check + build:mp-weixin` ✅、`pnpm docs:build` ✅。
 
-| # | 用例 | 期望 |
-|:-:|------|------|
-| 1 | 上传头像/装备图 | 响应字段为绝对外链，浏览器/小程序直连可开 |
-| 2 | 秒传命中（同 MD5 二次上传） | 不重复上传，直接复用 `SYNCED` |
-| 3 | 分片视频上传 + 断点续传 | complete 后 `SYNCED`，外链可播 |
-| 4 | 视频拖动进度条 | 206 Range 正常（外链侧由七牛保证） |
-| 5 | 模拟 `put` 失败 | 记录落 `FAILED`、请求报错可重试、补偿后转 `SYNCED` |
-| 6 | `PENDING` 记录的读 | 响应返回相对路径，走代理正常显示（**不 404**） |
-| 7 | 文件删除 | DB 软删 → 过期清理时对象同步删除 |
-| 8 | Admin `scan` | `pending_sync` / `missing` 状态正确 |
-| 9 | Admin 列表预览 + 下载 | 预览走外链、下载走代理 206 |
-| 10 | `storage.backend=local` 切回 | 全部读写本地，前端无感知（回滚验证） |
-| 11 | 真机小程序 | 头像/装备图/视频外链加载正常（**downloadFile 合法域名已配**） |
-| 12 | S3 同步中心统计 | `total/synced/pending/failed/local_only` 与 DB 实际一致；`backend=local` 时端点 400 |
-| 13 | `dry_run` 预览 vs 实际执行 | `dry_run=true` 返回条数/字节但**零数据改动**；正式执行后 `local_only` 按预期下降 |
-| 14 | 同步并发与失败 | 执行中重复触发返回 409（前端按钮锁定）；单条 `PUT` 失败计入 `failed` 且不中断整批，`scope=failed` 可重传 |
+| # | 用例 | 期望 | 状态 |
+|:-:|------|------|:----:|
+| 1 | 上传头像/装备图 | 响应字段为绝对外链，浏览器/小程序直连可开 | 🤖 两态响应/回落已自动化；**绝对外链待线上**（需七牛凭据） |
+| 2 | 秒传命中（同 MD5 二次上传） | 不重复上传，直接复用 `SYNCED` | 🤖 `test_file_storage_sync` |
+| 3 | 分片视频上传 + 断点续传 | complete 后 `SYNCED`，外链可播 | 🤖 状态机已自动化；外链播放待线上 |
+| 4 | 视频拖动进度条 | 206 Range 正常（外链侧由七牛保证） | ⏳ 待线上（七牛侧保证） |
+| 5 | 模拟 `put` 失败 | 记录落 `FAILED`、请求报错可重试、补偿后转 `SYNCED` | 🤖 Step 5 + `test_storage_compensation` |
+| 6 | `PENDING` 记录的读 | 响应返回相对路径，走代理正常显示（**不 404**） | 🤖 `test_response_urls` |
+| 7 | 文件删除 | DB 软删 → 过期清理时对象同步删除 | 🤖 `TestDoubleDelete` |
+| 8 | Admin `scan` | `pending_sync` / `missing` 状态正确 | 🤖 `TestScanStorageStates` |
+| 9 | Admin 列表预览 + 下载 | 预览走外链、下载走代理 206 | 🤖 代理 206 已自动化；外链预览待线上 |
+| 10 | `storage.backend=local` 切回 | 全部读写本地，前端无感知（回滚验证） | 🤖 local 档位多处用例 |
+| 11 | 真机小程序 | 头像/装备图/视频外链加载正常（**downloadFile 合法域名已配**） | ⏳ **待人类**（P0：已备案外链域名） |
+| 12 | S3 同步中心统计 | `total/synced/pending/failed/local_only` 与 DB 实际一致；`backend=local` 时端点 400 | 🤖 `TestSyncStatus` + `TestSyncEndpointGate` |
+| 13 | `dry_run` 预览 vs 实际执行 | `dry_run=true` 返回条数/字节但**零数据改动**；正式执行后 `local_only` 按预期下降 | 🤖 `TestSyncRun` |
+| 14 | 同步并发与失败 | 执行中重复触发返回 409（前端按钮锁定）；单条 `PUT` 失败计入 `failed` 且不中断整批，`scope=failed` 可重传 | 🤖 409 / 单条失败不中断 / 补偿重传三组用例 |
+
+> **验收结论**：14 项中 **11 项已自动化覆盖**（🤖），**3 项依赖外部条件**（⏳：#4 外链 206、#9 外链预览、#11 真机）——三者都要求七牛凭据 + 已备案外链域名（P0，人类提供）。凭据/域名就位后按本表逐项线上复核即可。
 
 ## 十二、回滚方案
 
@@ -439,4 +442,4 @@ if (isAbsolute(p)) return p                                            // ← �
 | 8 | 管理端 scan/双删 + 同步端点骨架 | ✅ 已完成 | 2026-10-26 | `test_files_sync.py` 22 例；`storage_sync_service` 单一服务源；fast 333 passed |
 | 9 | **文件管理 S3 同步功能**（服务 + Admin 页面） | ✅ 已完成 | 2026-10-26 | 列表补 `storage`/`storage_status` 两列与筛选；Admin 同步弹层/状态列/筛选/进度轮询/`useActionLock`；`test_files_sync.py` 25 例，fast 336 passed + admin build ✅ |
 | 10 | 补偿三触发点 + 迁移 CLI | ✅ 已完成 | 2026-10-26 | `find_stale`/`compensate` + lifespan 启动一次性任务 + 三上传端点顺带补偿 + `migrate-files-to-kodo.py`；fast 355 passed、全量 873 passed |
-| 11 | 回归与真机验收 | 📋 待执行 | - | §十一 14 项 |
+| 11 | 回归与真机验收 | ✅ 回归完成 / ⏳ 真机待办 | 2026-10-26 | 全量 `pytest -n auto` **874 passed, 0 failed**（修复预存 `test_forehand_video_processed` 过期断言：`frame_urls` 为 router 层字段，改断言服务层 `frame_paths`）；admin/miniapp type-check+build、`docs:build` 全绿；§十一 14 项 → 11 项自动化、3 项待线上（P0 域名 + 七牛凭据） |
