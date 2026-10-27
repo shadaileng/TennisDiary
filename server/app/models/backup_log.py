@@ -5,7 +5,6 @@
 """
 
 from sqlalchemy import Column, DateTime, Index, Integer, String, func
-from sqlalchemy.orm import declarative_base
 
 from app.core.database import Base
 
