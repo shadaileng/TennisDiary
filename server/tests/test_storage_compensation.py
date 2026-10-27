@@ -15,6 +15,7 @@
 import asyncio
 import importlib.util
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,16 @@ def _next_seq() -> int:
     global _seq
     _seq += 1
     return _seq
+
+
+# 辅助函数：将时间戳或 datetime 转换为带时区的 datetime
+def _as_datetime(value: float | datetime | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        return value
+    # int/float 时间戳
+    return datetime.fromtimestamp(value, tz=timezone.utc)
 
 
 @pytest.fixture(autouse=True)
@@ -71,9 +82,9 @@ def _insert_file(
     *,
     user_id: int = 1,
     status: int = STORAGE_STATUS_FAILED,
-    created_at: float | None = None,
+    created_at: float | datetime | None = None,
     write_disk: bool = True,
-    deleted_at: float | None = None,
+    deleted_at: float | datetime | None = None,
     storage_col: str = "memory",
 ) -> File:
     import hashlib
@@ -95,10 +106,10 @@ def _insert_file(
         mime_type="image/jpeg",
         upload_source="gear_image",
         ref_count=0,
-        created_at=time.time() if created_at is None else created_at,
+        created_at=_as_datetime(created_at),
         storage=storage_col,
         storage_status=status,
-        deleted_at=deleted_at,
+        deleted_at=_as_datetime(deleted_at) if deleted_at is not None else None,
     )
     test_db.add(record)
     test_db.commit()

@@ -12,6 +12,7 @@
 import hashlib
 import json
 import time
+from datetime import datetime, timezone
 
 import pytest
 
@@ -73,7 +74,7 @@ def _add_file(
         mime_type="image/jpeg",
         upload_source="gear_image",
         ref_count=1,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
         storage=storage_col,
         storage_status=status,
     )

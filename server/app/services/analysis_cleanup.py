@@ -13,6 +13,7 @@
 
 import json
 import time
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
@@ -62,14 +63,12 @@ def cleanup_stuck_processing(
         被清理的记录数
     """
     current = time.time() if now is None else now
-    cutoff = current - timeout_s
+    cutoff = datetime.fromtimestamp(current, tz=timezone.utc) - timedelta(seconds=timeout_s)
 
-    # created_at > 0 用于排除历史脏数据（该字段缺省为 0，时间戳无意义）
     rows = (
         db.query(Analysis.id, Analysis.pipeline_status)
         .filter(
             Analysis.status == "processing",
-            Analysis.created_at > 0,
             Analysis.created_at < cutoff,
         )
         .all()
