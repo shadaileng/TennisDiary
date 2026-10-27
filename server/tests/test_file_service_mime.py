@@ -10,6 +10,7 @@
 import hashlib
 import json
 import time
+from datetime import datetime, timezone
 
 import pytest
 
@@ -257,7 +258,7 @@ def _make_analysis(db, user_id: int, rel: str) -> Analysis:
         mode="single",
         status="completed",
         pose=json.dumps({"skeleton_video_url": rel, "skeleton_frames": []}),
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(analysis)
     db.flush()
@@ -280,7 +281,7 @@ class TestClassifySkeletonSources:
             mime_type="video/mp4",
             upload_source=source,
             ref_count=1,
-            created_at=time.time(),
+            created_at=datetime.now(timezone.utc),
         )
         test_db.add(record)
         test_db.flush()

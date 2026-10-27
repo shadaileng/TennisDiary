@@ -201,7 +201,7 @@ class TestGearPhoto:
                 category="球拍",
                 name="测试球拍",
                 photo=photo,
-                created_at=time.time(),
+                created_at=datetime.now(timezone.utc),
             )
         )
         db.commit()
@@ -276,7 +276,7 @@ class TestAnalysisNested:
                 }
             ),
             status="completed",
-            created_at=time.time(),
+            created_at=datetime.now(timezone.utc),
         )
         db.add(analysis)
         db.commit()
@@ -338,7 +338,7 @@ class TestQueryCount:
                     category="球拍",
                     name=f"球拍{index}",
                     photo=rel,
-                    created_at=time.time(),
+                    created_at=datetime.now(timezone.utc),
                 )
             )
         test_db.commit()
