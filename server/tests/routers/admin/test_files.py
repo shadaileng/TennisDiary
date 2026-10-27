@@ -13,6 +13,7 @@
 import hashlib
 import os
 import time
+from datetime import datetime, timezone
 
 import pytest
 
@@ -58,7 +59,7 @@ def _insert_file(test_db, user_id=None, rel_path=None, md5=None, **overrides) ->
         mime_type="image/jpeg",
         upload_source="gear_image",
         ref_count=1,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
     record = File(**defaults)
@@ -463,7 +464,7 @@ class TestMigrateToMd5Endpoint:
                 mime_type="video/mp4",
                 upload_source="video",
                 ref_count=1,
-                created_at=time.time(),
+                created_at=datetime.now(timezone.utc),
             )
         )
         test_db.commit()

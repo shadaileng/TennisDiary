@@ -2,6 +2,7 @@
 
 import os
 import time
+from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.models.file import File
@@ -30,7 +31,7 @@ def _create_file_record(test_db, user_id: int, rel_path: str):
         mime_type="image/jpeg",
         upload_source="gear_image",
         ref_count=1,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(file_record)
     test_db.commit()

@@ -19,6 +19,7 @@ import asyncio
 import threading
 import time
 import uuid
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 from fastapi import BackgroundTasks
@@ -338,7 +339,7 @@ def find_stale(
     limit: int = COMPENSATE_BATCH_LIMIT,
 ) -> list[File]:
     """§5.3 扫描条件：`storage_status IN (0,2) AND created_at < now - 60s`（未软删）"""
-    cutoff = time.time() - grace_seconds
+    cutoff = datetime.fromtimestamp(time.time() - grace_seconds, tz=timezone.utc)
     query = (
         db.query(File)
         .filter(
