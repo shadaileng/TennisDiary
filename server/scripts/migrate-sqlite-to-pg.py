@@ -6,16 +6,15 @@
   3. 确认无误后去掉 --dry-run 执行正式迁移
 """
 
-import sys
 import os
-import time
+import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'app'))
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+
 from app.core.config import settings
 
 # 需要迁移的表清单
@@ -32,7 +31,7 @@ SOURCE_DB = settings.DATABASE_URL  # 默认是本地 SQLite
 TARGET_DB_URL = os.getenv('PG_MIGRATION_URL', os.getenv('DB_DATABASE_URL', ''))
 
 
-def get_engines() -> Tuple[create_engine, create_engine, sessionmaker, sessionmaker]:
+def get_engines() -> tuple[create_engine, create_engine, sessionmaker, sessionmaker]:
     """获得源和目标数据库引擎"""
     if not TARGET_DB_URL:
         print("❌ 目标 PG 数据库 URL 未设置，请设置 PG_MIGRATION_URL 环境变量")
@@ -53,7 +52,7 @@ def check_table_exists(engine: create_engine, table_name: str) -> bool:
         return result.fetchone()[0]
 
 
-def get_table_column_info(engine: create_engine, table_name: str) -> Dict[str, str]:
+def get_table_column_info(engine: create_engine, table_name: str) -> dict[str, str]:
     """获取表列信息"""
     with engine.connect() as conn:
         result = conn.execute(text(f"""
@@ -65,7 +64,7 @@ def get_table_column_info(engine: create_engine, table_name: str) -> Dict[str, s
         return {row[0]: (row[1], row[2]) for row in result.fetchall()}
 
 
-def validate_schema(src_engine: create_engine, dst_engine: create_engine) -> List[str]:
+def validate_schema(src_engine: create_engine, dst_engine: create_engine) -> list[str]:
     """验证目标表结构是否与源表一致"""
     errors = []
 
@@ -101,7 +100,7 @@ def migrate_table(
     dst_db: sessionmaker,
     table_name: str,
     dry_run: bool = False,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """迁移单表数据（从源到目标）"""
     src_session = src_db()
     dst_session = dst_db()
@@ -113,7 +112,6 @@ def migrate_table(
 
         # 获取模型
         from app.models import get_all_models
-        from app.core.database import Base
 
         # 通过反射来获取模型定义不太方便，我们使用 SQLAlchemy ORM
         # 直接使用 query()

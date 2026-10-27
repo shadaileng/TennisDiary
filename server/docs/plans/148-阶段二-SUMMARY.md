@@ -4,7 +4,8 @@
 
 ### 1. 数据库架构升级
 - ✅ 将业务库从 SQLite 迁移到 PostgreSQL (Supabase)
-- ✅ 双引擎架构：业务库 PG + 审计库 SQLite + 备份元数据 SQLite（保持隔离价值）
+- ✅ **统一 PG 存储**：业务库 PG (Supabase) + 审计库 PG (可选，未来) + **备份元数据 PG**（消除 SQLite 锁问题）
+- ✅ 隔离价值保留：审计库/备份元数据最终都迁入 PG，实现统一存储
 
 ### 2. 方言兼容性改造
 - ✅ **部分唯一索引双注册**：`uq_files_user_md5_active` 在 PG/SQLite 上均正确渲染带 WHERE 的索引
@@ -16,11 +17,11 @@
 - ✅ `db_health` 健康检查端点
 - ✅ Alembic PG 基线 `pg_baseline_148`
 - ✅ CI `pg-integration` 作业（PostgreSQL 服务容器）
-- ✅ 数据迁移脚本框架 + 备份改造方案
+- ✅ 数据迁移脚本框架 + 备份改造方案（PG 化）
 
 ### 4. 文档体系
 - ✅ 148 细化方案文档（完整设计 + 执行进度）
-- ✅ `BACKUP-TRANSITION.md` 备份改造方案
+- ✅ `BACKUP-TRANSITION.md` 备份改造方案（PG 元数据 + 异步化）
 - ✅ 148 总结文档（本文）
 
 ## 执行进度总览
@@ -54,16 +55,18 @@ Index(
 ### 2. 时间字段统一改造
 所有 `created_at`、`business_time`、`deleted_at` 从 `Float` 改为 `DateTime`，确保 PG 和 SQLite 行为一致。
 
-### 3. 连接池配置
+### 3. 连接池配置与后端改造
 - `pool_size=5`、`max_overflow=10`、`pool_recycle=3600`、`pool_pre_ping=True`
 - 峰值连接数 ≤ 15（业务池）+ 2（管线）= 17
-- 留给 Admin 查询缓冲：3~8 连接
+- 预留 Admin 查询缓冲：3~8 连接
+- **备份元数据 PG 化：消除 SQLite 锁竞争，支持异步操作**
 
-### 4. 隔离架构
-- 业务库 PG (Supabase)
-- 审计库 SQLite (本地)
-- 备份元数据 SQLite (本地)
+### 4. 统一 PG 存储架构
+- 业务库 PG (Supabase) - 主数据库
+- 审计库未来可迁入 PG (当前仍保持 SQLite 独立，值)
+- **备份元数据 PG** - 存储在 PG `backup_logs` 表，避免 SQLite 锁
 - 对象存储 Kodo (147 阶段)
+- **异步任务队列：备份/恢复操作通过异步队列执行，前端轮询状态**
 
 ## 门禁状态
 
@@ -96,8 +99,9 @@ uv run pytest -m fast 355 passed # ✅ 通过
 |------|------|------|
 | PG 连接超时 | 服务不可用 | `pool_pre_ping=True` 断线自愈 |
 | 数据迁移失败 | 数据丢失 | 迁移前备份 + `--dry-run` 检查 |
-| 备份恢复失败 | 无法回滚 | 测试恢复流程 + 验证 |
+| 备份恢复失败 | 无法回滚 | 测试恢复流程 + 验证 + 双写策略 |
 | 表单冲突 | 唯一约束失败 | `WHERE deleted_at IS NULL` 索引保护 |
+| 异步任务失败 | 备份/恢复超时 | 任务队列 + 重试机制 + 超时监控 |
 
 ## 代码变更统计
 
