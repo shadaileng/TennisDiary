@@ -17,6 +17,7 @@ import re
 import time
 import zlib
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -241,7 +242,7 @@ def _new_file_record(
         business_id=business_id,
         ref_count=0,
         security_checked=1 if security_checked else 0,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
         storage=storage_col,
         storage_status=storage_status,
     )

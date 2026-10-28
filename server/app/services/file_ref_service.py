@@ -11,6 +11,7 @@
 """
 
 import time
+from datetime import datetime, timezone
 
 from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
@@ -81,7 +82,7 @@ def bind(
         business_type=business_type,
         business_id=int(business_id),
         field=field,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(binding)
     try:
