@@ -97,6 +97,16 @@ class DiaryResponse(DiaryCreate):
 
     model_config = {"from_attributes": True}
 
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
+
 
 # ==================== 装备 ====================
 
@@ -130,6 +140,16 @@ class GearResponse(GearCreate):
 
     model_config = {"from_attributes": True}
 
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
+
 
 # ==================== 体重 ====================
 
@@ -150,6 +170,16 @@ class WeightResponse(WeightCreate):
     business_time: float | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
 
 
 # ==================== 打卡 ====================

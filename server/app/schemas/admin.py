@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Generic, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 T = TypeVar("T")
 
@@ -242,6 +242,16 @@ class DiaryAdminResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
+
 
 class GearAdminResponse(BaseModel):
     """装备信息（管理端）"""
@@ -260,6 +270,16 @@ class GearAdminResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
+
 
 class WeightAdminResponse(BaseModel):
     """体重记录（管理端）"""
@@ -276,6 +296,16 @@ class WeightAdminResponse(BaseModel):
     user: dict | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
 
 
 class CheckinAdminResponse(BaseModel):
