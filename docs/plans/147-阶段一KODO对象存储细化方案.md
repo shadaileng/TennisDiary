@@ -414,6 +414,103 @@ if (isAbsolute(p)) return p                                            // ← �
 
 > 相对 [146 §五](./146-后台三件套改造评估.md) 原估（4~7）上浮：外链响应层转换面较宽 + 文件管理 S3 同步功能（146 v1.4.0 已同步为 7~10）。
 
+---
+
+## 十七、附录：七牛云 KODO 配置标识符与获取路径
+
+### 十七.1 七牛云配置值说明
+
+| 配置项 | `STORAGE_` | 说明 | 目标值示例 |
+|--------|------------|------|------------|
+| 对象存储后端 | `BACKEND` | `local`（本地） / `kodo`（七牛） | `kodo` |
+| 区域标识符 | `REGION` | Region ID，与 Endpoint 匹配 | `cn-east-2` |
+| S3 协议 Endpoint | `ENDPOINT` | 用于 S3 兼容 API（boto3） | `s3.cn-east-2.qiniucs.com` |
+| 存储桶名称 | `BUCKET` | 创建时指定的全局唯一名称 | `tennis-diary` |
+| 访问密钥 | `ACCESS_KEY` | AccessKey（AK） | `AKxT...` |
+| 密钥 | `SECRET_KEY` | SecretKey（SK） | `SKyZ...` |
+| 公共域名 | `PUBLIC_BASE_URL` | 已备案 CDN 域名，用于外链展示 | `https://file.tennisdiary.cn` |
+| 签名有效期 | `PRESIGN_TTL` | 签名链接有效期（秒） | `2592000` |
+
+### 十七.2 区域标识符（Region ID）清单
+
+| 存储区域 | Region ID | 说明 |
+|----------|-----------|------|
+| 华东-浙江 | `z0` | 旧称，兼容 |
+| 华东-浙江2 | `cn-east-2` | 推荐 |
+| 华北-河北 | `z1` | 旧称，兼容 |
+| 华南-广东 | `z2` | 旧称，兼容 |
+| 北美-洛杉矶 | `na0` | 旧称，兼容 |
+| 亚太-新加坡（原东南亚） | `as0` | 旧称，兼容 |
+| 亚太-河内 | `ap-southeast-2` | 存量运营 |
+| 亚太-胡志明 | `ap-southeast-3` | 存量运营 |
+
+### 十七.3 S3 协议 Endpoint 清单
+
+| Region ID | S3 协议 Endpoint | 说明 |
+|-----------|------------------|------|
+| `z0` / `cn-east-1` | `s3.cn-east-1.qiniucs.com` | 华东-浙江 |
+| `cn-east-2` | `s3.cn-east-2.qiniucs.com` | 华东-浙江2 |
+| `z1` / `cn-north-1` | `s3.cn-north-1.qiniucs.com` | 华北-河北 |
+| `z2` / `cn-south-1` | `s3.cn-south-1.qiniucs.com` | 华南-广东 |
+| `na0` / `us-north-1` | `s3.us-north-1.qiniucs.com` | 北美-洛杉矶 |
+| `as0` / `ap-southeast-1` | `s3.ap-southeast-1.qiniucs.com` | 亚太-新加坡 |
+| `ap-southeast-2` | `s3.ap-southeast-2.qiniucs.com` | 亚太-河内 |
+| `ap-southeast-3` | `s3.ap-southeast-3.qiniucs.com` | 亚太-胡志明 |
+
+> ⚠️ **禁止错误**：不要用 `up-*.qiniup.com`（上传域名）或 `iovip-*.qiniuio.com`（下载域名），必须用 S3 协议的 `s3.*.qiniucs.com`
+
+### 十七.4 CNAME 指向域名清单
+
+| 存储区域 | CNAME 指向 | 用途 |
+|----------|-----------|------|
+| 华东-浙江 | `iovip.qiniuio.com` | 域名解析 |
+| 华东-浙江2 | `iovip-cn-east-2.qiniuio.com` | 域名解析 |
+| 华北-河北 | `iovip-z1.qiniuio.com` | 域名解析 |
+| 华南-广东 | `iovip-z2.qiniuio.com` | 域名解析 |
+| 北美-洛杉矶 | `iovip-na0.qiniuio.com` | 域名解析 |
+| 亚太-新加坡 | `iovip-as0.qiniuio.com` | 域名解析 |
+| 亚太-河内 | `iovip-ap-southeast-2.qiniuio.com` | 域名解析 |
+| 亚太-胡志明 | `iovip-ap-southeast-3.qiniuio.com` | 域名解析 |
+
+### 十七.5 官方文档查询路径
+
+| 内容 | 官方文档链接 |
+|------|--------------|
+| 存储区域和访问域名 | [存储区域_产品简介_对象存储](https://developer.qiniu.com/kodo/1671/region-endpoint-fq) |
+| 服务域名（S3 协议）使用指南 | [服务域名_使用指南_对象存储](https://developer.qiniu.com/kodo/4088/s3-access-domainname) |
+| 基本概念（创建存储桶） | [基本概念_产品简介_对象存储](https://developer.qiniu.com/kodo/3978/the-basic-concept) |
+| 绑定源站域名 | [绑定源站域名_使用指南_对象存储](https://developer.qiniu.com/kodo/8622/dev-the-binding-source-domain-name) |
+
+### 十七.6 推荐配置（国内用户）
+
+```env
+STORAGE_BACKEND=kodo
+STORAGE_REGION=cn-east-2
+STORAGE_ENDPOINT=s3.cn-east-2.qiniucs.com
+STORAGE_BUCKET=tennis-diary
+STORAGE_ACCESS_KEY=你的AK
+STORAGE_SECRET_KEY=你的SK
+STORAGE_PUBLIC_BASE_URL=https://file.tennisdiary.cn
+STORAGE_PRESIGN_TTL=2592000
+```
+
+### 十七.7 配置值获取步骤
+
+1. **登录七牛云控制台**
+2. **创建存储桶**：
+   - 空间名称：`tennis-diary`（或其他唯一名称）
+   - 区域：选择 `华东-浙江2`（推荐）或 `华东-浙江`
+3. **获取密钥**：
+   - 点击头像 → **密钥管理**，记录 `AccessKey` 和 `SecretKey`
+4. **绑定域名**：
+   - 悬停于存储桶 → **域名管理** → 添加已备案域名（如 `file.tennisdiary.cn`）
+5. **填写 `.env`**：使用上述推荐配置，替换实际值
+6. **重启后端**：`cd server && uv run uvicorn app.main:app --reload`
+
+---
+
+💡 **提示**：以上清单会随七牛云官方文档更新而调整，建议开发时同时查阅官方文档获取最新信息。
+
 ## 十四、风险与未决
 
 | 级别 | 项 | 处理 |
