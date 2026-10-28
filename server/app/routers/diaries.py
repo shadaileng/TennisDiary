@@ -83,7 +83,7 @@ def create_diary(
         costs=json.dumps([c.model_dump() for c in body.costs], ensure_ascii=False),
         gears=json.dumps([g.model_dump() for g in body.gears], ensure_ascii=False),
         notes=body.notes,
-        created_at(datetime.now(timezone.utc)),
+        created_at=datetime.now(timezone.utc),
         business_time=body.business_time,
     )
     db.add(diary)
