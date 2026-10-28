@@ -1215,6 +1215,7 @@ watch(currentPage, fetchFiles)
 onMounted(() => {
   fetchFiles()
   fetchStats()
+  refreshSyncStatus()
 })
 
 onUnmounted(() => {
