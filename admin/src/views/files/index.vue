@@ -889,7 +889,7 @@ const storageStatusClass = (status: number | undefined): string => {
   return map[status ?? 0] || 'bg-gray-100 text-gray-600'
 }
 
-const needsSync = (row: AdminFile): boolean => row.storage_status !== 1 || row.storage === 'local'
+const needsSync = (row: AdminFile): boolean => row.storage_status !== 1
 
 const refreshSyncStatus = async () => {
   try {
