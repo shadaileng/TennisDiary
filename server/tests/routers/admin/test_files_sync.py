@@ -14,7 +14,7 @@
 import hashlib
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -191,7 +191,7 @@ class TestDoubleDelete:
         rec = _insert_file(test_db, storage_col="memory", status=STORAGE_STATUS_SYNCED)
         backend = _backend(test_db)
         backend.put(rec.rel_path, b"object-bytes")
-        rec.deleted_at = time.time() - 31 * 86400
+        rec.deleted_at = datetime.now(timezone.utc) - timedelta(days=31)
         test_db.commit()
 
         file_service.cleanup(test_db, days=30)
@@ -211,7 +211,7 @@ class TestDoubleDelete:
             raise storage.StorageError("模拟对象删除失败")
 
         monkeypatch.setattr(backend, "delete", _boom)
-        rec.deleted_at = time.time() - 31 * 86400
+        rec.deleted_at = datetime.now(timezone.utc) - timedelta(days=31)
         test_db.commit()
 
         file_service.cleanup(test_db, days=30)  # 不应抛错

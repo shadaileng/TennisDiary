@@ -17,7 +17,7 @@ import re
 import time
 import zlib
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -143,7 +143,7 @@ def cleanup_expired(db: Session, days: int = 30) -> int:
     §5.4 双删：删行 + 删本地副本 + **同步删对象**；对象删除失败只记日志，
     不阻塞清理（对象侧靠 bucket 生命周期规则兜底）。
     """
-    cutoff = time.time() - (days * 86400)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     expired = db.query(File).filter(File.deleted_at.isnot(None), File.deleted_at < cutoff).all()
     backend = _object_backend(db)
 
@@ -1089,7 +1089,7 @@ def soft_delete(db: Session, file_id: int) -> bool:
         return False
     file_ref_service.purge_bindings_of_file(db, file_id)
     record.ref_count = 0
-    record.deleted_at = time.time()
+    record.deleted_at = datetime.now(timezone.utc)
     file_store.unlink(record.rel_path)
     return True
 
@@ -1100,6 +1100,7 @@ def soft_delete_batch(db: Session, file_ids: list[int]) -> dict:
     missing = 0
     disk_removed = 0
     missing_ids: list[str] = []
+    now = datetime.now(timezone.utc)
     for file_id in file_ids:
         record = db.query(File).filter(File.id == int(file_id), File.deleted_at.is_(None)).first()
         if record is None:
@@ -1108,7 +1109,7 @@ def soft_delete_batch(db: Session, file_ids: list[int]) -> dict:
             continue
         file_ref_service.purge_bindings_of_file(db, int(file_id))
         record.ref_count = 0
-        record.deleted_at = time.time()
+        record.deleted_at = now
         if file_store.unlink(record.rel_path):
             disk_removed += 1
         deleted += 1

@@ -1,6 +1,7 @@
 """分析报告管理路由测试（含详情完整报告返回）"""
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -57,7 +58,7 @@ def _insert_analysis(test_db, **overrides):
         ),
         thumb="analyses/cover.jpg",
         highlights=json.dumps(["analyses/h1.jpg", "analyses/h2.jpg"]),
-        created_at=0,
+        created_at=datetime.now(timezone.utc),
     )
     data.update(overrides)
     analysis = Analysis(**data)

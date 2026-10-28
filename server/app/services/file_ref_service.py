@@ -203,7 +203,8 @@ def cleanup_unbound(db: Session, grace_hours: int = 24) -> int:
     判定：ref_count <= 0、未软删、创建时间早于宽限期，且未被绑定表或业务表引用。
     返回软删的文件数量。
     """
-    cutoff = time.time() - grace_hours * 3600
+    from datetime import datetime, timezone, timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=grace_hours)
     candidates = (
         db.query(File)
         .filter(
@@ -219,10 +220,11 @@ def cleanup_unbound(db: Session, grace_hours: int = 24) -> int:
 
     protected = bound_rel_paths(db) | set(file_refs.collect_business_refs(db).keys())
     cleaned = 0
+    now = datetime.now(timezone.utc)
     for record in candidates:
         if record.rel_path in protected:
             continue
-        record.deleted_at = time.time()
+        record.deleted_at = now
         cleaned += 1
 
     if cleaned:

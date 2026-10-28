@@ -62,6 +62,7 @@ def cleanup_stuck_processing(
     Returns:
         被清理的记录数
     """
+    from datetime import datetime, timezone, timedelta
     current = time.time() if now is None else now
     cutoff = datetime.fromtimestamp(current, tz=timezone.utc) - timedelta(seconds=timeout_s)
 
@@ -70,6 +71,7 @@ def cleanup_stuck_processing(
         .filter(
             Analysis.status == "processing",
             Analysis.created_at < cutoff,
+            Analysis.created_at > datetime(1970, 1, 1, tzinfo=timezone.utc),  # 跳过历史脏数据
         )
         .all()
     )
