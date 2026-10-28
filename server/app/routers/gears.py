@@ -60,7 +60,7 @@ def create_gear(
         feeling=body.feeling,
         photo=body.photo,
         created_at=datetime.now(timezone.utc),
-        business_time=body.business_time,
+        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc) if body.business_time else None,
     )
     db.add(gear)
     db.commit()
