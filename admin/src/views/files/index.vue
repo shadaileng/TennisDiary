@@ -889,7 +889,12 @@ const storageStatusClass = (status: number | undefined): string => {
   return map[status ?? 0] || 'bg-gray-100 text-gray-600'
 }
 
-const needsSync = (row: AdminFile): boolean => row.storage_status !== 1
+const needsSync = (row: AdminFile): boolean => {
+  // 同步中心未启用 (backend=local) 时，不显示同步按钮
+  if (syncStatus.value === null) return false
+  // 已同步的文件不需要同步
+  return row.storage_status !== 1
+}
 
 const refreshSyncStatus = async () => {
   try {
