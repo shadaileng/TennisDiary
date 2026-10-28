@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Column, DateTime, ForeignKey, BigInteger, Integer, String, Text, func
 
 from app.core.database import Base
 
@@ -17,5 +17,5 @@ class EventLog(Base):
     page = Column(String(256), default="")
     params = Column(Text, default="")  # 业务参数 JSON
     device_info = Column(Text, default="")  # 设备信息 JSON
-    client_time = Column(Integer, nullable=True, index=True)  # 前端发送时的毫秒时间戳
+    client_time = Column(BigInteger, nullable=True, index=True)  # 前端发送时的毫秒时间戳
     created_at = Column(DateTime, server_default=func.now(), index=True)
