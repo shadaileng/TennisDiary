@@ -216,19 +216,29 @@ export const useGearStore = defineStore("gear", {
       }
       const uid = currentUserId();
       if (uid == null) throw new Error("未登录");
-      if (typeof id === "string") {
-        const saved = offlineGears.update(uid, id, body as Partial<LocalGear>);
-        if (!saved) throw new Error("本地保存失败，请尝试登录后同步到云端");
-        this.hydrate();
-        return this.gears.find((x) => (x as LocalGear).localId === String(id))!;
+      
+      // 将可能的字符串 ID 转换为数字
+      const actualId = typeof id === "string" ? Number(id) : id;
+      
+      if (Number.isNaN(actualId)) {
+        // 无法转换则为本地 ID，走本地更新
+        if (typeof id === "string") {
+          const saved = offlineGears.update(uid, id, body as Partial<LocalGear>);
+          if (!saved) throw new Error("本地保存失败，请尝试登录后同步到云端");
+          this.hydrate();
+          return this.gears.find((x) => (x as LocalGear).localId === String(id))!;
+        }
+        throw new Error("无效的装备 ID");
       }
+      
+      // 实际更新后端装备
       const traceId = createTraceId();
       try {
-        logInfo("编辑装备", { gear_id: id }, undefined, EV.GEAR_UPDATE, traceId);
-        const g = await updateGear(id, body);
-        setCloudGears(uid, getCloudGears(uid).map((x) => (x.id === id ? g : x)));
+        logInfo("编辑装备", { gear_id: actualId }, undefined, EV.GEAR_UPDATE, traceId);
+        const g = await updateGear(actualId, body);
+        setCloudGears(uid, getCloudGears(uid).map((x) => (x.id === actualId ? g : x)));
         this.hydrate();
-        logInfo("装备更新成功", { gear_id: id }, undefined, EV.GEAR_UPDATED, traceId);
+        logInfo("装备更新成功", { gear_id: actualId }, undefined, EV.GEAR_UPDATED, traceId);
         return g;
       } catch (e) {
         const err = e as ApiError;
@@ -236,7 +246,7 @@ export const useGearStore = defineStore("gear", {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("装备更新失败", { gear_id: id, error: err?.message }, undefined, EV.GEAR_UPDATE_FAILED, undefined, traceId);
+        logError("装备更新失败", { gear_id: actualId, error: err?.message }, undefined, EV.GEAR_UPDATE_FAILED, undefined, traceId);
         throw e;
       }
     },
