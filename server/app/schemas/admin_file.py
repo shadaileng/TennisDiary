@@ -57,12 +57,13 @@ class AdminFileResponse(BaseModel):
     @field_validator('created_at', mode='before')
     @classmethod
     def parse_created_at(cls, v):
-        """确保 created_at 以 datetime 形式存在"""
+        """将 datetime 或 ISO 字符串转换为 Unix 时间戳（秒）"""
         if isinstance(v, datetime):
-            return v
+            return v.timestamp()
         if isinstance(v, str):
             # 如果是字符串，尝试解析
-            return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return dt.timestamp()
         return v
 
 
