@@ -91,7 +91,7 @@ class DiaryUpdate(BaseModel):
 class DiaryResponse(DiaryCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     created_at_datetime: str | None = None
     business_time: float | None = None
 
@@ -125,7 +125,7 @@ class GearUpdate(BaseModel):
 class GearResponse(GearCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
 
     model_config = {"from_attributes": True}
@@ -146,7 +146,7 @@ class WeightCreate(BaseModel):
 class WeightResponse(WeightCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
 
     model_config = {"from_attributes": True}
@@ -163,7 +163,7 @@ class CheckinCreate(BaseModel):
 class CheckinResponse(CheckinCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -271,7 +271,7 @@ class AnalysisUpdate(BaseModel):
 class AnalysisResponse(AnalysisCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     status: str = "processing"
 
     model_config = {"from_attributes": True}
@@ -306,7 +306,7 @@ class PostCreate(BaseModel):
 class PostResponse(PostCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

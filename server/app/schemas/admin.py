@@ -236,7 +236,7 @@ class DiaryAdminResponse(BaseModel):
     costs: str  # JSON字符串
     gears: str  # JSON字符串
     notes: str
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
     user: dict | None = None
 
@@ -254,7 +254,7 @@ class GearAdminResponse(BaseModel):
     price: float
     feeling: str
     photo: str
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
     user: dict | None = None
 
@@ -271,7 +271,7 @@ class WeightAdminResponse(BaseModel):
     bust: float | None = None
     waist: float | None = None
     hip: float | None = None
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
     user: dict | None = None
 
@@ -285,7 +285,7 @@ class CheckinAdminResponse(BaseModel):
     user_id: int
     course_id: str
     date: str
-    created_at: float
+    created_at: datetime
     user: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -304,7 +304,7 @@ class AnalysisAdminResponse(BaseModel):
     ntrp: str | None = None
     thumb: str | None = None  # 封面帧路径（列表缩略图用，避免列表解析大 JSON）
     status: str = "completed"
-    created_at: float
+    created_at: datetime
     user: dict | None = None
 
     model_config = {"from_attributes": True}
@@ -329,7 +329,7 @@ class PostAdminResponse(BaseModel):
     title: str
     content: str
     status: str
-    created_at: float
+    created_at: datetime
     user: dict | None = None
 
     model_config = {"from_attributes": True}

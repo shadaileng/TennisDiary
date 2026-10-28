@@ -1,5 +1,7 @@
 """Admin 文件管理相关 Schema"""
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -40,7 +42,7 @@ class AdminFileResponse(BaseModel):
     ref_count: int = Field(description="引用计数")
     business_type: str | None = Field(default=None, description="业务类型")
     business_id: int | None = Field(default=None, description="业务记录 ID")
-    created_at: float = Field(description="创建时间戳")
+    created_at: datetime = Field(description="创建时间戳")
     usage_status: str = Field(description="使用状态：in_use/unreferenced/marked_deleted/orphan")
     usage_reason: str = Field(default="", description="使用状态原因说明")
     storage: str = Field(
