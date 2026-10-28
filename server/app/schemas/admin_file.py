@@ -52,6 +52,8 @@ class AdminFileResponse(BaseModel):
         default=0, description="同步状态（147）：0=PENDING 待同步 / 1=SYNCED 已同步 / 2=FAILED 失败"
     )
 
+    model_config = {"from_attributes": True}
+
 
 class AdminFileListResponse(BaseModel):
     """Admin 文件列表分页响应"""
