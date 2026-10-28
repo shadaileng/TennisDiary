@@ -40,7 +40,7 @@ def create_checkin(
     current_user: User = Depends(get_current_user),
 ):
     """签到 — 同用户 + 同课程 + 同日期幂等，重复签到返回已有记录"""
-    import time
+    from datetime import datetime, timezone
 
     existing = (
         db.query(Checkin)
@@ -58,7 +58,7 @@ def create_checkin(
         user_id=current_user.id,
         course_id=body.course_id,
         date=body.date,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(record)
     db.commit()

@@ -1,5 +1,7 @@
 """装备相关路由：列表 / 添加 / 详情 / 编辑 / 删除"""
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -49,8 +51,6 @@ def create_gear(
     current_user: User = Depends(get_current_user),
 ):
     """添加装备"""
-    import time
-
     gear = Gear(
         user_id=current_user.id,
         category=body.category,
@@ -59,7 +59,7 @@ def create_gear(
         price=body.price,
         feeling=body.feeling,
         photo=body.photo,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
         business_time=body.business_time,
     )
     db.add(gear)

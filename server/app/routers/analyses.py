@@ -3,7 +3,7 @@
 import asyncio
 import json
 import os
-import time
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import (
@@ -115,7 +115,7 @@ def init_analysis(
         kind=body.kind,
         mode=body.mode,
         status="processing",
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(analysis)
     db.flush()
@@ -167,7 +167,7 @@ def create_analysis(
         highlights=json.dumps(body.highlights, ensure_ascii=False) if body.highlights else None,
         video_url=body.video_url,
         pose=json.dumps(body.pose, ensure_ascii=False) if body.pose else None,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(analysis)
     db.flush()  # 获取 analysis.id
@@ -386,7 +386,7 @@ def start_analysis(
         mode=body.mode,
         status="processing",
         pipeline_status=json.dumps(pipeline_status, ensure_ascii=False),
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(analysis)
     db.flush()

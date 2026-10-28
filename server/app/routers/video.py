@@ -2,7 +2,7 @@
 
 import json
 import os
-import time
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -224,7 +224,7 @@ def upload_video(
             playback_file_id=playback_record.id if playback_record else None,
             cut_info=json.dumps(cut_info, ensure_ascii=False),
             derivatives=json.dumps(derivatives, ensure_ascii=False),
-            created_at=time.time(),
+            created_at=datetime.now(timezone.utc),
         )
         db.add(analysis_video_info)
         # 列定向更新：仅写 video_url，避免并发覆盖
