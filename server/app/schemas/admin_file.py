@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class FileUsageStatus:
@@ -53,6 +53,17 @@ class AdminFileResponse(BaseModel):
     )
 
     model_config = {"from_attributes": True}
+
+    @field_validator('created_at', mode='before')
+    @classmethod
+    def parse_created_at(cls, v):
+        """确保 created_at 以 datetime 形式存在"""
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, str):
+            # 如果是字符串，尝试解析
+            return datetime.fromisoformat(v.replace('Z', '+00:00'))
+        return v
 
 
 class AdminFileListResponse(BaseModel):
