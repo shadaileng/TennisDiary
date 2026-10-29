@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # Tennis Diary Server - HuggingFace Spaces 部署脚本
-# 推送 server/ 目录到 HF Space git repo，HF 自动构建 Docker 镜像
+# 将 server/ 代码推送为 Docker 空间，并通过 API 设置 Secrets。
 #
 # 配置优先级：环境变量 > .env.hf 文件 > 默认值
 #
@@ -13,7 +13,15 @@
 #   # 方式二：本地手动部署
 #   cp .env.hf.example .env.hf
 #   # 编辑 .env.hf 填入实际值
-#   HF_TOKEN=hf_xxxx HF_USERNAME=yourname HF_SPACE_NAME=your-space bash scripts/deploy-hf.sh
+#   HF_TOKEN=hf_xxxx HF_USERNAME=yourname HF_SPACE_NAME=your-space \
+#   DATABASE_URL=postgres://... \
+#   JWT_SECRET=xxx WX_APPID=xxx WX_SECRET=xxx \
+#   bash scripts/deploy-hf.sh
+#
+# 说明:
+#   - 默认推送完成后即结束，不在 runner 上等待健康检查（避免 GitHub Actions 计费时长被浪费）
+#   - 本地需要等待构建完成时，追加 WAIT_FOR_HEALTH=1:
+#       WAIT_FOR_HEALTH=1 bash scripts/deploy-hf.sh
 # ============================================================
 
 set -euo pipefail
@@ -36,15 +44,15 @@ fail() {
 }
 
 # ---------- 路径 ----------
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-SERVER_DIR="$PROJECT_DIR/server"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SERVER_DIR/.." && pwd)"
 
 # ---------- 加载 .env.hf 文件 ----------
 load_env_file() {
   local env_file="$PROJECT_DIR/.env.hf"
   if [ -f "$env_file" ]; then
-    log_info "加载配置文件: $env_file"
+    log_info "加载本地配置: $env_file"
     while IFS='=' read -r key value; do
       key=$(echo "$key" | xargs)
       value=$(echo "$value" | xargs)
@@ -62,12 +70,14 @@ load_env_file
 HF_TOKEN="${HF_TOKEN:-}"
 HF_USERNAME="${HF_USERNAME:-}"
 HF_SPACE_NAME="${HF_SPACE_NAME:-}"
-DATABASE_URL="${DATABASE_URL:-}"
 JWT_SECRET="${JWT_SECRET:-}"
 WX_APPID="${WX_APPID:-}"
 WX_SECRET="${WX_SECRET:-}"
 ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD:-changeme}"
 ADMIN_RESET_KEY="${ADMIN_RESET_KEY:-}"
+
+# 必配数据库连接串
+DATABASE_URL="${DATABASE_URL:-}"
 
 # 可选配置（有明确默认值）
 DEBUG="${DEBUG:-false}"
@@ -100,6 +110,10 @@ DB_MAX_OVERFLOW="${DB_MAX_OVERFLOW:-10}"
 DB_POOL_RECYCLE="${DB_POOL_RECYCLE:-3600}"
 DB_POOL_PRE_PING="${DB_POOL_PRE_PING:-true}"
 
+# 是否在部署后等待健康检查。默认关闭（避免在 GitHub Actions runner 上长时间占用执行额度）。
+# 本地手动部署需要等待时可设为 1: WAIT_FOR_HEALTH=1
+WAIT_FOR_HEALTH="${WAIT_FOR_HEALTH:-0}"
+
 # ---------- 校验变量 ----------
 [ -n "$HF_TOKEN" ]        || fail "HF_TOKEN 未设置（检查 .env.hf 或环境变量）"
 [ -n "$HF_USERNAME" ]     || fail "HF_USERNAME 未设置（检查 .env.hf 或环境变量）"
@@ -113,66 +127,9 @@ DB_POOL_PRE_PING="${DB_POOL_PRE_PING:-true}"
 [ "$HF_TOKEN" != "hf_xxxxxxxxxxxxxxxxx" ]  || fail "请修改 HF_TOKEN 为实际值"
 [ "$HF_USERNAME" != "your-hf-username" ]   || fail "请修改 HF_USERNAME 为实际值"
 
-# ---------- 检测运行环境 ----------
-IS_GITHUB_ACTIONS="${GITHUB_ACTIONS:-false}"
-
-if [ "$IS_GITHUB_ACTIONS" = "true" ]; then
-  log_info "检测到 GitHub Actions 环境"
-  log_info "校验 GitHub Secrets 配置..."
-
-  # GitHub Actions 必需的 Secrets
-  REQUIRED_SECRETS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "DATABASE_URL" "JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
-  MISSING_SECRETS=()
-
-  for secret in "${REQUIRED_SECRETS[@]}"; do
-    if [ -z "${!secret:-}" ]; then
-      MISSING_SECRETS+=("$secret")
-    fi
-  done
-
-  if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
-    log_error "以下 GitHub Secrets 未配置："
-    for secret in "${MISSING_SECRETS[@]}"; do
-      log_error "  - $secret"
-    done
-    log_error ""
-    log_error "请在 GitHub Repo Settings → Secrets and variables → Actions 中添加："
-    for secret in "${REQUIRED_SECRETS[@]}"; do
-      log_error "  $secret"
-    done
-    fail "GitHub Secrets 配置不完整"
-  fi
-
-  log_ok "  ✓ GitHub Secrets 配置完整"
-else
-  log_info "本地部署模式"
-  log_info "校验 .env.hf 配置文件..."
-
-  # 本地部署必需的变量
-  LOCAL_REQUIRED_VARS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "DATABASE_URL" "JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
-  MISSING_VARS=()
-
-  for var in "${LOCAL_REQUIRED_VARS[@]}"; do
-    if [ -z "${!var:-}" ]; then
-      MISSING_VARS+=("$var")
-    fi
-  done
-
-  if [ ${#MISSING_VARS[@]} -gt 0 ]; then
-    log_error "以下环境变量未设置："
-    for var in "${MISSING_VARS[@]}"; do
-      log_error "  - $var"
-    done
-    log_error ""
-    log_error "请执行以下操作："
-    log_error "  1. cp .env.hf.example .env.hf"
-    log_error "  2. 编辑 .env.hf 填入实际值"
-    log_error "  3. 运行: bash scripts/deploy-hf.sh"
-    fail "环境变量配置不完整"
-  fi
-
-  log_ok "  ✓ 环境变量配置完整"
-fi
+# ---------- API 封装 ----------
+hf_get()  { curl -s -f -H "Authorization: Bearer ${HF_TOKEN}" "$1"; }
+hf_post() { curl -s -H "Authorization: Bearer ${HF_TOKEN}" -H "Content-Type: application/json" -X POST -d "$2" "$1"; }
 
 # ---------- 检查/创建 HF Space ----------
 log_info "检查 HF Space: ${HF_USERNAME}/${HF_SPACE_NAME}..."
@@ -204,7 +161,7 @@ else
     log_ok "  ✓ Space 创建成功"
   else
     CREATE_BODY=$(echo "$CREATE_RESPONSE" | sed '$d')
-    log_error "  ✗ Space 创建失败 (HTTP $CREATE_STATUS)"
+    log_error "  ⚠ Space 创建失败 (HTTP $CREATE_STATUS)"
     if [ -n "$CREATE_BODY" ]; then
       log_error "     响应: $CREATE_BODY"
     fi
@@ -221,36 +178,61 @@ log_info "Space: $HF_SPACE_NAME"
 # ---------- 临时目录 ----------
 TMP_DIR=$(mktemp -d)
 trap 'rm -rf "$TMP_DIR"' EXIT
+cd "$TMP_DIR"
 
-# ---------- 1. 复制 server/ 文件到临时目录 ----------
-log_info "复制 server/ 文件到临时目录..."
+# ---------- 1. 初始化 Git 并推送 ----------
+SPACE_REMOTE="https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}"
 
-# 复制 Dockerfile（HF 构建用）
+log_info "初始化本地 Git 仓库..."
+git init -q
+git config user.name  "$HF_USERNAME"
+git config user.email "${HF_USERNAME}@users.huggingface.co"
+git remote add origin "$SPACE_REMOTE"
+
+# 拉取远端 main 历史作为基底（远端已存在内容时避免历史不相关导致 push 被拒）
+if git fetch origin main 2>/dev/null; then
+  git checkout -q -B main FETCH_HEAD
+  log_info "已基于远端 main 建立基底（包含 ${HF_SPACE_NAME} 已有内容）"
+else
+  git checkout -q -B main
+  log_info "远端暂无 main，创建空分支（首次部署）"
+fi
+
+# ---------- 2. 复制核心文件 ----------
+log_info "打包 server/ 到临时目录: $TMP_DIR"
+
+# 姿态模型缺失时自动下载（本地仓库 gitignore 不含模型，须在此补齐；
+# GitHub runner 可访问官方源，国内手动部署可用 POSE_MODEL_URL 覆盖镜像源）
+if [ ! -f "$SERVER_DIR/models/pose_landmarker_lite.task" ]; then
+  log_info "姿态模型缺失，自动下载..."
+  bash "$SERVER_DIR/scripts/download-pose-model.sh" || fail "姿态模型下载失败"
+fi
+
+# Dockerfile
 if [ -f "$SERVER_DIR/Dockerfile" ]; then
   cp "$SERVER_DIR/Dockerfile" "$TMP_DIR/Dockerfile"
-  log_info "  ✓ Dockerfile"
+  log_ok "  ✓ Dockerfile"
 else
   fail "Dockerfile 不存在: $SERVER_DIR/Dockerfile"
 fi
 
-# 复制 README.hf.md → README.md（HF Space 配置：SDK/Docker + 卡片元数据）
-# HF 通过 README.md 的 front matter 识别 Docker SDK 并展示卡片信息
+# README.hf.md → README.md（HF Space 配置：SDK/Docker + 卡片元数据）
 if [ -f "$SERVER_DIR/README.hf.md" ]; then
   cp "$SERVER_DIR/README.hf.md" "$TMP_DIR/README.md"
-  log_info "  ✓ README.md (from README.hf.md)"
+  log_ok "  ✓ README.md (from README.hf.md)"
 else
-  log_warn "  ✗ README.hf.md (不存在，跳过)"
+  log_warn "  ⚠ README.hf.md (不存在，跳过)"
 fi
 
-# 复制 .dockerignore
+# .dockerignore
 if [ -f "$SERVER_DIR/.dockerignore" ]; then
   cp "$SERVER_DIR/.dockerignore" "$TMP_DIR/.dockerignore"
-  log_info "  ✓ .dockerignore"
+  log_ok "  ✓ .dockerignore"
 else
-  log_warn "  ✗ .dockerignore (不存在，跳过)"
+  log_warn "  ⚠ .dockerignore (不存在，跳过)"
 fi
 
-# 复制 server/ 核心文件
+# 核心代码文件
 FILES_TO_COPY=(
   "pyproject.toml"
   "uv.lock"
@@ -258,6 +240,7 @@ FILES_TO_COPY=(
   "app"
   "alembic"
   "scripts"
+  "models"
 )
 
 for item in "${FILES_TO_COPY[@]}"; do
@@ -270,11 +253,24 @@ for item in "${FILES_TO_COPY[@]}"; do
     fi
     log_info "  ✓ $item"
   else
-    log_warn "  ✗ $item (不存在，跳过)"
+    log_warn "  ⚠ $item (不存在，跳过)"
   fi
 done
 
-# ---------- 2. 设置 HF Space Secrets ----------
+# 验证打包结果
+file_count=$(find "$TMP_DIR" -maxdepth 1 -type f | wc -l)
+dir_count=$(find "$TMP_DIR" -maxdepth 1 -type d ! -path "$TMP_DIR" | wc -l)
+total=$((file_count + dir_count))
+
+if [ "$total" -eq 0 ]; then
+  log_error "临时目录为空，没有任何文件被复制"
+  log_error "目录: $TMP_DIR"
+  fail "文件复制失败，请检查 server/ 目录结构"
+fi
+
+log_info "共复制 $total 个文件/目录到临时目录"
+
+# ---------- 3. 通过 API 设置 HF Space Secrets ----------
 # 敏感配置通过 HF API 设置为 Secrets，不推送到 git repo
 log_info "设置 HF Space Secrets..."
 
@@ -295,19 +291,20 @@ else
 fi
 
 # 必设 Secrets
+log_info "  设置必填 Secrets..."
 SECRET_NAMES=("JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD" "ADMIN_RESET_KEY")
 SECRET_VALUES=("${JWT_SECRET}" "${WX_APPID}" "${WX_SECRET}" "${ADMIN_DEFAULT_PASSWORD}" "${ADMIN_RESET_KEY}")
 
 for i in "${!SECRET_NAMES[@]}"; do
   name="${SECRET_NAMES[$i]}"
   value="${SECRET_VALUES[$i]}"
-  
+
   SECRET_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L -X POST \
     "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
     -H "Authorization: Bearer ${HF_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "{\"key\": \"${name}\", \"value\": \"${value}\"}")
-  
+
   if [ "$SECRET_RESPONSE" = "200" ]; then
     log_ok "  ✓ ${name} Secret 已设置"
   else
@@ -315,62 +312,33 @@ for i in "${!SECRET_NAMES[@]}"; do
   fi
 done
 
-# 选项 Secrets（对象存储/AI 需要）
-OPTIONAL_SECRETS=()
-OPTIONAL_VALUES=()
+# 可选 Secrets（对象存储/AI 需要）
+if [ ${#OPTIONAL_SECRETS[@]} -gt 0 ]; then
+  log_info "  设置可选 Secrets..."
+  for i in "${!OPTIONAL_SECRETS[@]}"; do
+    name="${OPTIONAL_SECRETS[$i]}"
+    value="${OPTIONAL_VALUES[$i]}"
 
-if [ -n "${STORAGE_ACCESS_KEY:-}" ]; then
-  OPTIONAL_SECRETS+=("STORAGE_ACCESS_KEY")
-  OPTIONAL_VALUES+=("${STORAGE_ACCESS_KEY}")
+    SECRET_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L -X POST \
+      "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
+      -H "Authorization: Bearer ${HF_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "{\"key\": \"${name}\", \"value\": \"${value}\"}")
+
+    if [ "$SECRET_RESPONSE" = "200" ]; then
+      log_ok "  ✓ ${name} Secret 已设置"
+    else
+      log_warn "  ⚠ ${name} Secret 设置失败 (HTTP $SECRET_RESPONSE)"
+    fi
+  done
 fi
-
-if [ -n "${STORAGE_SECRET_KEY:-}" ]; then
-  OPTIONAL_SECRETS+=("STORAGE_SECRET_KEY")
-  OPTIONAL_VALUES+=("${STORAGE_SECRET_KEY}")
-fi
-
-if [ -n "${AI_API_KEY:-}" ]; then
-  OPTIONAL_SECRETS+=("AI_API_KEY")
-  OPTIONAL_VALUES+=("${AI_API_KEY}")
-fi
-
-for i in "${!OPTIONAL_SECRETS[@]}"; do
-  name="${OPTIONAL_SECRETS[$i]}"
-  value="${OPTIONAL_VALUES[$i]}"
-  
-  SECRET_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L -X POST \
-    "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
-    -H "Authorization: Bearer ${HF_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "{\"key\": \"${name}\", \"value\": \"${value}\"}")
-  
-  if [ "$SECRET_RESPONSE" = "200" ]; then
-    log_ok "  ✓ ${name} Secret 已设置"
-  else
-    log_warn "  ⚠ ${name} Secret 设置失败 (HTTP $SECRET_RESPONSE)"
-  fi
-done
 
 # 设置 Variables（包含数据库连接串和其他配置）
-VAR_NAMES=("DEBUG" "DATA_DIR" "DATABASE_URL" "JWT_EXPIRATION_HOURS" 
-           "UPLOAD_DIR" "MAX_UPLOAD_SIZE_MB" "LOG_LEVEL" "LOG_DIR"
-           "ADMIN_DEFAULT_USERNAME"
-           "STORAGE_BACKEND" "STORAGE_ENDPOINT" "STORAGE_REGION" "STORAGE_BUCKET" "STORAGE_PUBLIC_BASE_URL"
-           "AI_BASE_URL" "AI_MODEL" "AI_PROVIDER"
-           "DB_POOL_SIZE" "DB_MAX_OVERFLOW" "DB_POOL_RECYCLE" "DB_POOL_PRE_PING")
-
-VAR_VALUES=("$DEBUG" "$DATA_DIR" "$DATABASE_URL" "$JWT_EXPIRATION_HOURS"
-            "$UPLOAD_DIR" "$MAX_UPLOAD_SIZE_MB" "$LOG_LEVEL" "$LOG_DIR"
-            "$ADMIN_DEFAULT_USERNAME"
-            "$STORAGE_BACKEND" "$STORAGE_ENDPOINT" "$STORAGE_REGION" "$STORAGE_BUCKET" "$STORAGE_PUBLIC_BASE_URL"
-            "$AI_BASE_URL" "$AI_MODEL" "$AI_PROVIDER"
-            "$DB_POOL_SIZE" "$DB_MAX_OVERFLOW" "$DB_POOL_RECYCLE" "$DB_POOL_PRE_PING")
-
 log_info "  设置 HF Space Variables (共 ${#VAR_NAMES[@]} 项)..."
 for i in "${!VAR_NAMES[@]}"; do
   name="${VAR_NAMES[$i]}"
   value="${VAR_VALUES[$i]}"
-  
+
   curl -s -o /dev/null -w "" -L -X POST \
     "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
     -H "Authorization: Bearer ${HF_TOKEN}" \
@@ -378,45 +346,25 @@ for i in "${!VAR_NAMES[@]}"; do
     -d "{\"key\": \"${name}\", \"value\": \"${value}\"}" || true
 done
 
-log_info "  ✓ 环境变量已配置（Secrets + Variables）"
+log_ok "  ✓ 环境变量已配置（Secrets + Variables）"
 
-# ---------- 3. 验证临时目录 ----------
-file_count=$(find "$TMP_DIR" -maxdepth 1 -type f | wc -l)
-dir_count=$(find "$TMP_DIR" -maxdepth 1 -type d ! -path "$TMP_DIR" | wc -l)
-total=$((file_count + dir_count))
+# ---------- 4. 提交并推送 ----------
+log_info "提交并推送至: https://huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}"
 
-if [ "$total" -eq 0 ]; then
-  log_error "临时目录为空，没有任何文件被复制"
-  log_error "目录: $TMP_DIR"
-  fail "文件复制失败，请检查 server/ 目录结构"
-fi
-
-log_info "共复制 $total 个文件/目录到临时目录"
-
-# ---------- 4. 初始化 Git 并推送 ----------
-SPACE_REMOTE="https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}"
-
-cd "$TMP_DIR"
-
-git init -q
-git config user.name  "$HF_USERNAME"
-git config user.email "${HF_USERNAME}@users.huggingface.co"
-git remote add origin "$SPACE_REMOTE"
-
-git checkout -b main
 git add -A
+# 兜底：确保 uv.lock / pyproject.toml 一定入库（即使被 .gitignore 忽略）
+git add -f uv.lock pyproject.toml 2>/dev/null || true
 
 if ! git commit -m "deploy: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" --quiet 2>&1; then
-  log_error "git commit 失败"
-  log_error "当前目录: $(pwd)"
-  log_error "目录内容:"
+  log_error "  ⚠ git commit 失败（若提示 nothing to commit 表示与远端内容一致）"
+  log_error "     当前目录: $(pwd)"
+  log_error "     目录内容:"
   ls -la
-  log_error "git status:"
+  log_error "     git status:"
   git status
   fail "无法创建提交，请检查文件是否正确复制"
 fi
 
-log_info "推送至: https://huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}"
 log_info "正在推送..."
 
 if git push -u origin main --force 2>&1; then
@@ -430,5 +378,28 @@ else
   exit 1
 fi
 
-log_ok "✅ 部署完成！请等待 HF Space 构建完成后访问 API 文档。"
-log_ok "   构建完成后访问: https://${HF_USERNAME}-${HF_SPACE_NAME}.hf.space/docs"
+log_ok "✅ 部署成功，已触发 HF 自动构建！"
+log_ok "   Space 地址: https://huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}"
+log_ok "   API 文档:   https://${HF_USERNAME}-${HF_SPACE_NAME}.hf.space/docs"
+log_info "构建在 HF 侧异步进行，可在 Space 页面查看日志。"
+
+if [ "$WAIT_FOR_HEALTH" = "1" ]; then
+  HEALTH_URL="${HF_USERNAME}-${HF_SPACE_NAME}.hf.space/health"
+  log_info "等待构建与部署（首次约 3-5 分钟）..."
+  log_info "健康检查: https://$HEALTH_URL"
+
+  HCODE=""
+  for _ in $(seq 1 40); do
+    HCODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "https://$HEALTH_URL" || true)
+    [ "$HCODE" = "200" ] && break
+    sleep 10
+  done
+
+  if [ "$HCODE" = "200" ]; then
+    log_ok "✅ 部署成功，服务已就绪！"
+  else
+    log_warn "  ⚠ /health 未在约 7 分钟内返回 200（HTTP ${HCODE:-无响应}）"
+    log_warn "    请在 HF Space 页面查看构建日志"
+    log_warn "    常见问题：端口非 7860、环境变量缺失、构建超时"
+  fi
+fi

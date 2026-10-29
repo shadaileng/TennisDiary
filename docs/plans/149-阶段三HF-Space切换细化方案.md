@@ -219,6 +219,9 @@ GH Actions 会：
 
 **无本地构建**：所有 Docker 构建在 HF Space 容器内进行。
 
+> **提示**: 脚本支持 `WAIT_FOR_HEALTH` 参数，部署后可等待服务就绪（默认关闭，节省 runner 时间）。
+
+
 ### Step 3：禁用魔搭 CI 工作流
 
 **重要**：切换到 HF Space 后，必须禁用魔搭工作流以避免冲突：
