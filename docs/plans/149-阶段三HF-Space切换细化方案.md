@@ -131,9 +131,28 @@ GH Actions 会：
 - 设置 HF Secrets（密钥不泄露到日志）
 - 部署 Docker 镜像到 HF Container Registry
 
-### Step 3：Cloudflare 反代配置（项目外）
 
-配置 Cloudflare 反代到 `https://{HF_USERNAME}-{HF_SPACE_NAME}.hf.space`，参见票据 4.2。
+### Step 3：禁用魔搭 CI 工作流
+
+**重要**：切换到 HF Space 后，必须禁用魔搭工作流以避免冲突：
+
+```bash
+# 方法 A：直接删除工作流文件（推荐）
+rm .github/workflows/deploy-server-modelscope.yml
+git commit -m "chore: 删除魔搭部署工作流"
+git push origin master
+
+# 方法 B：重命名到 disabled 目录
+mv .github/workflows/deploy-server-modelscope.yml .github/workflows-disabled/
+git commit -m "chore: 将魔搭部署工作流移入禁用目录"
+git push origin master
+```
+
+**选择推荐方法 A**，因为：
+- 减少仓库中的废弃文件
+- 清理 CI 历史
+- 明确部署目标（HF Space）
+
 
 ## 三、详细步骤（CI 部署模式）
 
