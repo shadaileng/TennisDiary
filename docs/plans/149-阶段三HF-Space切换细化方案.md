@@ -137,21 +137,17 @@ GH Actions 会：
 **重要**：切换到 HF Space 后，必须禁用魔搭工作流以避免冲突：
 
 ```bash
-# 方法 A：直接删除工作流文件（推荐）
-rm .github/workflows/deploy-server-modelscope.yml
-git commit -m "chore: 删除魔搭部署工作流"
-git push origin master
-
-# 方法 B：重命名到 disabled 目录
+# 推荐方法：移动到禁用目录，保留历史记录
 mv .github/workflows/deploy-server-modelscope.yml .github/workflows-disabled/
-git commit -m "chore: 将魔搭部署工作流移入禁用目录"
+git commit -m "chore: 将魔搭部署工作流移入禁用目录 (未删除，保留历史记录)"
 git push origin master
 ```
 
-**选择推荐方法 A**，因为：
-- 减少仓库中的废弃文件
-- 清理 CI 历史
-- 明确部署目标（HF Space）
+**优势**：
+- 明确禁用魔搭部署目标
+- 保留版本历史以便追溯
+- 需要时可以快速恢复
+- 符合 Git 历史最佳实践
 
 
 ## 三、详细步骤（CI 部署模式）
