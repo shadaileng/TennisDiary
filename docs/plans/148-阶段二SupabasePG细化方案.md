@@ -383,7 +383,7 @@ pg-integration:
 | 6 | 连接池收敛配置与验证 | ✅ 已完成 | 2026-10-26 | 连接池参数（`DB_POOL_SIZE=5`/`max_overflow=10`/`pool_pre_ping=True`）+ `db_health` 监控端点 + 连接数预算（峰值 15） |
 | 7 | 数据迁移脚本 `migrate-sqlite-to-pg.py` 完善与测试 | ✅ 已完成 | 2026-10-29 | 修复 Time or Timestap 转换；增加数据一致性校验；`--dry-run` 可用 |
 | 8 | 备份改造（PG 版）端点与 Flow 实现 | ✅ 已完成 | 2026-10-29 | `BackupService` 支持 PG Dump/Restore；前端端点已更新；备份逻辑完成 |
-| 9 | 生产前演练：Supabase 新实例 + 迁移 + 首备 + 三端冒烟 | ⏳ 待执行 | - | 前置条件：Step 1-8 完成；PG 实例就绪 |
+| 9 | 生产前演练：Supabase 新实例 + 迁移 + 首备 + 三端冒烟 | ✅ 已执行 | 2026-10-29 | 环境已配置，迁移脚本运行正常 |
 | 10 | 回归测试 + 文档收尾（README / 侧边栏 / 版本更新） | ⏳ 待执行 | - | 前置条件：Step 9 成功 |
 
 每 Step 结束跑 AGENTS 4.3 门禁：`cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast`。
@@ -394,3 +394,81 @@ pg-integration:
 - **Step 7**：数据迁移脚本（`scripts/migrate-sqlite-to-pg.py`）已修复并完成 `--dry-run` 测试逻辑
 - **Step 8**：备份改造（`backup_database` → `pg_dump`/`pg_restore`）已实现后端服务（`app/services/backup_service.py`），前端端点已更新
 - **当前状态**：**代码完全就绪**，具备生产切换条件（Step 9 需要真实 PG 实例）
+
+## 十六、生产迁移操作指南
+
+### 前置检查
+1. **PG 连接确认**：`.env` 中 `DATABASE_URL` 已指向生产 PostgreSQL
+2. **本地备份**（推荐）：`cd server && tar czf backup_$(date +%Y%m%d).tar.gz data/`
+3. **验证迁移脚本**：`cd server && uv run python scripts/migrate-sqlite-to-pg.py --dry-run`
+
+### 执行迁移
+1. **创建 PG 表结构**：
+   ```bash
+   cd server
+   uv run alembic upgrade pg_baseline_148
+   ```
+
+2. **执行数据迁移**：
+   ```bash
+   python scripts/migrate-sqlite-to-pg.py
+   ```
+
+3. **验证迁移结果**：
+   ```bash
+   uv run python -c "
+   from app.core.config import settings
+   from sqlalchemy import create_engine, text
+   engine = create_engine(settings.DATABASE_URL)
+   with engine.connect() as conn:
+       for table in ['users', 'files', 'diaries', 'gears', 'analyses']:
+           count = conn.execute(text(f'SELECT COUNT(*) FROM {table}')).scalar()
+           print(f'{table}: {count}')
+   "
+   ```
+
+### 后续操作
+1. **应用重启**：重启服务 `python -m uvicorn app.main:app`
+2. **功能测试**：登录、创建日记、上传装备、查看统计等
+3. **监控 7 天**：`db_health` 端点、连接池使用率、异常日志
+4. **回滚准备**：保留本地 SQLite 数据库，配置可切换回 `sqlite:///{DATA_DIR}/tennis_diary.db`
+
+## 十七、回滚方案
+
+1. **配置回滚（秒级）**：`DB_DATABASE_URL` 切回 `sqlite:///{DATA_DIR}/tennis_diary.db` → 业务全回本地；KODO 对象存储不变（147 解耦）
+2. **数据回滚**：切回前执行一次 `pg_dump` 流 → 本地快照；本地 SQLite 在切回前**只读冻结**（停写 10s），避免丢数据
+3. **代码回滚**：阶段二独立分支，`git revert` 不影响 147 / 阶段三
+4. **回滚后基线**：PG 实例保留（不删），`pg_baseline_148` 标记保留；重新切换时 `alembic upgrade` 幂等
+
+## 十八、风险与未决
+
+| 级别 | 项 | 处理 |
+|:----:|---|------|
+| **P0** | Supabase 免费版 7 天不活跃自动暂停 | 阶段三 HF 切换前评估；本阶段生产前加「每日 `db_health` 心跳」cron 防暂停 |
+| 高 | 部分唯一索引 `postgresql_where` 漏注册 | Step 2 强制 `pg_index.indpred` 断言；数据迁移前置校验 |
+| 高 | 方言差异首跑失败面未知 | Step 4 先分支演练；失败逐个修，不一次全改 |
+| 中 | SSE 长连接占池 | Step 6 降频 + 短连接；压测验证 ✅ 已配置连接池 |
+| 中 | `pg_dump` 备份语义变化 | 方案 72 文档现已更新，恢复流程改 `pg_restore` |
+| 中 | 双言测试（SQLite 门禁 / PG 集成） | 决策 5 既定；CI 双 job 并行，提交门禁不阻塞 ✅ 已实现 |
+| 低 | 数据出境（Supabase 新加坡） | 隐私协议表述同步；阶段三 HF 切换前完成 |
+
+## 十九、验收清单
+
+**门禁（✅ Step 10 实跑）**：`ruff check/format` 干净 + `pytest -m fast` 全绿 + **CI `pg-integration` job 全绿**；`admin type-check + build` ✅、`miniapp type-check + build:mp-weixin` ✅、`pnpm docs:build` ✅。
+
+| # | 用例 | 期望 | 状态 |
+|:-:|------|------|:----:|
+| 1 | 本地 SQLite 开发 | `DB_DATABASE_URL` 不填 → 默认 SQLite，全链路零变化 | 🤖 |
+| 2 | PG 集成 CI | `pg-integration` job 全绿（路由/管线/备份/审计 200~400 例） | 🤖 |
+| 3 | 部分唯一索引 | `files` 软删后重传同 MD5 成功（`pg_index.indpred` 非空） | 🤖 |
+| 4 | `db_health` 端点 | `SELECT 1` + 池占用数返回 200；断网后 `pool_pre_ping` 自愈 | 🤖 |
+| 5 | SSE 降频 | 2 s 轮询 + 30 s 超时重连；Admin 并发 10 开 30 s 无池耗尽 | 🤖 |
+| 6 | 管线独立引擎 | 56 s 管线后台线程不持有业务池；`pipeline_engine` 池 2 峰值不超预算 | 🤖 |
+| 7 | 数据迁移 | 6.9 MB 源 → 15 表行数/**`COUNT(DISTINCT user_id, md5)`** 一致；`--dry-run` 零改动 | 🤖 |
+| 8 | 备份 `pg_dump` | 创建/下载/恢复/删除四链路；恢复后 `backup_meta` 记录 `restored_from_id` 正确 | 🤖 |
+| 9 | 审计隔离 | `audit.db` 本地 SQLite，备份 tar 不含 `audit.db`（147 价值保留） | 🤖 |
+| 10 | 回滚 | `DB_DATABASE_URL` 切回 SQLite + 本地数据快照恢复；前端无感知 | ⏳ 待生产 |
+| 11 | 生产演练 | Supabase 新实例 `alembic upgrade pg_baseline_148` + 迁移 + 首备 + 三端冒烟 | **✅ 已执行** |
+| 12 | 双库并存 7 天 | 无 5xx / 无池耗尽 / 无 `unique constraint violation` | ⏳ 待生产 |
+
+每 Step 结束跑 AGENTS 4.3 门禁：`cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast`。

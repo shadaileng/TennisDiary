@@ -19,10 +19,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import psycopg2
 from sqlalchemy import create_engine, text
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'app'))
+# 确保 APP 可以被导入
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(BASE_DIR / "app"))
 
 from app.core.config import settings
 from app.models import get_all_models
@@ -30,19 +31,31 @@ from app.models.storage import StorageConfig
 
 # 需要迁移的表清单
 MIGRATION_TABLES = [
-    'admins', 'ai_providers', 'analyses', 'analysis_video_info',
-    'checkins', 'diaries', 'event_logs', 'file_bindings', 'files',
-    'gears', 'posts', 'roles', 'system_configs', 'users', 'weight_records'
+    "admins",
+    "ai_providers",
+    "analyses",
+    "analysis_video_info",
+    "checkins",
+    "diaries",
+    "event_logs",
+    "file_bindings",
+    "files",
+    "gears",
+    "posts",
+    "roles",
+    "system_configs",
+    "users",
+    "weight_records",
 ]
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # 源数据库 URL (SQLite)
 SOURCE_DB = settings.DATABASE_URL  # 默认是本地 SQLite
 
 # 目标数据库 URL (PostgreSQL) - 从环境变量读取
-TARGET_DB_URL = os.getenv('PG_MIGRATION_URL', os.getenv('DB_DATABASE_URL', ''))
+TARGET_DB_URL = os.getenv("PG_MIGRATION_URL", os.getenv("DB_DATABASE_URL", ""))
 
 
 def get_engines() -> tuple[Any, Any, Any, Any]:
@@ -54,27 +67,36 @@ def get_engines() -> tuple[Any, Any, Any, Any]:
     src_engine = create_engine(SOURCE_DB, echo=False)
     dst_engine = create_engine(TARGET_DB_URL, echo=False)
 
-    return src_engine, dst_engine, create_engine(SOURCE_DB, echo=False), create_engine(TARGET_DB_URL, echo=False)
+    return (
+        src_engine,
+        dst_engine,
+        create_engine(SOURCE_DB, echo=False),
+        create_engine(TARGET_DB_URL, echo=False),
+    )
 
 
 def check_table_exists(engine: Any, table_name: str) -> bool:
     """检查表是否存在"""
     with engine.connect() as conn:
-        result = conn.execute(text(
-            f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')"
-        ))
+        result = conn.execute(
+            text(
+                f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')"
+            )
+        )
         return result.fetchone()[0]
 
 
 def get_table_column_info(engine: Any, table_name: str) -> dict[str, tuple[str, str]]:
     """获取表列信息"""
     with engine.connect() as conn:
-        result = conn.execute(text(f"""
+        result = conn.execute(
+            text(f"""
             SELECT column_name, data_type, is_nullable
             FROM information_schema.columns
             WHERE table_name = '{table_name}'
             ORDER BY ordinal_position;
-        """))
+        """)
+        )
         return {row[0]: (row[1], row[2]) for row in result.fetchall()}
 
 
@@ -109,9 +131,13 @@ def _is_type_compatible(src_type: str, dst_type: str) -> bool:
     # FLOAT → FLOAT (PostgreSQL)
     # FLOAT → DOUBLE PRECISION (PostgreSQL)
     # DATETIME → TIMESTAMP
-    return src_type.upper() == dst_type.upper() or \
-           src_type.upper() in ['FLOAT'] and dst_type.upper() in ['FLOAT', 'DOUBLE PRECISION', 'NUMERIC'] or \
-           src_type.upper() in ['DATETIME', 'TIMESTAMP'] and dst_type.upper() in ['TIMESTAMP', 'DATE']
+    return (
+        src_type.upper() == dst_type.upper()
+        or src_type.upper() in ["FLOAT"]
+        and dst_type.upper() in ["FLOAT", "DOUBLE PRECISION", "NUMERIC"]
+        or src_type.upper() in ["DATETIME", "TIMESTAMP"]
+        and dst_type.upper() in ["TIMESTAMP", "DATE"]
+    )
 
 
 def count_rows(engine: Any, table_name: str) -> int:
@@ -150,7 +176,7 @@ def migrate_table(
             for field_name in src_obj.__table__.columns.keys():
                 value = getattr(src_obj, field_name)
                 # 软删除字段特殊处理（时间戳转 datetime）
-                if field_name in ['deleted_at', 'business_time', 'created_at', 'updated_at']:
+                if field_name in ["deleted_at", "business_time", "created_at", "updated_at"]:
                     if value is not None:
                         # 如果是 float 时间戳，转为 datetime
                         if isinstance(value, (int, float)):
@@ -204,14 +230,16 @@ def check_files_unique(engine: Any) -> str | None:
     """检查 files 表是否满足唯一约束 (user_id, md5, deleted_at IS NULL)"""
     with engine.connect() as conn:
         # 查询软删记录数量大于1 的唯一 user_id 和md5
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             SELECT user_id, md5, COUNT(*) as cnt
             FROM files
             WHERE deleted_at IS NULL
             GROUP BY user_id, md5
             HAVING COUNT(*) > 1
             LIMIT 5
-        """))
+        """)
+        )
         rows = result.fetchall()
         if rows:
             return f"重复记录: {len(rows)} 条 (user_id, md5)."
@@ -290,5 +318,5 @@ def run_migrate(dry_run: bool = True) -> None:
 
 
 if __name__ == "__main__":
-    dry_run = '--dry-run' in sys.argv or '--validate' in sys.argv
+    dry_run = "--dry-run" in sys.argv or "--validate" in sys.argv
     run_migrate(dry_run=dry_run)

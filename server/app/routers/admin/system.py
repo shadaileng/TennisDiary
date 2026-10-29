@@ -687,9 +687,7 @@ def restore_database(
     meta_db.flush()  # 获取 ID
 
     # 保证同时只有一个备份处于 restored 状态：先重置旧的 restored 记录
-    meta_db.query(BackupRecord).filter(
-        BackupRecord.status == "restored"
-    ).update(
+    meta_db.query(BackupRecord).filter(BackupRecord.status == "restored").update(
         {
             BackupRecord.status: "created",
             BackupRecord.restored_at: None,

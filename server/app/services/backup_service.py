@@ -187,6 +187,7 @@ def _pg_restore_unpacked(backup_path: Path) -> None:
     """PostgreSQL 备份恢复：解压并 pg_restore"""
     # 1. 创建临时工作目录
     import uuid
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     work_dir = BACKUP_DIR / f"restore_{timestamp}_{uuid.uuid4().hex[:6]}"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -237,6 +238,7 @@ def _pg_restore_unpacked(backup_path: Path) -> None:
 def _sqlite_unpack(backup_path: Path) -> None:
     """SQLite 备份恢复：解压并替换文件"""
     import uuid
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     work_dir = BACKUP_DIR / f"restore_{timestamp}_{uuid.uuid4().hex[:6]}"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -255,7 +257,9 @@ def _sqlite_unpack(backup_path: Path) -> None:
         # 简单做法：先 move 掉旧库，再 copy 新库到 DATA_DIR
         old_db = DATA_DIR / "tennis_diary.db"
         if old_db.exists():
-            backup_old = DATA_DIR / f"tennis_diary.db.{datetime.now().strftime('%Y%m%d_%H%M%S')}.old"
+            backup_old = (
+                DATA_DIR / f"tennis_diary.db.{datetime.now().strftime('%Y%m%d_%H%M%S')}.old"
+            )
             shutil.move(old_db, backup_old)
             log.info(f"已备份旧库: {backup_old.name}")
 
@@ -266,7 +270,10 @@ def _sqlite_unpack(backup_path: Path) -> None:
         meta_dst = DATA_DIR / BACKUP_META_DB_NAME
         if meta_src.exists():
             if meta_dst.exists():
-                backup_meta = DATA_DIR / f"{BACKUP_META_DB_NAME}.{datetime.now().strftime('%Y%m%d_%H%M%S')}.old"
+                backup_meta = (
+                    DATA_DIR
+                    / f"{BACKUP_META_DB_NAME}.{datetime.now().strftime('%Y%m%d_%H%M%S')}.old"
+                )
                 shutil.move(meta_dst, backup_meta)
             shutil.copy2(meta_src, meta_dst)
 
