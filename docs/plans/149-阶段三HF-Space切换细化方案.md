@@ -97,22 +97,67 @@ Hugging Face Space (Docker Runner)
 
 ## 三、详细步骤
 
-### Step 1：在 GitHub Secrets 配置 HF 凭据
+### Step 1：配置 GitHub Actions Secrets
 
-在 GitHub 仓库设置中配置 Secrets **（无需本地部署）**：
+#### 配置路径
+1. 进入 GitHub 仓库页面
+2. 点击 **Settings**
+3. 点击左侧 **Secrets and variables** → **Actions**
+4. 点击 **New repository secret**
 
-| Secret Key | 说明 | 来源 |
-|------------|------|------|
-| `HF_TOKEN` | HF Access Token | HF 个人设置 → Access Tokens |
-| `HF_USERNAME` | HF 用户名 | HF 个人主页 |
-| `HF_SPACE_NAME` | HF Space 名称 | 自定义（如 `tennis-diary-server`） |
-| `JWT_SECRET` | JWT 密钥 | 生成强随机值 |
-| `WX_APPID` | 小程序 AppID | 微信公众平台 |
-| `WX_SECRET` | 小程序 Secret | 微信公众平台 |
-| `ADMIN_DEFAULT_PASSWORD` | 管理员初始密码 | 自定义 |
-| `ADMIN_RESET_KEY` | 密码重置密钥 | 自定义 |
+#### 必配项 (P0) - 缺失将导致部署失败
+
+| Secret Key | 说明 | 输入值示例 | 数据来源 |
+|------------|------|------------|----------|
+| `HF_TOKEN` | 用于创建/更新 HF Space | `hf_xxxxxxxxxxxxxxxxxxx` | [HF Tokens](https://huggingface.co/settings/tokens) |
+| `HF_USERNAME` | HF 用户名（Space 所有者） | `yourname` | HF 个人主页 |
+| `HF_SPACE_NAME` | HF Space 名称（唯一） | `tennis-diary-server` | 自定义 |
+| `DATABASE_URL` | **PostgreSQL 连接串（关键）** | `postgresql+psycopg://postgres:yourpass@db.xxx.supabase.co:5432/tennis_diary` | [Supabase Dashboard](https://supabase.com/dashboard) → Connection String |
+| `JWT_SECRET` | JWT 签名密钥（安全要求） | `32aminhuhlynXz1234567890ABCD` | `openssl rand -hex 32` |
+| `WX_APPID` | 小程序 AppID | `wx1234567890abcdef` | 微信公众平台 |
+| `WX_SECRET` | 小程序 Secret | `your-wechat-secret-123456` | 微信公众平台 |
+| `ADMIN_DEFAULT_PASSWORD` | 管理员初始密码 | `Admin@2024!Secure` | 自定义强密码 |
+| `ADMIN_RESET_KEY` | 密码重置密钥（安全要求） | `reset-token-1234567890ABCD` | `openssl rand -hex 32` |
+
+#### 可选项 (P1/P2) - 建议根据生产环境配置
+
+##### 对象存储 (七牛 KODO)
+| Secret Key | 推荐值 | 来源 |
+|------------|--------|------|
+| `STORAGE_BACKEND` | `kodo` | 七牛云控制台 |
+| `STORAGE_ENDPOINT` | `https://s3.<region>.qiniucs.com` | 七牛云控制台 → 域名管理 |
+| `STORAGE_REGION` | `z2` (华东) | 七牛云控制台 → 存储区域 |
+| `STORAGE_BUCKET` | `tennis-diary` | 七牛云控制台 → 桶管理 |
+| `STORAGE_ACCESS_KEY` | `AK_XXXXXXXXXXXXXXX` | 七牛云控制台 → 访问密钥 |
+| `STORAGE_SECRET_KEY` | `sk_XXXXXXXXXXXXXXX` | 七牛云控制台 → 访问密钥 |
+| `STORAGE_PUBLIC_BASE_URL` | `https://cdn.tennisdiary.com` | 自定义（需备案） |
+
+##### AI 配置
+| Secret Key | 推荐值 | 来源 |
+|------------|--------|------|
+| `AI_API_KEY` | `sk-XXXXXXXXXXXXXXXXXX` | 阿里云百炼控制台 |
+| `AI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 阿里云百炼 |
+| `AI_MODEL` | `qwen-vl-max` | 阿里云百炼 |
+| `AI_PROVIDER` | `aliyun` | 自定义 |
+
+##### 数据库连接池（仅 PostgreSQL 生效）
+| Secret Key | 推荐值 | 说明 |
+|------------|--------|------|
+| `DB_POOL_SIZE` | `5` | 最大连接数 |
+| `DB_MAX_OVERFLOW` | `10` | 最大溢流 |
+| `DB_POOL_RECYCLE` | `3600` | 连接回收周期（秒） |
+| `DB_POOL_PRE_PING` | `true` | 连接健康检查 |
+
+#### 配置检查清单
+- [ ] 所有必配项已设置
+- [ ] `DATABASE_URL` 格式正确，包含 `postgresql+psycopg://` 协议
+- [ ] `JWT_SECRET` 和 `ADMIN_RESET_KEY` 符合安全长度要求
+- [ ] `HF_TOKEN` 权限完整（可创建/更新 Spaces）
+- [ ] Supabase 数据库已创建并配置好连接串
+- [ ] 对象存储配置可选，建议生产环境开启
 
 ### Step 2：触发 GitHub Actions 部署
+
 
 部署通过 **GitHub Actions 自动完成**，无需本地 Docker 或 HF CLI：
 
@@ -131,6 +176,7 @@ GH Actions 会：
 - 设置 HF Secrets（密钥不泄露到日志）
 - 部署 Docker 镜像到 HF Container Registry
 
+**无本地构建**：所有 Docker 构建在 HF Space 容器内进行。
 
 ### Step 3：禁用魔搭 CI 工作流
 
@@ -148,6 +194,10 @@ git push origin master
 - 保留版本历史以便追溯
 - 需要时可以快速恢复
 - 符合 Git 历史最佳实践
+
+### Step 4：Cloudflare 反代配置（项目外）
+
+配置 Cloudflare 反代到 `https://{HF_USERNAME}-{HF_SPACE_NAME}.hf.space`，参见票据 4.2。
 
 
 ## 三、详细步骤（CI 部署模式）
@@ -329,6 +379,98 @@ git revert <hf-space-commit>
 | 4. 灰度切流 | 1 人日 | 监控就绪 |
 | 5. 下线魔搭 | 0.25 人日 | 稳定运行 1 周 |
 | **合计** | **2.0 人日** | — |
+
+---
+
+## 附录 A：GitHub Actions 配置指南
+
+### 配置路径
+1. 进入 GitHub 仓库页面
+2. 点击 **Settings**
+3. 点击左侧 **Secrets and variables** → **Actions**
+4. 点击 **New repository secret**
+
+### 必配项 (P0) - 缺失将导致部署失败
+
+| Secret Key | 说明 | 输入值示例 | 数据来源 |
+|------------|------|------------|----------|
+| `HF_TOKEN` | 用于创建/更新 HF Space | `hf_xxxxxxxxxxxxxxxxxxx` | [HF Tokens](https://huggingface.co/settings/tokens) |
+| `HF_USERNAME` | HF 用户名（Space 所有者） | `yourname` | HF 个人主页 |
+| `HF_SPACE_NAME` | HF Space 名称（唯一） | `tennis-diary-server` | 自定义 |
+| `DATABASE_URL` | **PostgreSQL 连接串（关键）** | `postgresql+psycopg://postgres:yourpass@db.xxx.supabase.co:5432/tennis_diary` | [Supabase Dashboard](https://supabase.com/dashboard) → Connection String |
+| `JWT_SECRET` | JWT 签名密钥（安全要求） | `32aminhuhlynXz1234567890ABCD` | `openssl rand -hex 32` |
+| `WX_APPID` | 微信小程序 AppID | `wx1234567890abcdef` | 微信公众平台 |
+| `WX_SECRET` | 微信小程序 Secret | `your-wechat-secret-123456` | 微信公众平台 |
+| `ADMIN_DEFAULT_PASSWORD` | 管理员初始密码 | `Admin@2024!Secure` | 自定义强密码 |
+| `ADMIN_RESET_KEY` | 密码重置密钥（安全要求） | `reset-token-1234567890ABCD` | `openssl rand -hex 32` |
+
+### 可选项 (P1/P2) - 建议根据生产环境配置
+
+#### 对象存储 (七牛 KODO)
+| Secret Key | 推荐值 | 来源 |
+|------------|--------|------|
+| `STORAGE_BACKEND` | `kodo` | 七牛云控制台 |
+| `STORAGE_ENDPOINT` | `https://s3.<region>.qiniucs.com` | 七牛云控制台 → 域名管理 |
+| `STORAGE_REGION` | `z2` (华东) | 七牛云控制台 → 存储区域 |
+| `STORAGE_BUCKET` | `tennis-diary` | 七牛云控制台 → 桶管理 |
+| `STORAGE_ACCESS_KEY` | `AK_XXXXXXXXXXXXXXX` | 七牛云控制台 → 访问密钥 |
+| `STORAGE_SECRET_KEY` | `sk_XXXXXXXXXXXXXXX` | 七牛云控制台 → 访问密钥 |
+| `STORAGE_PUBLIC_BASE_URL` | `https://cdn.tennisdiary.com` | 自定义（需备案） |
+
+#### AI 配置
+| Secret Key | 推荐值 | 来源 |
+|------------|--------|------|
+| `AI_API_KEY` | `sk-XXXXXXXXXXXXXXXXXX` | 阿里云百炼控制台 |
+| `AI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 阿里云百炼 |
+| `AI_MODEL` | `qwen-vl-max` | 阿里云百炼 |
+| `AI_PROVIDER` | `aliyun` | 自定义 |
+
+#### 数据库连接池（仅 PostgreSQL 生效）
+| Secret Key | 推荐值 | 说明 |
+|------------|--------|------|
+| `DB_POOL_SIZE` | `5` | 最大连接数 |
+| `DB_MAX_OVERFLOW` | `10` | 最大溢流 |
+| `DB_POOL_RECYCLE` | `3600` | 连接回收周期（秒） |
+| `DB_POOL_PRE_PING` | `true` | 连接健康检查 |
+
+### 配置检查清单
+- [ ] 所有必配项已设置
+- [ ] `DATABASE_URL` 格式正确，包含 `postgresql+psycopg://` 协议
+- [ ] `JWT_SECRET` 和 `ADMIN_RESET_KEY` 符合安全长度要求
+- [ ] `HF_TOKEN` 权限完整（可创建/更新 Spaces）
+- [ ] Supabase 数据库已创建并配置好连接串
+- [ ] 对象存储配置可选，建议生产环境开启
+
+### GitHub Secrets 验证方式
+部署前运行时，脚本会自动检查：
+```bash
+# 脚本内部验证逻辑
+HF_TOKEN="${HF_TOKEN:-}"
+HF_USERNAME="${HF_USERNAME:-}"
+HF_SPACE_NAME="${HF_SPACE_NAME:-}"
+DATABASE_URL="${DATABASE_URL:-}"
+
+[ -n "$HF_TOKEN" ] || fail "HF_TOKEN 未设置"
+[ -n "$HF_USERNAME" ] || fail "HF_USERNAME 未设置"
+[ -n "$HF_SPACE_NAME" ] || fail "HF_SPACE_NAME 未设置"
+[ -n "$DATABASE_URL" ] || fail "DATABASE_URL 未设置"
+```
+
+### 常见问题
+**Q: 配置文件在哪里？**
+A: 推荐使用 GitHub Secrets，本地开发可使用 `.env.hf` 文件。
+
+**Q: 密钥会泄露吗？**
+A: 不会。GitHub Secrets 不会显示在日志中，仅用于构建环境。
+
+**Q: 数据库连接串从哪里获取？**
+A: 从 Supabase 项目 Dashboard → Database → Connection String → Driver → PostgreSQL。
+
+**Q: 如果修改了配置，如何触发重新部署？**
+A: 推送任意 commits 到 master 分支，或手动触发 GitHub Actions。
+
+**Q: 是否可以只配置必选项，手动配置可选？**
+A: 可以。但推荐通过 Secrets 统一管理，确保配置一致性。
 
 ---
 
