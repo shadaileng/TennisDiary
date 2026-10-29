@@ -97,222 +97,76 @@ Hugging Face Space (Docker Runner)
 
 ## 三、详细步骤
 
-### Step 1：复活与适配 HF 部署脚本
+### Step 1：在 GitHub Secrets 配置 HF 凭据
 
-#### 1.1 检查现有资产
+在 GitHub 仓库设置中配置 Secrets **（无需本地部署）**：
 
-文件已存在但需确认版本：
+| Secret Key | 说明 | 来源 |
+|------------|------|------|
+| `HF_TOKEN` | HF Access Token | HF 个人设置 → Access Tokens |
+| `HF_USERNAME` | HF 用户名 | HF 个人主页 |
+| `HF_SPACE_NAME` | HF Space 名称 | 自定义（如 `tennis-diary-server`） |
+| `JWT_SECRET` | JWT 密钥 | 生成强随机值 |
+| `WX_APPID` | 小程序 AppID | 微信公众平台 |
+| `WX_SECRET` | 小程序 Secret | 微信公众平台 |
+| `ADMIN_DEFAULT_PASSWORD` | 管理员初始密码 | 自定义 |
+| `ADMIN_RESET_KEY` | 密码重置密钥 | 自定义 |
 
-```bash
-# 脚本（已停用）
-scripts/deploy-hf.sh
+### Step 2：触发 GitHub Actions 部署
 
-# Docker 文件
-server/Dockerfile
-server/docker-entrypoint.sh
-server/.dockerignore
-
-# 文档
-spaces/README.md (或 docs/plans/63 中的附录)
-```
-
-#### 1.2 适配当前配置
-
-在 `Dockerfile` 中确保以下变量可注入：
-
-```dockerfile
-# 构建阶段
-ARG PYTHON_VERSION=3.10
-FROM python:${PYTHON_VERSION}-slim as builder
-
-# 运行时阶段
-FROM python:${PYTHON_VERSION}-slim as runtime
-ENV PORT=7860
-ENV DATA_DIR=/data
-ENV UPLOAD_DIR=/data/uploads
-ENV LOG_DIR=/data/logs
-ENV DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/postgres
-```
-
-入口脚本 `docker-entrypoint.sh`：
+部署通过 **GitHub Actions 自动完成**，无需本地 Docker 或 HF CLI：
 
 ```bash
-#!/bin/bash
-set -e
+# 方式 1：自动触发 - 推送到 master 分支
+git push origin master
 
-# 1. 数据库迁移（Supabase PG）
-cd /app
-uv run alembic upgrade pg_baseline_148
-
-# 2. 启动服务
-exec uvicorn app.main:app \
-  --host 0.0.0.0 \
-  --port ${PORT:-7860} \
-  --log-level ${LOG_LEVEL:-info} \
-  --reload ${DEBUG:-false}
+# 方式 2：手动触发
+# 在 GitHub → Actions → Deploy Server to HuggingFace Spaces → Run workflow
 ```
 
-#### 1.3 环境变量管理
+GH Actions 会：
+- 检出 `master` 分支
+- 运行 `server/scripts/deploy-hf.sh`
+- 自动创建/更新 HF Space
+- 设置 HF Secrets（密钥不泄露到日志）
+- 部署 Docker 镜像到 HF Container Registry
 
-HF 通过 **Secrets** 注入凭据，无需在代码中硬编码：
+### Step 3：Cloudflare 反代配置（项目外）
 
-| 变量名 | 说明 | HF Secrets 键名 |
-|--------|------|-----------------|
-| `DATABASE_URL` | Supabase 连接 | `SUPABASE_URL` |
-| `JWT_SECRET` | JWT 密钥 | `JWT_SECRET` |
-| `WX_APPID` | 小程序 AppID | `WX_APPID` |
-| `WX_SECRET` | 小程序 Secret | `WX_SECRET` |
-| `AI_API_KEY` | AI 服务商 Key | `AI_API_KEY` |
-| `KODO_AK` | 七牛 access_key | `KODO_AK` |
-| `KODO_SK` | 七牛 secret_key | `KODO_SK` |
-| `KODO_BUCKET` | 七牛 bucket | `KODO_BUCKET` |
-| `KODO_ENDPOINT` | 七牛 endpoint | `KODO_ENDPOINT` |
+配置 Cloudflare 反代到 `https://{HF_USERNAME}-{HF_SPACE_NAME}.hf.space`，参见票据 4.2。
 
-在 `config.py` 中改为从 Secrets 读取，优先级：环境变量 → `.env` → 默认值。
+## 三、详细步骤（CI 部署模式）
 
-### Step 2：构建与推送 HF 镜像
+### Step 1：GitHub Actions 部署流程
 
-#### 2.1 本地构建测试
+**工作流文件**：`.github/workflows/deploy-server-hf.yml`（已启用）
 
-```bash
-cd server
-docker build -t tennis-diary-server:hf -f Dockerfile .
-docker run -p 7860:7860 -e DATABASE_URL="..." tennis-diary-server:hf
-```
+**触发条件**：
+- 推送到 `master` 分支且修改 `server/**` 或工作流文件
+- 手动触发（GitHub Actions 页面）
 
-#### 2.2 推送 HF Container Registry
+**部署流程**：
+1. `actions/checkout` 检出代码
+2. 运行 `server/scripts/deploy-hf.sh`
+3. 脚本自动：
+   - 校验 GitHub Secrets
+   - 创建 HF Space（如不存在）
+   - 设置 HF Secrets（JWT、WX、Admin 等）
+   - 复制 `server/` 核心文件到临时目录
+   - 初始化 Git 并推送到 HF Space
+   - 返回部署链接和健康检查
 
-```bash
-# 登录 HF CR
-docker login registry.huggingface.co
+**无本地构建**：所有 Docker 构建在 HF Space 容器内进行。
 
-# 构建并推送
-docker build -t registry.huggingface.co/your-username/tennis-diary-server:latest -f server/Dockerfile .
-docker push registry.huggingface.co/your-username/tennis-diary-server:latest
-```
+### Step 2：Cloudflare 反代配置（项目外）
 
-### Step 3：创建并配置 HF Space
+配置 Cloudflare 反代到 `https://{HF_USERNAME}-{HF_SPACE_NAME}.hf.space`。
 
-#### 3.1 创建 Space
-
-- **Name**: `tennis-diary-server`
-- **SDK**: `Docker`
-- **Hardware**: `CPU Basic` (free)
-- **Container image**: `registry.huggingface.co/your-username/tennis-diary-server:latest`
-- **Storage**: 挂载 `20GB` 卷到 `/data`
-- **Secrets**: 导入所有凭据（见 Step 1.3）
-
-#### 3.2 配置持久化卷
-
-HF Space Docker Runner 支持挂载卷：
-
-- **路径**: `/data`
-- **大小**: `20GB` (数据库 + 临时文件)
-- **用途**: SQLite 不支持 PG，此卷仅存临时文件（视频处理缓存、日志）
-
-#### 3.3 健康检查
-
-HF 自动检测 `health` 端点：`GET /api/health` 返回 `200`。
-
-### Step 4：Cloudflare 反代配置（项目外）
-
-#### 4.1 Cloudflare 配置项
-
-**DDD 设置**：
-- 添加域名 `api.yourdomain.com` 到 Cloudflare
-- 启用 SSL/TLS（Full 模式，指向 HF Space）
-- 设置 HTTP/2、HTTP/3 开关
-
-**Workers 设置**：
-- 创建 Worker：`td-hf-proxy`
-- 绑定域名：`api.yourdomain.com`
-- 路由：`api.yourdomain.com/*`
-
-#### 4.2 Worker 代码（可复用于 HF Space）
-
-```javascript
-// td-hf-proxy.js
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-})
-
-async function handleRequest(request) {
-  const url = new URL(request.url)
-  const targetUrl = 'https://tennis-diary-server.hf.space'
-
-  // 修改请求头
-  const headers = new Headers(request.headers)
-  
-  // 透传 X-Auth-Token (避免重复 Authorization)
-  const authToken = headers.get('x-auth-token')
-  if (authToken) {
-    // Cloudflare 自动添加 X-Auth-Token
-    headers.set('Authorization', `Bearer ${authToken}`)
-  }
-  
-  // 设置安全头
-  headers.set('X-Forwarded-For', request.headers.get('CF-Connecting-IP'))
-  headers.set('X-Forwarded-Proto', request.headers.get('CF-Scheme'))
-  headers.set('X-Forwarded-Host', request.headers.get('Host'))
-
-  // 透传 Range 头 (支持文件 Range 下载)
-  const range = request.headers.get('Range')
-  if (range) {
-    headers.set('Range', range)
-  }
-
-  // 禁用请求缓冲 (支持 SSE 流式传输)
-  headers.set('Expect', '')
-
-  const response = await fetch(targetUrl, {
-    headers: headers,
-    method: request.method,
-    body: request.body,
-    duplex: 'half'
-  })
-
-  // 透传响应头
-  const responseHeaders = new Headers(response.headers)
-  
-  // 添加安全头（Cloudflare 已处理部分）
-  responseHeaders.set('X-Content-Type-Options', 'nosniff')
-  responseHeaders.set('X-XSS-Protection', '1; mode=block')
-  responseHeaders.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
-
-  // 设置缓存策略（根据路径）
-  const path = url.pathname
-  if (path.startsWith('/api/') || path.startsWith('/sse/')) {
-    responseHeaders.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-  }
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: responseHeaders
-  })
-}
-```
-
-#### 4.3 其他 Cloudflare 设置
-
-**压缩**：
-- 启用 Auto Minify (JS, CSS, HTML)
-- 启用 Brotli 压缩
-
-**缓存**：
-- 缓存级别：高频静态资源高缓存，API 路径无缓存
-- 浏览器缓存 TTL：1 年（静态资源）
-
-**安全**：
-- WAF：启用基础规则集
-- 防火墙规则：屏蔽恶意扫描
-- Rate Limiting：API 路径限制（如 100 次/分钟）
-
-### Step 5：灰度切流
+### Step 5：灰度切流（Cloudflare 反代）
 
 #### 5.1 Admin 切流
 
-1. **Cloudflare 路由调整**：将 `api.yourdomain.com` 指向 HF Space Worker
+1. **Cloudflare 路由调整**：将 `api.yourdomain.com` 指向 HF Space
 2. **验证端点**：`GET https://api.yourdomain.com/api/health`
 3. **功能测试**：Admin 登录、创建日记、上传文件
 
