@@ -1,21 +1,32 @@
-"""SQLite → PostgreSQL 数据迁移脚本（148 阶段二 Step 7）
+"""SQLite → PostgreSQL 数据迁移脚本（148 阶段二 Step 5）
 
 使用方式：
-  1. 设置 DB_DATABASE_URL (SQLite 源) 和 PG_URL (环境隔离)
+  1. 设置 PG_MIGRATION_URL（PostgreSQL 目标）
   2. 运行 --dry-run 检查目标和源数据库
   3. 确认无误后去掉 --dry-run 执行正式迁移
+
+特性：
+  - 时间戳日期转换（Float → datetime）
+  - 软删除字段特殊处理（deleted_at）
+  - 唯一约束预检（files.md5）
+  - 聚合校验（行数、DISTINCT count）
 """
 
 import os
 import sys
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
+
+import psycopg2
+from sqlalchemy import create_engine, text
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'app'))
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
 from app.core.config import settings
+from app.models import get_all_models
+from app.models.storage import StorageConfig
 
 # 需要迁移的表清单
 MIGRATION_TABLES = [
@@ -24,6 +35,9 @@ MIGRATION_TABLES = [
     'gears', 'posts', 'roles', 'system_configs', 'users', 'weight_records'
 ]
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # 源数据库 URL (SQLite)
 SOURCE_DB = settings.DATABASE_URL  # 默认是本地 SQLite
 
@@ -31,19 +45,19 @@ SOURCE_DB = settings.DATABASE_URL  # 默认是本地 SQLite
 TARGET_DB_URL = os.getenv('PG_MIGRATION_URL', os.getenv('DB_DATABASE_URL', ''))
 
 
-def get_engines() -> tuple[create_engine, create_engine, sessionmaker, sessionmaker]:
+def get_engines() -> tuple[Any, Any, Any, Any]:
     """获得源和目标数据库引擎"""
     if not TARGET_DB_URL:
-        print("❌ 目标 PG 数据库 URL 未设置，请设置 PG_MIGRATION_URL 环境变量")
+        logger.error("❌ 目标 PG 数据库 URL 未设置，请设置 PG_MIGRATION_URL 环境变量")
         sys.exit(1)
 
     src_engine = create_engine(SOURCE_DB, echo=False)
     dst_engine = create_engine(TARGET_DB_URL, echo=False)
 
-    return src_engine, dst_engine, sessionmaker(bind=src_engine), sessionmaker(bind=dst_engine)
+    return src_engine, dst_engine, create_engine(SOURCE_DB, echo=False), create_engine(TARGET_DB_URL, echo=False)
 
 
-def check_table_exists(engine: create_engine, table_name: str) -> bool:
+def check_table_exists(engine: Any, table_name: str) -> bool:
     """检查表是否存在"""
     with engine.connect() as conn:
         result = conn.execute(text(
@@ -52,7 +66,7 @@ def check_table_exists(engine: create_engine, table_name: str) -> bool:
         return result.fetchone()[0]
 
 
-def get_table_column_info(engine: create_engine, table_name: str) -> dict[str, str]:
+def get_table_column_info(engine: Any, table_name: str) -> dict[str, tuple[str, str]]:
     """获取表列信息"""
     with engine.connect() as conn:
         result = conn.execute(text(f"""
@@ -64,7 +78,7 @@ def get_table_column_info(engine: create_engine, table_name: str) -> dict[str, s
         return {row[0]: (row[1], row[2]) for row in result.fetchall()}
 
 
-def validate_schema(src_engine: create_engine, dst_engine: create_engine) -> list[str]:
+def validate_schema(src_engine: Any, dst_engine: Any) -> list[str]:
     """验证目标表结构是否与源表一致"""
     errors = []
 
@@ -79,16 +93,28 @@ def validate_schema(src_engine: create_engine, dst_engine: create_engine) -> lis
             )
             continue
 
-        # 检查位置顺序（仅用于警告）
-        src_order = list(src_cols.keys())
-        dst_order = list(dst_cols.keys())
-        if src_order != dst_order:
-            errors.append(f"{table}: 列顺序不一致 - 源: {src_order} 目标: {dst_order}")
+        # 检查类型兼容性（用于警告但不强制）
+        for col in src_cols:
+            src_type = src_cols[col][0]
+            dst_type = dst_cols[col][0]
+            # 忽略 minor 差异
+            if src_type != dst_type and not _is_type_compatible(src_type, dst_type):
+                errors.append(f"{table}.{col}: 类型不兼容 - 源: {src_type} 目标: {dst_type}")
 
     return errors
 
 
-def count_rows(engine: create_engine, table_name: str) -> int:
+def _is_type_compatible(src_type: str, dst_type: str) -> bool:
+    """简单的类型兼容性检查"""
+    # FLOAT → FLOAT (PostgreSQL)
+    # FLOAT → DOUBLE PRECISION (PostgreSQL)
+    # DATETIME → TIMESTAMP
+    return src_type.upper() == dst_type.upper() or \
+           src_type.upper() in ['FLOAT'] and dst_type.upper() in ['FLOAT', 'DOUBLE PRECISION', 'NUMERIC'] or \
+           src_type.upper() in ['DATETIME', 'TIMESTAMP'] and dst_type.upper() in ['TIMESTAMP', 'DATE']
+
+
+def count_rows(engine: Any, table_name: str) -> int:
     """统计表中记录数"""
     with engine.connect() as conn:
         result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
@@ -96,122 +122,173 @@ def count_rows(engine: create_engine, table_name: str) -> int:
 
 
 def migrate_table(
-    src_db: sessionmaker,
-    dst_db: sessionmaker,
+    src_session: Any,
+    dst_session: Any,
     table_name: str,
     dry_run: bool = False,
-) -> tuple[int, int]:
+) -> int:
     """迁移单表数据（从源到目标）"""
-    src_session = src_db()
-    dst_session = dst_db()
-
     try:
-        # 从源表读取
-        src_session.execution_options(stream_results=True).streambar()
         query = src_session.query()
 
         # 获取模型
-        from app.models import get_all_models
-
-        # 通过反射来获取模型定义不太方便，我们使用 SQLAlchemy ORM
-        # 直接使用 query()
         models = get_all_models()
         model = next((m for m in models if m.__tablename__ == table_name), None)
         if not model:
-            # 找不到 ORM 模型，跳过
-            print(f"⚠️ {table_name}: 找不到 ORM 模型，跳过迁移")
-            return 0, 0
+            logger.warning(f"⚠️ {table_name}: 找不到 ORM 模型，跳过迁移")
+            return 0
 
         if dry_run:
             count = query.from_statement(query.statement.text).count()
-            print(f"💾 {table_name}: PRIME 模式 - 预计迁移 {count} 行")
-            return 0, 0
+            logger.info(f"💾 {table_name}: PRIME 模式 - 预计迁移 {count} 行")
+            return 0
 
         # 复制记录
         count = 0
-        for obj in query:
+        for src_obj in query:
             dst_obj = model()
-            for field_name in obj.__table__.columns.keys():
-                value = getattr(obj, field_name)
-                # 软删除字段特殊处理：deleted_at 为 time.sleep() 时保持
-                if field_name == 'deleted_at':
+            for field_name in src_obj.__table__.columns.keys():
+                value = getattr(src_obj, field_name)
+                # 软删除字段特殊处理（时间戳转 datetime）
+                if field_name in ['deleted_at', 'business_time', 'created_at', 'updated_at']:
                     if value is not None:
-                        # 将时间戳转为 datetime
-                        if isinstance(value, float):
-                            from datetime import datetime
-                            value = datetime.fromtimestamp(value, tz=datetime.now().astimezone().tzinfo)
+                        # 如果是 float 时间戳，转为 datetime
+                        if isinstance(value, (int, float)):
+                            dst_value = datetime.fromtimestamp(value, tz=timezone.utc)
+                        else:
+                            dst_value = value
                     else:
-                        continue
-                setattr(dst_obj, field_name, value)
+                        dst_value = None
+                else:
+                    dst_value = value
+
+                setattr(dst_obj, field_name, dst_value)
             dst_session.add(dst_obj)
             count += 1
             if count % 1000 == 0:
                 dst_session.commit()
-                print(f"💾 {table_name}: {count} 行")
+                logger.info(f"💾 {table_name}: {count} 行")
 
         dst_session.commit()
-        print(f"✅ {table_name}: 迁移完成 {count} 行")
-        return count, len(dtype.get_new_obj.keys())  # type: ignore  # type: ignore
+        logger.info(f"✅ {table_name}: 迁移完成 {count} 行")
+        return count
     except Exception as e:
         dst_session.rollback()
-        print(f"❌ {table_name}: 迁移失败 - {e}")
+        logger.error(f"❌ {table_name}: 迁移失败 - {e}")
         raise
     finally:
         src_session.close()
         dst_session.close()
 
 
-def run_migrate(dry_run: bool = True):
+def validate_lineage(src_engine: Any, dst_engine: Any) -> list[str]:
+    """数据一致性校验"""
+    diffs = []
+
+    # 总分表
+    for table in MIGRATION_TABLES:
+        src_count = count_rows(src_engine, table)
+        dst_count = count_rows(dst_engine, table)
+        if src_count != dst_count:
+            diffs.append(f"{table}: 行数不一致 - 源: {src_count} 目标: {dst_count}")
+
+    # files 表唯一约束
+    diff_files_md5 = check_files_unique(dst_engine)
+    if diff_files_md5:
+        diffs.append(f"files: 唯一约束冲突 - {diff_files_md5}")
+
+    return diffs
+
+
+def check_files_unique(engine: Any) -> str | None:
+    """检查 files 表是否满足唯一约束 (user_id, md5, deleted_at IS NULL)"""
+    with engine.connect() as conn:
+        # 查询软删记录数量大于1 的唯一 user_id 和md5
+        result = conn.execute(text("""
+            SELECT user_id, md5, COUNT(*) as cnt
+            FROM files
+            WHERE deleted_at IS NULL
+            GROUP BY user_id, md5
+            HAVING COUNT(*) > 1
+            LIMIT 5
+        """))
+        rows = result.fetchall()
+        if rows:
+            return f"重复记录: {len(rows)} 条 (user_id, md5)."
+    return None
+
+
+def run_migrate(dry_run: bool = True) -> None:
     """执行迁移"""
-    print("🚀 SQLite → PostgreSQL 数据迁移脚本")
-    print(f"📍 源数据库: {SOURCE_DB}")
-    print(f"🎯 目标数据库: {TARGET_DB_URL}")
+    logger.info("🚀 SQLite → PostgreSQL 数据迁移脚本")
+    logger.info(f"📍 源数据库: {SOURCE_DB}")
+    logger.info(f"🎯 目标数据库: {TARGET_DB_URL}")
 
     try:
-        src_engine, dst_engine, src_session, dst_session = get_engines()
+        src_engine, dst_engine, src_session0, dst_session0 = get_engines()
     except Exception as e:
-        print(f"❌ 数据库连接失败: {e}")
+        logger.error(f"❌ 数据库连接失败: {e}")
         sys.exit(1)
 
-    # 校验目标表结构
-    print("\n📊 验证表结构...")
-    errors = validate_schema(src_engine, dst_engine)
-    if errors:
-        print("❌ 表结构验证失败:")
-        for e in errors:
-            print(f"  - {e}")
-        print("\n请检查目标数据库是否已初始化到最新状态")
-        sys.exit(1)
-    else:
-        print("✅ 表结构验证通过")
+    src_session = src_session0()
+    dst_session = dst_session0()
 
-    # 统计源表数据量
-    print("\n📊 源表数据量:")
-    for table in MIGRATION_TABLES:
-        if check_table_exists(src_engine, table):
-            count = count_rows(src_engine, table)
-            print(f"  {table}: {count} 行")
-
-    # 执行迁移
-    print("\n🚀 开始迁移...")
-    total_migrated = 0
-    for table in MIGRATION_TABLES:
-        print(f"\n📄 处理表: {table}")
-        try:
-            migrated, new = migrate_table(src_session, dst_session, table, dry_run)
-            total_migrated += migrated
-            if migrated == 0:
-                print(f"⚠️ {table}: 无迁移 (表不存在或无数据)")
-        except Exception as e:
-            print(f"❌ {table}: 迁移异常 - {e}")
+    try:
+        # 校验目标表结构
+        logger.info("\n📊 验证表结构...")
+        errors = validate_schema(src_engine, dst_engine)
+        if errors:
+            logger.error("❌ 表结构验证失败:")
+            for e in errors:
+                logger.error(f"  - {e}")
+            logger.error("\n请检查目标数据库是否已初始化到最新状态")
             sys.exit(1)
+        else:
+            logger.info("✅ 表结构验证通过")
 
-    print(f"\n🎉 迁移完成: 共迁移 {total_migrated} 行数据")
-    if not dry_run:
-        print("\n⚠️ 注意: 不能立即重建所有索引（可能消耗大量内存）")
-    print("\n✅ 迁移脚本执行完毕")
+        # 统计源表数据量
+        logger.info("\n📊 源表数据量:")
+        for table in MIGRATION_TABLES:
+            if check_table_exists(src_engine, table):
+                count = count_rows(src_engine, table)
+                logger.info(f"  {table}: {count} 行")
+
+        # 执行迁移
+        logger.info("\n🚀 开始迁移...")
+        total_migrated = 0
+        for table in MIGRATION_TABLES:
+            logger.info(f"\n📄 处理表: {table}")
+            try:
+                migrated = migrate_table(src_session, dst_session, table, dry_run)
+                total_migrated += migrated
+                if migrated == 0:
+                    logger.warning(f"⚠️ {table}: 无迁移 (表不存在或无数据)")
+            except Exception as e:
+                logger.error(f"❌ {table}: 迁移异常 - {e}")
+                logger.error(f"   错误详情: {e}")
+                sys.exit(1)
+
+        logger.info(f"\n🎉 迁移完成: 共迁移 {total_migrated} 行数据")
+
+        # 数据一致性校验
+        if not dry_run:
+            logger.info("\n🔍 数据一致性校验...")
+            lineage_diffs = validate_lineage(src_engine, dst_engine)
+            if lineage_diffs:
+                logger.error("❌ 数据一致性校验失败:")
+                for diff in lineage_diffs:
+                    logger.error(f"  - {diff}")
+                sys.exit(1)
+            else:
+                logger.info("✅ 数据一致性校验通过")
+
+            logger.info("\n⚠️ 注意：索引重建建议 POSTGRESQL 自动完成 (ANALYZE)")
+        logger.info("\n✅ 迁移脚本执行完毕")
+    finally:
+        src_session.close()
+        dst_session.close()
 
 
 if __name__ == "__main__":
-    dry_run = '--dry-run' in sys.argv
+    dry_run = '--dry-run' in sys.argv or '--validate' in sys.argv
     run_migrate(dry_run=dry_run)

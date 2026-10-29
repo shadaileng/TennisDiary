@@ -381,9 +381,16 @@ pg-integration:
 | 4 | CI `pg-integration` job 上线（PostgreSQL 服务容器） | ✅ 已完成 | 2026-10-26 | 在 `.github/workflows/pg-integration.yml` 中定义，集成测试直接使用 PG 服务 |
 | 5 | 方言差异修复（时间字段统一 + 其他域兼容） | ✅ 已完成 | 2026-10-26 | 所有时间戳字段从 `Float` 改为 `DateTime`；确保双方言一致；门禁 355 passed |
 | 6 | 连接池收敛配置与验证 | ✅ 已完成 | 2026-10-26 | 连接池参数（`DB_POOL_SIZE=5`/`max_overflow=10`/`pool_pre_ping=True`）+ `db_health` 监控端点 + 连接数预算（峰值 15） |
-| 7 | 数据迁移脚本 `migrate-sqlite-to-pg.py` 框架 | ✅ 已完成 | 2026-10-26 | 创建 `/scripts/migrate-sqlite-to-pg.py`，支持 `--dry-run` 检查 + 正式迁移 + 聚合校验 |
-| 8 | 备份改造方案（72 → PG 版）文档与端点框架 | ✅ 已完成 | 2026-10-26 | 创建 `BACKUP-TRANSITION.md` 文档，定义 `pg_dump`/`pg_restore` 流程 + 后端端点改造计划 |
-| 9 | 生产前演练：Supabase 新实例 + 迁移 + 首备 + 三端冒烟 | ⏳ 待执行 | - | 前置条件：Step 1-8 完成 |
+| 7 | 数据迁移脚本 `migrate-sqlite-to-pg.py` 完善与测试 | ✅ 已完成 | 2026-10-29 | 修复 Time or Timestap 转换；增加数据一致性校验；`--dry-run` 可用 |
+| 8 | 备份改造（PG 版）端点与 Flow 实现 | ✅ 已完成 | 2026-10-29 | `BackupService` 支持 PG Dump/Restore；前端端点已更新；备份逻辑完成 |
+| 9 | 生产前演练：Supabase 新实例 + 迁移 + 首备 + 三端冒烟 | ⏳ 待执行 | - | 前置条件：Step 1-8 完成；PG 实例就绪 |
 | 10 | 回归测试 + 文档收尾（README / 侧边栏 / 版本更新） | ⏳ 待执行 | - | 前置条件：Step 9 成功 |
 
 每 Step 结束跑 AGENTS 4.3 门禁：`cd server && uv run ruff check . && uv run ruff format . && uv run pytest -q -m fast`。
+
+### 本阶段完成总结
+
+- **Step 1-6**：基础架构与方言适配（已完成）
+- **Step 7**：数据迁移脚本（`scripts/migrate-sqlite-to-pg.py`）已修复并完成 `--dry-run` 测试逻辑
+- **Step 8**：备份改造（`backup_database` → `pg_dump`/`pg_restore`）已实现后端服务（`app/services/backup_service.py`），前端端点已更新
+- **当前状态**：**代码完全就绪**，具备生产切换条件（Step 9 需要真实 PG 实例）

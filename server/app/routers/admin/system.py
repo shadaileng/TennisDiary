@@ -33,6 +33,7 @@ from app.core.mime import EXTENSION_MIME
 from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
+from app.services.backup_service import BackupService
 from app.schemas.common import ApiResponse
 
 log = get_logger("admin")
@@ -469,28 +470,20 @@ def backup_database(
     admin: Admin = Depends(get_current_admin),
     meta_db: Session = Depends(get_backup_meta_db),
 ):
-    """数据目录整体备份（tar.gz）"""
-    data_dir = Path(settings.DATA_DIR).resolve()
-    backup_dir = (data_dir / "backups").resolve()
-    backup_dir.mkdir(exist_ok=True)
-
-    # 数据库文件必须存在
-    source_path = data_dir / "tennis_diary.db"
-    if not source_path.exists():
-        raise HTTPException(status_code=404, detail="数据库文件不存在")
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = backup_dir / f"backup_{timestamp}_{uuid.uuid4().hex[:6]}.tar.gz"
+    """数据备份（兼容 PG/SQLite）"""
+    backup_dir = (Path(settings.DATA_DIR)).resolve() / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        _pack_data_dir(backup_path)
-    except OSError as e:
+        # 使用新的备份服务
+        backup_path, size = BackupService.backup_database()
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"备份失败: {e!s}") from e
 
     # 写入备份记录（独立元数据库）
     record = BackupRecord(
         name=backup_path.name,
-        size=backup_path.stat().st_size,
+        size=size,
         type="manual",
         status="created",
         created_by=admin.id,
@@ -632,6 +625,13 @@ def delete_backup(
     """删除备份记录（软删，保留审计痕迹；磁盘文件一并移除）"""
     backup_path = _resolve_backup(backup_id)
 
+    # 物理删除磁盘文件
+    try:
+        BackupService.delete_backup(backup_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除失败: {e!s}") from e
+
+    # 软删记录（保留审计）
     record = (
         meta_db.query(BackupRecord)
         .filter(
@@ -640,14 +640,6 @@ def delete_backup(
         )
         .first()
     )
-
-    # 物理删除磁盘文件
-    try:
-        backup_path.unlink()
-    except OSError as e:
-        raise HTTPException(status_code=500, detail=f"删除失败: {e!s}") from e
-
-    # 软删记录（保留审计）
     if record is not None:
         record.deleted_at = datetime.utcnow()
         record.status = "deleted"
@@ -663,57 +655,48 @@ def restore_database(
     admin: Admin = Depends(get_current_admin),
     meta_db: Session = Depends(get_backup_meta_db),
 ):
-    """数据恢复（兼容 tar.gz 与旧 db）
-
-    恢复前无条件生成一份完整兜底备份（pre_restore_*.tar.gz）并写入记录。
-    独立元数据库 backup_meta.db 不参与备份恢复，因此记录表在恢复后仍完整保留。
-    """
+    """数据恢复（兼容 tar.gz，支持 PG/SQLite）"""
     backup_path = _resolve_backup(backup_id)
-    data_dir = Path(settings.DATA_DIR).resolve()
-    source_path = data_dir / "tennis_diary.db"
-
     try:
-        # 恢复前无条件完整备份一份（兜底，可回退/删除）
+        # 1. 恢复前生成兜底备份（使用新的备份服务）
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        pre_path = data_dir / "backups" / f"pre_restore_{timestamp}_{uuid.uuid4().hex[:6]}.tar.gz"
-        _pack_data_dir(pre_path)
+        pre_backup_path = BACKUP_DIR / f"pre_restore_{timestamp}_{uuid.uuid4().hex[:6]}.tar.gz"
+        pre_backup_path.parent.mkdir(parents=True, exist_ok=True)
+        # 备份服务需要根据 DATABASE_URL 自动选择策略
+        BackupService.backup_database(target=pre_backup_path, is_pre=True)
 
-        if backup_path.name.endswith(".tar.gz"):
-            # 整体恢复：解包回数据目录（含 uploads/logs/数据库）
-            with tarfile.open(backup_path, "r:gz") as tar:
-                tar.extractall(data_dir)
-        else:
-            # 旧版 .db：仅恢复数据库文件
-            shutil.copy2(backup_path, source_path)
-    except (OSError, tarfile.TarError) as e:
+        # 2. 恢复目标备份
+        BackupService.restore_backup(backup_path)
+
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"恢复失败: {e!s}") from e
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"恢复失败: {e!s}") from e
 
-    # 写入 pre_restore 兜底记录 + 标记目标备份已用于恢复
+    # 3. 记录兜底备份 + 标记目标备份已恢复（软保留记录）
     now = datetime.utcnow()
     pre_record = BackupRecord(
-        name=pre_path.name,
-        size=pre_path.stat().st_size,
+        name=pre_backup_path.name,
+        size=pre_backup_path.stat().st_size,
         type="pre_restore",
         status="created",
         created_by=admin.id,
         note=f"恢复前兜底，目标 {backup_path.name}",
     )
     meta_db.add(pre_record)
-    meta_db.flush()  # 拿到 pre_record.id 用于关联
+    meta_db.flush()  # 获取 ID
 
     # 保证同时只有一个备份处于 restored 状态：先重置旧的 restored 记录
-    (
-        meta_db.query(BackupRecord)
-        .filter(BackupRecord.status == "restored")
-        .update(
-            {
-                BackupRecord.status: "created",
-                BackupRecord.restored_at: None,
-                BackupRecord.restored_by: None,
-                BackupRecord.restored_from_id: None,
-            },
-            synchronize_session=False,
-        )
+    meta_db.query(BackupRecord).filter(
+        BackupRecord.status == "restored"
+    ).update(
+        {
+            BackupRecord.status: "created",
+            BackupRecord.restored_at: None,
+            BackupRecord.restored_by: None,
+            BackupRecord.restored_from_id: None,
+        },
+        synchronize_session=False,
     )
 
     # 标记目标备份已用于恢复，并关联到本次恢复前生成的兜底备份
