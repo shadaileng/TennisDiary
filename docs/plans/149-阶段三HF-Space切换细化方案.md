@@ -141,22 +141,63 @@ Hugging Face Space (Docker Runner)
 | `AI_PROVIDER` | `aliyun` | 自定义 |
 
 ##### 数据库连接池（仅 PostgreSQL 生效）
-| Secret Key | 推荐值 | 说明 |
-|------------|--------|------|
-| `DB_POOL_SIZE` | `5` | 最大连接数 |
-| `DB_MAX_OVERFLOW` | `10` | 最大溢流 |
-| `DB_POOL_RECYCLE` | `3600` | 连接回收周期（秒） |
-| `DB_POOL_PRE_PING` | `true` | 连接健康检查 |
+| Secret Key | 推荐值 | 说明 | 默认值 |
+|------------|--------|------|--------|
+| `DB_POOL_SIZE` | `5` | 最大连接数 | `5` |
+| `DB_MAX_OVERFLOW` | `10` | 最大溢流 | `10` |
+| `DB_POOL_RECYCLE` | `3600` | 连接回收周期（秒） | `3600` |
+| `DB_POOL_PRE_PING` | `true` | 连接健康检查 | `true` |
+
+> **说明**：这些参数已有合理的默认值，可直接使用，无需在 GitHub Secrets 中配置。仅在需要性能调优时修改。
+
+### 配置策略说明
+
+#### 数据库配置 (P0 - 必配)
+- **`DATABASE_URL`**：PostgreSQL 连接串，**必需配置**
+- 脚本会检查 `DATABASE_URL` 是否为空，未设置则部署失败
+- 默认值 `sqlite:////data/tennis_diary.db` 存在但**不使用**
+- 必须使用格式：`postgresql+psycopg://postgres:password@host:5432/tennis_diary`
+
+#### 对象存储 & AI 配置 (P1 - 可选)
+- 支持配置但**非必需**，未配置时自动降级到本地存储/默认 AI 参数
+- 对象存储：`STORAGE_BACKEND=kodo` + 完整七牛 KODO 配置
+- AI 配置：`AI_API_KEY` + `AI_BASE_URL` + `AI_MODEL` + `AI_PROVIDER`
+- 脚本会将这些配置传递到 HF Space，但不做存在性检查
+
+#### 数据库连接池 (P2 - 可选，有默认值)
+- **已有合理默认值**，可直接使用无需配置
+- 参数：`DB_POOL_SIZE=5` / `DB_MAX_OVERFLOW=10` / `DB_POOL_RECYCLE=3600` / `DB_POOL_PRE_PING=true`
+- 仅在需要性能调优时才在 GitHub Secrets 中覆盖这些值
 
 #### 配置检查清单
-- [ ] 所有必配项已设置
+- [ ] **必配项**所有已设置
 - [ ] `DATABASE_URL` 格式正确，包含 `postgresql+psycopg://` 协议
 - [ ] `JWT_SECRET` 和 `ADMIN_RESET_KEY` 符合安全长度要求
 - [ ] `HF_TOKEN` 权限完整（可创建/更新 Spaces）
 - [ ] Supabase 数据库已创建并配置好连接串
-- [ ] 对象存储配置可选，建议生产环境开启
+- [ ] **可选配置**对象存储/AI 根据业务需求决定是否启用
+
+### 配置策略说明
+
+#### 数据库配置 (P0 - 必配)
+- **`DATABASE_URL`**：PostgreSQL 连接串，**必需配置**
+- 脚本会检查 `DATABASE_URL` 是否为空，未设置则部署失败
+- 默认值 `sqlite:////data/tennis_diary.db` 存在但**不使用**
+- 必须使用格式：`postgresql+psycopg://postgres:password@host:5432/tennis_diary`
+
+#### 对象存储 & AI 配置 (P1 - 可选)
+- 支持配置但**非必需**，未配置时自动降级到本地存储/默认 AI 参数
+- 对象存储：`STORAGE_BACKEND=kodo` + 完整七牛 KODO 配置
+- AI 配置：`AI_API_KEY` + `AI_BASE_URL` + `AI_MODEL` + `AI_PROVIDER`
+- 脚本会将这些配置传递到 HF Space，但不做存在性检查
+
+#### 数据库连接池 (P2 - 可选，有默认值)
+- **已有合理默认值**，可直接使用无需配置
+- 参数：`DB_POOL_SIZE=5` / `DB_MAX_OVERFLOW=10` / `DB_POOL_RECYCLE=3600` / `DB_POOL_PRE_PING=true`
+- 仅在需要性能调优时才在 GitHub Secrets 中覆盖这些值
 
 ### Step 2：触发 GitHub Actions 部署
+
 
 
 部署通过 **GitHub Actions 自动完成**，无需本地 Docker 或 HF CLI：

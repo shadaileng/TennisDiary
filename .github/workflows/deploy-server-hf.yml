@@ -20,7 +20,24 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
           HF_SPACE_NAME: ${{ github.event.inputs.space_name || secrets.HF_SPACE_NAME }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           WX_APPID: ${{ secrets.WX_APPID }}
           WX_SECRET: ${{ secrets.WX_SECRET }}
           ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
+          # 可选配置（根据业务需求启用）
+          STORAGE_BACKEND: ${{ secrets.STORAGE_BACKEND }}
+          STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
+          STORAGE_REGION: ${{ secrets.STORAGE_REGION }}
+          STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
+          STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
+          STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
+          STORAGE_PUBLIC_BASE_URL: ${{ secrets.STORAGE_PUBLIC_BASE_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+          DB_POOL_SIZE: ${{ secrets.DB_POOL_SIZE }}
+          DB_MAX_OVERFLOW: ${{ secrets.DB_MAX_OVERFLOW }}
+          DB_POOL_RECYCLE: ${{ secrets.DB_POOL_RECYCLE }}
+          DB_POOL_PRE_PING: ${{ secrets.DB_POOL_PRE_PING }}

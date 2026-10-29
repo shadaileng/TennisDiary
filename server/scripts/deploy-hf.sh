@@ -8,7 +8,7 @@
 # 用法:
 #   # 方式一：通过 GitHub Actions secrets（推荐生产）
 #   # 在 GitHub Repo Settings → Secrets 配置：
-#   #   HF_TOKEN, HF_USERNAME, HF_SPACE_NAME, JWT_SECRET, WX_APPID, WX_SECRET
+#   #   HF_TOKEN, HF_USERNAME, HF_SPACE_NAME, DATABASE_URL, JWT_SECRET, WX_APPID, WX_SECRET
 #
 #   # 方式二：本地手动部署
 #   cp .env.hf.example .env.hf
@@ -62,16 +62,49 @@ load_env_file
 HF_TOKEN="${HF_TOKEN:-}"
 HF_USERNAME="${HF_USERNAME:-}"
 HF_SPACE_NAME="${HF_SPACE_NAME:-}"
+DATABASE_URL="${DATABASE_URL:-}"
 JWT_SECRET="${JWT_SECRET:-}"
 WX_APPID="${WX_APPID:-}"
 WX_SECRET="${WX_SECRET:-}"
 ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD:-changeme}"
 ADMIN_RESET_KEY="${ADMIN_RESET_KEY:-}"
 
+# 可选配置（有明确默认值）
+DEBUG="${DEBUG:-false}"
+DATA_DIR="${DATA_DIR:-/data}"
+JWT_EXPIRATION_HOURS="${JWT_EXPIRATION_HOURS:-720}"
+UPLOAD_DIR="${UPLOAD_DIR:-/data/uploads}"
+MAX_UPLOAD_SIZE_MB="${MAX_UPLOAD_SIZE_MB:-100}"
+LOG_LEVEL="${LOG_LEVEL:-INFO}"
+LOG_DIR="${LOG_DIR:-/data/logs}"
+ADMIN_DEFAULT_USERNAME="${ADMIN_DEFAULT_USERNAME:-admin}"
+
+# 可选配置 - 对象存储（KODO）
+STORAGE_BACKEND="${STORAGE_BACKEND:-local}"
+STORAGE_ENDPOINT="${STORAGE_ENDPOINT:-}"
+STORAGE_REGION="${STORAGE_REGION:-}"
+STORAGE_BUCKET="${STORAGE_BUCKET:-}"
+STORAGE_ACCESS_KEY="${STORAGE_ACCESS_KEY:-}"
+STORAGE_SECRET_KEY="${STORAGE_SECRET_KEY:-}"
+STORAGE_PUBLIC_BASE_URL="${STORAGE_PUBLIC_BASE_URL:-}"
+
+# 可选配置 - AI
+AI_API_KEY="${AI_API_KEY:-}"
+AI_BASE_URL="${AI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+AI_MODEL="${AI_MODEL:-qwen-vl-max}"
+AI_PROVIDER="${AI_PROVIDER:-}"
+
+# 可选配置 - 数据库连接池
+DB_POOL_SIZE="${DB_POOL_SIZE:-5}"
+DB_MAX_OVERFLOW="${DB_MAX_OVERFLOW:-10}"
+DB_POOL_RECYCLE="${DB_POOL_RECYCLE:-3600}"
+DB_POOL_PRE_PING="${DB_POOL_PRE_PING:-true}"
+
 # ---------- 校验变量 ----------
 [ -n "$HF_TOKEN" ]        || fail "HF_TOKEN 未设置（检查 .env.hf 或环境变量）"
 [ -n "$HF_USERNAME" ]     || fail "HF_USERNAME 未设置（检查 .env.hf 或环境变量）"
 [ -n "$HF_SPACE_NAME" ]   || fail "HF_SPACE_NAME 未设置（检查 .env.hf 或环境变量）"
+[ -n "$DATABASE_URL" ]    || fail "DATABASE_URL 未设置（必须配置 PostgreSQL 连接串）"
 [ -n "$JWT_SECRET" ]      || fail "JWT_SECRET 未设置（检查 .env.hf 或环境变量）"
 [ -n "$WX_APPID" ]        || fail "WX_APPID 未设置（检查 .env.hf 或环境变量）"
 [ -n "$WX_SECRET" ]       || fail "WX_SECRET 未设置（检查 .env.hf 或环境变量）"
@@ -88,7 +121,7 @@ if [ "$IS_GITHUB_ACTIONS" = "true" ]; then
   log_info "校验 GitHub Secrets 配置..."
 
   # GitHub Actions 必需的 Secrets
-  REQUIRED_SECRETS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
+  REQUIRED_SECRETS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "DATABASE_URL" "JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
   MISSING_SECRETS=()
 
   for secret in "${REQUIRED_SECRETS[@]}"; do
@@ -116,7 +149,7 @@ else
   log_info "校验 .env.hf 配置文件..."
 
   # 本地部署必需的变量
-  LOCAL_REQUIRED_VARS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
+  LOCAL_REQUIRED_VARS=("HF_TOKEN" "HF_USERNAME" "HF_SPACE_NAME" "DATABASE_URL" "JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD")
   MISSING_VARS=()
 
   for var in "${LOCAL_REQUIRED_VARS[@]}"; do
@@ -261,6 +294,7 @@ else
   log_ok "  ✓ HF API 鉴权通过"
 fi
 
+# 必设 Secrets
 SECRET_NAMES=("JWT_SECRET" "WX_APPID" "WX_SECRET" "ADMIN_DEFAULT_PASSWORD" "ADMIN_RESET_KEY")
 SECRET_VALUES=("${JWT_SECRET}" "${WX_APPID}" "${WX_SECRET}" "${ADMIN_DEFAULT_PASSWORD}" "${ADMIN_RESET_KEY}")
 
@@ -281,13 +315,58 @@ for i in "${!SECRET_NAMES[@]}"; do
   fi
 done
 
-# 设置非敏感配置为 Variables（可选，也可手动在 HF 后台设置）
+# 选项 Secrets（对象存储/AI 需要）
+OPTIONAL_SECRETS=()
+OPTIONAL_VALUES=()
+
+if [ -n "${STORAGE_ACCESS_KEY:-}" ]; then
+  OPTIONAL_SECRETS+=("STORAGE_ACCESS_KEY")
+  OPTIONAL_VALUES+=("${STORAGE_ACCESS_KEY}")
+fi
+
+if [ -n "${STORAGE_SECRET_KEY:-}" ]; then
+  OPTIONAL_SECRETS+=("STORAGE_SECRET_KEY")
+  OPTIONAL_VALUES+=("${STORAGE_SECRET_KEY}")
+fi
+
+if [ -n "${AI_API_KEY:-}" ]; then
+  OPTIONAL_SECRETS+=("AI_API_KEY")
+  OPTIONAL_VALUES+=("${AI_API_KEY}")
+fi
+
+for i in "${!OPTIONAL_SECRETS[@]}"; do
+  name="${OPTIONAL_SECRETS[$i]}"
+  value="${OPTIONAL_VALUES[$i]}"
+  
+  SECRET_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -L -X POST \
+    "https://huggingface.co/api/spaces/${HF_USERNAME}/${HF_SPACE_NAME}/secrets" \
+    -H "Authorization: Bearer ${HF_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d "{\"key\": \"${name}\", \"value\": \"${value}\"}")
+  
+  if [ "$SECRET_RESPONSE" = "200" ]; then
+    log_ok "  ✓ ${name} Secret 已设置"
+  else
+    log_warn "  ⚠ ${name} Secret 设置失败 (HTTP $SECRET_RESPONSE)"
+  fi
+done
+
+# 设置 Variables（包含数据库连接串和其他配置）
 VAR_NAMES=("DEBUG" "DATA_DIR" "DATABASE_URL" "JWT_EXPIRATION_HOURS" 
            "UPLOAD_DIR" "MAX_UPLOAD_SIZE_MB" "LOG_LEVEL" "LOG_DIR"
-           "ADMIN_DEFAULT_USERNAME")
-VAR_VALUES=("false" "/data" "sqlite:////data/tennis_diary.db" "720"
-            "/data/uploads" "100" "INFO" "/data/logs" "admin")
+           "ADMIN_DEFAULT_USERNAME"
+           "STORAGE_BACKEND" "STORAGE_ENDPOINT" "STORAGE_REGION" "STORAGE_BUCKET" "STORAGE_PUBLIC_BASE_URL"
+           "AI_BASE_URL" "AI_MODEL" "AI_PROVIDER"
+           "DB_POOL_SIZE" "DB_MAX_OVERFLOW" "DB_POOL_RECYCLE" "DB_POOL_PRE_PING")
 
+VAR_VALUES=("$DEBUG" "$DATA_DIR" "$DATABASE_URL" "$JWT_EXPIRATION_HOURS"
+            "$UPLOAD_DIR" "$MAX_UPLOAD_SIZE_MB" "$LOG_LEVEL" "$LOG_DIR"
+            "$ADMIN_DEFAULT_USERNAME"
+            "$STORAGE_BACKEND" "$STORAGE_ENDPOINT" "$STORAGE_REGION" "$STORAGE_BUCKET" "$STORAGE_PUBLIC_BASE_URL"
+            "$AI_BASE_URL" "$AI_MODEL" "$AI_PROVIDER"
+            "$DB_POOL_SIZE" "$DB_MAX_OVERFLOW" "$DB_POOL_RECYCLE" "$DB_POOL_PRE_PING")
+
+log_info "  设置 HF Space Variables (共 ${#VAR_NAMES[@]} 项)..."
 for i in "${!VAR_NAMES[@]}"; do
   name="${VAR_NAMES[$i]}"
   value="${VAR_VALUES[$i]}"
