@@ -25,8 +25,8 @@ from sqlalchemy import create_engine, text
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(BASE_DIR / "app"))
 
-from app.core.config import settings
-from app.models import get_all_models
+from app.core.config import settings  # noqa: E402
+from app.models import get_all_models  # noqa: E402
 
 # 需要迁移的表清单
 MIGRATION_TABLES = [
@@ -79,7 +79,8 @@ def check_table_exists(engine: Any, table_name: str) -> bool:
     with engine.connect() as conn:
         result = conn.execute(
             text(
-                f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table_name}')"
+                f"SELECT EXISTS (SELECT FROM information_schema.tables "
+                f"WHERE table_name = '{table_name}')"
             )
         )
         return result.fetchone()[0]
@@ -257,7 +258,7 @@ def run_migrate(dry_run: bool = True) -> None:
 
     try:
         src_engine, dst_engine, src_session0, dst_session0 = get_engines()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"❌ 数据库连接失败: {e}")
         sys.exit(1)
 
@@ -294,7 +295,7 @@ def run_migrate(dry_run: bool = True) -> None:
                 total_migrated += migrated
                 if migrated == 0:
                     logger.warning(f"⚠️ {table}: 无迁移 (表不存在或无数据)")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.error(f"❌ {table}: 迁移异常 - {e}")
                 logger.error(f"   错误详情: {e}")
                 sys.exit(1)

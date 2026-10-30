@@ -80,7 +80,7 @@ class BackupService:
             try:
                 with tarfile.open(backup_path, "r:gz") as tar:
                     return tar.next() is not None  # 检查是否非空
-            except Exception as e:
+            except (tarfile.TarError, OSError) as e:
                 log.error("验证备份失败: {}", e)
                 return False
         return False
