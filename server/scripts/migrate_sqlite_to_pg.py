@@ -12,9 +12,9 @@
   - 聚合校验（行数、DISTINCT count）
 """
 
+import logging
 import os
 import sys
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,7 +27,6 @@ sys.path.insert(0, str(BASE_DIR / "app"))
 
 from app.core.config import settings
 from app.models import get_all_models
-from app.models.storage import StorageConfig
 
 # 需要迁移的表清单
 MIGRATION_TABLES = [
@@ -133,10 +132,14 @@ def _is_type_compatible(src_type: str, dst_type: str) -> bool:
     # DATETIME → TIMESTAMP
     return (
         src_type.upper() == dst_type.upper()
-        or src_type.upper() in ["FLOAT"]
-        and dst_type.upper() in ["FLOAT", "DOUBLE PRECISION", "NUMERIC"]
-        or src_type.upper() in ["DATETIME", "TIMESTAMP"]
-        and dst_type.upper() in ["TIMESTAMP", "DATE"]
+        or (
+            src_type.upper() in ["FLOAT"]
+            and dst_type.upper() in ["FLOAT", "DOUBLE PRECISION", "NUMERIC"]
+        )
+        or (
+            src_type.upper() in ["DATETIME", "TIMESTAMP"]
+            and dst_type.upper() in ["TIMESTAMP", "DATE"]
+        )
     )
 
 

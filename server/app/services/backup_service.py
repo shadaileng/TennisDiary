@@ -8,12 +8,12 @@
 """
 
 import os
-import subprocess
 import shutil
+import subprocess
 import tarfile
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -80,14 +80,14 @@ class BackupService:
             try:
                 with tarfile.open(backup_path, "r:gz") as tar:
                     return tar.next() is not None  # 检查是否非空
-            except Exception:
+            except Exception as e:
+                log.error("验证备份失败: {}", e)
                 return False
         return False
 
 
-def _pg_dump_and_pack(backup_path: Path, timestamp: str) -> Tuple[Path, int]:
+def _pg_dump_and_pack(backup_path: Path, timestamp: str) -> tuple[Path, int]:
     """PostgreSQL 备份：pg_dump + 合并 backup_meta.db"""
-    import uuid
 
     # 准备临时工作目录
     work_dir = BACKUP_DIR / f"tmp_{timestamp}"
@@ -102,7 +102,7 @@ def _pg_dump_and_pack(backup_path: Path, timestamp: str) -> Tuple[Path, int]:
         ddl = settings.DATABASE_URL
         env = os.environ.copy()
         # 检测 PG 密码（环境变量 PG_PASSWORD），找不到则用默认
-        pg_password = env.get("PG_PASSWORD", env.get("DB_PASSWORD", ""))
+        env.get("PG_PASSWORD", env.get("DB_PASSWORD", ""))
 
         cmd = [
             "pg_dump",
@@ -147,9 +147,8 @@ def _pg_dump_and_pack(backup_path: Path, timestamp: str) -> Tuple[Path, int]:
             shutil.rmtree(work_dir)
 
 
-def _sqlite_pack(backup_path: Path, timestamp: str) -> Tuple[Path, int]:
+def _sqlite_pack(backup_path: Path, timestamp: str) -> tuple[Path, int]:
     """SQLite 备份：复制业务库 + backup_meta.db"""
-    import uuid
 
     # 准备临时工作目录
     work_dir = BACKUP_DIR / f"tmp_{timestamp}"
@@ -186,8 +185,6 @@ def _sqlite_pack(backup_path: Path, timestamp: str) -> Tuple[Path, int]:
 def _pg_restore_unpacked(backup_path: Path) -> None:
     """PostgreSQL 备份恢复：解压并 pg_restore"""
     # 1. 创建临时工作目录
-    import uuid
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     work_dir = BACKUP_DIR / f"restore_{timestamp}_{uuid.uuid4().hex[:6]}"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -205,7 +202,7 @@ def _pg_restore_unpacked(backup_path: Path) -> None:
         # 4. 执行 pg_restore
         log.info(f"pg_restore 恢复数据库: {dump_path.name}")
         env = os.environ.copy()
-        pg_password = env.get("PG_PASSWORD", env.get("DB_PASSWORD", ""))
+        env.get("PG_PASSWORD", env.get("DB_PASSWORD", ""))
 
         ddl = settings.DATABASE_URL
         cmd = [
@@ -237,8 +234,7 @@ def _pg_restore_unpacked(backup_path: Path) -> None:
 
 def _sqlite_unpack(backup_path: Path) -> None:
     """SQLite 备份恢复：解压并替换文件"""
-    import uuid
-
+    # 1. 创建临时工作目录
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     work_dir = BACKUP_DIR / f"restore_{timestamp}_{uuid.uuid4().hex[:6]}"
     work_dir.mkdir(parents=True, exist_ok=True)

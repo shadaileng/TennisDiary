@@ -55,7 +55,8 @@ uv run alembic revision --autogenerate -m "描述变更内容"
 #    文件位于 alembic/versions/ 目录
 
 # ③ 执行迁移
-uv run alembic upgrade head
+# 对 PostgreSQL 数据库，指定 pg 分支以避免多 head 歧义
+uv run alembic upgrade pg_baseline@head
 
 # ④ 验证数据库状态
 uv run alembic current

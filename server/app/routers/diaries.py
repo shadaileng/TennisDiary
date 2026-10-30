@@ -84,7 +84,9 @@ def create_diary(
         gears=json.dumps([g.model_dump() for g in body.gears], ensure_ascii=False),
         notes=body.notes,
         created_at=datetime.now(timezone.utc),
-        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc) if body.business_time else None,
+        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc)
+        if body.business_time
+        else None,
     )
     db.add(diary)
     db.commit()

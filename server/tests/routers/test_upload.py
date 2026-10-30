@@ -380,7 +380,9 @@ class TestUploadCompensationTrigger:
             mime_type="image/jpeg",
             upload_source="gear_image",
             ref_count=0,
-            created_at=datetime.fromtimestamp(time.time() - 120, tz=timezone.utc),  # 超过 60s 补偿窗口
+            created_at=datetime.fromtimestamp(
+                time.time() - 120, tz=timezone.utc
+            ),  # 超过 60s 补偿窗口
             storage="memory",
             storage_status=STORAGE_STATUS_FAILED,
         )

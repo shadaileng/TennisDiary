@@ -35,6 +35,4 @@ class BackupLog(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # 复合索引提升查询性能
-    __table_args__ = (
-        Index("ix_backup_logs_type_status", "type", "status"),
-    )
+    __table_args__ = (Index("ix_backup_logs_type_status", "type", "status"),)

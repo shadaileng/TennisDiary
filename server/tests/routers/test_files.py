@@ -1,7 +1,6 @@
 """文件下载接口测试（B1-11）"""
 
 import os
-import time
 from datetime import datetime, timezone
 
 from app.core.config import settings

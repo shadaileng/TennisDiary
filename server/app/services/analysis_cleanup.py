@@ -62,7 +62,6 @@ def cleanup_stuck_processing(
     Returns:
         被清理的记录数
     """
-    from datetime import datetime, timezone, timedelta
     current = time.time() if now is None else now
     cutoff = datetime.fromtimestamp(current, tz=timezone.utc) - timedelta(seconds=timeout_s)
 

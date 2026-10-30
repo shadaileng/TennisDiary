@@ -10,7 +10,6 @@
 **仅允许被 `app.services.file_service` 门面调用**。
 """
 
-import time
 from datetime import datetime, timezone
 
 from sqlalchemy import delete
@@ -203,7 +202,8 @@ def cleanup_unbound(db: Session, grace_hours: int = 24) -> int:
     判定：ref_count <= 0、未软删、创建时间早于宽限期，且未被绑定表或业务表引用。
     返回软删的文件数量。
     """
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
+
     cutoff = datetime.now(timezone.utc) - timedelta(hours=grace_hours)
     candidates = (
         db.query(File)
