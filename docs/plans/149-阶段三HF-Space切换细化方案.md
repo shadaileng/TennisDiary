@@ -135,7 +135,7 @@ Hugging Face Space (Docker Runner)
 ##### AI 配置
 | Secret Key | 推荐值 | 来源 |
 |------------|--------|------|
-| `AI_API_KEY` | `sk-XXXXXXXXXXXXXXXXXX` | 阿里云百炼控制台 |
+| `AI_API_KEY` | `<your-aliyun-api-key>` | 阿里云百炼控制台 |
 | `AI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 阿里云百炼 |
 | `AI_MODEL` | `qwen-vl-max` | 阿里云百炼 |
 | `AI_PROVIDER` | `aliyun` | 自定义 |
@@ -464,7 +464,7 @@ git revert <hf-space-commit>
 #### AI 配置
 | Secret Key | 推荐值 | 来源 |
 |------------|--------|------|
-| `AI_API_KEY` | `sk-XXXXXXXXXXXXXXXXXX` | 阿里云百炼控制台 |
+| `AI_API_KEY` | `<your-aliyun-api-key>` | 阿里云百炼控制台 |
 | `AI_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 阿里云百炼 |
 | `AI_MODEL` | `qwen-vl-max` | 阿里云百炼 |
 | `AI_PROVIDER` | `aliyun` | 自定义 |
