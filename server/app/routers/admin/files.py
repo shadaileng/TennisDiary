@@ -3,7 +3,7 @@
 import os
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse, StreamingResponse
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -22,9 +22,10 @@ from app.schemas.admin_file import (
     CleanupOrphansRequest,
     RegisterFilesRequest,
     ScanResultResponse,
+    SyncRequest,
 )
 from app.schemas.common import ApiResponse
-from app.services import file_service
+from app.services import file_service, storage_sync_service
 
 log = get_logger("admin")
 
@@ -60,6 +61,8 @@ def _file_to_response(
         created_at=file_record.created_at,
         usage_status=usage_status,
         usage_reason=usage_reason,
+        storage=file_record.storage or "local",
+        storage_status=file_record.storage_status or 0,
     )
 
 
@@ -71,11 +74,19 @@ def list_files(
     upload_source: str | None = Query(None, description="按上传来源过滤"),
     business_type: str | None = Query(None, description="按业务类型过滤"),
     usage_status: str | None = Query(None, description="按使用状态过滤（实时计算）"),
+    storage_status: int | None = Query(
+        None, ge=0, le=2, description="按同步状态过滤（0=PENDING/1=SYNCED/2=FAILED，147）"
+    ),
     admin: Admin = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    """文件管理列表（支持按用户/来源/业务类型/使用状态过滤）"""
-    filters = dict(user_id=user_id, upload_source=upload_source, business_type=business_type)
+    """文件管理列表（支持按用户/来源/业务类型/使用状态/同步状态过滤）"""
+    filters = dict(
+        user_id=user_id,
+        upload_source=upload_source,
+        business_type=business_type,
+        storage_status=storage_status,
+    )
 
     # usage_status 由业务引用实时计算，无法下推 SQL，需在 Python 中筛选
     if usage_status:
@@ -125,6 +136,104 @@ def file_stats(
             "marked_deleted_count": file_service.count_deleted(db),
             "unreferenced_count": unreferenced_count,
         }
+    )
+
+
+# ==================== S3 同步中心（147 §9.1） ====================
+
+
+def _sync_error_to_http(exc: Exception) -> HTTPException:
+    """同步服务异常 → HTTP 语义（400 未启用/入参非法、409 并发冲突）"""
+    if isinstance(exc, storage_sync_service.SyncConflictError):
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get("/sync-status", response_model=ApiResponse[dict])
+def sync_status_endpoint(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """同步中心统计（验收 #12）：五类计数 + 运行态/进度/上次同步时间"""
+    try:
+        data = storage_sync_service.sync_status(db)
+    except storage_sync_service.SyncDisabledError as exc:
+        raise _sync_error_to_http(exc) from exc
+    return ApiResponse(data=data)
+
+
+@router.post("/sync", response_model=ApiResponse[dict])
+@audit(action="SYNC", resource_type="file_sync")
+def sync_files(
+    body: SyncRequest,
+    background: BackgroundTasks,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """批量同步入队（scope + dry_run + force）
+
+    - `dry_run=true`：只统计条数/字节，零数据改动（验收 #13）
+    - 正式执行：`BackgroundTasks` 异步跑批（119 先例，不引入常驻线程），立即返回 task_id
+    - 执行中重复触发 → 409（验收 #14，前端 `useActionLock` 二次防护）
+    """
+    try:
+        data = storage_sync_service.start_sync(
+            db,
+            scope=body.scope,
+            file_ids=body.file_ids,
+            dry_run=body.dry_run,
+            force=body.force,
+            background=background,
+        )
+    except (
+        storage_sync_service.SyncDisabledError,
+        storage_sync_service.SyncConflictError,
+        storage_sync_service.SyncValidationError,
+    ) as exc:
+        log.warning("S3 同步触发失败: {} {}", type(exc).__name__, exc)
+        raise _sync_error_to_http(exc) from exc
+
+    log.info(
+        "Admin 触发 S3 同步",
+        admin_id=admin.id,
+        scope=data["scope"],
+        dry_run=data["dry_run"],
+        queued=data["queued"],
+        skipped=data["skipped"],
+        task_id=data["task_id"],
+    )
+    if data["dry_run"]:
+        message = f"预览：{data['queued']} 个文件待同步（未改动）"
+    elif data["task_id"]:
+        message = f"已入队 {data['queued']} 个文件同步"
+    else:
+        message = "无可同步文件"
+    return ApiResponse(data=data, message=message)
+
+
+@router.post("/sync/{file_id}", response_model=ApiResponse[dict])
+@audit(action="SYNC", resource_type="file_sync", resource_id_key="file_id")
+def sync_single_file(
+    file_id: int,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """单条同步（表格行内按钮）：同步执行并返回结果；本地缺失置 FAILED 可补偿"""
+    try:
+        data = storage_sync_service.sync_one(db, file_id)
+    except (
+        storage_sync_service.SyncDisabledError,
+        storage_sync_service.SyncConflictError,
+    ) as exc:
+        log.warning("S3 单条同步失败: {} {}", type(exc).__name__, exc)
+        raise _sync_error_to_http(exc) from exc
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
+
+    log.info("Admin 单条同步", admin_id=admin.id, file_id=file_id, status=data["status"])
+    return ApiResponse(
+        data=data,
+        message="同步成功" if data["status"] == "synced" else "同步失败，已标记待补偿",
     )
 
 
@@ -200,9 +309,10 @@ def cleanup_files(
 def cleanup_orphan_files(
     body: CleanupOrphansRequest,
     admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
 ):
-    """物理删除指定的孤儿文件（不在 File 表中注册的文件）"""
-    cleaned = file_service.cleanup_paths(body.files)
+    """物理删除指定的孤儿文件（不在 File 表中注册的文件；启用对象存储时对象一并删，§5.4 双删）"""
+    cleaned = file_service.cleanup_paths(body.files, db=db)
     log.info("Admin 清理孤儿文件", cleaned=cleaned, admin_id=admin.id, paths=body.files[:5])
     return ApiResponse(data={"cleaned": cleaned}, message=f"清理完成，共清理 {cleaned} 个文件")
 

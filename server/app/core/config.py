@@ -29,8 +29,18 @@ class Settings:
     # 数据目录（数据库 + 上传文件统一在此）
     DATA_DIR: str = os.getenv("DATA_DIR", "./data")
 
-    # 数据库
+    # 数据库 URL（业务库）
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/tennis_diary.db")
+    # 审计库 / 备份元数据库（默认本地 SQLite，保持 147/72 隔离价值；生产可各自切 PG）
+    AUDIT_DB_URL: str = os.getenv("AUDIT_DB_URL", f"sqlite:///{DATA_DIR}/audit.db")
+    BACKUP_META_DB_URL: str = os.getenv(
+        "BACKUP_META_DB_URL", f"sqlite:///{DATA_DIR}/backup_meta.db"
+    )
+    # 连接池参数（PG 生效，SQLite 忽略；Supabase pgbouncer 并发上限约束）
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "3600"))
+    DB_POOL_PRE_PING: bool = os.getenv("DB_POOL_PRE_PING", "true").lower() == "true"
 
     # JWT
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change-me-in-production-please")
@@ -61,6 +71,17 @@ class Settings:
     # 文件存储
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", f"{DATA_DIR}/uploads")
     MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "100"))
+
+    # 对象存储（147 阶段一：S3 兼容，七牛 Kodo；backend=local 即回滚开关）
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")
+    STORAGE_ENDPOINT: str = os.getenv("STORAGE_ENDPOINT", "")
+    STORAGE_REGION: str = os.getenv("STORAGE_REGION", "")
+    STORAGE_BUCKET: str = os.getenv("STORAGE_BUCKET", "")
+    STORAGE_ACCESS_KEY: str = os.getenv("STORAGE_ACCESS_KEY", "")
+    STORAGE_SECRET_KEY: str = os.getenv("STORAGE_SECRET_KEY", "")
+    STORAGE_PRESIGN_TTL: int = int(os.getenv("STORAGE_PRESIGN_TTL", "7200"))
+    STORAGE_PUBLIC_BASE_URL: str = os.getenv("STORAGE_PUBLIC_BASE_URL", "")
+    STORAGE_LOCAL_RETENTION: int = int(os.getenv("STORAGE_LOCAL_RETENTION", "0"))
 
     # 日志
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG" if DEBUG else "INFO")

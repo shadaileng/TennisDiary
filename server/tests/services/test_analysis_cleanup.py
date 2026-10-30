@@ -13,6 +13,7 @@
 
 import json
 import time
+from datetime import datetime, timezone
 
 import pytest
 
@@ -28,10 +29,18 @@ pytestmark = pytest.mark.fast
 ERROR_TEXT = "分析超时，已自动置为失败"
 
 
+def _as_datetime(value: float | datetime | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromtimestamp(value, tz=timezone.utc)
+
+
 def _make(
     db,
     status: str = "processing",
-    created_at: float | None = None,
+    created_at: float | datetime | None = None,
     pipeline_status: str | None = None,
 ) -> Analysis:
     analysis = Analysis(
@@ -40,7 +49,7 @@ def _make(
         kind="正手",
         mode="single",
         status=status,
-        created_at=time.time() if created_at is None else created_at,
+        created_at=_as_datetime(created_at),
         pipeline_status=pipeline_status,
     )
     db.add(analysis)

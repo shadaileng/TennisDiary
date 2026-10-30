@@ -38,9 +38,18 @@ class ConfigItemDef:
 
     @property
     def default(self) -> str:
-        """环境变量默认值（运行时解析）"""
+        """环境变量默认值（运行时解析）
+
+        - `None` → 空串；`bool` → 小写 `true`/`false`（与 `_validate_value` 归一化一致）
+        - 其余（含 int `0`）→ `str(value)`，避免 `0 or ""` 把合法零值吃成空串
+        """
         if self.env_key:
-            return str(getattr(settings, self.env_key, "") or "")
+            value = getattr(settings, self.env_key, None)
+            if value is None:
+                return ""
+            if isinstance(value, bool):
+                return "true" if value else "false"
+            return str(value)
         return self.builtin_value or ""
 
 
@@ -55,6 +64,7 @@ CONFIG_CATEGORIES: list[dict[str, str]] = [
         "description": "AI 评分网关（OpenAI 兼容，可在线配置，无需重启）",
     },
     {"key": "data", "label": "数据与存储", "description": "数据库与上传文件目录"},
+    {"key": "storage", "label": "对象存储", "description": "S3 兼容对象存储（七牛 Kodo）"},
     {"key": "pose", "label": "姿态模型", "description": "MediaPipe 姿态推理模型路径"},
     {"key": "log", "label": "日志", "description": "日志级别与轮转策略"},
 ]
@@ -190,7 +200,14 @@ CONFIG_ITEMS: list[ConfigItemDef] = [
     ),
     # ===== 数据与存储 =====
     _it("data.dir", "data", "数据目录", "数据库与上传文件的根目录", VALUE_TYPE_STR, "DATA_DIR"),
-    _it("data.database_url", "data", "数据库地址", "SQLite 连接串", VALUE_TYPE_STR, "DATABASE_URL"),
+    _it(
+        "data.database_url",
+        "data",
+        "数据库地址",
+        "业务库连接串（SQLite 或 PostgreSQL）",
+        VALUE_TYPE_STR,
+        "DATABASE_URL",
+    ),
     _it(
         "data.upload_dir", "data", "上传目录", "用户上传文件存储目录", VALUE_TYPE_STR, "UPLOAD_DIR"
     ),
@@ -201,6 +218,89 @@ CONFIG_ITEMS: list[ConfigItemDef] = [
         "单文件上传上限（MB）",
         VALUE_TYPE_INT,
         "MAX_UPLOAD_SIZE_MB",
+    ),
+    # ===== 对象存储（147 阶段一） =====
+    _it(
+        "storage.backend",
+        "storage",
+        "存储后端",
+        "对象存储实现：local=本地文件（回滚开关）/ kodo=七牛 Kodo",
+        VALUE_TYPE_SELECT,
+        "STORAGE_BACKEND",
+        editable=True,
+        options=["local", "kodo"],
+    ),
+    _it(
+        "storage.endpoint",
+        "storage",
+        "Endpoint",
+        "S3 兼容 endpoint（如 https://s3.<region>.qiniucs.com）",
+        VALUE_TYPE_STR,
+        "STORAGE_ENDPOINT",
+        editable=True,
+    ),
+    _it(
+        "storage.region",
+        "storage",
+        "区域",
+        "对象存储区域（Region）",
+        VALUE_TYPE_STR,
+        "STORAGE_REGION",
+        editable=True,
+    ),
+    _it(
+        "storage.bucket",
+        "storage",
+        "Bucket",
+        "存储桶名（默认私有读）",
+        VALUE_TYPE_STR,
+        "STORAGE_BUCKET",
+        editable=True,
+    ),
+    _it(
+        "storage.access_key",
+        "storage",
+        "Access Key",
+        "S3 Access Key（敏感，页面仅展示掩码）",
+        VALUE_TYPE_SECRET,
+        "STORAGE_ACCESS_KEY",
+        editable=True,
+    ),
+    _it(
+        "storage.secret_key",
+        "storage",
+        "Secret Key",
+        "S3 Secret Key（敏感，页面仅展示掩码）",
+        VALUE_TYPE_SECRET,
+        "STORAGE_SECRET_KEY",
+        editable=True,
+    ),
+    _it(
+        "storage.presign_ttl",
+        "storage",
+        "外链有效期",
+        "签名外链有效期（秒），默认 2 小时",
+        VALUE_TYPE_INT,
+        "STORAGE_PRESIGN_TTL",
+        editable=True,
+    ),
+    _it(
+        "storage.public_base_url",
+        "storage",
+        "公开直链域名",
+        "预留：启用公开读/CDN 直链时填写",
+        VALUE_TYPE_URL,
+        "STORAGE_PUBLIC_BASE_URL",
+        editable=True,
+    ),
+    _it(
+        "storage.local_retention",
+        "storage",
+        "本地保留天数",
+        "已同步文件的本地副本保留天数，0=永久保留",
+        VALUE_TYPE_INT,
+        "STORAGE_LOCAL_RETENTION",
+        editable=True,
     ),
     # ===== 姿态模型 =====
     _it(

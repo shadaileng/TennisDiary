@@ -6,6 +6,7 @@
 """
 
 import hashlib
+from datetime import datetime, timezone
 
 import pytest
 
@@ -85,7 +86,7 @@ class TestRegisterBatch:
             business_type="analysis",
             business_id=1,
             ref_count=1,
-            created_at=0,
+            created_at=datetime.fromtimestamp(0, tz=timezone.utc),
         )
         test_db.add(existing)
         test_db.commit()

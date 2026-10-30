@@ -91,11 +91,21 @@ class DiaryUpdate(BaseModel):
 class DiaryResponse(DiaryCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     created_at_datetime: str | None = None
     business_time: float | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
 
 
 # ==================== 装备 ====================
@@ -125,10 +135,20 @@ class GearUpdate(BaseModel):
 class GearResponse(GearCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
 
 
 # ==================== 体重 ====================
@@ -146,10 +166,20 @@ class WeightCreate(BaseModel):
 class WeightResponse(WeightCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     business_time: float | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator('business_time', mode='before')
+    @classmethod
+    def convert_business_time(cls, value):
+        """将数据库的 datetime 转换为首端期望的 float 时间戳"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return value
 
 
 # ==================== 打卡 ====================
@@ -163,7 +193,7 @@ class CheckinCreate(BaseModel):
 class CheckinResponse(CheckinCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -271,7 +301,7 @@ class AnalysisUpdate(BaseModel):
 class AnalysisResponse(AnalysisCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
     status: str = "processing"
 
     model_config = {"from_attributes": True}
@@ -306,7 +336,7 @@ class PostCreate(BaseModel):
 class PostResponse(PostCreate):
     id: int
     user_id: int
-    created_at: float
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

@@ -11,7 +11,9 @@
 - 天然幂等，无需调用方保证调用顺序
 """
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint
+import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 
 from app.core.database import Base
 
@@ -29,7 +31,9 @@ class FileBinding(Base):
     business_type = Column(String(32), nullable=False, index=True)  # user/gear/analysis/...
     business_id = Column(Integer, nullable=False, index=True)
     field = Column(String(64), default="")  # 业务字段名：avatar_url / photo / video_url / ...
-    created_at = Column(Float, default=0)
+    created_at = Column(
+        DateTime, default=datetime.datetime.now(datetime.timezone.utc), server_default=func.now()
+    )
 
     __table_args__ = (
         UniqueConstraint(

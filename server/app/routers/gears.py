@@ -1,5 +1,7 @@
 """装备相关路由：列表 / 添加 / 详情 / 编辑 / 删除"""
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -22,7 +24,9 @@ def _get_owned_gear(db: Session, gear_id: int, user: User) -> Gear:
     """获取属于当前用户的装备，不存在或越权返回 404"""
     gear = db.query(Gear).filter(Gear.id == gear_id, Gear.user_id == user.id).first()
     if gear is None:
+        log.warning("装备不存在或无权限", user_id=user.id, gear_id=gear_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="装备不存在")
+    log.info("查询到装备", user_id=user.id, gear_id=gear.id, gear_name=gear.name)
     return gear
 
 
@@ -49,8 +53,6 @@ def create_gear(
     current_user: User = Depends(get_current_user),
 ):
     """添加装备"""
-    import time
-
     gear = Gear(
         user_id=current_user.id,
         category=body.category,
@@ -59,8 +61,8 @@ def create_gear(
         price=body.price,
         feeling=body.feeling,
         photo=body.photo,
-        created_at=time.time(),
-        business_time=body.business_time,
+        created_at=datetime.now(timezone.utc),
+        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc) if body.business_time else None,
     )
     db.add(gear)
     db.commit()
@@ -132,10 +134,21 @@ def delete_gear(
 ):
     """删除装备（同时解除关联文件的业务绑定）"""
     gear = _get_owned_gear(db, gear_id, current_user)
+    log.info("开始删除装备", user_id=current_user.id, gear_id=gear.id, gear_name=gear.name)
 
-    file_service.unbind_record(db, "gear", gear.id)
+    try:
+        # 先解除文件绑定
+        log.info("尝试解除文件绑定", user_id=current_user.id, gear_id=gear.id)
+        unbound = file_service.unbind_record(db, "gear", gear.id)
+        log.info(f"已解除 {unbound} 个文件绑定", user_id=current_user.id, gear_id=gear.id)
 
-    db.delete(gear)
-    db.commit()
-    log.info("删除装备成功", user_id=current_user.id, gear_id=gear_id)
-    return ApiResponse(message="删除成功")
+        # 删除装备记录
+        db.delete(gear)
+        log.info("装备已标记删除", user_id=current_user.id, gear_id=gear.id)
+        db.commit()
+        log.info("删除装备成功", user_id=current_user.id, gear_id=gear.id, gear_name=gear.name)
+        return ApiResponse(message="删除成功")
+    except Exception as e:
+        db.rollback()
+        log.error("删除装备失败: {}", str(e), user_id=current_user.id, gear_id=gear.id, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")

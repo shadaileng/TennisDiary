@@ -1,6 +1,6 @@
 """Alembic 迁移环境。
 
-复用应用的配置（app.core.config.settings.DATABASE_URL）与元数据
+复用应用的配置（app.core.config.settings.DB_DATABASE_URL）与元数据
 （app.core.database.Base.metadata），保证迁移与实际运行环境一致。
 """
 

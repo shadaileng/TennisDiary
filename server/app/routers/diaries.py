@@ -1,6 +1,7 @@
 """日记相关路由：列表 / 创建 / 详情 / 编辑 / 删除"""
 
 import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -71,8 +72,6 @@ def create_diary(
     current_user: User = Depends(get_current_user),
 ):
     """创建日记"""
-    import time
-
     diary = Diary(
         user_id=current_user.id,
         date=body.date,
@@ -84,8 +83,8 @@ def create_diary(
         costs=json.dumps([c.model_dump() for c in body.costs], ensure_ascii=False),
         gears=json.dumps([g.model_dump() for g in body.gears], ensure_ascii=False),
         notes=body.notes,
-        created_at=time.time(),
-        business_time=body.business_time,
+        created_at=datetime.now(timezone.utc),
+        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc) if body.business_time else None,
     )
     db.add(diary)
     db.commit()

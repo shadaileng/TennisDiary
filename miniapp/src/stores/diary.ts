@@ -206,7 +206,7 @@ export const useDiaryStore = defineStore("diary", {
       const traceId = createTraceId();
       try {
         logInfo("创建日记", { type: body.type, date: body.date }, undefined, EV.DIARY_CREATE, traceId);
-        const d = await createDiary(body);
+        const d = await createDiary({ ...body, business_time: body.business_time ?? Math.floor(Date.now() / 1000) });
         setCloudDiaries(uid, [d, ...getCloudDiaries(uid)]);
         this.hydrate();
         logInfo("日记创建成功", { diary_id: d.id }, undefined, EV.DIARY_CREATED, traceId);
@@ -230,19 +230,28 @@ export const useDiaryStore = defineStore("diary", {
       }
       const uid = currentUserId();
       if (uid == null) throw new Error("未登录");
-      // 本地待同步项：纯本地更新
-      if (typeof id === "string") {
-        offlineDiaries.update(uid, id, body as Partial<LocalDiary>);
-        this.hydrate();
-        return this.diaries.find((x) => (x as LocalDiary).localId === String(id))!;
+      
+      // 将可能的字符串 ID 转换为数字
+      const actualId = typeof id === "string" ? Number(id) : id;
+      
+      if (Number.isNaN(actualId)) {
+        // 无法转换则为本地 ID，走本地更新
+        if (typeof id === "string") {
+          offlineDiaries.update(uid, id, body as Partial<LocalDiary>);
+          this.hydrate();
+          return this.diaries.find((x) => (x as LocalDiary).localId === String(id))!;
+        }
+        throw new Error("无效的装备 ID");
       }
+      
+      // 实际更新后端日记
       const traceId = createTraceId();
       try {
-        logInfo("编辑日记", { diary_id: id }, undefined, EV.DIARY_UPDATE, traceId);
-        const d = await updateDiary(id, body);
-        setCloudDiaries(uid, getCloudDiaries(uid).map((x) => (x.id === id ? d : x)));
+        logInfo("编辑日记", { diary_id: actualId }, undefined, EV.DIARY_UPDATE, traceId);
+        const d = await updateDiary(actualId, body);
+        setCloudDiaries(uid, getCloudDiaries(uid).map((x) => (x.id === actualId ? d : x)));
         this.hydrate();
-        logInfo("日记更新成功", { diary_id: id }, undefined, EV.DIARY_UPDATED, traceId);
+        logInfo("日记更新成功", { diary_id: actualId }, undefined, EV.DIARY_UPDATED, traceId);
         return d;
       } catch (e) {
         const err = e as ApiError;
@@ -250,7 +259,7 @@ export const useDiaryStore = defineStore("diary", {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("日记更新失败", { diary_id: id, error: err?.message }, undefined, EV.DIARY_UPDATE_FAILED, undefined, traceId);
+        logError("日记更新失败", { diary_id: actualId, error: err?.message }, undefined, EV.DIARY_UPDATE_FAILED, undefined, traceId);
         throw e;
       }
     },
@@ -264,25 +273,34 @@ export const useDiaryStore = defineStore("diary", {
       }
       const uid = currentUserId();
       if (uid == null) throw new Error("未登录");
-      if (typeof id === "string") {
-        offlineDiaries.remove(uid, id);
-        this.hydrate();
+      
+      // 将可能的字符串 ID 转换为数字
+      const actualId = typeof id === "string" ? Number(id) : id;
+      
+      if (Number.isNaN(actualId)) {
+        // 无法转换则为本地 ID，走本地删除
+        if (typeof id === "string") {
+          offlineDiaries.remove(uid, id);
+          this.hydrate();
+        }
         return;
       }
+      
+      // 实际删除后端日记
       const traceId = createTraceId();
       try {
-        logInfo("删除日记", { diary_id: id }, undefined, EV.DIARY_DELETE, traceId);
-        await deleteDiary(id);
-        setCloudDiaries(uid, getCloudDiaries(uid).filter((x) => x.id !== id));
+        logInfo("删除日记", { diary_id: actualId }, undefined, EV.DIARY_DELETE, traceId);
+        await deleteDiary(actualId);
+        setCloudDiaries(uid, getCloudDiaries(uid).filter((x) => x.id !== actualId));
         this.hydrate();
-        logInfo("日记删除成功", { diary_id: id }, undefined, EV.DIARY_DELETED, traceId);
+        logInfo("日记删除成功", { diary_id: actualId }, undefined, EV.DIARY_DELETED, traceId);
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("日记删除失败", { diary_id: id, error: err?.message }, undefined, EV.DIARY_DELETE_FAILED, undefined, traceId);
+        logError("日记删除失败", { diary_id: actualId, error: err?.message }, undefined, EV.DIARY_DELETE_FAILED, undefined, traceId);
         throw e;
       }
     },

@@ -17,13 +17,25 @@ from app.decorators.audit import audit
 from app.models.user import User
 from app.schemas.common import ApiResponse, ErrorCode
 from app.schemas.schemas import ChunkCompleteRequest
-from app.services import file_service
+from app.services import file_service, storage_sync_service
 from app.services.content_security import ContentSecurityError, check_image_sync
 from app.services.wx_service import code_to_openid
 
 log = get_logger("user")
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
+
+
+def _compensate_after_upload(db: Session, user_id: int) -> None:
+    """147 §5.3 触发点 2：上传成功后顺带重传同用户超时 FAILED（低频、无感）
+
+    补偿内部已吞异常，此处再兜一层 —— 补偿失败绝不影响上传响应。
+    """
+    try:
+        storage_sync_service.compensate_after_upload(db, user_id=user_id)
+    except Exception as exc:  # noqa: BLE001 - 兜底：上传主流程不可被补偿影响
+        log.warning("上传后补偿异常被吞: user_id={} {}", user_id, exc)
+
 
 # 允许的图片扩展名
 _ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp"}
@@ -110,6 +122,7 @@ def upload_avatar(
         ) from None
 
     log.info("头像上传成功", user_id=current_user.id, path=record.rel_path)
+    _compensate_after_upload(db, current_user.id)
     return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})
 
 
@@ -159,6 +172,7 @@ def upload_gear_image(
         ) from None
 
     log.info("装备图片上传成功", user_id=current_user.id, path=record.rel_path)
+    _compensate_after_upload(db, current_user.id)
     return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})
 
 
@@ -220,6 +234,7 @@ def upload_video_file(
         size=record.size_bytes,
         mirage=reused,
     )
+    _compensate_after_upload(db, current_user.id)
     return ApiResponse(data={"url": record.rel_path, "file_id": record.id, "mirage": reused})
 
 
@@ -368,6 +383,9 @@ def _chunk_error(exc: Exception, user_id: int, index: int | None = None) -> HTTP
     )
     if isinstance(exc, file_service.ChunkMismatchError):
         return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    if isinstance(exc, file_service.ChunkSyncError):
+        # 对象存储同步失败：服务端暂不可用，分片保留可直接重试
+        return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
     if isinstance(exc, file_service.ChunkTooLargeError):
         return HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
@@ -384,6 +402,7 @@ def upload_video_chunk(
     size_bytes: int = Form(default=0),
     original_name: str = Form(default=""),
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """上传一个视频分片（140）
 
@@ -396,7 +415,12 @@ def upload_video_chunk(
     try:
         if total > 0 and size_bytes > 0:
             file_service.open_chunk_session(
-                user_id, md5, total_size=size_bytes, total=total, original_name=original_name
+                user_id,
+                md5,
+                total_size=size_bytes,
+                total=total,
+                original_name=original_name,
+                db=db,
             )
         content = file.file.read()
         result = file_service.register_chunk(
@@ -449,6 +473,7 @@ def complete_video_chunk_upload(
         file_service.ChunkIncompleteError,
         file_service.ChunkMismatchError,
         file_service.ChunkTooLargeError,
+        file_service.ChunkSyncError,
     ) as exc:
         raise _chunk_error(exc, user_id) from exc
     except Exception as exc:

@@ -1,0 +1,54 @@
+name: Deploy Server to HuggingFace Spaces
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-server-hf.yml'
+  workflow_dispatch:
+    inputs:
+      space_name:
+        description: 'HF Space 名称（可选，不填则使用 Secrets）'
+        required: false
+        default: ''
+      wait_for_health:
+        description: '等待健康检查（默认 false）'
+        required: false
+        default: 'false'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to HuggingFace Spaces
+        run: bash server/scripts/deploy-hf.sh
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: ${{ secrets.HF_USERNAME }}
+          HF_SPACE_NAME: ${{ github.event.inputs.space_name || secrets.HF_SPACE_NAME }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          WX_APPID: ${{ secrets.WX_APPID }}
+          WX_SECRET: ${{ secrets.WX_SECRET }}
+          ADMIN_DEFAULT_PASSWORD: ${{ secrets.ADMIN_DEFAULT_PASSWORD }}
+          WAIT_FOR_HEALTH: ${{ github.event.inputs.wait_for_health || 'false' }}
+          # 可选配置（根据业务需求启用）
+          STORAGE_BACKEND: ${{ secrets.STORAGE_BACKEND }}
+          STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
+          STORAGE_REGION: ${{ secrets.STORAGE_REGION }}
+          STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
+          STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
+          STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
+          STORAGE_PUBLIC_BASE_URL: ${{ secrets.STORAGE_PUBLIC_BASE_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
+          DB_POOL_SIZE: ${{ secrets.DB_POOL_SIZE }}
+          DB_MAX_OVERFLOW: ${{ secrets.DB_MAX_OVERFLOW }}
+          DB_POOL_RECYCLE: ${{ secrets.DB_POOL_RECYCLE }}
+          DB_POOL_PRE_PING: ${{ secrets.DB_POOL_PRE_PING }}
+

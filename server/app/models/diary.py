@@ -1,6 +1,7 @@
+import datetime
 import json
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, func
+from sqlalchemy import Column, DateTime, Integer, String, Text, func
 
 from app.core.database import Base
 
@@ -19,8 +20,10 @@ class Diary(Base):
     costs = Column(Text, default="[]")  # JSON: [{"name":"","amount":0}]
     gears = Column(Text, default="[]")  # JSON: [{"name":"","feeling":""}]
     notes = Column(Text, default="")
-    created_at = Column(Float, default=0)
-    business_time = Column(Float, nullable=True)
+    created_at = Column(
+        DateTime, default=datetime.datetime.now(datetime.timezone.utc), server_default=func.now()
+    )
+    business_time = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     def get_costs(self) -> list[dict]:

@@ -25,6 +25,16 @@
           <option value="orphan">可清除·孤儿</option>
           <option value="unregistered_ref">异常·业务引用未登记</option>
           <option value="marked_deleted">可清除·已软删</option>
+          <option value="pending_sync">待同步到对象存储</option>
+        </select>
+        <select
+          v-model="filterStorageStatus"
+          class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">全部同步状态</option>
+          <option value="0">待同步</option>
+          <option value="1">已同步</option>
+          <option value="2">同步失败</option>
         </select>
         <input
           v-model="filterUserId"
@@ -32,6 +42,12 @@
           placeholder="用户 ID"
           class="px-3 py-2 border border-gray-300 rounded-lg text-sm w-28 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <button
+          @click="openSync"
+          class="px-3 py-2 bg-teal-600 text-white rounded-lg text-sm hover:bg-teal-700 transition-colors whitespace-nowrap"
+        >
+          S3 同步
+        </button>
         <button
           @click="confirmScan"
           :disabled="scanning"
@@ -108,6 +124,24 @@
         </span>
       </template>
 
+      <template #cell-storage="{ row }">
+        <span
+          :class="row.storage === 'local' ? 'bg-gray-200 text-gray-600' : 'bg-blue-100 text-blue-700'"
+          class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+        >
+          {{ storageLabel(row.storage) }}
+        </span>
+      </template>
+
+      <template #cell-storage_status="{ row }">
+        <span
+          :class="storageStatusClass(row.storage_status)"
+          class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+        >
+          {{ storageStatusLabel(row.storage_status) }}
+        </span>
+      </template>
+
       <template #cell-ref_count="{ row }">
         <span :class="row.ref_count > 1 ? 'text-green-600 font-semibold' : 'text-gray-600'">
           {{ row.ref_count }}
@@ -122,6 +156,13 @@
         <div class="flex items-center gap-2">
           <button @click="openPreview(row)" class="text-blue-600 hover:text-blue-800">预览</button>
           <button @click="startDownload(row)" class="text-green-600 hover:text-green-800">下载</button>
+          <button
+            v-if="needsSync(row)"
+            @click="syncSingle(row)"
+            class="text-teal-600 hover:text-teal-800"
+          >
+            同步
+          </button>
           <button @click="confirmDelete(row)" class="text-red-600 hover:text-red-800">删除</button>
         </div>
       </template>
@@ -209,6 +250,21 @@
             <div>
               <span class="text-sm font-medium text-gray-500">上传时间</span>
               <p class="mt-1 text-sm text-gray-900">{{ formatTs(selectedFile.created_at) }}</p>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">本体位置</span>
+              <p class="mt-1 text-sm text-gray-900">{{ storageLabel(selectedFile.storage) }}</p>
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">同步状态</span>
+              <p class="mt-1 text-sm">
+                <span
+                  :class="storageStatusClass(selectedFile.storage_status)"
+                  class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                >
+                  {{ storageStatusLabel(selectedFile.storage_status) }}
+                </span>
+              </p>
             </div>
             <div>
               <span class="text-sm font-medium text-gray-500">MD5</span>
@@ -497,6 +553,132 @@
     </div>
   </div>
 
+  <!-- S3 同步弹层（147 §9.1 同步中心：存量搬迁 / 失败补偿 / 状态核对） -->
+  <div v-if="syncVisible" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" @click="closeSync" />
+    <div
+      class="relative bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+    >
+      <!-- 弹窗头部 -->
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-800">S3 对象存储同步</h2>
+        <button @click="closeSync" class="text-gray-400 hover:text-gray-600 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- 弹窗内容 -->
+      <div class="flex-1 overflow-y-auto px-6 py-4">
+        <!-- 统计卡片（sync-status） -->
+        <div v-if="syncStatus" class="grid grid-cols-5 gap-3 mb-5">
+          <div class="bg-gray-50 rounded-lg p-3 text-center">
+            <p class="text-xl font-bold text-gray-800">{{ syncStatus.total }}</p>
+            <p class="text-xs text-gray-600">总记录</p>
+          </div>
+          <div class="bg-green-50 rounded-lg p-3 text-center">
+            <p class="text-xl font-bold text-green-600">{{ syncStatus.synced }}</p>
+            <p class="text-xs text-gray-600">已同步</p>
+          </div>
+          <div class="bg-orange-50 rounded-lg p-3 text-center">
+            <p class="text-xl font-bold text-orange-600">{{ syncStatus.pending }}</p>
+            <p class="text-xs text-gray-600">待同步</p>
+          </div>
+          <div class="bg-red-50 rounded-lg p-3 text-center">
+            <p class="text-xl font-bold text-red-600">{{ syncStatus.failed }}</p>
+            <p class="text-xs text-gray-600">失败</p>
+          </div>
+          <div class="bg-blue-50 rounded-lg p-3 text-center">
+            <p class="text-xl font-bold text-blue-600">{{ syncStatus.local_only }}</p>
+            <p class="text-xs text-gray-600">本地存量</p>
+          </div>
+        </div>
+        <div v-else class="mb-5 rounded-lg bg-orange-50 px-4 py-3 text-sm text-orange-700">
+          统计不可用：未启用对象存储（storage.backend=local，回滚档位下同步端点返回 400）
+        </div>
+
+        <!-- 进度（轮询 sync-status，任务结束停止） -->
+        <div v-if="syncStatus?.running && syncStatus.progress" class="mb-5">
+          <div class="flex justify-between text-sm text-gray-600 mb-1">
+            <span>同步中… {{ syncStatus.progress.done }} / {{ syncStatus.progress.total }}</span>
+            <span v-if="syncStatus.progress.failed > 0" class="text-red-600">
+              失败 {{ syncStatus.progress.failed }}
+            </span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div
+              class="bg-teal-500 h-2.5 rounded-full transition-all"
+              :style="{ width: syncPercent + '%' }"
+            />
+          </div>
+        </div>
+
+        <!-- 范围选择 -->
+        <fieldset class="mb-5">
+          <legend class="text-sm font-medium text-gray-700 mb-2">同步范围</legend>
+          <div class="flex flex-wrap gap-4 text-sm text-gray-700">
+            <label class="flex items-center gap-1.5">
+              <input type="radio" value="local" v-model="syncScope" />
+              全部本地存量（storage=local）
+            </label>
+            <label class="flex items-center gap-1.5">
+              <input type="radio" value="failed" v-model="syncScope" />
+              失败补偿（{{ syncStatus?.failed ?? 0 }}）
+            </label>
+            <label class="flex items-center gap-1.5">
+              <input type="radio" value="pending" v-model="syncScope" />
+              待同步（{{ syncStatus?.pending ?? 0 }}）
+            </label>
+            <label class="flex items-center gap-1.5" :class="selectedFiles.length ? '' : 'opacity-50'">
+              <input
+                type="radio"
+                value="selected"
+                v-model="syncScope"
+                :disabled="selectedFiles.length === 0"
+              />
+              已选中项（{{ selectedFiles.length }}）
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- dry_run 预览 -->
+        <div
+          v-if="syncPreview"
+          class="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-700"
+        >
+          预览（未改动）：{{ syncPreview.queued }} 个文件待同步（{{
+            formatSize(syncPreview.estimate_bytes)
+          }}），{{ syncPreview.skipped }} 个已同步将被跳过
+        </div>
+      </div>
+
+      <!-- 弹窗底部 -->
+      <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+        <button
+          @click="previewSync"
+          :disabled="syncing || !syncStatus"
+          class="px-4 py-2 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 transition-colors disabled:opacity-50"
+        >
+          {{ syncing ? '处理中…' : '预览影响' }}
+        </button>
+        <button
+          @click="executeSync"
+          :disabled="syncing || !syncStatus || syncStatus?.running"
+          class="px-4 py-2 bg-teal-600 text-white text-sm rounded-md hover:bg-teal-700 transition-colors disabled:opacity-50"
+        >
+          执行同步
+        </button>
+        <button
+          @click="closeSync"
+          class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 transition-colors"
+        >
+          关闭
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- 文件预览 -->
   <FilePreview
     v-if="previewInfo"
@@ -521,7 +703,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   getFiles,
   getFileStats,
@@ -534,10 +716,16 @@ import {
   migrateFilesToMd5,
   getDownloadUrl,
   repairFiles,
+  getSyncStatus,
+  startSync,
+  syncFile,
   type AdminFile,
   type FileStats,
   type ScanResultResponse,
   type RepairResult,
+  type SyncStatus,
+  type SyncResult,
+  type SyncScope,
 } from '@/api/files'
 import Table from '@/components/common/Table.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -547,6 +735,7 @@ import DownloadProgress from '@/components/common/DownloadProgress.vue'
 import { downloadAdminFile } from '@/utils/download'
 import { fileUrl } from '@/utils/fileUrl'
 import { formatTs } from '@/utils/date'
+import { useActionLock } from '@/composables/useActionLock'
 
 const columns = [
   { key: 'id', title: 'ID', width: 48 },
@@ -555,6 +744,8 @@ const columns = [
   { key: 'size_bytes', title: '大小', width: 100 },
   { key: 'upload_source', title: '来源', width: 90 },
   { key: 'usage_status', title: '状态', width: 64 },
+  { key: 'storage', title: '位置', width: 64 },
+  { key: 'storage_status', title: '同步', width: 72 },
   { key: 'ref_count', title: '引用', width: 40 },
   { key: 'created_at', title: '上传时间', width: 170 }
 ]
@@ -565,6 +756,7 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const filterSource = ref('')
 const filterUsageStatus = ref('')
+const filterStorageStatus = ref('')
 const filterUserId = ref('')
 const selectedFile = ref<AdminFile | null>(null)
 const stats = ref<FileStats>({ total_count: 0, total_size_bytes: 0, by_source: {} })
@@ -605,6 +797,7 @@ const fetchFiles = async () => {
     if (filterSource.value) params.upload_source = filterSource.value
     if (filterUserId.value) params.user_id = Number(filterUserId.value)
     if (filterUsageStatus.value) params.usage_status = filterUsageStatus.value
+    if (filterStorageStatus.value) params.storage_status = Number(filterStorageStatus.value)
     const res = await getFiles(params)
     files.value = res.items
     total.value = res.total
@@ -657,9 +850,130 @@ const usageBadgeClass = (status: string): string => {
     marked_deleted: 'bg-gray-200 text-gray-600',
     orphan: 'bg-red-100 text-red-700',
     unregistered_ref: 'bg-purple-100 text-purple-700',
+    pending_sync: 'bg-blue-100 text-blue-700',
   }
   return map[status] || 'bg-gray-100 text-gray-600'
 }
+
+// ==================== S3 同步中心（147 §9.1） ====================
+
+const syncVisible = ref(false)
+const syncStatus = ref<SyncStatus | null>(null)
+const syncScope = ref<SyncScope>('local')
+const syncPreview = ref<SyncResult | null>(null)
+const { pending: syncing, runWithLock: runSyncLock } = useActionLock()
+let syncTimer: ReturnType<typeof setInterval> | null = null
+
+const syncPercent = computed(() => {
+  const progress = syncStatus.value?.progress
+  if (!progress || !progress.total) return 0
+  return Math.min(100, Math.round((progress.done / progress.total) * 100))
+})
+
+const storageLabel = (storage: string | undefined): string => {
+  const map: Record<string, string> = { local: '本地', kodo: '对象存储', memory: '测试内存' }
+  return map[storage || 'local'] || storage || '--'
+}
+
+const storageStatusLabel = (status: number | undefined): string => {
+  const map: Record<number, string> = { 0: '待同步', 1: '已同步', 2: '失败' }
+  return map[status ?? 0] || '未知'
+}
+
+const storageStatusClass = (status: number | undefined): string => {
+  const map: Record<number, string> = {
+    0: 'bg-orange-100 text-orange-700',
+    1: 'bg-green-100 text-green-700',
+    2: 'bg-red-100 text-red-700',
+  }
+  return map[status ?? 0] || 'bg-gray-100 text-gray-600'
+}
+
+const needsSync = (row: AdminFile): boolean => {
+  // 同步中心未启用 (backend=local) 时，不显示同步按钮
+  if (syncStatus.value === null) return false
+  // 已同步的文件不需要同步
+  return row.storage_status !== 1
+}
+
+const refreshSyncStatus = async () => {
+  try {
+    syncStatus.value = await getSyncStatus()
+    if (syncStatus.value.running) startSyncPolling()
+  } catch {
+    // 400「未启用对象存储」由 axios 拦截器 toast；统计保持 null，禁用执行按钮
+    syncStatus.value = null
+  }
+}
+
+const startSyncPolling = () => {
+  if (syncTimer) return
+  syncTimer = setInterval(async () => {
+    try {
+      const status = await getSyncStatus()
+      syncStatus.value = status
+      if (!status.running) {
+        stopSyncPolling()
+        await Promise.all([fetchFiles(), fetchStats()])
+      }
+    } catch {
+      stopSyncPolling()
+    }
+  }, 1500)
+}
+
+const stopSyncPolling = () => {
+  if (syncTimer) {
+    clearInterval(syncTimer)
+    syncTimer = null
+  }
+}
+
+const openSync = async () => {
+  syncVisible.value = true
+  syncPreview.value = null
+  syncScope.value = selectedFiles.value.length > 0 ? 'selected' : 'local'
+  await refreshSyncStatus()
+}
+
+const closeSync = () => {
+  syncVisible.value = false
+  stopSyncPolling()
+}
+
+const previewSync = () =>
+  runSyncLock(async () => {
+    const res = await startSync({
+      scope: syncScope.value,
+      file_ids: syncScope.value === 'selected' ? selectedFiles.value.map((f) => f.id) : [],
+      dry_run: true,
+    })
+    syncPreview.value = res
+  })
+
+const executeSync = () =>
+  runSyncLock(async () => {
+    const res = await startSync({
+      scope: syncScope.value,
+      file_ids: syncScope.value === 'selected' ? selectedFiles.value.map((f) => f.id) : [],
+      dry_run: false,
+    })
+    syncPreview.value = null
+    if (res.task_id) {
+      startSyncPolling() // 已入队：轮询进度直到 running=false（409 由拦截器 toast）
+    } else {
+      await Promise.all([refreshSyncStatus(), fetchFiles(), fetchStats()])
+    }
+  })
+
+const syncSingle = (row: AdminFile) =>
+  runSyncLock(async () => {
+    const res = await syncFile(row.id)
+    if (res.status === 'failed') {
+      alert(`同步失败：${row.original_name || row.rel_path}（已标记待补偿，可稍后重试）`)
+    }
+    await Promise.all([fetchFiles(), refreshSyncStatus()])
+  })
 
 const fetchStats = async () => {
   try {
@@ -891,10 +1205,20 @@ watch(filterUsageStatus, () => {
   fetchFiles()
 })
 
+watch(filterStorageStatus, () => {
+  currentPage.value = 1
+  fetchFiles()
+})
+
 watch(currentPage, fetchFiles)
 
 onMounted(() => {
   fetchFiles()
   fetchStats()
+  refreshSyncStatus()
+})
+
+onUnmounted(() => {
+  stopSyncPolling()
 })
 </script>

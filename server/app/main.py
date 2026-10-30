@@ -1,11 +1,13 @@
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
+from app.core.database import bind_request_db, get_db
 from app.core.dirs import ensure_dirs
 from app.core.logging import logger, setup_logging
 from app.middleware.audit import AuditMiddleware
@@ -70,10 +72,35 @@ async def lifespan(app: FastAPI):
         maybe_cleanup_stuck_processing(db, force=True)
     finally:
         db.close()
+
+    # 147 §5.3 触发点 1：启动时扫一次超时 PENDING/FAILED 记录（一次性线程池任务，
+    # 非常驻线程，守 AGENTS 4.2；backend=local 时内部静默 no-op）
+    from app.services.storage_sync_service import schedule_startup_compensation
+
+    schedule_startup_compensation()
     yield
 
 
-app = FastAPI(title="Tennis Diary API", version="1.0.0", lifespan=lifespan)
+async def _request_db_context(db: Session = Depends(get_db)):
+    """应用级**异步**依赖：为每个请求绑定 DB 会话上下文（147 Step 7 响应层外链改写）
+
+    - 必须是 `async def` 生成器：FastAPI 对同步生成器依赖用
+      `contextmanager_in_threadpool` 在拷贝的 Context 中执行，`ContextVar.set`
+      传不回请求上下文（Step 7 实测），异步依赖则在同一 task 上下文进出
+    - 覆盖未声明 `Depends(get_db)` 的路由（如 `/api/auth/me`）
+    - 测试把 `get_db` override 成临时库时同样生效（依赖按原 callable 解析并缓存，
+      路由层的 `Depends(get_db)` 命中同一会话，生命周期与现状一致）
+    """
+    with bind_request_db(db):
+        yield
+
+
+app = FastAPI(
+    title="Tennis Diary API",
+    version="1.0.0",
+    lifespan=lifespan,
+    dependencies=[Depends(_request_db_context)],
+)
 
 logger.info("Tennis Diary API 启动")
 

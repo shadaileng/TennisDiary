@@ -11,6 +11,7 @@ import hashlib
 import os
 import tempfile
 import time
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -48,7 +49,7 @@ def _insert_file(db, user_id=None, rel_path=None, md5=None, **overrides):
         mime_type="image/jpeg",
         upload_source="other",
         ref_count=1,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
     rec = File(**defaults)

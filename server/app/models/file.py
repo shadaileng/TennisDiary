@@ -1,8 +1,19 @@
 """文件管理数据模型（MD5 命名 + 同用户单记录 + 引用计数）"""
 
-from sqlalchemy import Column, Float, Index, Integer, String, text
+import datetime
+
+from sqlalchemy import Column, DateTime, Index, Integer, String, func, text
 
 from app.core.database import Base
+
+# 本体位置（storage 列取值）
+STORAGE_LOCAL = "local"  # 本地受管目录（回滚开关档位）
+STORAGE_KODO = "kodo"  # 七牛 Kodo 对象存储
+
+# 同步状态（storage_status 列取值）
+STORAGE_STATUS_PENDING = 0  # 未同步（落库即此态，等待 put）
+STORAGE_STATUS_SYNCED = 1  # 已同步
+STORAGE_STATUS_FAILED = 2  # 失败待补偿
 
 
 class File(Base):
@@ -29,11 +40,25 @@ class File(Base):
     business_id = Column(Integer, nullable=True, index=True)  # 业务记录 ID
     ref_count = Column(Integer, default=0)  # 业务引用次数（0=未绑定，可由清理任务回收）
     security_checked = Column(Integer, default=0)  # 安全检查标记：0=未检查，1=已通过
-    created_at = Column(Float, default=0)  # 登记时间戳
-    deleted_at = Column(Float, nullable=True, index=True)  # 软删除时间（None=未删除）
+    created_at = Column(
+        DateTime, default=datetime.datetime.now(datetime.timezone.utc), server_default=func.now()
+    )
+    deleted_at = Column(DateTime, nullable=True, index=True)  # 软删除时间（None=未删除）
+
+    # 147 阶段一：本体位置 + 同步状态（缺一不可：前者说「在哪」，后者说「同步到没有」）
+    # server_default 保证裸 SQL INSERT（迁移冒烟等）不因 NOT NULL 报错
+    storage = Column(
+        String(32), nullable=False, default=STORAGE_LOCAL, server_default=STORAGE_LOCAL
+    )
+    storage_status = Column(
+        Integer, nullable=False, default=STORAGE_STATUS_PENDING, server_default="0"
+    )
 
     # 138：同用户同 MD5 只允许一条有效记录（软删行被排除，可再次上传重建）
     # 原 uq_files_original_name 全局同名约束已移除：MD5 命名后跨用户必然同名
+    # 148 阶段二：sqlite_where 与 postgresql_where 双注册 —— 单条 Index 在双方言下
+    # 都渲染带 WHERE 的部分唯一索引（实测：sqlite_where 在 PG 上被忽略、
+    # postgresql_where 在 SQLite 上被忽略，但各自在本方言生效，同索引名双方言安全）
     __table_args__ = (
         Index(
             "uq_files_user_md5_active",
@@ -41,7 +66,10 @@ class File(Base):
             "md5",
             unique=True,
             sqlite_where=text("deleted_at IS NULL"),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
+        # 147：补偿扫描按 storage_status 过滤（PENDING/FAILED），普通索引双方言安全
+        Index("ix_files_storage_status", "storage_status"),
     )
 
     def __repr__(self) -> str:

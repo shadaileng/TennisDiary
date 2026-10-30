@@ -1,18 +1,22 @@
 """Admin 文件管理相关 Schema"""
 
-from pydantic import BaseModel, Field
+from datetime import datetime
+
+from pydantic import BaseModel, Field, field_validator, field_serializer
 
 
 class FileUsageStatus:
     """文件使用状态常量（纯字符串集合，不依赖枚举类，保持与 str 字段兼容）。
 
-    取值含义（138：扫描改为基于业务引用注册表的五态分类）：
+    取值含义（138：扫描改为基于业务引用注册表的五态分类 + 147 §9.2 扩展）：
     - in_use：使用中（业务记录仍引用该文件）
     - unreferenced：已登记但无任何业务引用（可清除）
-    - missing：已登记但物理文件缺失
+    - missing：已登记但缺失（`backend=local`：物理文件缺失；
+      启用对象存储后重定义为「DB 有而**对象存储**无」，§9.2）
     - orphan：磁盘孤儿（文件在磁盘但 File 表无记录）
     - unregistered_ref：业务记录引用了未登记的路径
     - marked_deleted：已软删（deleted_at 非空，等待物理清理，可清除）
+    - pending_sync：未同步到对象存储（存量未搬迁 / PENDING / FAILED，147 新增）
     """
 
     IN_USE = "in_use"
@@ -21,6 +25,7 @@ class FileUsageStatus:
     ORPHAN = "orphan"
     UNREGISTERED_REF = "unregistered_ref"
     MARKED_DELETED = "marked_deleted"
+    PENDING_SYNC = "pending_sync"
 
 
 class AdminFileResponse(BaseModel):
@@ -37,9 +42,36 @@ class AdminFileResponse(BaseModel):
     ref_count: int = Field(description="引用计数")
     business_type: str | None = Field(default=None, description="业务类型")
     business_id: int | None = Field(default=None, description="业务记录 ID")
-    created_at: float = Field(description="创建时间戳")
+    created_at: datetime = Field(description="创建时间戳")
     usage_status: str = Field(description="使用状态：in_use/unreferenced/marked_deleted/orphan")
     usage_reason: str = Field(default="", description="使用状态原因说明")
+    storage: str = Field(
+        default="local", description="本体位置（147）：local=本地受管目录 / kodo=七牛对象存储"
+    )
+    storage_status: int = Field(
+        default=0, description="同步状态（147）：0=PENDING 待同步 / 1=SYNCED 已同步 / 2=FAILED 失败"
+    )
+
+    model_config = {"from_attributes": True}
+
+    @field_validator('created_at', mode='before')
+    @classmethod
+    def parse_created_at(cls, v):
+        """将 datetime 或 ISO 字符串转换为 datetime 对象（反序列化）"""
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, str):
+            # 如果是字符串，尝试解析
+            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+            return dt
+        raise ValueError('created_at 必须是 datetime 或 ISO 字符串')
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, v: datetime, _info):
+        """将 datetime 序列化为 Unix 秒级时间戳"""
+        if v is None:
+            return None
+        return v.timestamp()
 
 
 class AdminFileListResponse(BaseModel):
@@ -75,8 +107,21 @@ class ScanResultResponse(BaseModel):
     total_orphan_size: int = Field(description="待处理文件总大小（字节）")
     status_counts: dict[str, int] = Field(
         default_factory=dict,
-        description="五态计数：in_use/unreferenced/missing/orphan/unregistered_ref",
+        description="状态计数：in_use/unreferenced/missing/orphan/unregistered_ref/pending_sync",
     )
+
+
+class SyncRequest(BaseModel):
+    """S3 同步请求（147 §9.1 同步中心）"""
+
+    scope: str = Field(
+        description="同步范围：pending=待同步 / failed=失败补偿 / local=存量搬迁 / selected=选中项"
+    )
+    file_ids: list[int] = Field(
+        default_factory=list, description="scope=selected 时必填的文件 ID 列表"
+    )
+    dry_run: bool = Field(default=False, description="只统计不改动（预览影响条数/字节）")
+    force: bool = Field(default=False, description="对已 SYNCED 也重传（HEAD 核对用）")
 
 
 class RegisterFilesRequest(BaseModel):

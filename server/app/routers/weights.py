@@ -1,5 +1,7 @@
 """体重记录相关路由：列表 / 添加 / 删除"""
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -52,8 +54,6 @@ def create_weight(
     current_user: User = Depends(get_current_user),
 ):
     """添加体重记录"""
-    import time
-
     record = WeightRecord(
         user_id=current_user.id,
         date=body.date,
@@ -61,8 +61,8 @@ def create_weight(
         bust=body.bust,
         waist=body.waist,
         hip=body.hip,
-        created_at=time.time(),
-        business_time=body.business_time,
+        created_at=datetime.now(timezone.utc),
+        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc) if body.business_time else None,
     )
     db.add(record)
     db.commit()

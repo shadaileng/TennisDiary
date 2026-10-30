@@ -166,7 +166,7 @@ export const useWeightStore = defineStore("weight", {
       const traceId = createTraceId();
       try {
         logInfo("记录体重", { date: body.date, weight: body.weight }, undefined, EV.WEIGHT_CREATE, traceId);
-        const w = await createWeight(body);
+        const w = await createWeight({ ...body, business_time: body.business_time ?? Math.floor(Date.now() / 1000) });
         setCloudWeights(uid, [w, ...getCloudWeights(uid)]);
         this.hydrate();
         logInfo("体重记录成功", { weight_id: w.id }, undefined, EV.WEIGHT_CREATED, traceId);
@@ -190,25 +190,34 @@ export const useWeightStore = defineStore("weight", {
       }
       const uid = currentUserId();
       if (uid == null) throw new Error("未登录");
-      if (typeof id === "string") {
-        offlineWeights.remove(uid, id);
-        this.hydrate();
+      
+      // 将可能的字符串 ID 转换为数字
+      const actualId = typeof id === "string" ? Number(id) : id;
+      
+      if (Number.isNaN(actualId)) {
+        // 无法转换则为本地 ID，走本地删除
+        if (typeof id === "string") {
+          offlineWeights.remove(uid, id);
+          this.hydrate();
+        }
         return;
       }
+      
+      // 实际删除后端体重记录
       const traceId = createTraceId();
       try {
-        logInfo("删除体重记录", { weight_id: id }, undefined, EV.WEIGHT_DELETE, traceId);
-        await deleteWeight(id);
-        setCloudWeights(uid, getCloudWeights(uid).filter((x) => x.id !== id));
+        logInfo("删除体重记录", { weight_id: actualId }, undefined, EV.WEIGHT_DELETE, traceId);
+        await deleteWeight(actualId);
+        setCloudWeights(uid, getCloudWeights(uid).filter((x) => x.id !== actualId));
         this.hydrate();
-        logInfo("体重记录删除成功", { weight_id: id }, undefined, EV.WEIGHT_DELETED, traceId);
+        logInfo("体重记录删除成功", { weight_id: actualId }, undefined, EV.WEIGHT_DELETED, traceId);
       } catch (e) {
         const err = e as ApiError;
         if (err && err.status === -1) {
           uni.showToast({ title: "网络不可用，请联网后操作", icon: "none" });
           throw e;
         }
-        logError("体重记录删除失败", { weight_id: id, error: err?.message }, undefined, EV.WEIGHT_DELETE_FAILED, undefined, traceId);
+        logError("体重记录删除失败", { weight_id: actualId, error: err?.message }, undefined, EV.WEIGHT_DELETE_FAILED, undefined, traceId);
         throw e;
       }
     },

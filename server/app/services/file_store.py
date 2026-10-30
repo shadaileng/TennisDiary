@@ -309,10 +309,30 @@ def chunk_data_abs(user_id: int, md5: str) -> str:
     return os.path.join(chunk_dir_abs(user_id, md5), CHUNK_DATA_NAME)
 
 
+def _pwrite(fd: int, content: bytes, offset: int) -> int:
+    """向 `fd` 的 `offset` 处写入 `content`，返回写入字节数
+
+    POSIX 用 `os.pwrite`（不依赖共享文件指针）；Windows 无该系统调用，
+    回退 `os.lseek + os.write`。本函数每次调用都使用**独享 fd**（见
+    `pwrite_chunk`），文件指针不与任何其他写者共享，回退语义与 `pwrite` 等价。
+    """
+    if hasattr(os, "pwrite"):
+        return os.pwrite(fd, content, offset)
+    os.lseek(fd, offset, os.SEEK_SET)
+    total = 0
+    while total < len(content):  # 回退路径可能短写，循环写满
+        written = os.write(fd, content[total:])
+        if written <= 0:
+            break
+        total += written
+    return total
+
+
 def pwrite_chunk(user_id: int, md5: str, offset: int, content: bytes) -> int:
     """定位写入 `data.bin` 的 `[offset, offset+len)` 区段，返回写入字节数
 
-    用 `os.pwrite` 而非 `seek + write`：不依赖共享文件指针，多个写者各写各段天然安全
+    每次调用**独立 `os.open` 一个独享 fd**：POSIX 走 `os.pwrite` 不依赖共享文件
+    指针；Windows（无 `os.pwrite`）回退 `seek + write`，因 fd 独享同样互不干扰
     （当前串行，为后续并发预留）。写完 `fsync` 保证「写成功」可被门面如实入账。
     中间未写的空洞由 OS 补零，无需预 `truncate`。
     """
@@ -321,7 +341,7 @@ def pwrite_chunk(user_id: int, md5: str, offset: int, content: bytes) -> int:
     abs_path = chunk_data_abs(user_id, md5)
     fd = os.open(abs_path, os.O_RDWR | os.O_CREAT, 0o644)
     try:
-        written = os.pwrite(fd, content, offset)
+        written = _pwrite(fd, content, offset)
         os.fsync(fd)
     finally:
         os.close(fd)

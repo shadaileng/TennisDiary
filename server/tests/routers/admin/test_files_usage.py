@@ -15,6 +15,7 @@ import json
 import os
 import tempfile
 import time
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import create_engine
@@ -56,7 +57,7 @@ def _insert_file(db, user_id=None, rel_path=None, md5=None, write_disk=True, **o
         mime_type="image/jpeg",
         upload_source="other",
         ref_count=1,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
     rec = File(**defaults)

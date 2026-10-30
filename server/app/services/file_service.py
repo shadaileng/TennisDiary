@@ -17,14 +17,21 @@ import re
 import time
 import zlib
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import get_logger
-from app.models.file import File
-from app.services import file_ref_service, file_refs, file_store
+from app.models.file import (
+    STORAGE_LOCAL,
+    STORAGE_STATUS_FAILED,
+    STORAGE_STATUS_PENDING,
+    STORAGE_STATUS_SYNCED,
+    File,
+)
+from app.services import file_ref_service, file_refs, file_store, storage
 
 log = get_logger("user")
 
@@ -105,16 +112,47 @@ def repair_file_mime_types(
     }
 
 
+def _object_backend(db: Session | None):
+    """启用对象存储时返回后端实例；未启用/构造失败返回 None（对象侧 best-effort）"""
+    if db is None:
+        return None
+    cfg = storage.load_storage_config(db)
+    if cfg.is_local:
+        return None
+    try:
+        return storage.resolve_backend(cfg)
+    except storage.StorageError as exc:
+        log.warning("对象后端构造失败，跳过对象删除: {}", exc)
+        return None
+
+
+def _delete_object(backend, rel_path: str) -> bool:
+    """删除对象（幂等）；失败只记日志不阻塞（对象侧靠生命周期规则兜底，§5.4）"""
+    if backend is None:
+        return False
+    try:
+        return bool(backend.delete(rel_path))
+    except (storage.StorageError, OSError) as exc:
+        log.warning("对象删除失败，交生命周期规则兜底: {} {}", rel_path, exc)
+        return False
+
+
 def cleanup_expired(db: Session, days: int = 30) -> int:
-    """物理清理已软删超过 N 天的文件及其记录，返回清理数量"""
-    cutoff = time.time() - (days * 86400)
+    """物理清理已软删超过 N 天的文件及其记录，返回清理数量
+
+    §5.4 双删：删行 + 删本地副本 + **同步删对象**；对象删除失败只记日志，
+    不阻塞清理（对象侧靠 bucket 生命周期规则兜底）。
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     expired = db.query(File).filter(File.deleted_at.isnot(None), File.deleted_at < cutoff).all()
+    backend = _object_backend(db)
 
     cleaned = 0
     for record in expired:
         if file_store.unlink(record.rel_path):
             cleaned += 1
             log.info("清理已删除文件: {}", record.rel_path)
+        _delete_object(backend, record.rel_path)
         db.delete(record)
     return cleaned
 
@@ -180,11 +218,16 @@ def _new_file_record(
     mime_type: str,
     business: tuple[str, int] | None,
     security_checked: bool | None,
+    storage_col: str,
+    storage_status: int,
 ) -> File:
     """构造一条未落库的 File 记录（登记的唯一构造入口）
 
     引用计数一律从 0 起：绑定由 `bind` 写入 file_bindings 后再 +1，
     保证「计数」与「绑定事实」始终一致。
+
+    `storage_col` / `storage_status` 由 `_storage_fields(db)` 按配置快照给出
+    （147 §5.2：位置列写当前默认 backend，状态列 PENDING / local 直接 SYNCED）。
     """
     business_type, business_id = business if business else (None, None)
     return File(
@@ -199,7 +242,9 @@ def _new_file_record(
         business_id=business_id,
         ref_count=0,
         security_checked=1 if security_checked else 0,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
+        storage=storage_col,
+        storage_status=storage_status,
     )
 
 
@@ -213,6 +258,71 @@ def _bind_business(
     if not business:
         return
     bind(db, user_id, rel_path, business[0], business[1])
+
+
+# -------------------- 对象存储同步（147 §5.1/§5.2） --------------------
+
+
+def _storage_fields(db: Session) -> tuple[str, int]:
+    """落库时的 `(storage, storage_status)`（按配置快照）
+
+    - `local` 后端：本体即本地，落库即 `SYNCED`（无上传职责，回滚开关语义）
+    - 其它后端（kodo / 测试注入 memory）：位置列写该 backend，状态 `PENDING` 等待 put
+    """
+    cfg = storage.load_storage_config(db)
+    if cfg.is_local:
+        return STORAGE_LOCAL, STORAGE_STATUS_SYNCED
+    return cfg.backend, STORAGE_STATUS_PENDING
+
+
+def sync_to_storage(db: Session, record: File, *, force: bool = False) -> bool:
+    """把记录的本地本体上传到对象存储并推进状态（幂等，§5.2 状态机）
+
+    - 未启用对象存储（`local`）→ 直接视为完成，不动记录
+    - 已 `SYNCED` 且位置即当前后端 → 跳过（天然断点续传）
+    - 对象已存在（预上传 / 历史上传）→ 直接入账 `SYNCED`，避免重复 PUT；
+      `force=True` 跳过该检查强制重传（同步中心 HEAD 核对用，§9.1）
+    - 本地文件缺失 / put 抛错 → 置 `FAILED` 并记日志，**不向上传播**：
+      行与本地文件保留，交补偿任务（§5.3）与 Admin 同步中心（§9.1）
+
+    Returns:
+        记录是否处于 `SYNCED`
+    """
+    cfg = storage.load_storage_config(db)
+    if cfg.is_local:
+        return True
+    if (
+        record.storage == cfg.backend
+        and record.storage_status == STORAGE_STATUS_SYNCED
+        and not force
+    ):
+        return True
+
+    abs_path = file_store.resolve(record.rel_path)
+    if abs_path is None or not os.path.isfile(abs_path):
+        record.storage = cfg.backend
+        record.storage_status = STORAGE_STATUS_FAILED
+        log.error("对象存储同步失败（本地文件缺失）: {}", record.rel_path)
+        return False
+
+    try:
+        backend = storage.resolve_backend(cfg)
+        if not force and backend.head(record.rel_path) is not None:
+            record.storage = cfg.backend
+            record.storage_status = STORAGE_STATUS_SYNCED
+            log.info("对象已存在于对象存储，跳过上传: {}", record.rel_path)
+            return True
+        backend.put(record.rel_path, abs_path, content_type=record.mime_type or "")
+    except (storage.StorageError, OSError) as exc:
+        record.storage = cfg.backend
+        record.storage_status = STORAGE_STATUS_FAILED
+        log.error("对象存储同步失败: {} {}", record.rel_path, exc)
+        return False
+
+    record.storage = cfg.backend
+    record.storage_status = STORAGE_STATUS_SYNCED
+    log.info("对象存储同步完成: {} backend={}", record.rel_path, cfg.backend)
+    return True
 
 
 # -------------------- 登记 --------------------
@@ -270,6 +380,8 @@ def register(
                 file_store.abs_of(existing.rel_path), upload_source, mime_type
             )
         _bind_business(db, user_id, existing.rel_path, business)
+        # 命中已有记录：若尚未同步（PENDING/FAILED）补一次 put → SYNCED（§5.1 路径 A 第 2 步）
+        sync_to_storage(db, existing)
         log.info(
             "登记复用已有文件: md5={} rel_path={} file_id={}",
             md5[:12],
@@ -284,6 +396,7 @@ def register(
         file_store.unlink_abs(str(src_path))
 
     resolved_mime = file_store.mime_of(file_store.abs_of(rel_path), upload_source, mime_type)
+    storage_col, storage_status = _storage_fields(db)
     record = _new_file_record(
         user_id=user_id,
         md5=md5,
@@ -294,6 +407,8 @@ def register(
         mime_type=resolved_mime,
         business=business,
         security_checked=security_checked,
+        storage_col=storage_col,
+        storage_status=storage_status,
     )
     db.add(record)
     try:
@@ -303,9 +418,12 @@ def register(
         existing = find_by_md5(db, user_id, md5)
         if existing is not None:
             _bind_business(db, user_id, existing.rel_path, business)
+            sync_to_storage(db, existing)
             return existing, True
         raise
     _bind_business(db, user_id, rel_path, business)
+    # 落库后在**同一请求内**写对象存储，响应前完成 → 外链无 404 窗口（§5.1）
+    sync_to_storage(db, record)
     log.info(
         "登记新文件: md5={} rel_path={} source={} file_id={}",
         md5[:12],
@@ -328,6 +446,8 @@ def register_batch(
     """
     if not items:
         return []
+
+    storage_col, storage_status = _storage_fields(db)
 
     md5s = [item.md5 for item in items if item.md5]
     existing_map: dict[str, File] = {}
@@ -384,6 +504,8 @@ def register_batch(
             ),
             business=business,
             security_checked=None,
+            storage_col=storage_col,
+            storage_status=storage_status,
         )
         db.add(record)
         created[md5] = record
@@ -402,6 +524,18 @@ def register_batch(
         if business:
             for record in created.values():
                 _bind_business(db, user_id, record.rel_path, business)
+
+    # 147 §5.1 路径 C：批量落库后逐个写对象存储（单条失败只置 FAILED，不中断整批）
+    failed_count = 0
+    seen_ids: set[int] = set()
+    for record in results:
+        if id(record) in seen_ids:
+            continue
+        seen_ids.add(id(record))
+        if not sync_to_storage(db, record):
+            failed_count += 1
+    if failed_count:
+        log.warning("批量对象存储同步部分失败: failed={} total={}", failed_count, len(seen_ids))
 
     log.info(
         "批量登记完成: total={} reused={} new={} business={}",
@@ -586,6 +720,7 @@ def query_files(
     user_id: int | None = None,
     upload_source: str | None = None,
     business_type: str | None = None,
+    storage_status: int | None = None,
     offset: int = 0,
     limit: int | None = None,
 ) -> list[File]:
@@ -597,6 +732,8 @@ def query_files(
         query = query.filter(File.upload_source == upload_source)
     if business_type:
         query = query.filter(File.business_type == business_type)
+    if storage_status is not None:
+        query = query.filter(File.storage_status == storage_status)
     query = query.order_by(File.created_at.desc())
     if limit is not None:
         query = query.offset(offset).limit(limit)
@@ -609,6 +746,7 @@ def count_files(
     user_id: int | None = None,
     upload_source: str | None = None,
     business_type: str | None = None,
+    storage_status: int | None = None,
 ) -> int:
     """受管文件计数（仅未软删）"""
     query = db.query(File).filter(File.deleted_at.is_(None))
@@ -618,6 +756,8 @@ def count_files(
         query = query.filter(File.upload_source == upload_source)
     if business_type:
         query = query.filter(File.business_type == business_type)
+    if storage_status is not None:
+        query = query.filter(File.storage_status == storage_status)
     return query.count()
 
 
@@ -690,11 +830,17 @@ def cleanup_intermediates(user_id: int) -> int:
     return cleaned
 
 
-def cleanup_paths(rel_paths: list[str]) -> int:
-    """物理删除若干相对路径的文件（孤儿/未登记文件），返回成功数量"""
+def cleanup_paths(rel_paths: list[str], db: Session | None = None) -> int:
+    """物理删除若干相对路径的文件（孤儿/未登记文件），返回成功数量
+
+    §5.4 双删：启用对象存储时对象一并删除（孤儿在对象侧同样可能是残留）。
+    """
+    backend = _object_backend(db)
     cleaned = 0
     for rel_path in rel_paths:
-        if unlink(rel_path):
+        removed_local = unlink(rel_path)
+        removed_object = _delete_object(backend, rel_path)
+        if removed_local or removed_object:
             cleaned += 1
     return cleaned
 
@@ -731,10 +877,11 @@ def register_orphans(
 SCAN_STATUSES = (
     "in_use",  # 已登记且被业务引用
     "unreferenced",  # 已登记但无业务引用
-    "missing",  # 已登记但物理文件缺失
+    "missing",  # 已登记但缺失（local=物理文件缺失；启用对象存储=对象存储无此文件，§9.2）
     "orphan",  # 磁盘有文件但未登记
     "unregistered_ref",  # 业务引用了未登记的路径
     "marked_deleted",  # 已软删，待物理清理
+    "pending_sync",  # 未同步到对象存储（存量未搬迁 / PENDING / FAILED，147 新增）
 )
 
 # 扫描豁免目录：check_tmp 安全检查临时、tmp 分片上传会话（140）、backups 备份
@@ -759,17 +906,66 @@ def _walk_upload_dir() -> dict[str, float]:
     return found
 
 
-def scan(db: Session, user_id: int | None = None) -> dict:
-    """扫描受管文件与磁盘，基于业务引用注册表输出五态分类
+def _registered_status_of(
+    record: File,
+    cfg,
+    object_keys: set[str] | None,
+    referenced: set[str],
+) -> tuple[str, str]:
+    """已登记记录的状态判定（`scan` 用）
 
-    五态：in_use / unreferenced / missing / orphan / unregistered_ref
+    - `backend=local`（回滚档位）：旧语义 —— missing = 本地物理文件缺失
+    - 启用对象存储（§9.2）：
+      1. 位置/状态未同步 → `pending_sync`（存量未搬迁 / PENDING / FAILED）
+      2. 声称 SYNCED 但对象存储里没有 → `missing`（「DB 有而对象存储无」）
+      3. 对象在 → 按业务引用分 in_use / unreferenced（本地副本缺失不再判 missing，
+         因为读侧走签名外链，`local_retention` 清理本地副本是合法状态，§6.6）
+    """
+    if cfg.is_local:
+        if not file_store.exists(record.rel_path):
+            return "missing", "已登记但物理文件缺失"
+        if record.rel_path in referenced:
+            return "in_use", "业务记录引用有效"
+        return "unreferenced", "无任何业务记录引用"
+
+    if record.storage != cfg.backend:
+        return "pending_sync", "存量未搬迁到对象存储"
+    if record.storage_status == STORAGE_STATUS_PENDING:
+        return "pending_sync", "未同步（PENDING），等待 put"
+    if record.storage_status == STORAGE_STATUS_FAILED:
+        return "pending_sync", "上次同步失败，待补偿"
+    if record.storage_status != STORAGE_STATUS_SYNCED:
+        return "pending_sync", "未知同步状态，待同步"
+    if object_keys is not None and record.rel_path not in object_keys:
+        return "missing", "已登记但对象存储无此文件"
+    if record.rel_path in referenced:
+        return "in_use", "业务记录引用有效"
+    return "unreferenced", "无任何业务记录引用"
+
+
+def scan(db: Session, user_id: int | None = None) -> dict:
+    """扫描受管文件与磁盘，基于业务引用注册表输出状态分类
+
+    状态：in_use / unreferenced / missing / orphan / unregistered_ref / pending_sync
     （另含 marked_deleted 供管理端展示软删记录）
+
+    启用对象存储时（§9.2）：`missing` 重定义为「DB 有而对象存储无」——通过**一次
+    `iter_keys` 全量列举**核对（Admin 手动触发，不做定时全扫）；列举失败则跳过
+    对象存在性核对（不误报 missing），仍按 DB 列判定 `pending_sync`。
 
     Returns:
         {total_files, registered_files, status_counts, items}
     """
     business_refs = file_refs.collect_business_refs(db, user_id)
     referenced = set(business_refs.keys()) | file_ref_service.bound_rel_paths(db, user_id)
+
+    cfg = storage.load_storage_config(db)
+    object_keys: set[str] | None = None
+    if not cfg.is_local:
+        try:
+            object_keys = set(storage.resolve_backend(cfg).iter_keys())
+        except storage.StorageError as exc:
+            log.warning("对象存储列举失败，跳过对象存在性核对: {}", exc)
 
     query = db.query(File).filter(File.deleted_at.is_(None))
     if user_id is not None:
@@ -790,12 +986,7 @@ def scan(db: Session, user_id: int | None = None) -> dict:
             }
             for ref in business_refs.get(record.rel_path, [])
         ]
-        if not file_store.exists(record.rel_path):
-            status, reason = "missing", "已登记但物理文件缺失"
-        elif record.rel_path in referenced:
-            status, reason = "in_use", "业务记录引用有效"
-        else:
-            status, reason = "unreferenced", "无任何业务记录引用"
+        status, reason = _registered_status_of(record, cfg, object_keys, referenced)
         status_counts[status] += 1
         items.append(
             {
@@ -898,7 +1089,7 @@ def soft_delete(db: Session, file_id: int) -> bool:
         return False
     file_ref_service.purge_bindings_of_file(db, file_id)
     record.ref_count = 0
-    record.deleted_at = time.time()
+    record.deleted_at = datetime.now(timezone.utc)
     file_store.unlink(record.rel_path)
     return True
 
@@ -909,6 +1100,7 @@ def soft_delete_batch(db: Session, file_ids: list[int]) -> dict:
     missing = 0
     disk_removed = 0
     missing_ids: list[str] = []
+    now = datetime.now(timezone.utc)
     for file_id in file_ids:
         record = db.query(File).filter(File.id == int(file_id), File.deleted_at.is_(None)).first()
         if record is None:
@@ -917,7 +1109,7 @@ def soft_delete_batch(db: Session, file_ids: list[int]) -> dict:
             continue
         file_ref_service.purge_bindings_of_file(db, int(file_id))
         record.ref_count = 0
-        record.deleted_at = time.time()
+        record.deleted_at = now
         if file_store.unlink(record.rel_path):
             disk_removed += 1
         deleted += 1
@@ -1156,6 +1348,10 @@ class ChunkTooLargeError(ValueError):
     """超过 MAX_UPLOAD_SIZE_MB（→ 413）"""
 
 
+class ChunkSyncError(ValueError):
+    """对象存储同步失败（→ 503）：分片与 DB 均未动，客户端可直接重试 complete"""
+
+
 def chunk_policy() -> dict:
     """分片策略（服务端单一真源，供 `/upload/check` 下发）"""
     return {
@@ -1193,10 +1389,14 @@ def open_chunk_session(
     total: int = 0,
     original_name: str = "",
     ext: str = "",
+    db: Session | None = None,
 ) -> dict:
     """创建/复用分片会话（幂等）
 
     已有会话时校验关键参数一致后复用（保留已入账的段）；参数冲突抛 `ChunkParamError`。
+
+    `db` 传入时把当前存储后端写进 manifest（147 §七：会话开工快照，用于观测与
+    一致性核对；真正 put 用 complete 时刻的配置快照，保证凭据最新）。
     """
     if not _MD5_RE.match(md5 or ""):
         raise ChunkParamError(f"非法 md5: {md5!r}")
@@ -1230,6 +1430,7 @@ def open_chunk_session(
         "total": count,
         "ext": _resolve_ext(ext, original_name, "") or CHUNK_FALLBACK_EXT,
         "original_name": original_name,
+        "backend": storage.load_storage_config(db).backend if db is not None else "",
         "segments": {},
         "created_at": now,
         "updated_at": now,
@@ -1329,6 +1530,27 @@ def complete_chunk_upload(
     if real_size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         file_store.clear_chunks(user_id, md5)
         raise ChunkTooLargeError(f"文件超过上限: {real_size}B")
+
+    # 147 §七：**先写对象存储、再落库** —— 对象存储失败时分片与 DB 均未被触碰，
+    # 不返回 file_id 且会话原样保留，客户端可直接重试 complete（可续传语义）
+    cfg = storage.load_storage_config(db)
+    if not cfg.is_local:
+        pre_ext = _resolve_ext(
+            str(manifest.get("ext") or ""), str(manifest.get("original_name") or ""), ""
+        )
+        pre_rel_path = build_rel_path(user_id, real_md5, pre_ext, "video")
+        try:
+            backend = storage.resolve_backend(cfg)
+            if backend.head(pre_rel_path) is None:
+                backend.put(
+                    pre_rel_path,
+                    data_abs,
+                    content_type=file_store.mime_of(data_abs, "video", "", probe=False),
+                )
+                log.info("分片对象预同步完成: {}", pre_rel_path)
+        except (storage.StorageError, OSError) as exc:
+            log.error("分片对象预同步失败: {} {}", pre_rel_path, exc)
+            raise ChunkSyncError("对象存储同步失败，请稍后重试（分片已保留）") from exc
 
     record, reused = register(
         db,

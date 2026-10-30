@@ -7,6 +7,7 @@
 
 import os
 import time
+from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.models.file import File
@@ -47,7 +48,7 @@ def _insert_file(test_db, user_id=None, rel_path=None, **overrides) -> File:
         mime_type="application/octet-stream",
         upload_source="other",
         ref_count=1,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     defaults.update(overrides)
     record = File(**defaults)

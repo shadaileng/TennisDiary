@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import time
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -72,7 +73,7 @@ def _create_file_record(
         ref_count=ref_count,
         business_type=business_type,
         business_id=business_id,
-        created_at=time.time(),
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(record)
     test_db.commit()

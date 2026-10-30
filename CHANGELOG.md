@@ -4,6 +4,79 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.92.1] - 2026-10-26
+
+### Fixed
+
+- 小程序在线直接新建日记/装备/体重时 `business_time` 缺省导致 Admin 端业务时间列为空：三个 store 的在线 `create` 分支统一补齐 `business_time ?? now()`；游客/离线路径此前已赋值，不受影响。
+
+## [1.92.0] - 2026-10-26
+
+### Added
+
+- 补偿任务三触发点与存量迁移 CLI（147 Step 10）：
+  - `storage_sync_service.find_stale`/`compensate`：§5.3 扫描条件（`storage_status IN (0,2) AND created_at < now-60s`、单批 50），`backend=local` 静默 no-op，与同步中心抢跑时返回 `conflict` 跳过，单条失败不中断整批。
+  - 触发点 1（启动）：`run_startup_compensation` + `schedule_startup_compensation`，`main.py` lifespan 以 `asyncio.to_thread` 跑**一次性**任务（不阻塞启动、非 常驻线程，守 AGENTS 4.2），异常只记日志。
+  - 触发点 2（请求内顺带）：`compensate_after_upload`（同用户、单批 5、异常绝不外抛）接入 avatar / gear-image / video 三上传端点。
+  - 存量迁移 CLI `scripts/migrate-files-to-kodo.py`：`--scope/--dry-run/--force/--file-ids`，与同步中心共用 `plan`/`run_sync`，退出码 0/1。
+  - 测试：`tests/test_storage_compensation.py` 19 例 + 上传端点集成 1 例；修复 `test_concurrent_trigger_returns_409` 顺序依赖（自备 FAILED 记录，xdist 分发下暴露）。
+
+## [1.91.0] - 2026-10-26
+
+### Added
+
+- 文件管理 S3 同步中心前端（147 Step 9）：
+  - 后端：`AdminFileResponse` 补 `storage`/`storage_status` 两字段（单一构造点 `_file_to_response`）；列表新增 `storage_status` 查询过滤（下推 `query_files`/`count_files`）。
+  - Admin `api/files.ts`：`SyncStatus`/`SyncResult`/`SingleSyncResult` 类型 + `getSyncStatus`/`startSync`/`syncFile` 三函数。
+  - Admin 文件页：「S3 同步」弹层（统计卡片 / 进度条 / 范围单选 / `dry_run` 预览 / 执行）、同步状态筛选、位置与同步状态两列、行内「同步」按钮、详情弹窗两字段；1.5s 进度轮询（任务结束自动停止，`onUnmounted` 清理）；`useActionLock` 防重复提交。
+  - 测试：`test_files_sync.py` 新增 3 例（列表两字段 / 过滤 / 非法值 422）→ 该文件 25 例，fast 336 passed；admin `vue-tsc -b && vite build` 通过。
+
+## [1.90.0] - 2026-10-26
+
+### Added
+
+- 管理端 scan 扩展与双删 + S3 同步端点骨架（147 Step 8）：
+  - `file_service.scan` 新增 `pending_sync`（存量未搬迁 / PENDING / FAILED），`missing` 在启用对象存储后重定义为「DB 有而对象存储无」（一次 `iter_keys` 全量列举核对，列举失败跳过核对不误报）；`backend=local` 保持旧语义。
+  - §5.4 双删：`cleanup_expired` 删行同时删对象（失败仅告警不阻塞）；`cleanup_paths` 支持 `db=` 传入并同步删孤儿对象。
+  - 新增 `storage_sync_service`（单一服务源）：`sync_status` 统计、`plan` 分拣（dry_run/force 幂等跳过）、`start_sync` 入队 `BackgroundTasks`、`run_sync` CLI 同步入口、`sync_one` 单条；进程内 `RUN_STATE` 防并发（执行中触发 → 409）。
+  - Admin 三端点：`GET /sync-status`、`POST /sync`、`POST /sync/{id}`（`backend=local` → 400，`@audit(action="SYNC")`）；`SyncRequest` schema。
+  - 测试：`tests/routers/admin/test_files_sync.py` 22 例（scan 两态 / 双删 / 端点门禁与统计 / dry_run 零改动 / 409 / 单条同步）。
+
+## [1.89.0] - 2026-10-26
+
+### Added
+
+- 响应层两态外链收口（147 Step 7）：`ApiResponse.model_post_init` 统一入口 → `storage.urls.rewrite_response_urls`，按字段名注册表（`avatar_url/photo/video_url/thumb/rel_path` + `highlights/pose` 容器）收集候选 → **一次 `IN` 批量查询**建映射 → 原地改写，幂等且 N+1 防护（测试断言单次响应仅 1 次 `FROM files` 查询）；`SYNCED` 下发签名外链，`local/PENDING/FAILED/dataURL` 原样走代理。
+- 请求级会话上下文：`current_session()`/`bind_request_db()` ContextVar + `main.py` **async** 应用级依赖 `_request_db_context`（同步生成器依赖在 FastAPI 线程池的拷贝 Context 中 set 不回传、reset 跨 Context 报错，故绑定必须放异步依赖）。
+- `load_storage_config` 改单次 `IN` 查询批量取 9 项覆盖值（原 9 次逐 key 查询，响应层每请求都会读）。
+- 测试：`tests/test_response_urls.py` 21 例（端点两态 / N+1 计数 / 幂等 / 无会话跳过）+ Admin `rel_path` 两态 2 例。
+
+## [1.88.0] - 2026-10-26
+
+### Added
+
+- 分片与批量路径对象存储同步（147 Step 6）：`register_batch` 落库后逐条 put（单条失败只置 `FAILED`，不中断整批）；`open_chunk_session` 增写 `manifest["backend"]` 会话快照；`complete_chunk_upload` 改为**先写对象存储再落库** —— 同步失败抛 `ChunkSyncError`（路由映射 HTTP 503），分片与 DB 均未被触碰、不返回 file_id，保持可续传，成功后才 `clear_chunks`。
+- `sync_to_storage` 对象存在性快路径：`head` 已存在直接入账 `SYNCED`（避免重复 PUT，秒传命中天然复用），并新增 `force` 参数供同步中心强制重传核对。
+
+## [1.87.0] - 2026-10-26
+
+### Added
+
+- 对象存储抽象层（147 Step 1-2）：`app/services/storage` 新增 `StorageBackend` 契约（`put`/`head`/`open_range`/`delete`/`presign_get`/`iter_keys`）与 `local`（现状等价）/ `kodo`（七牛 S3 兼容，boto3 懒构造）/ `memory`（测试假件）三实现 + `resolve_backend` 快照实例缓存工厂；新增依赖 `boto3`。
+- 对象存储配置（147 Step 3）：`config_registry` 新建 `storage` 分类并注册 9 项（backend/endpoint/region/bucket/access_key/secret_key/presign_ttl/public_base_url/local_retention），`Settings` 补 `STORAGE_*` env 兜底；`backend=local` 即回滚开关。
+- files 表两列迁移（147 Step 4）：`storage`（本体位置 local/kodo）+ `storage_status`（0=PENDING/1=SYNCED/2=FAILED）+ `ix_files_storage_status` 索引，迁移 `c7a147f0b3d5` 存量回填 `local`+`SYNCED`（upgrade/downgrade 双向验证）。
+- 上传写接线（147 Step 5）：`file_service.register` 落库后同一请求内写对象存储（`sync_to_storage`），成功置 `SYNCED`、失败置 `FAILED` 并保留行与本地文件交补偿；命中未同步记录时补一次 put。
+
+### Fixed
+
+- `ConfigItemDef.default` 把合法零值吃成空串：`0 or ""` 导致 `storage.local_retention=0` 等 int 默认显示为空、bool `False` 与空串混同；改为 `None→空串`、`bool→true/false`（与 `_validate_value` 归一一致）、其余 `str(value)`。
+
+## [1.86.4] - 2026-10-26
+
+### Fixed
+
+- 分片上传 Windows 平台兼容（147 Step 0.5）：`file_store.pwrite_chunk` 直接调用 `os.pwrite`（仅 POSIX 提供），Windows（win32）下抛 `AttributeError` 导致 `test_file_facade_chunks.py` 18 个用例失败、本地门禁无法全绿；抽出 `_pwrite` 辅助函数——POSIX 仍走 `os.pwrite`，Windows 回退 `os.lseek + os.write` 并循环写满（fd 每次调用独享，回退语义与 `pwrite` 等价）。
+
 ## [1.86.3] - 2026-09-13
 
 ### Fixed

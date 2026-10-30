@@ -16,6 +16,10 @@ export interface AdminFile {
   created_at: number
   usage_status: string
   usage_reason: string
+  /** 本体位置（147）：local=本地受管目录 / kodo=七牛对象存储 */
+  storage: string
+  /** 同步状态（147）：0=PENDING / 1=SYNCED / 2=FAILED */
+  storage_status: number
 }
 
 export interface FileListResponse {
@@ -76,8 +80,59 @@ export function getFiles(params: {
   upload_source?: string
   business_type?: string
   usage_status?: string
+  storage_status?: number
 }): Promise<FileListResponse> {
   return request.get('/api/admin/files', { params })
+}
+
+// ==================== S3 同步中心（147 §9.1） ====================
+
+export type SyncScope = 'pending' | 'failed' | 'local' | 'selected'
+
+export interface SyncStatus {
+  total: number
+  synced: number
+  pending: number
+  failed: number
+  local_only: number
+  running: boolean
+  progress: { done: number; total: number; failed: number } | null
+  last_sync_at: number | null
+}
+
+export interface SyncResult {
+  dry_run: boolean
+  scope: string
+  queued: number
+  skipped: number
+  estimate_bytes: number
+  task_id: string | null
+}
+
+export interface SingleSyncResult {
+  file_id: number
+  rel_path: string
+  status: 'synced' | 'failed'
+  storage: string
+  storage_status: number
+  task_id: string
+}
+
+export function getSyncStatus(): Promise<SyncStatus> {
+  return request.get('/api/admin/files/sync-status')
+}
+
+export function startSync(body: {
+  scope: SyncScope
+  file_ids?: number[]
+  dry_run?: boolean
+  force?: boolean
+}): Promise<SyncResult> {
+  return request.post('/api/admin/files/sync', body)
+}
+
+export function syncFile(fileId: number): Promise<SingleSyncResult> {
+  return request.post(`/api/admin/files/sync/${fileId}`)
 }
 
 export function getFileStats(): Promise<FileStats> {

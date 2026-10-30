@@ -8,6 +8,7 @@
 
 import hashlib
 import os
+from datetime import datetime, timezone
 
 import pytest
 
@@ -35,7 +36,7 @@ def _legacy_file(test_db, user_id: int, rel_path: str, content: bytes, upload_so
         mime_type="",
         upload_source=upload_source,
         ref_count=1,
-        created_at=0,
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(record)
     test_db.commit()
@@ -117,7 +118,7 @@ def test_migrate_reports_missing_physical_file(test_db):
         size_bytes=10,
         upload_source="gear_image",
         ref_count=1,
-        created_at=0,
+        created_at=datetime.now(timezone.utc),
     )
     test_db.add(record)
     test_db.commit()
