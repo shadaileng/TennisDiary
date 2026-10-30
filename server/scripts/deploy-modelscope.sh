@@ -9,19 +9,25 @@
 #   # 方式一：通过 GitHub Actions secrets（推荐生产）
 #   # 在 GitHub Repo Settings → Secrets 配置：
 #   #   MODEL_SCOPE_TOKEN, MODEL_SCOPE_USERNAME, MODEL_SCOPE_STUDIO_NAME,
-#   #   JWT_SECRET, WX_APPID, WX_SECRET, ADMIN_DEFAULT_PASSWORD
+#   #   DATABASE_URL, JWT_SECRET, WX_APPID, WX_SECRET, ADMIN_DEFAULT_PASSWORD
 #
 #   # 方式二：本地手动部署
 #   cp .env.modelscope.example .env.modelscope
 #   # 编辑 .env.modelscope 填入实际值
 #   MODEL_SCOPE_TOKEN=modelscope_xxx MODEL_SCOPE_USERNAME=yourname \
 #   MODEL_SCOPE_STUDIO_NAME=tennis-diary-server \
+#   DATABASE_URL=postgresql+psycopg://... \
 #   JWT_SECRET=xxx WX_APPID=xxx WX_SECRET=xxx bash scripts/deploy-modelscope.sh
 #
 # 说明：
 #   - 默认推送完成后即结束，不在 runner 上等待健康检查（避免 GitHub Actions 计费时长被浪费）
 #   - 本地需要等待构建完成时，追加 WAIT_FOR_HEALTH=1：
 #       ... bash scripts/deploy-modelscope.sh 前加 WAIT_FOR_HEALTH=1
+#
+# 配置策略：
+#   - DATABASE_URL 必配（PostgreSQL 连接串）
+#   - 对象存储/AI 配置可选
+#   - 数据库连接池有默认值
 # ============================================================
 
 set -euo pipefail
@@ -46,10 +52,11 @@ fail() {
 # ---------- 路径 ----------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SERVER_DIR/.." && pwd)"
 
 # ---------- 加载 .env.modelscope 文件 ----------
 load_env_file() {
-  local env_file="$SERVER_DIR/.env.modelscope"
+  local env_file="$PROJECT_DIR/.env.modelscope"
   if [ -f "$env_file" ]; then
     log_info "加载本地配置: $env_file"
     while IFS='=' read -r key value; do
@@ -69,29 +76,50 @@ load_env_file
 MODEL_SCOPE_TOKEN="${MODEL_SCOPE_TOKEN:-}"
 MODEL_SCOPE_USERNAME="${MODEL_SCOPE_USERNAME:-}"
 MODEL_SCOPE_STUDIO_NAME="${MODEL_SCOPE_STUDIO_NAME:-tennis-diary-server}"
-# 创空间可见性：true=私密, false=公开体验（默认公开，避免 .ms.show 公网访问被网关拦截返回 10011402001）
+# 创空间可见性：true=私密，false=公开体验（默认公开，避免 .ms.show 公网访问被网关拦截返回 10011402001）
 MODEL_SCOPE_VISIBILITY="${MODEL_SCOPE_VISIBILITY:-false}"
 MS_API_BASE="${MS_API_BASE:-https://modelscope.cn/openapi/v1}"
+# 必配项 (P0)
 JWT_SECRET="${JWT_SECRET:-}"
 WX_APPID="${WX_APPID:-}"
 WX_SECRET="${WX_SECRET:-}"
 ADMIN_DEFAULT_PASSWORD="${ADMIN_DEFAULT_PASSWORD:-changeme}"
 ADMIN_RESET_KEY="${ADMIN_RESET_KEY:-}"
+DATABASE_URL="${DATABASE_URL:-}"
+# 可选配置 - 对象存储 (七牛 KODO)
+STORAGE_BACKEND="${STORAGE_BACKEND:-local}"
+STORAGE_ENDPOINT="${STORAGE_ENDPOINT:-}"
+STORAGE_REGION="${STORAGE_REGION:-}"
+STORAGE_BUCKET="${STORAGE_BUCKET:-}"
+STORAGE_ACCESS_KEY="${STORAGE_ACCESS_KEY:-}"
+STORAGE_SECRET_KEY="${STORAGE_SECRET_KEY:-}"
+STORAGE_PUBLIC_BASE_URL="${STORAGE_PUBLIC_BASE_URL:-}"
+# 可选配置 - AI
+AI_API_KEY="${AI_API_KEY:-}"
+AI_BASE_URL="${AI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+AI_MODEL="${AI_MODEL:-qwen-vl-max}"
+AI_PROVIDER="${AI_PROVIDER:-}"
+# 可选配置 - 数据库连接池
+DB_POOL_SIZE="${DB_POOL_SIZE:-5}"
+DB_MAX_OVERFLOW="${DB_MAX_OVERFLOW:-10}"
+DB_POOL_RECYCLE="${DB_POOL_RECYCLE:-3600}"
+DB_POOL_PRE_PING="${DB_POOL_PRE_PING:-true}"
 # 是否在部署后等待健康检查。默认关闭（避免在 GitHub Actions runner 上长时间占用执行额度）。
 # 本地手动部署需要等待时可设为 1：WAIT_FOR_HEALTH=1
 WAIT_FOR_HEALTH="${WAIT_FOR_HEALTH:-0}"
 
 # ---------- 校验变量 ----------
-[ -n "$MODEL_SCOPE_TOKEN" ]    || fail "MODEL_SCOPE_TOKEN 未设置（检查 .env.modelscope 或环境变量）"
-[ -n "$MODEL_SCOPE_USERNAME" ] || fail "MODEL_SCOPE_USERNAME 未设置（检查 .env.modelscope 或环境变量）"
+[ -n "$MODEL_SCOPE_TOKEN" ]        || fail "MODEL_SCOPE_TOKEN 未设置（检查 .env.modelscope 或环境变量）"
+[ -n "$MODEL_SCOPE_USERNAME" ]    || fail "MODEL_SCOPE_USERNAME 未设置（检查 .env.modelscope 或环境变量）"
 [ -n "$MODEL_SCOPE_STUDIO_NAME" ] || fail "MODEL_SCOPE_STUDIO_NAME 未设置（检查 .env.modelscope 或环境变量）"
-[ -n "$JWT_SECRET" ]           || fail "JWT_SECRET 未设置（检查 .env.modelscope 或环境变量）"
-[ -n "$WX_APPID" ]             || fail "WX_APPID 未设置（检查 .env.modelscope 或环境变量）"
-[ -n "$WX_SECRET" ]            || fail "WX_SECRET 未设置（检查 .env.modelscope 或环境变量）"
+[ -n "$DATABASE_URL" ]            || fail "DATABASE_URL 未设置（必须配置 PostgreSQL 连接串）"
+[ -n "$JWT_SECRET" ]              || fail "JWT_SECRET 未设置（检查 .env.modelscope 或环境变量）"
+[ -n "$WX_APPID" ]                || fail "WX_APPID 未设置（检查 .env.modelscope 或环境变量）"
+[ -n "$WX_SECRET" ]               || fail "WX_SECRET 未设置（检查 .env.modelscope 或环境变量）"
 
 # 占位符校验
 [ "$MODEL_SCOPE_TOKEN" != "modelscope_xxxxxxxxxxxxxxxxx" ] || fail "请修改 MODEL_SCOPE_TOKEN 为实际值"
-[ "$MODEL_SCOPE_USERNAME" != "your-modelscope-username" ] || fail "请修改 MODEL_SCOPE_USERNAME 为实际值"
+[ "$MODEL_SCOPE_USERNAME" != "your-modelscope-username" ]   || fail "请修改 MODEL_SCOPE_USERNAME 为实际值"
 
 # ---------- API 封装 ----------
 ms_get()  { curl -s -f -H "Authorization: Bearer ${MODEL_SCOPE_TOKEN}" "$1"; }
@@ -209,6 +237,27 @@ for i in "${!SECRET_NAMES[@]}"; do
     log_ok "  ✓ ${name} Secret 已设置"
   fi
 done
+
+# 可选 Secrets（对象存储/AI 需要）
+OPTIONAL_KEYS=("STORAGE_BACKEND" "STORAGE_ENDPOINT" "STORAGE_REGION" "STORAGE_BUCKET" "STORAGE_ACCESS_KEY" "STORAGE_SECRET_KEY" "STORAGE_PUBLIC_BASE_URL" "AI_API_KEY" "AI_BASE_URL" "AI_MODEL" "AI_PROVIDER" "DB_POOL_SIZE" "DB_MAX_OVERFLOW" "DB_POOL_RECYCLE" "DB_POOL_PRE_PING")
+OPTIONAL_NAMES=("DATABASE_URL" "${OPTIONAL_KEYS[@]}")
+OPTIONAL_VALUES=("$DATABASE_URL" "${OPTIONAL_KEYS[@]/+}" "${STORAGE_BACKEND}" "${STORAGE_ENDPOINT}" "${STORAGE_REGION}" "${STORAGE_BUCKET}" "${STORAGE_ACCESS_KEY}" "${STORAGE_SECRET_KEY}" "${STORAGE_PUBLIC_BASE_URL}" "${AI_API_KEY}" "${AI_BASE_URL}" "${AI_MODEL}" "${AI_PROVIDER}" "${DB_POOL_SIZE}" "${DC_MAX_OVERFLOW}" "${DB_POOL_RECYCLE}" "${DB_POOL_PRE_PING}")
+
+if [ "${#OPTIONAL_NAMES[@]}" -gt 0 ]; then
+  log_info "设置可选环境变量..."
+  for i in "${!OPTIONAL_NAMES[@]}"; do
+    name="${OPTIONAL_NAMES[$i]}"
+    value="${OPTIONAL_VALUES[$i]}"
+    # 跳过空值
+    [ -z "$value" ] && continue
+
+    curl -s -o /dev/null -w "" -L -X POST \
+      "$MS_API_BASE/studios/${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}/secrets" \
+      -H "Authorization: Bearer ${MODEL_SCOPE_TOKEN}" \
+      -H "Content-Type: application/json" \
+      -d "{\"key\": \"${name}\", \"value\": \"${value}\"}" || true
+  done
+fi
 
 # ---------- 4. 提交并推送（基于远端基底，覆盖部署文件） ----------
 log_info "推送至魔搭: ${MODEL_SCOPE_USERNAME}/${MODEL_SCOPE_STUDIO_NAME}"
