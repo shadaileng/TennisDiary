@@ -2,8 +2,8 @@
 """生产环境数据库迁移脚本（Step 2: 基线创建 + Step 7: 数据迁移）"""
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent.parent.parent.parent
@@ -13,6 +13,7 @@ os.chdir(SERVER_DIR)
 print("=" * 60)
 print("生产环境 PostgreSQL 数据迁移 - 执行脚本")
 print("=" * 60)
+
 
 def run_cmd(cmd):
     print(f"\n$ {cmd}")
@@ -24,13 +25,14 @@ def run_cmd(cmd):
         sys.exit(1)
     return proc.stdout
 
+
 # 步骤 1: Alembic 基线初始化
 print("\n--- 步骤 1: 执行 Alembic 基线初始化 ---")
 run_cmd("uv run alembic upgrade pg_baseline_148")
 
 # 步骤 2: 数据迁移正式运行
 print("\n--- 步骤 2: 执行数据迁移 ---")
-run_cmd("uv run python scripts/migrate-sqlite-to-pg.py")
+run_cmd("uv run python scripts/migrate_sqlite_to_pg.py")
 
 print("\n" + "=" * 60)
 print("✅ 生产环境数据迁移完成！")

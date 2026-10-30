@@ -34,7 +34,7 @@
 | 4 | CI PG 集成作业 | ✅ | `pg-integration.yml` |
 | 5 | 方言差异修复 | ✅ | 时间字段统一 + 其他兼容 |
 | 6 | 连接池收敛 | ✅ | 池参数 + 预算 + `db_health` |
-| 7 | 数据迁移脚本框架 | ✅ | `migrate-sqlite-to-pg.py` |
+| 7 | 数据迁移脚本框架 | ✅ | `migrate_sqlite_to_pg.py` |
 | 8 | 备份改造方案 | ✅ | `BACKUP-TRANSITION.md` |
 | 9 | ⏳ 生产前演练 | - | 待执行 |
 | 10 | ⏳ 回归 + 收尾 | - | 待执行 |
@@ -45,7 +45,9 @@
 ```python
 Index(
     "uq_files_user_md5_active",
-    "user_id", "md5", unique=True,
+    "user_id",
+    "md5",
+    unique=True,
     sqlite_where=text("deleted_at IS NULL"),
     postgresql_where=text("deleted_at IS NULL"),
 )

@@ -4,6 +4,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.92.2] - 2026-10-30
+
+### Fixed
+
+- 明确 PostgreSQL 迁移分支，解决魔搭空间启动失败：`docker-entrypoint.sh` 中 `alembic upgrade pg_baseline@head` 替代 `alembic upgrade head`，避免多 head 歧义。
+
 ## [1.92.1] - 2026-10-26
 
 ### Fixed

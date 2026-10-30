@@ -14,7 +14,7 @@ echo "   LOG_LEVEL: ${LOG_LEVEL:-info}"
 
 # ① 执行 Alembic 数据库迁移（确保 schema 最新）
 echo "📦 Running database migrations..."
-alembic upgrade head
+alembic upgrade pg_baseline@head
 echo "✅ Migrations complete."
 
 # ② 启动 uvicorn

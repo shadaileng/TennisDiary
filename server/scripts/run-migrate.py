@@ -1,19 +1,17 @@
-#!/usr/bin/env python
 """直接运行数据迁移脚本"""
 
-import sys
 import os
+import subprocess
+import sys
 from pathlib import Path
 
-# 确保当前工作目录是 server 目录
-os.chdir(Path(__file__).resolve().parent)
 
-# 添加上级目录到路径
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+def main():
+    script_dir = Path(__file__).resolve().parent
+    os.chdir(script_dir)
+    cmd = [sys.executable, "scripts/migrate_sqlite_to_pg.py"] + sys.argv[1:]
+    subprocess.run(cmd, check=True)
 
-# 现在可以导入
-from scripts.migrate-sqlite-to-pg import run_migrate
 
 if __name__ == "__main__":
-    dry_run = "--dry-run" in sys.argv
-    run_migrate(dry_run=dry_run)
+    main()

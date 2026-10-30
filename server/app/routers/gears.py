@@ -62,7 +62,9 @@ def create_gear(
         feeling=body.feeling,
         photo=body.photo,
         created_at=datetime.now(timezone.utc),
-        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc) if body.business_time else None,
+        business_time=datetime.fromtimestamp(body.business_time, tz=timezone.utc)
+        if body.business_time
+        else None,
     )
     db.add(gear)
     db.commit()
@@ -150,5 +152,7 @@ def delete_gear(
         return ApiResponse(message="删除成功")
     except Exception as e:
         db.rollback()
-        log.error("删除装备失败: {}", str(e), user_id=current_user.id, gear_id=gear.id, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}")
+        log.error(
+            "删除装备失败: {}", str(e), user_id=current_user.id, gear_id=gear.id, exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=f"删除失败: {e!s}") from e

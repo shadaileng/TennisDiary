@@ -33,8 +33,8 @@ from app.core.mime import EXTENSION_MIME
 from app.decorators.audit import audit
 from app.models.admin import Admin
 from app.models.backup_record import BackupRecord
-from app.services.backup_service import BackupService
 from app.schemas.common import ApiResponse
+from app.services.backup_service import BACKUP_DIR, BackupService
 
 log = get_logger("admin")
 
