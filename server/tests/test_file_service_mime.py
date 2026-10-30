@@ -9,7 +9,6 @@
 
 import hashlib
 import json
-import time
 from datetime import datetime, timezone
 
 import pytest

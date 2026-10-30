@@ -46,9 +46,10 @@ from sqlalchemy import Column, DateTime, Integer, String, func, Index
 from sqlalchemy.orm import declarative_base
 from app.core.database import Base
 
+
 class BackupLog(Base):
     __tablename__ = "backup_logs"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(256), nullable=False, unique=True, index=True)
     size = Column(Integer, nullable=False, default=0)
@@ -62,11 +63,9 @@ class BackupLog(Base):
     deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), index=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
-    
+
     # 复合索引提升查询性能
-    __table_args__ = (
-        Index('ix_backup_logs_type_status', 'type', 'status'),
-    )
+    __table_args__ = (Index("ix_backup_logs_type_status", "type", "status"),)
 ```
 
 ### 2. 创建 PG 备份
@@ -84,6 +83,7 @@ from app.core.kodo import KodoBackend
 from app.core.config import settings
 from app.core.task_queue import task_queue
 
+
 async def create_backup_async(
     db_url: str,
     backup_name: str,
@@ -92,6 +92,7 @@ async def create_backup_async(
 ) -> str:
     """异步执行 pg_dump 备份并上传到 Kodo"""
     from urllib.parse import urlparse
+
     parsed = urlparse(db_url)
     host = parsed.hostname
     port = parsed.port
@@ -101,17 +102,22 @@ async def create_backup_async(
 
     temp_dir = Path(tempfile.mkdtemp())
     temp_file = temp_dir / f"{backup_name}.dump"
-    
+
     try:
         # 执行 pg_dump
         result = subprocess.run(
             [
                 "pg_dump",
-                "-h", host,
-                "-p", str(port),
-                "-U", user,
-                "-d", dbname,
-                "-F", "c",
+                "-h",
+                host,
+                "-p",
+                str(port),
+                "-U",
+                user,
+                "-d",
+                dbname,
+                "-F",
+                "c",
                 "-b",
                 "-v",
                 str(temp_file),
@@ -120,19 +126,20 @@ async def create_backup_async(
             capture_output=True,
             text=True,
         )
-        
+
         if result.returncode != 0:
             raise RuntimeError(f"pg_dump 失败: {result.stderr}")
-        
+
         # 压缩备份文件
         compressed = temp_dir / f"{backup_name}.tar.gz"
         import tarfile
+
         with open(temp_file, "rb") as src, tarfile.open(compressed, "w:gz") as tar:
             tar.add(src, arcname=backup_name)
-        
+
         # 上传到 Kodo
         storage_url = KodoBackend.put_object(compressed, bucket="backups")
-        
+
         # 记录备份元数据到 PG
         db = SessionLocal()
         try:
@@ -148,13 +155,14 @@ async def create_backup_async(
             db.commit()
         finally:
             db.close()
-        
+
         return str(storage_url)
-        
+
     finally:
         temp_file.unlink()
         compressed.unlink()
         temp_dir.rmdir()
+
 
 async def create_backup_wrapper(
     note: str = "",
@@ -162,16 +170,19 @@ async def create_backup_wrapper(
 ) -> str:
     """创建备份的异步入口，返回 task_id"""
     backup_name = f"backup_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-    
+
     # 提交到任务队列
     task_id = f"backup_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-    await task_queue.submit(task_id, create_backup_async(
-        db_url=settings.DB_DATABASE_URL,
-        backup_name=backup_name,
-        note=note,
-        created_by=created_by,
-    ))
-    
+    await task_queue.submit(
+        task_id,
+        create_backup_async(
+            db_url=settings.DB_DATABASE_URL,
+            backup_name=backup_name,
+            note=note,
+            created_by=created_by,
+        ),
+    )
+
     return task_id
 ```
 
@@ -185,6 +196,7 @@ async def restore_backup_async(
 ) -> None:
     """异步执行 pg_restore 恢复"""
     from urllib.parse import urlparse
+
     parsed = urlparse(db_url)
     host = parsed.hostname
     port = parsed.port
@@ -203,7 +215,7 @@ async def restore_backup_async(
         # 下载备份文件到临时目录
         temp_dir = Path(tempfile.mkdtemp())
         backup_file = temp_dir / backup.name
-        
+
         # 从 Kodo 下载（实现略）
         # download_from_kodo(backup.storage_path, backup_file)
 
@@ -217,12 +229,17 @@ async def restore_backup_async(
         result = subprocess.run(
             [
                 "pg_restore",
-                "-h", host,
-                "-p", str(port),
-                "-U", user,
-                "-d", dbname,
+                "-h",
+                host,
+                "-p",
+                str(port),
+                "-U",
+                user,
+                "-d",
+                dbname,
                 "-v",
-                "-j", "auto",
+                "-j",
+                "auto",
                 str(backup_file),
             ],
             env={**os.environ, "PGPASSWORD": password},
@@ -251,18 +268,22 @@ async def restore_backup_async(
         # 清理临时文件
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+
 async def restore_backup_wrapper(
     backup_id: int,
     admin_id: int,
 ) -> str:
     """恢复备份的异步入口，返回 task_id"""
     task_id = f"restore_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-    await task_queue.submit(task_id, restore_backup_async(
-        db_url=settings.DB_DATABASE_URL,
-        backup_id=backup_id,
-        admin_id=admin_id,
-    ))
-    
+    await task_queue.submit(
+        task_id,
+        restore_backup_async(
+            db_url=settings.DB_DATABASE_URL,
+            backup_id=backup_id,
+            admin_id=admin_id,
+        ),
+    )
+
     return task_id
 ```
 
@@ -277,20 +298,21 @@ def get_backups(
     limit: int = 20,
     status: str = None,
     type: str = None,
-    admin: Admin = Depends(get_current_admin)
+    admin: Admin = Depends(get_current_admin),
 ):
     db = SessionLocal()
     query = db.query(BackupLog).filter(BackupLog.deleted_at.is_(None))
-    
+
     if status:
         query = query.filter(BackupLog.status == status)
     if type:
         query = query.filter(BackupLog.type == type)
-    
+
     total = query.count()
-    backups = query.order_by(BackupLog.created_at.desc()) \
-        .offset((page-1)*limit).limit(limit).all()
-    
+    backups = (
+        query.order_by(BackupLog.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+    )
+
     return {
         "success": True,
         "data": {
@@ -298,7 +320,7 @@ def get_backups(
             "total": total,
             "page": page,
             "limit": limit,
-        }
+        },
     }
 ```
 

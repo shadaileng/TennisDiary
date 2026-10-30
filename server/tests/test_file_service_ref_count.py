@@ -6,8 +6,6 @@
 - 归零文件不立即删除，由 cleanup_unbound 在宽限期后回收
 """
 
-import time
-
 import pytest
 
 from app.models.gear import Gear
@@ -160,7 +158,8 @@ def test_cleanup_unbound_recycles_after_grace(test_db):
     record, _ = file_service.register(
         test_db, 1, content=b"abandoned", category="gear_image", ext=".jpg"
     )
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
+
     record.created_at = datetime.now(timezone.utc) - timedelta(hours=48)
     test_db.commit()
 
@@ -176,7 +175,8 @@ def test_cleanup_unbound_keeps_fresh_and_bound(test_db):
     bound, _ = file_service.register(
         test_db, 1, content=b"bound", category="gear_image", ext=".jpg"
     )
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
+
     bound.created_at = datetime.now(timezone.utc) - timedelta(hours=48)
     gear = _make_gear(test_db, photo=bound.rel_path)
     file_service.bind(test_db, 1, bound.rel_path, "gear", gear.id)

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 
 class FileUsageStatus:
@@ -54,7 +54,7 @@ class AdminFileResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-    @field_validator('created_at', mode='before')
+    @field_validator("created_at", mode="before")
     @classmethod
     def parse_created_at(cls, v):
         """将 datetime 或 ISO 字符串转换为 datetime 对象（反序列化）"""
@@ -62,11 +62,11 @@ class AdminFileResponse(BaseModel):
             return v
         if isinstance(v, str):
             # 如果是字符串，尝试解析
-            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+            dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
             return dt
-        raise ValueError('created_at 必须是 datetime 或 ISO 字符串')
+        raise ValueError("created_at 必须是 datetime 或 ISO 字符串")
 
-    @field_serializer('created_at')
+    @field_serializer("created_at")
     def serialize_created_at(self, v: datetime, _info):
         """将 datetime 序列化为 Unix 秒级时间戳"""
         if v is None:
