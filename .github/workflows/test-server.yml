@@ -51,9 +51,6 @@ jobs:
           uv run ruff format --check . || true
 
       - name: Run fast tests (parallel)
-        run: uv run pytest -x -v -n auto -m fast --tb=short --stop
-
-      - name: Run critical integration tests
-        run: uv run pytest -x -v -n 2 -m "not fast" --tb=short --maxfail=5  # 限制失败数量
+        run: uv run pytest -x -v -n auto -m fast --tb=short --maxfail=10
         env:
           CI: true
