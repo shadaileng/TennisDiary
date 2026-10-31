@@ -10,10 +10,12 @@ on:
     branches: [dev, master]
     paths:
       - 'server/**'
+      - '.github/workflows/test-server.yml'
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # 增加超时时间以避免集成测试超时
     defaults:
       run:
         working-directory: server
@@ -40,7 +42,10 @@ jobs:
           uv run ruff format --check .
 
       - name: Run fast tests (parallel)
-        run: uv run pytest -v -n auto -m fast
+        run: uv run pytest -v -n auto -m fast --tb=short
 
-      - name: Run integration tests (parallel by file)
-        run: uv run pytest -v -n auto -m "not fast" --dist loadfile
+      - name: Run critical integration tests (with timeout)
+        # 单步骤超时保护
+        run: uv run pytest -v -n 2 -m "not fast" --tb=short --maxfail=10  # 限制并行度和失败数量
+        env:
+          CI: true
